@@ -119,10 +119,10 @@ function startStreaming() {
   const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    if (!videoDataChannel || !videoDataChannel.isOpen()) {
-      if (Math.random() < 0.01) console.log('[Host] Video DataChannel is NOT open! (Accumulating junk?)');
-      return;
-    }
+    // EXTREME NOISE for debugging - Remove after verification
+    if (Math.random() < 0.1) console.log(`[Host] STDOUT chunk: ${chunk.length} bytes. DC Open: ${videoDataChannel?.isOpen()}`);
+
+    if (!videoDataChannel || !videoDataChannel.isOpen()) return;
     const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
     if (DEBUG_NO_SEND) return;
 
@@ -135,6 +135,11 @@ function startStreaming() {
         if (bufferAccumulator[2] === 0 && bufferAccumulator[3] === 1) break; // 4-byte
       }
       bufferAccumulator = bufferAccumulator.subarray(1);
+    }
+    
+    if (bufferAccumulator.length > 1000000) { // 1MB Safety
+       console.warn('[Host] Buffer accumulator too huge! Clearing.');
+       bufferAccumulator = Buffer.alloc(0);
     }
 
     while (bufferAccumulator.length > 4) {
@@ -163,7 +168,7 @@ function startStreaming() {
         header.writeBigUInt64LE(BigInt(Date.now()));
         const fullPacket = Buffer.concat([header, nalUnit]);
         
-        if (Math.random() < 0.05) {
+        if (Math.random() < 0.1) {
           console.log(`[Host] SENDING NAL: ${nalUnit.length} bytes, Type: ${nalUnit[nalUnit[2]===1?3:4]&0x1F}`);
         }
         
