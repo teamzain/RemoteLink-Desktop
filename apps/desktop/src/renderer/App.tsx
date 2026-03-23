@@ -26,39 +26,80 @@ const VideoPlayer = forwardRef<any, {
   const [latency, setLatency] = useState<number>(0);
   const decoderRef = useRef<any>(null);
 
-  const handleBuffer = (buffer: Uint8Array) => {
+  // --- REASSEMBLY STATE ---
+  const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
+
+  const handleFragment = (data: Uint8Array) => {
+    // 10-byte Header: [8-byte timestamp][1-byte fragIdx][1-byte totalFrags]
+    if (data.length < 10) return;
+    const view = new DataView(data.buffer, data.byteOffset, 10);
+    const ts = view.getBigInt64(0, true);
+    const fragIdx = view.getUint8(8);
+    const totalFrags = view.getUint8(9);
+
+    let entry = reassemblyMap.current.get(ts);
+    if (!entry) {
+      entry = { fragments: new Array(totalFrags).fill(null), count: 0, total: totalFrags };
+      reassemblyMap.current.set(ts, entry);
+    }
+
+    if (!entry.fragments[fragIdx]) {
+      entry.fragments[fragIdx] = data.slice(10);
+      entry.count++;
+    }
+
+    if (entry.count === entry.total) {
+      // Reassemble NAL
+      const totalSize = entry.fragments.reduce((acc, f) => acc + (f ? f.length : 0), 0);
+      const fullNAL = new Uint8Array(totalSize);
+      let offset = 0;
+      for (const f of entry.fragments) {
+        if (f) {
+           fullNAL.set(f, offset);
+           offset += f.length;
+        }
+      }
+      
+      // Feed Assembled NAL to Decoder
+      feedToDecoder(fullNAL, ts);
+      reassemblyMap.current.delete(ts);
+      
+      // Housekeeping: prevent memory leak from dropped fragments
+      if (reassemblyMap.current.size > 20) {
+        const oldestTs = Array.from(reassemblyMap.current.keys()).sort()[0];
+        reassemblyMap.current.delete(oldestTs);
+      }
+    }
+  };
+
+  const feedToDecoder = (chunkData: Uint8Array, timestamp: bigint) => {
     if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
     
     if (viewerStatus !== 'streaming') {
-      console.log('[Viewer] First video chunk received via DataChannel!');
+      console.log('[Viewer] First video NAL reassembled and fed to decoder!');
       setViewerStatus('streaming');
     }
     
-    const dataView = new DataView(buffer.buffer, buffer.byteOffset, 8);
-    const timestampBig = dataView.getBigUint64(0, true);
     const now = Date.now();
-    const frameLatency = now - Number(timestampBig);
-    
+    const frameLatency = now - Number(timestamp);
     if (Math.random() < 0.05) setLatency(frameLatency);
 
-    const chunkData = new Uint8Array(buffer.buffer, buffer.byteOffset + 8, buffer.byteLength - 8);
     let type: 'key' | 'delta' = 'delta';
     
-    // Robust NAL unit type detection for Annex-B (skipping 00 00 01 or 00 00 00 01)
+    // NAL type detection (Annex-B skipping)
     let nalTypeIdx = 0;
     while (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 0) nalTypeIdx++;
     if (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 1) {
-      nalTypeIdx++; // Skip the '1' of the start code
+      nalTypeIdx++; 
       if (nalTypeIdx < chunkData.length) {
         const typeByte = chunkData[nalTypeIdx] & 0x1F;
-        // 5 = IDR, 7 = SPS, 8 = PPS
         if (typeByte === 5 || typeByte === 7 || typeByte === 8) type = 'key';
       }
     }
 
     const encodedChunk = new (window as any).EncodedVideoChunk({
       type: type,
-      timestamp: Number(timestampBig) * 1000, // Convert to microseconds
+      timestamp: Number(timestamp) * 1000, 
       data: chunkData,
     });
 
@@ -71,8 +112,7 @@ const VideoPlayer = forwardRef<any, {
 
   useImperativeHandle(ref, () => ({
     feed: (buffer: Uint8Array) => {
-      if (Math.random() < 0.05) console.log(`[VideoPlayer] FEEDING: ${buffer.length} bytes, Status: ${viewerStatus}`);
-      handleBuffer(buffer);
+      handleFragment(buffer);
     }
   }));
 
@@ -83,18 +123,16 @@ const VideoPlayer = forwardRef<any, {
 
     const decoder = new (window as any).VideoDecoder({
       output: (frame: any) => {
-        if (Math.random() < 0.05) console.log(`[VideoPlayer] Decoder OUTPUT frame! size: ${frame.displayWidth}x${frame.displayHeight}`);
         ctx.drawImage(frame, 0, 0, canvasRef.current!.width, canvasRef.current!.height);
         frame.close();
       },
       error: (e: any) => {
         console.error('VideoDecoder error:', e);
-        setViewerStatus('error');
       },
     });
 
     decoder.configure({
-      codec: 'avc1.42E029', // Baseline profile Level 4.1 for 1080p 
+      codec: 'avc1.42E029', 
       optimizeForLatency: true,
     });
     

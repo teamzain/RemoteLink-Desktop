@@ -58,6 +58,11 @@ let streamInterval: NodeJS.Timeout | null = null;
 let iceCandidatesQueue: any[] = [];
 let hasRemoteDescription = false;
 
+// --- Global Streaming State for Diagnostics ---
+let bufferAccumulator = Buffer.alloc(0);
+let nalsCaptured = 0;
+const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
+
 function cleanUpWebRTC() {
   console.log('[Host] Performing full WebRTC cleanup...');
   stopStreaming();
@@ -101,6 +106,10 @@ function startStreaming() {
     '-'
   ]);
 
+  // RESET state for new stream
+  bufferAccumulator = Buffer.alloc(0);
+  nalsCaptured = 0;
+
   ffmpegProcess.stderr?.on('data', (data: Buffer) => {
     console.log(`[Host-FFmpeg-Stderr] ${data.toString()}`);
   });
@@ -113,86 +122,97 @@ function startStreaming() {
     if (code !== 0 && code !== null) console.warn(`[Host-FFmpeg] Exited with code: ${code}`);
   });
 
-  // --- Annex-B NAL Unit Splitter ---
-  let bufferAccumulator = Buffer.alloc(0);
-  const START_CODE_4 = Buffer.from([0x00, 0x00, 0x00, 0x01]);
-  const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
-
-  let nalsCaptured = 0;
-  
   // HEARTBEAT to prove process is alive and running THIS version
   const heartbeat = setInterval(() => {
     if (videoDataChannel) {
-       console.log(`[Host] HEARTBEAT: DC Open: ${videoDataChannel.isOpen()}, NALs so far: ${nalsCaptured}`);
+       console.log(`[Host] HEARTBEAT: DC Open: ${videoDataChannel.isOpen()}, NALs so far: ${nalsCaptured}, Buffer size: ${bufferAccumulator.length}`);
     }
   }, 5000);
 
+  if (!ffmpegProcess.stdout) {
+    console.error('[Host] CRITICAL: ffmpegProcess.stdout is NULL!');
+  } else {
+    console.log('[Host] FFmpeg stdout pipe initialized.');
+  }
+
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    if (!videoDataChannel || !videoDataChannel.isOpen()) return;
-    const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
-    if (DEBUG_NO_SEND) return;
+    // DIAGNOSTIC: Log the literal first few bytes of every chunk
+    console.log(`[Host] STDOUT: ${chunk.length} bytes. Hex start: ${chunk.subarray(0, 12).toString('hex')}`);
+
+    if (!videoDataChannel || !videoDataChannel.isOpen()) {
+       // if (Math.random() < 0.1) console.warn('[Host] DataChannel not open, dropping chunk.');
+       return;
+    }
 
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
-
-    // LOUD LOGGING for first few chunks
-    if (nalsCaptured < 5) {
-      console.log(`[Host] RECV chunk: ${chunk.length} bytes. Accumulator: ${bufferAccumulator.length}. Hex: ${chunk.subarray(0, 12).toString('hex')}`);
-    }
 
     // NAL Splitter (Annex-B)
     while (true) {
       let foundStartIdx = bufferAccumulator.indexOf(START_CODE_3);
       if (foundStartIdx === -1) break;
 
+      // Handle 4-byte start codes
       if (foundStartIdx > 0 && bufferAccumulator[foundStartIdx - 1] === 0) {
         foundStartIdx--;
       }
 
+      // Discard garbage before first start code
       if (foundStartIdx > 0) {
         bufferAccumulator = bufferAccumulator.subarray(foundStartIdx);
         continue;
       }
 
-      let nextIdx = bufferAccumulator.indexOf(START_CODE_3, 4);
+      // Find the next NAL. We must skip the current start code (3-4 bytes)
+      let nextIdx = bufferAccumulator.indexOf(START_CODE_3, 3);
+      
+      // Step back if next is 4-byte
       if (nextIdx !== -1 && nextIdx > 0 && bufferAccumulator[nextIdx - 1] === 0) {
         nextIdx--;
       }
 
-      if (nextIdx === -1) break;
+      if (nextIdx === -1) break; // Incomplete NAL
 
       const nalUnit = bufferAccumulator.subarray(0, nextIdx);
       bufferAccumulator = bufferAccumulator.subarray(nextIdx);
 
       try {
-        const header = Buffer.alloc(8);
-        header.writeBigUInt64LE(BigInt(Date.now()));
-        const fullPacket = Buffer.concat([header, nalUnit]);
-
         nalsCaptured++;
-        if (nalsCaptured < 10 || nalsCaptured % 60 === 0) {
-          const type = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
-          console.log(`[Host] SENDING NAL #${nalsCaptured}: ${nalUnit.length} bytes, Type: ${type}`);
+        const type = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
+        
+        // Log setup NALs and occasionally frame NALs
+        if (type === 7 || type === 8 || nalsCaptured < 5 || nalsCaptured % 100 === 0) {
+          console.log(`[Host] OUT: NAL #${nalsCaptured}, Type: ${type}, Size: ${nalUnit.length}`);
         }
 
         // --- FRAGMENTATION for DataChannel Stability ---
-        // Some systems drop packets > 16KB or 64KB. We'll send in 16KB slices if needed.
-        const MAX_CHUNK = 16384; 
-        if (fullPacket.length <= MAX_CHUNK) {
-          videoDataChannel.sendMessageBinary(fullPacket);
-        } else {
-          // Note: The Viewer currently expects 1 NAL per DataChannel message.
-          // If we fragment here, the Viewer's handleBuffer needs to reassemble.
-          // FOR NOW: Let's try sending the whole thing but LOG if it's large.
-          if (fullPacket.length > 64000) console.warn(`[Host] LARGE NAL: ${fullPacket.length} bytes! This might be dropped.`);
-          videoDataChannel.sendMessageBinary(fullPacket);
+        const MAX_CHUNK = 16000; // Safe MTU for DataChannel (typically ~16KB-64KB)
+        const totalFrags = Math.ceil(nalUnit.length / MAX_CHUNK);
+        const timestamp = BigInt(Date.now());
+
+        for (let i = 0; i < totalFrags; i++) {
+          const start = i * MAX_CHUNK;
+          const end = Math.min(start + MAX_CHUNK, nalUnit.length);
+          const fragPayload = nalUnit.subarray(start, end);
+
+          const packet = Buffer.alloc(10 + fragPayload.length);
+          packet.writeBigUInt64LE(timestamp, 0);
+          packet.writeUInt8(i, 8);
+          packet.writeUInt8(totalFrags, 9);
+          fragPayload.copy(packet, 10);
+
+          const success = videoDataChannel.sendMessageBinary(packet);
+          if (!success) {
+             console.error(`[Host] sendMessageBinary FAILED at frag ${i}/${totalFrags}`);
+             break;
+          }
         }
       } catch (err) {
         console.error('[Host] Failed to send NAL Unit:', err);
       }
     }
 
-    if (bufferAccumulator.length > 5 * 1024 * 1024) {
-      console.warn('[Host] Accumulator safety cleared');
+    if (bufferAccumulator.length > 2 * 1024 * 1024) {
+      console.warn('[Host] Safety buffer reset');
       bufferAccumulator = Buffer.alloc(0);
     }
   });
