@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { app, shell, BrowserWindow, ipcMain, safeStorage, clipboard } from 'electron';
 import { join } from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
@@ -58,6 +58,8 @@ let ffmpegProcess: ChildProcess | null = null;
 let streamInterval: NodeJS.Timeout | null = null;
 let iceCandidatesQueue: any[] = [];
 let hasRemoteDescription = false;
+let lastClipboardText = '';
+let clipboardInterval: NodeJS.Timeout | null = null;
 
 // --- Global Streaming State for Diagnostics ---
 let bufferAccumulator = Buffer.alloc(0);
@@ -84,6 +86,11 @@ function cleanUpWebRTC() {
   iceCandidatesQueue = [];
   hasRemoteDescription = false;
   currentViewerId = null;
+
+  if (clipboardInterval) {
+    clearInterval(clipboardInterval);
+    clipboardInterval = null;
+  }
 }
 
 function startStreaming() {
@@ -339,6 +346,12 @@ function initiateHostWebRTC() {
         case 'keyup':
           input.injectKeyAction(event.keyCode, event.type === 'keydown' ? 'down' : 'up');
           break;
+        case 'clipboard':
+          if (event.text && event.text !== lastClipboardText) {
+            lastClipboardText = event.text;
+            clipboard.writeText(event.text);
+          }
+          break;
       }
     } catch (e) {
       // Silently ignore non-JSON or malformed control messages
@@ -348,6 +361,18 @@ function initiateHostWebRTC() {
   videoDataChannel.onOpen(() => {
     console.log('[Host] Video DataChannel OPENED. Starting encoder...');
     startStreaming();
+
+    // Start Clipboard Polling
+    lastClipboardText = clipboard.readText();
+    clipboardInterval = setInterval(() => {
+      if (dataChannel && dataChannel.isOpen()) {
+        const currentText = clipboard.readText();
+        if (currentText !== lastClipboardText) {
+          lastClipboardText = currentText;
+          dataChannel.send(JSON.stringify({ type: 'clipboard', text: currentText }));
+        }
+      }
+    }, 500);
   });
   videoDataChannel.onClosed(() => {
     console.log('[Host] Video DataChannel CLOSED');
@@ -446,3 +471,8 @@ ipcMain.handle('auth:deleteToken', async () => {
   try { await fs.unlink(AUTH_PATH()); return true; } catch { return false; }
 });
 ipcMain.handle('system:ping', () => 'pong');
+ipcMain.handle('clipboard:readText', () => clipboard.readText());
+ipcMain.handle('clipboard:writeText', (_event, text) => {
+  lastClipboardText = text;
+  clipboard.writeText(text);
+});

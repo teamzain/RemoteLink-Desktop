@@ -237,6 +237,7 @@ export default function App() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const candidatesBuffer = useRef<RTCIceCandidateInit[]>([]);
   const controlChannelRef = useRef<RTCDataChannel | null>(null);
+  const lastClipboardRef = useRef<string>('');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -256,6 +257,20 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
+  }, [viewerStatus]);
+
+  useEffect(() => {
+    if (viewerStatus !== 'streaming') return;
+    const interval = setInterval(async () => {
+      const text = await (window as any).electronAPI.clipboard.readText();
+      if (text && text !== lastClipboardRef.current) {
+        lastClipboardRef.current = text;
+        if (controlChannelRef.current?.readyState === 'open') {
+          controlChannelRef.current.send(JSON.stringify({ type: 'clipboard', text }));
+        }
+      }
+    }, 500);
+    return () => clearInterval(interval);
   }, [viewerStatus]);
 
   useEffect(() => {
@@ -314,6 +329,15 @@ export default function App() {
             };
           } else if (channel.label === 'control') {
             controlChannelRef.current = channel;
+            channel.onmessage = (e) => {
+              try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'clipboard' && data.text) {
+                  lastClipboardRef.current = data.text;
+                  (window as any).electronAPI.clipboard.writeText(data.text);
+                }
+              } catch (err) {}
+            };
             console.log('[Renderer] Control DataChannel ready.');
           }
         };

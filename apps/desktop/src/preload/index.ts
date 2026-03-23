@@ -25,5 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_: any, msg: any) => callback(msg);
     ipcRenderer.on('viewer:signaling-message', listener);
     return () => ipcRenderer.removeListener('viewer:signaling-message', listener);
+  },
+  clipboard: {
+    readText: () => ipcRenderer.invoke('clipboard:readText'),
+    writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text)
   }
 });
