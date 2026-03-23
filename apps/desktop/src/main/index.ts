@@ -201,9 +201,16 @@ function sendAccessUnit(data: Buffer, channel: any) {
   if (!channel || !channel.isOpen()) return;
 
   nalsCaptured++;
-  const MAX_CHUNK = 16000; 
+  // Smaller chunks for better network traversal and internal buffer management
+  const MAX_CHUNK = 8192; 
   const totalFrags = Math.ceil(data.length / MAX_CHUNK);
   const timestamp = BigInt(Date.now()) * 1000n + BigInt(nalsCaptured % 1000);
+
+  // If the internal buffer is too full, skip this unit to avoid crashing the connection
+  if (channel.bufferedAmount() > 5 * 1024 * 1024) {
+    if (Math.random() < 0.1) console.warn(`[Host] DataChannel buffer full (${channel.bufferedAmount()} bytes). Skipping AU.`);
+    return;
+  }
 
   for (let i = 0; i < totalFrags; i++) {
     const start = i * MAX_CHUNK;
@@ -260,6 +267,10 @@ function setupSignalingHandlers(ws: WebSocket) {
     if (data.type === 'registered') {
       mainWindow?.webContents.send('host:status', 'Registered: ' + data.sessionId);
     } else if (data.type === 'viewer-joined') {
+      if (currentViewerId === data.viewerId && peerConnection && (peerConnection.state() === 'connected' || peerConnection.state() === 'connecting')) {
+        console.log('[Host] Viewer rejoined but session exists. Skipping re-init.');
+        return;
+      }
       currentViewerId = data.viewerId;
       initiateHostWebRTC();
     } else if (data.type === 'answer') {
