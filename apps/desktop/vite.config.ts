@@ -13,7 +13,7 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron/main',
             rollupOptions: {
-              external: ['ws', 'bufferutil', 'utf-8-validate', 'node-datachannel', '@remotelink/native-capture']
+              external: ['ws', 'bufferutil', 'utf-8-validate', 'node-datachannel', '@remotelink/native-capture', '@remotelink/native-input']
             }
           },
         },

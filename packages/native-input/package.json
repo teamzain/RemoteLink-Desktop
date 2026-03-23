@@ -2,7 +2,7 @@
   "name": "@remotelink/native-input",
   "version": "1.0.0",
   "private": true,
-  "main": "index.js",
+  "main": "build/Release/input_injection.node",
   "scripts": {
     "install": "node-gyp rebuild"
   },
