@@ -73,7 +73,9 @@ const VideoPlayer = forwardRef<any, {
     if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
     
     const now = Date.now();
-    const frameLatency = now - Number(timestamp);
+    // Unique ID is (ms * 1000 + seq). Extract MS for latency.
+    const msTimestamp = Number(timestamp / 1000n);
+    const frameLatency = now - msTimestamp;
     if (Math.random() < 0.05) setLatency(frameLatency);
 
     let type: 'key' | 'delta' = 'delta';
@@ -107,7 +109,8 @@ const VideoPlayer = forwardRef<any, {
     try {
       const encodedChunk = new (window as any).EncodedVideoChunk({
         type: type,
-        timestamp: Number(timestamp) * 1000, 
+        // Use total unique ID as Microsecond timestamp for WebCodecs
+        timestamp: Number(timestamp), 
         data: chunkData,
       });
       decoderRef.current.decode(encodedChunk);

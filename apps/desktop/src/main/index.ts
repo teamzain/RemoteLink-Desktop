@@ -88,13 +88,12 @@ function startStreaming() {
   console.log('[Host] STARTING STREAMING LOOP (Native GDI Capture)...');
   stopStreaming();
 
-  // Use FFmpeg's built-in gdigrab to capture the desktop directly at 1080p.
-  // We use repeat-headers=1 and a short keyframe interval (g=30) so new viewers join fast.
+  // Use FFmpeg's built-in gdigrab. Scale to 1080p to support high-res displays.
   ffmpegProcess = spawn(getFFmpegPath(), [
     '-f', 'gdigrab',
     '-framerate', '30',
-    '-video_size', '1920x1080',
     '-i', 'desktop',
+    '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
     '-profile:v', 'baseline',
@@ -113,37 +112,25 @@ function startStreaming() {
   nalsCaptured = 0;
 
   ffmpegProcess.stderr?.on('data', (data: Buffer) => {
-    console.log(`[Host-FFmpeg-Stderr] ${data.toString()}`);
+    // console.log(`[Host-FFmpeg-Stderr] ${data.toString()}`);
   });
 
   ffmpegProcess.on('error', (err: any) => {
     console.error('[Host-FFmpeg] Process error:', err);
   });
 
-  ffmpegProcess.on('exit', (code: number) => {
-    if (code !== 0 && code !== null) console.warn(`[Host-FFmpeg] Exited with code: ${code}`);
-  });
-
-  // HEARTBEAT to prove process is alive and running THIS version
   const heartbeat = setInterval(() => {
-    if (videoDataChannel) {
-       console.log(`[Host] HEARTBEAT: DC Open: ${videoDataChannel.isOpen()}, NALs so far: ${nalsCaptured}, Buffer size: ${bufferAccumulator.length}`);
+    if (videoDataChannel && videoDataChannel.isOpen()) {
+       console.log(`[Host] HEARTBEAT: NALs: ${nalsCaptured}, Buf: ${bufferAccumulator.length}`);
     }
   }, 5000);
 
-  if (!ffmpegProcess.stdout) {
-    console.error('[Host] CRITICAL: ffmpegProcess.stdout is NULL!');
-  } else {
-    console.log('[Host] FFmpeg stdout pipe initialized.');
-  }
+  ffmpegProcess.on('close', () => {
+    clearInterval(heartbeat);
+  });
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    // if (Math.random() < 0.01) console.log(`[Host] STDOUT: ${chunk.length} bytes`);
-
-    if (!videoDataChannel || !videoDataChannel.isOpen()) {
-       // if (Math.random() < 0.1) console.warn('[Host] DataChannel not open, dropping chunk.');
-       return;
-    }
+    if (!videoDataChannel || !videoDataChannel.isOpen()) return;
 
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
 
@@ -165,8 +152,6 @@ function startStreaming() {
 
       // Find the next NAL. We must skip the current start code (3-4 bytes)
       let nextIdx = bufferAccumulator.indexOf(START_CODE_3, 3);
-      
-      // Step back if next is 4-byte
       if (nextIdx !== -1 && nextIdx > 0 && bufferAccumulator[nextIdx - 1] === 0) {
         nextIdx--;
       }
@@ -177,56 +162,51 @@ function startStreaming() {
       bufferAccumulator = bufferAccumulator.subarray(nextIdx);
 
       try {
-        nalsCaptured++;
-        const type = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
+        const nalType = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
         
-        // --- NAL ACCUMULATION (Atomic Access Units) ---
-        // Group Parameter Sets (7, 8) and SEI (6) with the following slice (1, 5)
-        if (type === 7 || type === 8 || type === 6 || type === 9) {
-          nalAccumulator = Buffer.concat([nalAccumulator, nalUnit]);
-          return;
+        // --- AUD-BASED ACCESS UNIT GROUPING ---
+        // A new Access Unit (Frame) starts with AUD (9), SPS (7), PPS (8), or SEI (6)
+        const isHeader = (nalType === 7 || nalType === 8 || nalType === 6 || nalType === 9);
+
+        if (isHeader && nalAccumulator.length > 0) {
+          sendAccessUnit(nalAccumulator, videoDataChannel);
+          nalAccumulator = Buffer.alloc(0);
         }
 
-        // VCL NAL (1 or 5): Prepend accumulated headers and send
-        const fullAccessUnit = Buffer.concat([nalAccumulator, nalUnit]);
-        nalAccumulator = Buffer.alloc(0); // Reset for next unit
+        nalAccumulator = Buffer.concat([nalAccumulator, nalUnit]);
 
-        if (type === 5 || nalsCaptured < 5 || nalsCaptured % 100 === 0) {
-          console.log(`[Host] OUT: AccessUnit #${nalsCaptured}, Type: ${type}, Size: ${fullAccessUnit.length}`);
-        }
-
-        // --- FRAGMENTATION for DataChannel Stability ---
-        const MAX_CHUNK = 16000; 
-        const totalFrags = Math.ceil(fullAccessUnit.length / MAX_CHUNK);
-        const timestamp = BigInt(Date.now());
-
-        for (let i = 0; i < totalFrags; i++) {
-          const start = i * MAX_CHUNK;
-          const end = Math.min(start + MAX_CHUNK, fullAccessUnit.length);
-          const fragPayload = fullAccessUnit.subarray(start, end);
-
-          const packet = Buffer.alloc(10 + fragPayload.length);
-          packet.writeBigUInt64LE(timestamp, 0);
-          packet.writeUInt8(i, 8);
-          packet.writeUInt8(totalFrags, 9);
-          fragPayload.copy(packet, 10);
-
-          videoDataChannel.sendMessageBinary(packet);
-        }
       } catch (err) {
-        console.error('[Host] Failed to send NAL Unit:', err);
+        console.error('[Host] Failed to process NAL Unit:', err);
       }
     }
 
     if (bufferAccumulator.length > 2 * 1024 * 1024) {
-      console.warn('[Host] Safety buffer reset');
       bufferAccumulator = Buffer.alloc(0);
     }
   });
+}
 
-  ffmpegProcess.on('close', () => {
-    clearInterval(heartbeat);
-  });
+function sendAccessUnit(data: Buffer, channel: any) {
+  if (!channel || !channel.isOpen()) return;
+
+  nalsCaptured++;
+  const MAX_CHUNK = 16000; 
+  const totalFrags = Math.ceil(data.length / MAX_CHUNK);
+  const timestamp = BigInt(Date.now()) * 1000n + BigInt(nalsCaptured % 1000);
+
+  for (let i = 0; i < totalFrags; i++) {
+    const start = i * MAX_CHUNK;
+    const end = Math.min(start + MAX_CHUNK, data.length);
+    const fragPayload = data.subarray(start, end);
+
+    const packet = Buffer.alloc(10 + fragPayload.length);
+    packet.writeBigUInt64LE(timestamp, 0);
+    packet.writeUInt8(i, 8);
+    packet.writeUInt8(totalFrags, 9);
+    fragPayload.copy(packet, 10);
+
+    channel.sendMessageBinary(packet);
+  }
 }
 
 function stopStreaming() {
