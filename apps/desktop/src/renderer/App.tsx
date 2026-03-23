@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Activity, Monitor, ArrowLeft, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield
+  Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
@@ -238,6 +238,13 @@ export default function App() {
   const candidatesBuffer = useRef<RTCIceCandidateInit[]>([]);
   const controlChannelRef = useRef<RTCDataChannel | null>(null);
   const lastClipboardRef = useRef<string>('');
+  
+  // Phase 25: Device Security State
+  const [accessPassword, setAccessPassword] = useState('');
+  const [devicePassword, setDevicePassword] = useState(localStorage.getItem('device_password') || '');
+  const [hostAccessKey, setHostAccessKey] = useState('');
+  const [deviceId, setDeviceId] = useState('');
+  const [viewerStep, setViewerStep] = useState<1 | 2>(1);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -272,6 +279,41 @@ export default function App() {
     }, 500);
     return () => clearInterval(interval);
   }, [viewerStatus]);
+
+  const loadDeviceInfo = async () => {
+    try {
+      const creds = await (window as any).electronAPI.getToken();
+      if (!creds?.token) return;
+      
+      let localKey = await (window as any).electronAPI.getDeviceAccessKey();
+
+      if (!localKey) {
+        // Auto-register this specific machine
+        const machineName = await (window as any).electronAPI.getMachineName?.() || 'RemoteLink PC';
+        const regRes = await fetch(`http://${serverIP}:3001/api/devices/register`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${creds.token}`,
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({ name: machineName })
+        });
+        const newDevice = await regRes.json();
+        localKey = newDevice.accessKey;
+        await (window as any).electronAPI.setDeviceAccessKey(localKey);
+      }
+
+      setDeviceId(localKey); // We don't necessarily need the DB ID anymore, but keep state for set-password
+      setHostAccessKey(localKey);
+      console.log(`[Identity] Loaded securely: ${localKey}`);
+    } catch (e: any) {
+      console.error('[Identity] Load failed:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) loadDeviceInfo();
+  }, [isAuthenticated, serverIP]);
 
   useEffect(() => {
     checkToken();
@@ -443,25 +485,129 @@ export default function App() {
     }
   };
 
+  const handleRegenerateKey = async () => {
+    if (!confirm("Generating a new access key means anyone using your current key will no longer be able to connect. This cannot be undone. Are you sure?")) return;
+    
+    try {
+      const creds = await (window as any).electronAPI.getToken();
+      if (!creds?.token) return;
+
+      const devRes = await fetch(`http://${serverIP}:3001/api/devices/?machineId=undefined`, {
+        headers: { 'Authorization': `Bearer ${creds.token}` }
+      }); // Temporary hack to get Device ID until we fix full flow
+      const devices = await devRes.json();
+      const deviceIdToRegen = devices.find((d: any) => d.accessKey === hostAccessKey)?.id;
+
+      if (!deviceIdToRegen) {
+        alert("Could not identify device to regenerate.");
+        return;
+      }
+
+      const res = await fetch(`http://${serverIP}:3001/api/devices/regenerate-key`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${creds.token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ deviceId: deviceIdToRegen })
+      });
+      const data = await res.json();
+      if (data.accessKey) {
+        await (window as any).electronAPI.setDeviceAccessKey(data.accessKey);
+        setHostAccessKey(data.accessKey);
+        alert("Access key regenerated safely.");
+      }
+    } catch (e) {
+      alert("Failed to regenerate key.");
+    }
+  };
+
+  const copyAccessKey = () => {
+    navigator.clipboard.writeText(hostAccessKey);
+    // Simple visual feedback could go here
+  };
+
   const handleStartHosting = async () => {
     setHostStatus('connecting');
     setHostError('');
     try {
-      const sessionId = await (window as any).electronAPI.startHosting();
-      setHostSessionId(sessionId);
+      // 1. Get Auth Credentials
+      const creds = await (window as any).electronAPI.getToken();
+      if (!creds?.token) throw new Error('Please sign in first');
+
+      // 2. Set/Sync Password if provided (deviceId and hostAccessKey are already loaded)
+      if (devicePassword && deviceId) {
+        localStorage.setItem('device_password', devicePassword);
+        await fetch(`http://${serverIP}:3001/api/devices/set-password`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${creds.token}`,
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({ deviceId, password: devicePassword })
+        });
+      }
+
+      // 3. Start Signaling with permanent Access Key
+      const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey);
+      console.log(`[Host] Initialization successful. SessionID: ${sessionId}`);
+      if (!sessionId) throw new Error('Signaling server did not return a Session ID');
+      
+      setHostSessionId(sessionId); 
       setHostStatus('idle');
     } catch (e: any) {
+      console.error('[Host] Start failed:', e);
       setHostStatus('error');
       setHostError(e.message);
     }
   };
 
-  const handleConnectToHost = async () => {
+  const handleFindDevice = async () => {
     if (!sessionCode) return;
     setViewerStatus('connecting');
     setViewerError('');
     try {
-      await (window as any).electronAPI.connectToHost(sessionCode, serverIP);
+      const cleanKey = sessionCode.replace(/\s/g, '');
+      const res = await fetch(`http://${serverIP}:3001/api/devices/status?key=${cleanKey}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (res.status === 429) throw new Error('Too many checks. Please wait.');
+        throw new Error(data.error || 'Failed to check status');
+      }
+      if (!data.exists) throw new Error('Device not found. Check the access key.');
+      if (!data.online) throw new Error('This machine is currently offline.');
+
+      setViewerStep(2);
+      setViewerStatus('idle');
+    } catch (e: any) {
+      setViewerStatus('error');
+      setViewerError(e.message);
+    }
+  };
+
+  const handleConnectToHost = async () => {
+    if (!sessionCode || !accessPassword) return;
+    setViewerStatus('connecting');
+    setViewerError('');
+    try {
+      // 1. Verify Access and Get Token
+      const authRes = await fetch(`http://${serverIP}:3001/api/devices/verify-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessKey: sessionCode.replace(/\s/g, ''), password: accessPassword })
+      });
+      
+      const authData = await authRes.json();
+      if (!authRes.ok) {
+        if (authRes.status === 429 && authData.retryAfter) {
+          throw new Error(`Too many attempts. Try again in ${authData.retryAfter} seconds.`);
+        }
+        throw new Error(authData.error || 'Access Denied');
+      }
+
+      // 2. Connect to Signaling with One-Time Token
+      await (window as any).electronAPI.connectToHost(sessionCode.replace(/\s/g, ''), serverIP, authData.token);
       setViewerStatus('connected');
     } catch (e: any) {
       setViewerStatus('error');
@@ -471,7 +617,10 @@ export default function App() {
 
   const formatCode = (code: string) => {
     if (!code) return '';
-    const clean = code.replace(/\s/g, '');
+    const clean = code.replace(/[^0-9]/g, '');
+    if (clean.length === 9) {
+      return `${clean.slice(0,3)} ${clean.slice(3,6)} ${clean.slice(6,9)}`;
+    }
     return clean.match(/.{1,3}/g)?.join(' ') || clean;
   };
 
@@ -626,8 +775,27 @@ export default function App() {
             </div>
             
             <h3 className="text-2xl font-[900] mb-3 uppercase tracking-tight">Host Machine</h3>
-            <p className="text-white/40 text-center text-sm leading-relaxed mb-10 max-w-[280px] font-medium">Broadcast this workstation to a remote viewer securely.</p>
+            <p className="text-white/40 text-center text-sm leading-relaxed mb-8 max-w-[280px] font-medium">Broadcast this workstation to a remote viewer securely.</p>
             
+            {hostAccessKey && !devicePassword && (
+              <div className="w-full bg-yellow-500/10 border-l-4 border-yellow-500 text-yellow-400 p-3 rounded-r-xl text-xs font-bold mb-6 flex items-start text-left">
+                No access password set — anyone with your key can connect.
+              </div>
+            )}
+
+            {hostAccessKey && (
+              <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mb-8 text-center">
+                 <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] block mb-1">Your Permanent Access Key</span>
+                 <div className="text-xl font-black text-blue-400 tracking-widest Lato mb-2">
+                   {formatCode(hostAccessKey)}
+                 </div>
+                 <div className="flex gap-2 justify-center">
+                   <button onClick={copyAccessKey} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors text-white/60">Copy</button>
+                   <button onClick={handleRegenerateKey} className="text-xs bg-red-500/10 hover:bg-red-500/20 px-3 py-1 rounded transition-colors text-red-400">Regenerate</button>
+                 </div>
+              </div>
+            )}
+
             {hostSessionId ? (
               <div className="w-full flex flex-col items-center">
                 <div className="w-full bg-black/40 border border-white/5 rounded-3xl p-8 mb-8 text-center relative pointer-events-none">
@@ -668,6 +836,20 @@ export default function App() {
                     {hostError}
                   </div>
                 )}
+                
+                <div className="space-y-4 mb-8 w-full">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest pl-4">Machine Access Password</label>
+                    <input 
+                      type="password"
+                      placeholder="Set access password..."
+                      className="w-full bg-white/[0.03] border border-white/5 text-white rounded-2xl p-4 outline-none focus:border-emerald-500/50 transition-all text-sm"
+                      value={devicePassword}
+                      onChange={(e) => setDevicePassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+
                 <button 
                   onClick={handleStartHosting}
                   disabled={hostStatus === 'connecting'}
@@ -697,27 +879,67 @@ export default function App() {
                 </div>
               )}
               
-              <div className="relative mb-6">
-                <input 
-                  type="text" 
-                  placeholder="000 000 000" 
-                  className="w-full bg-black/40 border border-white/10 text-white rounded-[2rem] p-8 outline-none focus:border-blue-500 focus:bg-white/[0.04] transition-all text-center text-3xl font-black tracking-[0.2em] Lato disabled:opacity-50"
-                  value={sessionCode}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\s/g, '');
-                    if (raw.length <= 9) setSessionCode(formatCode(raw));
-                  }}
-                  disabled={viewerStatus === 'connecting'}
-                />
-              </div>
-              
-              <button 
-                onClick={handleConnectToHost}
-                disabled={viewerStatus === 'connecting' || !sessionCode}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-6 rounded-3xl transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm"
-              >
-                {viewerStatus === 'connecting' ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Request Access <Shield className="w-4 h-4 ml-2" /></>}
-              </button>
+              {viewerStep === 1 && (
+                <>
+                  <div className="relative mb-4">
+                    <input 
+                      type="text" 
+                      placeholder="000 000 000" 
+                      className="w-full bg-black/40 border border-white/10 text-white rounded-[2rem] p-8 outline-none focus:border-blue-500 focus:bg-white/[0.04] transition-all text-center text-4xl font-black tracking-[0.15em] Lato disabled:opacity-50"
+                      value={sessionCode}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\s/g, '');
+                        if (raw.length <= 9) setSessionCode(formatCode(raw));
+                      }}
+                      disabled={viewerStatus === 'connecting'}
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleFindDevice}
+                    disabled={viewerStatus === 'connecting' || sessionCode.replace(/\s/g, '').length !== 9}
+                    className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-6 rounded-3xl transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm"
+                  >
+                    {viewerStatus === 'connecting' ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Find Machine <ArrowRight className="w-4 h-4 ml-2" /></>}
+                  </button>
+                </>
+              )}
+
+              {viewerStep === 2 && (
+                <>
+                  <div className="mb-6 text-center">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest block mb-1">Target Identified</span>
+                    <span className="text-sm font-mono text-white/60 tracking-widest">{sessionCode}</span>
+                  </div>
+                  <div className="relative mb-6">
+                    <input 
+                      type="password" 
+                      placeholder="Access Password" 
+                      className="w-full bg-black/20 border border-white/5 text-white rounded-2xl p-5 outline-none focus:border-blue-500/50 transition-all text-center text-sm font-bold tracking-widest uppercase disabled:opacity-50"
+                      value={accessPassword}
+                      onChange={(e) => setAccessPassword(e.target.value)}
+                      disabled={viewerStatus === 'connecting'}
+                    />
+                  </div>
+                  
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => { setViewerStep(1); setViewerError(''); }}
+                      disabled={viewerStatus === 'connecting'}
+                      className="w-1/3 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-white/50 font-bold py-6 rounded-3xl transition-all uppercase tracking-widest text-xs"
+                    >
+                      Back
+                    </button>
+                    <button 
+                      onClick={handleConnectToHost}
+                      disabled={viewerStatus === 'connecting' || !accessPassword}
+                      className="w-2/3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black py-6 rounded-3xl transition-all shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm"
+                    >
+                      {viewerStatus === 'connecting' ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Connect <Shield className="w-4 h-4 ml-2" /></>}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </section>
         </main>

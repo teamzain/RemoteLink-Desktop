@@ -5,6 +5,7 @@ import authRoutes from './routes/auth';
 import oauthRoutes from './routes/oauth';
 import mfaRoutes from './routes/2fa';
 import passwordRoutes from './routes/password';
+import deviceRoutes from './routes/devices';
 
 const server = Fastify({ logger: true });
 
@@ -20,6 +21,7 @@ server.register(authRoutes, { prefix: '/api/auth' });
 server.register(oauthRoutes, { prefix: '/api/auth/oauth' });
 server.register(mfaRoutes, { prefix: '/api/auth/2fa' });
 server.register(passwordRoutes, { prefix: '/api/auth/password' });
+server.register(deviceRoutes, { prefix: '/api/devices' });
 
 const start = async () => {
   try {

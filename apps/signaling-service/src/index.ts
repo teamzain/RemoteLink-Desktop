@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
-import { redisPublisher, redisSubscriber, EventChannel } from '@remotelink/shared';
+import { redisPublisher, redisSubscriber, EventChannel, verifyToken } from '@remotelink/shared';
 
 const PORT = 3002;
 // Use strict port to ensure signaling service binds correctly; in a real cluster we rely on k8s or Docker swarm
@@ -31,17 +31,42 @@ wss.on('connection', (ws) => {
 
       switch (data.type) {
         case 'register':
-          // TODO: Verify JWT token
-          const sessionId = Math.floor(100000000 + Math.random() * 900000000).toString(); // 9-digit code
+          // Strictly use the provided 9-digit key or random fallback
+          let sessionId = data.accessKey;
+          if (!sessionId || sessionId.trim() === '') {
+            sessionId = Math.floor(100000000 + Math.random() * 900000000).toString();
+          }
+          
           sessionRegistry.set(sessionId, connectionId);
           reverseRegistry.set(connectionId, sessionId);
+          
+          // Publish presence to Redis (expires in 24 hours, refreshed occasionally or cleared on disconnect)
+          // For now, simpler: setting presence and clearing it on websocket close
+          redisPublisher.set(`presence:${sessionId}`, 'online');
+          
           console.log(`[Signaling] Registered Host session: ${sessionId}`);
           ws.send(JSON.stringify({ type: 'registered', sessionId, connectionId }));
           break;
 
         case 'join':
           const targetSessionId = data.sessionId;
+          const token = data.token;
+
           console.log(`[Signaling] Join attempt for session: ${targetSessionId}`);
+          
+          // --- SECURITY HANDSHAKE ---
+          // Validate short-lived JWT (60s) from Auth Service
+          if (!token) {
+            console.warn(`[Signaling] Join refused for ${targetSessionId}: No token provided`);
+            return ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Authentication token required' }));
+          }
+
+          const decoded = verifyToken(token);
+          if (!decoded || decoded.type !== 'remote-access') {
+            console.warn(`[Signaling] Join refused for ${targetSessionId}: Invalid or expired token`);
+            return ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Invalid or expired access token' }));
+          }
+
           const hostId = sessionRegistry.get(targetSessionId);
           if (hostId) {
             viewerRegistry.set(connectionId, targetSessionId);
@@ -98,7 +123,15 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     console.log(`[Signaling] Client disconnected: ${connectionId}`);
     localClients.delete(connectionId);
-    // TODO: Remove from Redis Registry
+    
+    // Remove from Redis Registry if Host
+    const sessionId = reverseRegistry.get(connectionId);
+    if (sessionId) {
+      sessionRegistry.delete(sessionId);
+      reverseRegistry.delete(connectionId);
+      redisPublisher.del(`presence:${sessionId}`);
+      console.log(`[Signaling] Cleaned up Host session: ${sessionId}`);
+    }
   });
 });
 

@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, safeStorage, clipboard } from 'electron';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import { WebSocket } from 'ws';
@@ -397,7 +398,7 @@ ipcMain.on('viewer:send-signaling', (_event: any, msg: any) => {
   viewerWs?.send(JSON.stringify(msg));
 });
 
-ipcMain.handle('host:start', async () => {
+ipcMain.handle('host:start', async (_event, accessKey?: string) => {
   return new Promise(async (resolve, reject) => {
     try {
       const { token } = await getAuthTokens();
@@ -409,7 +410,7 @@ ipcMain.handle('host:start', async () => {
       signalingWs = new WebSocket(`ws://${serverIP}:3002`);
       setupSignalingHandlers(signalingWs);
       signalingWs.on('open', () => {
-        signalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host' }));
+        signalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
       });
       signalingWs.on('message', (message) => {
         const data = JSON.parse(message.toString());
@@ -425,11 +426,12 @@ ipcMain.handle('host:stop', () => {
   return { success: true };
 });
 
-ipcMain.handle('viewer:connect', async (_event: any, rawSessionId: string, serverIP: string = '127.0.0.1') => {
+ipcMain.handle('viewer:connect', async (_event: any, rawSessionId: string, serverIP: string = '127.0.0.1', providedToken?: string) => {
   const sessionId = rawSessionId.replace(/\s/g, '');
   return new Promise(async (resolve, reject) => {
     try {
-      const { token } = await getAuthTokens();
+      const { token: storedToken } = await getAuthTokens();
+      const token = providedToken || storedToken;
       console.log(`[Viewer] Connecting to signaling server at: ${serverIP}:3002`);
       viewerWs = new WebSocket(`ws://${serverIP}:3002`);
       viewerWs.removeAllListeners('message'); 
@@ -465,6 +467,39 @@ ipcMain.handle('system:getLocalIP', () => {
   return '127.0.0.1';
 });
 
+ipcMain.handle('auth:getDeviceAccessKey', async () => {
+  const KEY_PATH = join(app.getPath('userData'), 'device_access_key');
+  try {
+    const encrypted = await fs.readFile(KEY_PATH);
+    if (!encrypted || encrypted.length === 0) return null;
+    
+    if (safeStorage.isEncryptionAvailable()) {
+      return safeStorage.decryptString(encrypted);
+    }
+    return encrypted.toString('utf8');
+  } catch (e) {
+    console.error('[DeviceIdentity] Failed to read or decrypt access key:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('auth:setDeviceAccessKey', async (_event, key: string) => {
+  const KEY_PATH = join(app.getPath('userData'), 'device_access_key');
+  try {
+    if (!key) throw new Error("Key is undefined or empty");
+    const validKey = String(key);
+    
+    const data = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(validKey) : Buffer.from(validKey, 'utf8');
+    await fs.writeFile(KEY_PATH, data);
+    console.log(`[DeviceIdentity] Access key successfully stored: ${validKey}`);
+    return true;
+  } catch (e) {
+    console.error('[DeviceIdentity] Failed to save access key:', e);
+    return false;
+  }
+});
+
+ipcMain.handle('system:getMachineName', () => os.hostname());
 ipcMain.handle('auth:getToken', () => getAuthTokens());
 ipcMain.handle('auth:setToken', (_event: any, t: string, r: string) => setAuthTokens(t, r));
 ipcMain.handle('auth:deleteToken', async () => {
