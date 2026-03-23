@@ -100,6 +100,7 @@ function startStreaming() {
     '-video_size', `${width}x${height}`,
     '-i', '-',
     '-c:v', 'libx264',
+    '-pix_fmt', 'yuv420p',
     '-profile:v', 'baseline', // Max compatibility with WebCodecs
     '-level', '4.1', // Level 4.1 for 1080p
     '-preset', 'ultrafast',
@@ -110,7 +111,7 @@ function startStreaming() {
   ]);
 
   ffmpegProcess.stderr?.on('data', (data: Buffer) => {
-    if (Math.random() < 0.01) console.log(`[Host-FFmpeg] ${data.toString()}`);
+    console.log(`[Host-FFmpeg-Stderr] ${data.toString()}`);
   });
 
   ffmpegProcess.on('error', (err: any) => {
@@ -123,10 +124,23 @@ function startStreaming() {
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
     if (videoDataChannel && videoDataChannel.isOpen()) {
-      if (Math.random() < 0.1) console.log(`[Host] Sending chunk: ${chunk.length} bytes`);
-      const header = Buffer.alloc(8);
-      header.writeBigUInt64LE(BigInt(Date.now()));
-      videoDataChannel.sendMessageBinary(Buffer.concat([header, chunk]));
+      const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
+      if (DEBUG_NO_SEND) return;
+
+      try {
+        const header = Buffer.alloc(8);
+        header.writeBigUInt64LE(BigInt(Date.now()));
+        const fullChunk = Buffer.concat([header, chunk]);
+        
+        // Create a separate Uint8Array copy to avoid use-after-free in native addon
+        const safeBuffer = new Uint8Array(fullChunk.length);
+        safeBuffer.set(fullChunk);
+
+        if (Math.random() < 0.1) console.log(`[Host] Sending chunk: ${safeBuffer.length} bytes`);
+        videoDataChannel.sendMessageBinary(safeBuffer);
+      } catch (err) {
+        console.error('[Host] Failed to send video chunk:', err);
+      }
     }
   });
 
