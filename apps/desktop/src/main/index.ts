@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import { WebSocket } from 'ws';
 import * as os from 'os';
 import * as datachannel from 'node-datachannel';
+import * as input from '@remotelink/native-input';
 
 // --- FFmpeg Path Discovery ---
 const getFFmpegPath = () => {
@@ -308,6 +309,30 @@ function initiateHostWebRTC() {
 
   dataChannel = peerConnection.createDataChannel("control");
   videoDataChannel = peerConnection.createDataChannel("video");
+
+  dataChannel.onMessage((msg: string | Buffer) => {
+    try {
+      const event = JSON.parse(msg.toString());
+      switch (event.type) {
+        case 'mousemove':
+          input.injectMouseMove(event.x, event.y);
+          break;
+        case 'mousedown':
+        case 'mouseup':
+          // button: 0=left, 1=middle, 2=right
+          const btnMap: Record<number, string> = { 0: 'left', 1: 'middle', 2: 'right' };
+          const btnName = btnMap[event.button] || 'left';
+          input.injectMouseAction(btnName as 'left' | 'middle' | 'right', event.type === 'mousedown' ? 'down' : 'up');
+          break;
+        case 'keydown':
+        case 'keyup':
+          input.injectKeyAction(event.keyCode, event.type === 'keydown' ? 'down' : 'up');
+          break;
+      }
+    } catch (e) {
+      // Silently ignore non-JSON or malformed control messages
+    }
+  });
 
   videoDataChannel.onOpen(() => {
     console.log('[Host] Video DataChannel OPENED. Starting encoder...');

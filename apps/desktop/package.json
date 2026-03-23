@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@remotelink/native-capture": "1.0.0",
+    "@remotelink/native-input": "1.0.0",
     "@remotelink/shared": "1.0.0",
     "@types/ws": "^8.18.1",
     "bufferutil": "^4.1.0",

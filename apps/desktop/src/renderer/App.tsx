@@ -1,27 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Monitor, 
-  KeyRound, 
-  Loader2, 
-  Activity, 
-  ArrowLeft,
-  Copy,
-  LogOut,
-  Zap,
-  Shield,
-  Settings,
-  Play
+import {
+  Activity, Monitor, ArrowLeft, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
 
 // --- Video Player Component (WebCodecs + Canvas) ---
 // --- Video Player Component (WebCodecs + Canvas) ---
-const VideoPlayer = forwardRef<any, { 
-  viewerStatus: string; 
-  setViewerStatus: (s: any) => void;
-  sessionCode: string;
-}>(({ viewerStatus, setViewerStatus, sessionCode }, ref) => {
+const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, onControlEvent }: any, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [latency, setLatency] = useState<number>(0);
   const decoderRef = useRef<any>(null);
@@ -187,8 +173,33 @@ const VideoPlayer = forwardRef<any, {
         </div>
       </div>
       
-      <div className="flex-grow bg-black rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative group">
-        <canvas ref={canvasRef} className="w-full h-full object-contain" width={1920} height={1080} />
+      <div className="flex-grow bg-black rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative group cursor-none">
+        <canvas 
+          ref={canvasRef} 
+          className="w-full h-full object-contain" 
+          width={1920} 
+          height={1080}
+          onMouseMove={(e) => {
+            const rect = canvasRef.current?.getBoundingClientRect();
+            if (rect) {
+              const x = (e.clientX - rect.left) / rect.width;
+              const y = (e.clientY - rect.top) / rect.height;
+              onControlEvent({ type: 'mousemove', x, y });
+            }
+          }}
+          onMouseDown={(e) => {
+            onControlEvent({ type: 'mousedown', button: e.button });
+          }}
+          onMouseUp={(e) => {
+            onControlEvent({ type: 'mouseup', button: e.button });
+          }}
+          onWheel={(e) => {
+            // Optional: Wheel logic
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+          }}
+        />
         <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border-2 border-blue-500/20 rounded-3xl" />
       </div>
     </div>
@@ -218,8 +229,23 @@ export default function App() {
   const videoPlayerRef = useRef<any>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const candidatesBuffer = useRef<RTCIceCandidateInit[]>([]);
+  const controlChannelRef = useRef<RTCDataChannel | null>(null);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (viewerStatus === 'streaming' && controlChannelRef.current?.readyState === 'open') {
+        controlChannelRef.current.send(JSON.stringify({ type: 'keydown', keyCode: e.keyCode }));
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (viewerStatus === 'streaming' && controlChannelRef.current?.readyState === 'open') {
+        controlChannelRef.current.send(JSON.stringify({ type: 'keyup', keyCode: e.keyCode }));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
     checkToken();
     (window as any).electronAPI.getLocalIP().then(setLocalIP);
     const removeHostListener = (window as any).electronAPI.onHostStatus((status: string) => {
@@ -273,6 +299,9 @@ export default function App() {
                 if (viewerStatus !== 'streaming') setViewerStatus('streaming');
               }
             };
+          } else if (channel.label === 'control') {
+            controlChannelRef.current = channel;
+            console.log('[Renderer] Control DataChannel ready.');
           }
         };
 
@@ -315,11 +344,13 @@ export default function App() {
     });
 
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
       removeHostListener();
       removeSignalingListener();
       pcRef.current?.close();
     };
-  }, [sessionCode]);
+  }, [sessionCode, viewerStatus]);
 
   const checkToken = async () => {
     try {
@@ -509,6 +540,11 @@ export default function App() {
             viewerStatus={viewerStatus} 
             setViewerStatus={setViewerStatus} 
             sessionCode={sessionCode} 
+            onControlEvent={(event: any) => {
+              if (controlChannelRef.current?.readyState === 'open') {
+                controlChannelRef.current.send(JSON.stringify(event));
+              }
+            }}
           />
       </div>
     );
