@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('viewer:signaling-message', listener);
     return () => ipcRenderer.removeListener('viewer:signaling-message', listener);
   },
+  onSignalingDisconnected: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('viewer:signaling-disconnected', listener);
+    return () => ipcRenderer.removeListener('viewer:signaling-disconnected', listener);
+  },
   clipboard: {
     readText: () => ipcRenderer.invoke('clipboard:readText'),
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text)

@@ -231,7 +231,7 @@ export default function App() {
   const [localIP, setLocalIP] = useState('127.0.0.1');
   const [showSettings, setShowSettings] = useState(false);
 
-  const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'error' | 'connected' | 'streaming'>('idle');
+  const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'error' | 'connected' | 'streaming' | 'connection_lost'>('idle');
   const [viewerError, setViewerError] = useState('');
   const videoPlayerRef = useRef<any>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -255,6 +255,7 @@ export default function App() {
 
   const [contextMenuMsg, setContextMenuMsg] = useState(''); // Tooltip offline
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState('');
 
   const pollDevices = async () => {
     try {
@@ -266,8 +267,15 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setDevices(data);
+        setGlobalError('');
+      } else if (res.status === 401) {
+        await (window as any).electronAPI.deleteToken();
+        setIsAuthenticated(false);
+        setGlobalError('Session expired. Please log in again.');
       }
-    } catch {}
+    } catch {
+       setGlobalError('Network Error: Could not reach the server.');
+    }
   };
 
   useEffect(() => {
@@ -311,7 +319,7 @@ export default function App() {
       }
     } catch (e: any) {
       setViewerStatus('idle');
-      alert(e.message);
+      setGlobalError(e.message || 'Connection failed.');
     }
   };
 
@@ -346,7 +354,7 @@ export default function App() {
       }
     } catch (e: any) {
       setViewerStatus('idle');
-      alert(e.message);
+      setGlobalError(e.message || 'Connection failed.');
     }
   };
 
@@ -368,10 +376,10 @@ export default function App() {
         setAddPassword('');
         pollDevices();
       } else {
-        alert(data.error || 'Failed to add device');
+        setGlobalError(data.error || 'Failed to add device');
       }
     } catch (e) {
-      alert('Network error adding device');
+      setGlobalError('Network error adding device');
     }
   };
 
@@ -550,6 +558,9 @@ export default function App() {
           console.log(`[Renderer] Connection State: ${pc.connectionState}`);
           if (pc.connectionState === 'connected') {
             setViewerStatus('connected');
+          } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+            console.log('[Renderer] WebRTC connection dropped.');
+            setViewerStatus('connection_lost');
           }
         };
 
@@ -632,9 +643,15 @@ export default function App() {
       }
     });
 
+    const removeSignalingDisconnected = (window as any).electronAPI.onSignalingDisconnected?.(() => {
+      console.log('[Renderer] Signaling disconnected unexpectedly.');
+      setViewerStatus('connection_lost');
+    });
+
     return () => {
       removeHostListener();
       removeSignalingListener();
+      if (removeSignalingDisconnected) removeSignalingDisconnected();
       pcRef.current?.close();
     };
   }, [sessionCode]);
@@ -936,12 +953,37 @@ export default function App() {
   }
 
   // --- Main Dashboard ---
-  if (viewerStatus === 'streaming' || viewerStatus === 'connected') {
+  if (viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connection_lost') {
     return (
       <div className="min-h-screen bg-[#080808] p-8 flex flex-col relative">
           <div className="absolute top-4 right-4 z-50 bg-black/80 p-2 rounded border border-white/10 text-[8px] font-mono text-white/40 uppercase">
             Debug: {viewerStatus} | {viewerError || 'No Errors'}
           </div>
+
+          {viewerStatus === 'connection_lost' && (
+            <div className="absolute inset-0 z-[100] bg-[#050505]/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in">
+              <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mb-8 border border-red-500/20 shadow-2xl shadow-red-500/10">
+                <Monitor className="text-red-500 w-10 h-10" />
+              </div>
+              <h2 className="text-3xl font-black text-white mb-3 uppercase tracking-tight">Connection Lost</h2>
+              <p className="text-white/40 text-sm mb-10 tracking-wide font-medium">The remote host went offline or the network dropped.</p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setViewerStatus('idle')}
+                  className="px-8 py-4 rounded-2xl border border-white/10 text-white/70 hover:bg-white/5 transition-all font-bold text-xs uppercase tracking-widest"
+                >
+                  Return Home
+                </button>
+                <button 
+                  onClick={() => handleFindDevice()}
+                  className="px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 flex items-center gap-2 text-white transition-all font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20"
+                >
+                  Reconnect
+                </button>
+              </div>
+            </div>
+          )}
+
           <VideoPlayer 
             ref={videoPlayerRef}
             viewerStatus={viewerStatus} 
@@ -960,6 +1002,12 @@ export default function App() {
 
   return (
     <div className="h-screen w-full bg-[#080808] text-white font-sans selection:bg-blue-500/30 flex overflow-hidden">
+      {globalError && (
+        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-center py-2 text-xs font-bold z-[100] flex justify-between px-4 items-center animate-in slide-in-from-top-4">
+           <span>{globalError}</span>
+           <button onClick={() => setGlobalError('')} className="hover:bg-black/20 p-1 rounded"><X className="w-3 h-3" /></button>
+        </div>
+      )}
       
       {/* SIDEBAR: My Devices */}
       <div className="w-[340px] border-r border-white/10 bg-[#0a0a0a] flex flex-col z-10 shrink-0">

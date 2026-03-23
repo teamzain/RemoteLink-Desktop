@@ -398,6 +398,68 @@ ipcMain.on('viewer:send-signaling', (_event: any, msg: any) => {
   viewerWs?.send(JSON.stringify(msg));
 });
 
+let activeHostAccessKey = '';
+let activeHostToken = '';
+let hostReconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 3;
+
+function connectHostSignaling(serverIP: string, token: string, accessKey: string, resolve?: any, reject?: any) {
+  if (signalingWs) {
+    try { signalingWs.close(); } catch {}
+  }
+  
+  console.log(`[Host] Connecting to signaling server at: ${serverIP}:3002 (Attempt ${hostReconnectAttempts + 1})`);
+  signalingWs = new WebSocket(`ws://${serverIP}:3002`);
+  setupSignalingHandlers(signalingWs);
+  
+  signalingWs.on('open', () => {
+    console.log('[Host] Signaling connected');
+    hostReconnectAttempts = 0; // reset
+    signalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
+  });
+  
+  signalingWs.on('message', (message) => {
+    const data = JSON.parse(message.toString());
+    if (data.type === 'registered' && resolve) {
+        resolve(data.sessionId);
+        resolve = null; // Prevent double resolve
+    }
+  });
+
+  signalingWs.on('error', (err) => {
+    console.error('[Host] Signaling WS Error:', err.message);
+    if (reject) {
+      reject(err);
+      reject = null;
+    }
+  });
+
+  signalingWs.on('close', () => {
+    console.log('[Host] Signaling server disconnected');
+    if (reject) {
+       reject(new Error('Signaling server disconnected during initial connection'));
+       reject = null;
+       return;
+    }
+    
+    // Auto-reconnect flow logic if it was already connected and running
+    if (activeHostToken) {
+       if (hostReconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+         const backoffMs = Math.pow(2, hostReconnectAttempts) * 1000;
+         hostReconnectAttempts++;
+         console.log(`[Host] Reconnecting in ${backoffMs}ms...`);
+         mainWindow?.webContents.send('host:status', `Reconnecting in ${backoffMs/1000}s...`);
+         setTimeout(() => {
+            connectHostSignaling(serverIP, activeHostToken, activeHostAccessKey);
+         }, backoffMs);
+       } else {
+         mainWindow?.webContents.send('host:status', 'Signaling disconnected (Retries exhausted)');
+         activeHostToken = ''; // Stop trying
+       }
+    }
+  });
+}
+
 ipcMain.handle('host:start', async (_event, accessKey?: string) => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -405,22 +467,16 @@ ipcMain.handle('host:start', async (_event, accessKey?: string) => {
       if (!token) return reject(new Error('Auth failed'));
       
       const serverIP = process.env.REMOTE_LINK_SERVER_IP || '127.0.0.1';
-      console.log(`[Host] Connecting to signaling server at: ${serverIP}:3002`);
-      
-      signalingWs = new WebSocket(`ws://${serverIP}:3002`);
-      setupSignalingHandlers(signalingWs);
-      signalingWs.on('open', () => {
-        signalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
-      });
-      signalingWs.on('message', (message) => {
-        const data = JSON.parse(message.toString());
-        if (data.type === 'registered') resolve(data.sessionId);
-      });
+      activeHostToken = token;
+      activeHostAccessKey = accessKey || '';
+      hostReconnectAttempts = 0;
+      connectHostSignaling(serverIP, token, activeHostAccessKey, resolve, reject);
     } catch (e: any) { reject(e); }
   });
 });
 
 ipcMain.handle('host:stop', () => {
+  activeHostToken = ''; // Prevent auto-reconnect
   if (signalingWs) { signalingWs.close(); signalingWs = null; }
   cleanUpWebRTC();
   return { success: true };
@@ -446,10 +502,19 @@ ipcMain.handle('viewer:connect', async (_event: any, rawSessionId: string, serve
             setupViewerSignalingProxy(sessionId); 
             resolve(true); 
           }
-          else reject(new Error(msg.error));
+          else {
+            reject(new Error(msg.error));
+          }
         }
       });
-      viewerWs.on('error', (err) => reject(err));
+      viewerWs.on('error', (err) => {
+         console.error('[Viewer] WS Error:', err.message);
+         if (reject) reject(err);
+      });
+      viewerWs.on('close', () => {
+         console.log('[Viewer] WS Closed');
+         mainWindow?.webContents.send('viewer:signaling-disconnected');
+      });
     } catch (e: any) { reject(e); }
   });
 });
