@@ -1,0 +1,250 @@
+﻿node.exe : gyp info it worked if it ends with ok
+At C:\Users\PC\AppData\Roaming\npm\node-gyp.ps1:24 
+char:5
++     & "node$exe"  
+"$basedir/node_modules/node-gyp/bin/node-gyp.js" $a 
+...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (gyp inf 
+   o it worked if it ends with ok:String) [], Remot  
+  eException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+gyp verb cli [
+gyp verb cli 'C:\\Program Files\\nodejs\\node.exe',
+gyp verb cli 'C:\\Users\\PC\\AppData\\Roaming\\npm\\n
+ode_modules\\node-gyp\\bin\\node-gyp.js',
+gyp verb cli 'rebuild',
+gyp verb cli '--loglevel=verbose'
+gyp verb cli ]
+gyp info using node-gyp@12.2.0
+gyp info using node@24.13.0 | win32 | x64
+gyp verb clean removing "build" directory
+gyp verb find Python --python was not set on the 
+command line
+gyp verb find Python Python is not set from 
+environment variable PYTHON
+gyp verb find Python checking if the py launcher can 
+be used to find Python 3
+gyp verb find Python - executing "py.exe" to get 
+Python 3 executable path
+gyp verb find Python - executable path is ""
+gyp verb find Python - executing "" to get version
+gyp verb find Python - "" could not be run
+gyp verb find Python checking if "python3" can be 
+used
+gyp verb find Python - executing "python3" to get 
+executable path
+(node:17384) [DEP0190] DeprecationWarning: Passing 
+args to a child process with shell option true can 
+lead to security vulnerabilities, as the arguments 
+are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where 
+the warning was created)
+gyp verb find Python - executable path is "C:\Users\P
+C\AppData\Local\Microsoft\WindowsApps\PythonSoftwareF
+oundation.Python.3.13_qbz5n2kfra8p0\python.exe"
+gyp verb find Python - executing "C:\Users\PC\AppData
+\Local\Microsoft\WindowsApps\PythonSoftwareFoundation
+.Python.3.13_qbz5n2kfra8p0\python.exe" to get version
+gyp verb find Python - version is "3.13.12"
+gyp info find Python using Python version 3.13.12 
+found at "C:\Users\PC\AppData\Local\Microsoft\Windows
+Apps\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8
+p0\python.exe"
+gyp verb get node dir no --target version specified, 
+falling back to host node version: 24.13.0
+
+gyp verb install input version string "24.13.0"
+gyp verb install installing version: 24.13.0
+gyp verb install --ensure was passed, so won't 
+reinstall if already installed
+gyp verb install version is already installed, need 
+to check "installVersion"
+gyp verb got "installVersion" 11
+gyp verb needs "installVersion" 11
+gyp verb install version is good
+gyp verb on Windows; need to check node.lib 
+gyp verb get node dir target node version installed: 
+24.13.0
+gyp verb build dir attempting to create "build" dir: 
+F:\TechVision\RemoteLink\packages\native-capture\buil
+d
+gyp verb build dir "build" dir needed to be created? 
+Yes
+gyp verb find VS --msvs_version was not set on the 
+command line
+gyp verb find VS VCINSTALLDIR not set, not running 
+in VS Command Prompt
+gyp verb find VS could not use PowerShell to find 
+Visual Studio 2017 or newer, try re-running with 
+'--loglevel silly' for more details.
+gyp verb find VS 
+gyp verb find VS Failure details: undefined
+gyp verb find VS checking VS2022 (17.14.37027.9) 
+found at:
+gyp verb find VS "C:\Program Files (x86)\Microsoft 
+Visual Studio\2022\BuildTools"
+gyp verb find VS - found "Visual Studio C++ core 
+features"
+gyp verb find VS - found VC++ toolset: v143
+gyp verb find VS - found Windows SDK: 10.0.26100.0
+gyp info find VS using VS2022 (17.14.37027.9) found 
+at:
+gyp info find VS "C:\Program Files (x86)\Microsoft 
+Visual Studio\2022\BuildTools"
+gyp info find VS run with --verbose for detailed 
+information
+gyp verb build/config.gypi creating config file
+gyp verb build/config.gypi writing out config file: F
+:\TechVision\RemoteLink\packages\native-capture\build
+\config.gypi
+gyp verb config.gypi checking for gypi file: F:\TechV
+ision\RemoteLink\packages\native-capture\config.gypi
+gyp verb common.gypi checking for gypi file: F:\TechV
+ision\RemoteLink\packages\native-capture\common.gypi
+gyp verb gyp gyp format was not specified; forcing 
+"msvs"
+gyp info spawn C:\Users\PC\AppData\Local\Microsoft\Wi
+ndowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n2
+kfra8p0\python.exe
+gyp info spawn args [
+gyp info spawn args 'C:\\Users\\PC\\AppData\\Roaming\
+\npm\\node_modules\\node-gyp\\gyp\\gyp_main.py',
+gyp info spawn args 'binding.gyp',
+gyp info spawn args '-f',
+gyp info spawn args 'msvs',
+gyp info spawn args '-I',
+gyp info spawn args 'F:\\TechVision\\RemoteLink\\pack
+ages\\native-capture\\build\\config.gypi',
+gyp info spawn args '-I',
+gyp info spawn args 'C:\\Users\\PC\\AppData\\Roaming\
+\npm\\node_modules\\node-gyp\\addon.gypi',
+gyp info spawn args '-I',
+gyp info spawn args 'C:\\Users\\PC\\AppData\\Local\\n
+ode-gyp\\Cache\\24.13.0\\include\\node\\common.gypi',
+gyp info spawn args '-Dlibrary=shared_library',
+gyp info spawn args '-Dvisibility=default',
+gyp info spawn args '-Dnode_root_dir=C:\\Users\\PC\\A
+ppData\\Local\\node-gyp\\Cache\\24.13.0',
+gyp info spawn args '-Dnode_gyp_dir=C:\\Users\\PC\\Ap
+pData\\Roaming\\npm\\node_modules\\node-gyp',
+gyp info spawn args '-Dnode_lib_file=C:\\\\Users\\\\P
+C\\\\AppData\\\\Local\\\\node-gyp\\\\Cache\\\\24.13.0
+\\\\<(target_arch)\\\\node.lib',
+gyp info spawn args '-Dmodule_root_dir=F:\\TechVision
+\\RemoteLink\\packages\\native-capture',
+gyp info spawn args '-Dnode_engine=v8',
+gyp info spawn args '--depth=.',
+gyp info spawn args '--no-parallel',
+gyp info spawn args '--generator-output',
+gyp info spawn args 'F:\\TechVision\\RemoteLink\\pack
+ages\\native-capture\\build',
+gyp info spawn args '-Goutput_dir=.'
+gyp info spawn args ]
+gyp verb build type Release
+gyp verb architecture x64
+gyp verb node dev dir 
+C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0
+gyp verb python C:\Users\PC\AppData\Local\Microsoft\W
+indowsApps\PythonSoftwareFoundation.Python.3.13_qbz5n
+2kfra8p0\python.exe
+gyp verb found first Solution file build/binding.sln
+gyp verb using MSBuild: C:\Program Files 
+(x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild
+\Current\Bin\MSBuild.exe
+gyp info spawn C:\Program Files (x86)\Microsoft 
+Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSB
+uild.exe
+gyp info spawn args [
+gyp info spawn args 'build/binding.sln',
+gyp info spawn args '/nologo',
+gyp info spawn args '/nodeReuse:false',
+gyp info spawn args 
+'/p:Configuration=Release;Platform=x64'
+gyp info spawn args ]
+Build started 3/22/2026 8:47:35 AM.
+
+Project "F:\TechVision\RemoteLink\packages\native-capture\build\binding.sln" on node 1 (default targets).
+ValidateSolutionConfiguration:
+  Building solution configuration "Release|x64".
+Project "F:\TechVision\RemoteLink\packages\native-capture\build\binding.sln" (1) is building "F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj.metaproj" (2) on node 1 (default targets).
+Project "F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj.metaproj" (2) is building "F:\TechVision\RemoteLink\packages\native-capture\build\node_modules\node-addon-api\nothing.vcxproj" (3) on node 1 (default targets).
+PrepareForBuild:
+  Creating directory "Release\obj\nothing\".
+  Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+  Creating directory "F:\TechVision\RemoteLink\packages\native-capture\build\Release\".
+  Creating directory "Release\obj\nothing\nothing.tlog\".
+InitializeBuildStatus:
+  Creating "Release\obj\nothing\nothing.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+  Touching "Release\obj\nothing\nothing.tlog\unsuccessfulbuild".
+MakeDirsForCl:
+  Creating directory "F:\TechVision\RemoteLink\packages\native-capture\build\node_modules\node-addon-api\Release\obj\nothing\node_modules\node-addon-api".
+ClCompile:
+  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\CL.exe /c /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\include\node" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\src" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\openssl\config" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\openssl\openssl\include" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\uv\include" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\zlib" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\v8\include" /Z7 /nologo /W3 /WX- /diagnostics:column /MP /Ox /Ob2 /Oi /Ot /Oy /GL /D NODE_GYP_MODULE_NAME=nothing /D USING_UV_SHARED=1 /D USING_V8_SHARED=1 /D V8_DEPRECATION_WARNINGS=1 /D _GLIBCXX_USE_CXX11_ABI=1 /D _FILE_OFFSET_BITS=64 /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /D _CRT_NONSTDC_NO_DEPRECATE /D _HAS_EXCEPTIONS=0 /D NOMINMAX /D OPENSSL_NO_PINSHARED /D OPENSSL_THREADS /D "HOST_BINARY=\"node.exe\"" /GF /Gm- /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR- /Fo"Release\obj\nothing\\node_modules\node-addon-api\nothing.obj" /Fd"F:\TechVision\RemoteLink\packages\native-capture\build\Release\nothing.pdb" /external:W3 /Gd /TC /wd4351 /wd4355 /wd4800 /wd4251 /wd4275 /wd4244 /wd4267 /FC /errorReport:queue /Zc:__cplusplus -std:c++20 /Zm2000 "..\..\..\node_modules\node-addon-api\nothing.c"
+  nothing.c
+  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\CL.exe /c /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\include\node" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\src" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\openssl\config" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\openssl\openssl\include" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\uv\include" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\zlib" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\v8\include" /Z7 /nologo /W3 /WX- /diagnostics:column /MP /Ox /Ob2 /Oi /Ot /Oy /GL /D NODE_GYP_MODULE_NAME=nothing /D USING_UV_SHARED=1 /D USING_V8_SHARED=1 /D V8_DEPRECATION_WARNINGS=1 /D _GLIBCXX_USE_CXX11_ABI=1 /D _FILE_OFFSET_BITS=64 /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /D _CRT_NONSTDC_NO_DEPRECATE /D _HAS_EXCEPTIONS=0 /D NOMINMAX /D OPENSSL_NO_PINSHARED /D OPENSSL_THREADS /D "HOST_BINARY=\"node.exe\"" /GF /Gm- /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR- /Fo"Release\obj\nothing\\" /Fd"F:\TechVision\RemoteLink\packages\native-capture\build\Release\nothing.pdb" /external:W3 /Gd /TP /wd4351 /wd4355 /wd4800 /wd4251 /wd4275 /wd4244 /wd4267 /FC /errorReport:queue /Zc:__cplusplus -std:c++20 /Zm2000 "C:\Users\PC\AppData\Roaming\npm\node_modules\node-gyp\src\win_delay_load_hook.cc"
+  win_delay_load_hook.cc
+Lib:
+  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\Lib.exe /OUT:"F:\TechVision\RemoteLink\packages\native-capture\build\Release\nothing.lib" /NOLOGO /MACHINE:X64 /LTCG:INCREMENTAL Release\obj\nothing\win_delay_load_hook.obj
+  "Release\obj\nothing\\node_modules\node-addon-api\nothing.obj"
+  nothing.vcxproj -> F:\TechVision\RemoteLink\packages\native-capture\build\Release\\nothing.lib
+FinalizeBuildStatus:
+  Deleting file "Release\obj\nothing\nothing.tlog\unsuccessfulbuild".
+  Touching "Release\obj\nothing\nothing.tlog\nothing.lastbuildstate".
+Done Building Project "F:\TechVision\RemoteLink\packages\native-capture\build\node_modules\node-addon-api\nothing.vcxproj" (default targets).
+Project "F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj.metaproj" (2) is building "F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj" (4) on node 1 (default targets).
+PrepareForBuild:
+  Creating directory "Release\obj\capture\".
+  Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+  Creating directory "Release\obj\capture\capture.tlog\".
+InitializeBuildStatus:
+  Creating "Release\obj\capture\capture.tlog\unsuccessfulbuild" because "AlwaysCreate" was specified.
+  Touching "Release\obj\capture\capture.tlog\unsuccessfulbuild".
+MakeDirsForCl:
+  Creating directory "F:\TechVision\RemoteLink\packages\native-capture\build\Release\obj\capture\src".
+ClCompile:
+  C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\CL.exe /c /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\include\node" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\src" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\openssl\config" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\openssl\openssl\include" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\uv\include" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\zlib" /I"C:\Users\PC\AppData\Local\node-gyp\Cache\24.13.0\deps\v8\include" /I"F:\TechVision\RemoteLink\packages\native-capture\node_modules\node-addon-api" /Z7 /nologo /W3 /WX- /diagnostics:column /MP /Ox /Ob2 /Oi /Ot /Oy /GL /D NODE_GYP_MODULE_NAME=capture /D USING_UV_SHARED=1 /D USING_V8_SHARED=1 /D V8_DEPRECATION_WARNINGS=1 /D _GLIBCXX_USE_CXX11_ABI=1 /D _FILE_OFFSET_BITS=64 /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /D _CRT_NONSTDC_NO_DEPRECATE /D _HAS_EXCEPTIONS=0 /D NOMINMAX /D OPENSSL_NO_PINSHARED /D OPENSSL_THREADS /D NAPI_DISABLE_CPP_EXCEPTIONS /D BUILDING_NODE_EXTENSION /D "HOST_BINARY=\"node.exe\"" /D _WINDLL /GF /Gm- /EHsc /MT /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR- /Fo"Release\obj\capture\\src\main.obj" /Fd"Release\obj\capture\vc143.pdb" /external:W3 /Gd /TP /wd4351 /wd4355 /wd4800 /wd4251 /wd4275 /wd4244 /wd4267 /FC /errorReport:queue /Zc:__cplusplus -std:c++20 /Zm2000 ..\src\main.cpp
+  main.cpp
+F:\TechVision\RemoteLink\packages\native-capture\src\main.cpp(29,27): error C2039: 'GetEnumOutputs': is not a member of 'IDXGIAdapter' [F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj]
+      C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared\dxgi.h(1326,5):
+      see declaration of 'IDXGIAdapter'
+  
+Done Building Project "F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj" (default targets) -- FAILED.
+Done Building Project "F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj.metaproj" (default targets) -- FAILED.
+Done Building Project "F:\TechVision\RemoteLink\packages\native-capture\build\binding.sln" (default targets) -- FAILED.
+
+Build FAILED.
+
+"F:\TechVision\RemoteLink\packages\native-capture\build\binding.sln" (default target) (1) ->
+"F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj.metaproj" (default target) (2) ->
+"F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj" (default target) (4) ->
+(ClCompile target) -> 
+  F:\TechVision\RemoteLink\packages\native-capture\src\main.cpp(29,27): error C2039: 'GetEnumOutputs': is not a member of 'IDXGIAdapter' [F:\TechVision\RemoteLink\packages\native-capture\build\capture.vcxproj]
+
+    0 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:02.96
+gyp ERR! build error 
+gyp ERR! stack Error: `C:\Program Files 
+(x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild
+\Current\Bin\MSBuild.exe` failed with exit code: 1
+gyp ERR! stack at ChildProcess.<anonymous> (C:\Users\
+PC\AppData\Roaming\npm\node_modules\node-gyp\lib\buil
+d.js:219:23)
+gyp ERR! stack at ChildProcess.emit 
+(node:events:508:28)
+gyp ERR! stack at ChildProcess._handle.onexit 
+(node:internal/child_process:294:12)
+gyp ERR! System Windows_NT 10.0.26200
+gyp ERR! command "C:\\Program 
+Files\\nodejs\\node.exe" "C:\\Users\\PC\\AppData\\Roa
+ming\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js" 
+"rebuild" "--loglevel=verbose"
+gyp ERR! cwd 
+F:\TechVision\RemoteLink\packages\native-capture
+gyp ERR! node -v v24.13.0
+gyp ERR! node-gyp -v v12.2.0
+gyp ERR! not ok 

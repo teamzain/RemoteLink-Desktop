@@ -1,0 +1,30 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String?  // nullable for OAuth users
+  name      String?
+  role      String   @default("USER") // USER, ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  sessions  Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  hostId    String
+  viewerId  String
+  viewer    User     @relation(fields: [viewerId], references: [id])
+  startTime DateTime @default(now())
+  endTime   DateTime?
+  status    String   @default("ACTIVE") // ACTIVE, COMPLETED, FAILED
+}

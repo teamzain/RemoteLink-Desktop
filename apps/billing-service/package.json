@@ -1,0 +1,19 @@
+{
+  "name": "@remotelink/billing-service",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@remotelink/shared": "1.0.0",
+    "fastify": "^4.28.0",
+    "stripe": "^15.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "ts-node-dev": "^2.0.0"
+  }
+}
