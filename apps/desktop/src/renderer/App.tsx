@@ -68,20 +68,27 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
     
     // NAL type detection: Scan the first 100 bytes for a Keyframe-related NAL (5, 7, 8)
     for (let i = 0; i < Math.min(chunkData.length - 4, 100); i++) {
-      if (chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 1) {
-        const nalType = chunkData[i+3] & 0x1F;
-        if (nalType === 5 || nalType === 7 || nalType === 8) {
-          type = 'key';
-          if (!hasReceivedKeyframe) {
-            console.log('[VideoPlayer] ACCESS UNIT (Keyframe) RECEIVED. Enabling decoder!');
-            setHasReceivedKeyframe(true);
-          }
-          break;
+        // Detect Annex-B start code: 00 00 01 (3-byte) or 00 00 00 01 (4-byte)
+        if (chunkData[i] === 0 && chunkData[i+1] === 0) {
+            let nalType = -1;
+            if (chunkData[i+2] === 1) { 
+                nalType = chunkData[i+3] & 0x1F;
+            } else if (chunkData[i+2] === 0 && chunkData[i+3] === 1) {
+                nalType = chunkData[i+4] & 0x1F;
+            }
+
+            if (nalType === 5 || nalType === 7 || nalType === 8) {
+                type = 'key';
+                if (!hasReceivedKeyframe) {
+                    console.log(`[VideoPlayer] SYNC SUCCESS! Initial keyframe detected (NAL=${nalType}).`);
+                    setHasReceivedKeyframe(true);
+                }
+                break;
+            }
         }
-      }
     }
 
-    // CRITICAL: WebCodecs requires a keyframe (Access Unit with IDR) after join or flush.
+    // CRITICAL: WebCodecs REQUIRES a keyframe (Type 5/IDR) as the very first decoded chunk.
     if (!hasReceivedKeyframe) return;
 
     if (viewerStatus !== 'streaming') {
