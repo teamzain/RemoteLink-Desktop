@@ -1,4 +1,4 @@
-import { prisma, redisSubscriber, EventChannel } from '@remotelink/shared';
+import { prisma, redisSubscriber, EventChannel, getPlanLimits } from '@remotelink/shared';
 
 console.log('[Session Service] Starting up...');
 
@@ -17,14 +17,16 @@ redisSubscriber.on('message', async (channel: string, message: string) => {
       console.log(`[Session Service] Session started for Host: ${data.hostId}, Viewer: ${data.viewerId}`);
       
       // Enforce plan limits
+      const { plan, limits } = await getPlanLimits(data.viewerId);
+      const limitValue = limits?.maxConcurrentSessions ?? 1;
+
       const activeSessions = await prisma.session.count({
         where: { viewerId: data.viewerId, status: 'ACTIVE' }
       });
       
-      if (activeSessions >= 3) {
-        // Rigid plan enforcement: max 3 concurrent sessions
-        console.warn(`[Session Service] User ${data.viewerId} reached max concurrent sessions`);
-        // TODO: Publish event back to Signaling server to force disconnect the WebSocket
+      if (activeSessions >= limitValue && limitValue !== -1) {
+        console.warn(`[Session Service] User ${data.viewerId} reached max concurrent sessions for plan ${plan} (Limit: ${limitValue})`);
+        // Force disconnect logic would go here if we had a reference to the signaling socket
       } else {
         await prisma.session.create({
           data: {
@@ -58,3 +60,7 @@ redisSubscriber.on('message', async (channel: string, message: string) => {
 });
 
 console.log('[Session Service] Listening for Redis events...');
+
+redisSubscriber.on('error', (err) => {
+  console.error('[Session Service] Redis Subscriber Error:', err);
+});

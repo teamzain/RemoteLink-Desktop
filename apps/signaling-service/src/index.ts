@@ -132,11 +132,24 @@ wss.on('connection', (ws) => {
     if (sessionId) {
       sessionRegistry.delete(sessionId);
       reverseRegistry.delete(connectionId);
-      redisPublisher.del(`presence:${sessionId}`);
+      redisPublisher.del(`presence:${sessionId}`).catch(err => console.error('[Redis] Error deleting presence:', err));
       console.log(`[Signaling] Cleaned up Host session: ${sessionId}`);
     }
   });
+
+  // Heartbeat to prevent socket from timing out
+  const heartbeat = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    } else {
+      clearInterval(heartbeat);
+    }
+  }, 30000);
 });
+
+// Redis Error Handling
+redisPublisher.on('error', (err) => console.error('[Signaling] Redis Publisher Error:', err));
+redisSubscriber.on('error', (err) => console.error('[Signaling] Redis Subscriber Error:', err));
 
 console.log(`Signaling server listening on ws://0.0.0.0:${PORT}`);
 

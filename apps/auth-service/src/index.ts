@@ -23,6 +23,17 @@ server.register(mfaRoutes, { prefix: '/api/auth/2fa' });
 server.register(passwordRoutes, { prefix: '/api/auth/password' });
 server.register(deviceRoutes, { prefix: '/api/devices' });
 
+server.setErrorHandler((error, request, reply) => {
+  server.log.error(error);
+  if (error.code === 'P2024') {
+    return reply.status(503).send({ error: 'Database timeout, please try again' });
+  }
+  if (error.message.includes('Redis')) {
+    return reply.status(503).send({ error: 'Session service temporarily unavailable' });
+  }
+  reply.status(error.statusCode || 500).send({ error: error.message || 'Internal Server Error' });
+});
+
 const start = async () => {
   try {
     await server.listen({ port: 3001, host: '0.0.0.0' });

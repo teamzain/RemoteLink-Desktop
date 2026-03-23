@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { prisma, redisPublisher, generateToken, verifyToken } from '@remotelink/shared';
+import { prisma, redisPublisher, generateToken, verifyToken, checkPlanLimit } from '@remotelink/shared';
 import { randomInt } from 'crypto';
 
 // Helper to generate 9-digit CSPRNG key
@@ -24,7 +24,7 @@ async function mapDevice(device: any, userId: string): Promise<any> {
 export default async function deviceRoutes(fastify: FastifyInstance) {
   
   // 1. Register a new device for the current user
-  fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/register', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const authHeader = request.headers.authorization;
       if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
@@ -184,7 +184,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   });
 
   // 5. Add Existing Device
-  fastify.post('/add-existing', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/add-existing', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
     

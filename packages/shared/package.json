@@ -18,5 +18,8 @@
     "typescript": "^5.7.2",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/bcryptjs": "^2.4.6"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   }
 }

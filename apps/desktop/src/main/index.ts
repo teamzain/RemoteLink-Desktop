@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, safeStorage, clipboard } from 'electron';
+import { app, shell, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification } from 'electron';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { spawn, ChildProcess } from 'child_process';
@@ -69,6 +69,9 @@ let hasVCLInAccumulator = false; // To track if we have a frame to send
 let nalsCaptured = 0;
 const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
+// --- File Transfer State ---
+const fileTransfers = new Map<string, { buffer: Buffer, received: number, total: number, chunks: number }>();
+
 function cleanUpWebRTC() {
   console.log('[Host] Performing full WebRTC cleanup...');
   stopStreaming();
@@ -102,6 +105,7 @@ function startStreaming() {
   ffmpegProcess = spawn(getFFmpegPath(), [
     '-f', 'gdigrab',
     '-framerate', '30',
+    '-draw_mouse', '1',
     '-i', 'desktop',
     // Simple scaling for better compatibility and performance
     '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
@@ -329,7 +333,7 @@ function initiateHostWebRTC() {
   dataChannel = peerConnection.createDataChannel("control");
   videoDataChannel = peerConnection.createDataChannel("video");
 
-  dataChannel.onMessage((msg: string | Buffer) => {
+  dataChannel.onMessage(async (msg: string | Buffer) => {
     try {
       const event = JSON.parse(msg.toString());
       switch (event.type) {
@@ -355,7 +359,45 @@ function initiateHostWebRTC() {
           break;
       }
     } catch (e) {
-      // Silently ignore non-JSON or malformed control messages
+      // If it's not JSON, it might be a binary file chunk prefixed with JSON header size
+      if (Buffer.isBuffer(msg)) {
+        try {
+          const jsonSize = msg.readUInt32LE(0);
+          const headerJson = msg.subarray(4, 4 + jsonSize).toString();
+          const header = JSON.parse(headerJson);
+          
+          if (header.type === 'file-chunk') {
+            const chunkData = msg.subarray(4 + jsonSize);
+            let transfer = fileTransfers.get(header.name);
+            if (!transfer) {
+              transfer = { buffer: Buffer.alloc(header.totalSize), received: 0, total: header.totalSize, chunks: 0 };
+              fileTransfers.set(header.name, transfer);
+            }
+            
+            chunkData.copy(transfer.buffer, header.offset);
+            transfer.received += chunkData.length;
+            transfer.chunks++;
+            
+            // Progress Update
+            const progress = Math.round((transfer.received / transfer.total) * 100);
+            mainWindow?.webContents.send('host:status', `Receiving ${header.name}: ${progress}%`);
+            
+            if (transfer.received >= transfer.total) {
+              const savePath = join(app.getPath('downloads'), header.name);
+              await fs.writeFile(savePath, transfer.buffer);
+              fileTransfers.delete(header.name);
+              
+              new Notification({
+                title: 'File Received',
+                body: `Saved ${header.name} to Downloads`
+              }).show();
+              mainWindow?.webContents.send('host:status', `File Received: ${header.name}`);
+            }
+          }
+        } catch (err) {
+          console.error('[Host] Binary message processing failed:', err);
+        }
+      }
     }
   });
 

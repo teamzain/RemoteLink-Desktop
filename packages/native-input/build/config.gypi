@@ -510,6 +510,16 @@
     "nodedir": "C:\\Users\\PC\\AppData\\Local\\node-gyp\\Cache\\24.13.0",
     "python": "C:\\Users\\PC\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
     "standalone_static_library": 1,
-    "msbuild_path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe"
+    "msbuild_path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe",
+    "cache": "C:\\Users\\PC\\AppData\\Local\\npm-cache",
+    "globalconfig": "C:\\Users\\PC\\AppData\\Roaming\\npm\\etc\\npmrc",
+    "global_prefix": "C:\\Users\\PC\\AppData\\Roaming\\npm",
+    "init_module": "C:\\Users\\PC\\.npm-init.js",
+    "local_prefix": "F:\\TechVision\\RemoteLink",
+    "node_gyp": "C:\\Program Files\\nodejs\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
+    "npm_version": "11.6.2",
+    "prefix": "C:\\Users\\PC\\AppData\\Roaming\\npm",
+    "userconfig": "C:\\Users\\PC\\.npmrc",
+    "user_agent": "npm/11.6.2 node/v24.13.0 win32 x64 workspaces/false"
   }
 }

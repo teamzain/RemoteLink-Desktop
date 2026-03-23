@@ -28,6 +28,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
       payload: { userId: user.id, email: user.email }
     });
 
+    // Create Stripe Customer
+    try {
+      const billingUrl = process.env.BILLING_SERVICE_URL || 'http://localhost:3003';
+      await fetch(`${billingUrl}/billing/create-customer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, email: user.email })
+      });
+    } catch (err) {
+      console.error('[Auth] Failed to trigger billing customer creation:', err);
+      // Non-blocking for registration
+    }
+
     const token = generateToken({ userId: user.id, role: user.role });
     const refreshToken = generateToken({ userId: user.id, role: user.role, type: 'refresh' } as any);
     return reply.code(201).send({ token, refreshToken, user: { id: user.id, email: user.email, name: user.name } });

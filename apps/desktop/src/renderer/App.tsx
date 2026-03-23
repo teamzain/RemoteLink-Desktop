@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+// Force-syncing file state to resolve HMR/Vite discrepancies.
 import {
   Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X
-, Sun, Moon} from 'lucide-react';
+, Sun, Moon, Edit2, Trash2, ShieldOff, RefreshCw} from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
 
@@ -12,6 +13,8 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
   const [latency, setLatency] = useState<number>(0);
   const decoderRef = useRef<any>(null);
   const [hasReceivedKeyframe, setHasReceivedKeyframe] = useState(false);
+  const [transferProgress, setTransferProgress] = useState<{name: string, p: number} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- REASSEMBLY STATE ---
   const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
@@ -165,6 +168,68 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
           </div>
         </div>
         <div className="flex items-center gap-4">
+            {transferProgress && (
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest">Sending {transferProgress.name}</span>
+                <div className="w-24 h-1 bg-blue-500/20 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${transferProgress.p}%` }} />
+                </div>
+              </div>
+            )}
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                
+                const CHUNK_SIZE = 16 * 1024; // 16KB
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                const reader = new FileReader();
+
+                setTransferProgress({ name: file.name, p: 0 });
+
+                for (let i = 0; i < totalChunks; i++) {
+                  const start = i * CHUNK_SIZE;
+                  const end = Math.min(start + CHUNK_SIZE, file.size);
+                  const chunk = file.slice(start, end);
+                  const arrayBuffer = await chunk.arrayBuffer();
+                  
+                  const header = JSON.stringify({
+                    type: 'file-chunk',
+                    name: file.name,
+                    totalSize: file.size,
+                    offset: start,
+                    chunkIndex: i,
+                    totalChunks: totalChunks
+                  });
+                  
+                  const headerBuffer = new TextEncoder().encode(header);
+                  const fullBuffer = new Uint8Array(4 + headerBuffer.length + arrayBuffer.byteLength);
+                  const view = new DataView(fullBuffer.buffer);
+                  view.setUint32(0, headerBuffer.length, true);
+                  fullBuffer.set(headerBuffer, 4);
+                  fullBuffer.set(new Uint8Array(arrayBuffer), 4 + headerBuffer.length);
+                  
+                  onControlEvent(fullBuffer);
+                  setTransferProgress({ name: file.name, p: Math.round(((i + 1) / totalChunks) * 100) });
+                  
+                  // Throttling to prevent overwhelming the data channel
+                  if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
+                }
+                
+                setTimeout(() => setTransferProgress(null), 2000);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 text-blue-400 transition"
+              title="Transfer File"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
               <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
               <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
@@ -250,6 +315,25 @@ export default function App() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const candidatesBuffer = useRef<RTCIceCandidateInit[]>([]);
   const controlChannelRef = useRef<RTCDataChannel | null>(null);
+  const reassemblyMap = useRef<Map<bigint, any>>(new Map());
+
+  // Throttled mouse movement
+  const lastMouseMoveRef = useRef<number>(0);
+  const MOUSE_THROTTLE_MS = 16; // ~60fps mouse updates
+
+  const throttledMouseMove = (event: any) => {
+    const now = Date.now();
+    if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
+    lastMouseMoveRef.current = now;
+    if (controlChannelRef.current?.readyState === 'open') {
+        controlChannelRef.current.send(JSON.stringify(event));
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsAuthenticated(false);
+    await (window as any).electronAPI.deleteToken();
+  };
   const lastClipboardRef = useRef<string>('');
   
   
@@ -269,6 +353,15 @@ export default function App() {
   const [contextMenuMsg, setContextMenuMsg] = useState(''); // Tooltip offline
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
   const [globalError, setGlobalError] = useState('');
+
+  const [actionModal, setActionModal] = useState<{ type: 'rename' | 'password' | 'remove' | 'regenerate', device: any } | null>(null);
+  const [actionValue, setActionValue] = useState('');
+
+  useEffect(() => {
+    const handleGlobalClick = () => { if (contextMenuId) setContextMenuId(null); };
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, [contextMenuId]);
 
   const handleDisconnect = () => {
     if (pcRef.current) {
@@ -291,20 +384,33 @@ export default function App() {
         setDevices(data);
         setGlobalError('');
       } else if (res.status === 401) {
+        const creds = await (window as any).electronAPI.getToken();
+        if (creds?.refresh) {
+          await handleRefresh(creds.refresh);
+          pollDevices();
+          return;
+        }
         await (window as any).electronAPI.deleteToken();
         setIsAuthenticated(false);
         setGlobalError('Session expired. Please log in again.');
       }
-    } catch {
-       setGlobalError('Network Error: Could not reach the server.');
+    } catch (e: any) {
+      if (e.message.includes('401')) handleLogout();
     }
   };
 
   useEffect(() => {
     if (isAuthenticated) {
       pollDevices();
-      const interval = setInterval(pollDevices, 30000);
-      return () => clearInterval(interval);
+      const interval = setInterval(pollDevices, 10000); // 10s polling for online status
+      
+      const handleFocus = () => pollDevices();
+      window.addEventListener('focus', handleFocus);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('focus', handleFocus);
+      };
     }
   }, [isAuthenticated, serverIP]);
   
@@ -408,35 +514,36 @@ export default function App() {
     }
   };
 
-  const handleRename = async (id: string) => {
-    const newName = prompt('Enter new device name:');
-    if (!newName) return;
+  const handleRename = async (device: any) => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      await fetch(`http://${serverIP}:3001/api/devices/${id}/name`, {
+      const res = await fetch(`http://${serverIP}:3001/api/devices/${device.id}/name`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${creds.token}`
         },
-        body: JSON.stringify({ device_name: newName })
+        body: JSON.stringify({ device_name: actionValue })
       });
+      if (!res.ok) throw new Error('Rename failed');
       pollDevices();
-      if (selectedDevice?.id === id) setSelectedDevice({ ...selectedDevice, device_name: newName });
-    } catch (e) {}
+      setActionModal(null);
+      if (selectedDevice?.id === device.id) setSelectedDevice({ ...selectedDevice, device_name: actionValue });
+    } catch (e: any) { setGlobalError(e.message); }
   };
 
-  const handleRemove = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this device?')) return;
+  const handleRemove = async (device: any) => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      await fetch(`http://${serverIP}:3001/api/devices/${id}`, {
+      const res = await fetch(`http://${serverIP}:3001/api/devices/${device.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${creds.token}` }
       });
+      if (!res.ok) throw new Error('Removal failed');
       pollDevices();
-      if (selectedDevice?.id === id) setSelectedDevice(null);
-    } catch (e) {}
+      setActionModal(null);
+      if (selectedDevice?.id === device.id) setSelectedDevice(null);
+    } catch (e: any) { setGlobalError(e.message); }
   };
 
   const handleRevokeTrust = async (id: string) => {
@@ -446,8 +553,38 @@ export default function App() {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${creds.token}` }
       });
-      alert("Trust revoked for this device.");
+      setGlobalError('Success: Trust revoked for this device.');
+      pollDevices();
     } catch (e) {}
+  };
+
+  const handleRegenerateDeviceKey = async (device: any) => {
+    try {
+      const creds = await (window as any).electronAPI.getToken();
+      const res = await fetch(`http://${serverIP}:3001/api/devices/regenerate-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.token}` },
+        body: JSON.stringify({ deviceId: device.id })
+      });
+      if (!res.ok) throw new Error('Regen failed');
+      pollDevices();
+      setActionModal(null);
+    } catch (e: any) { setGlobalError(e.message); }
+  };
+
+  const handleSetPassword = async (device: any) => {
+    try {
+      const creds = await (window as any).electronAPI.getToken();
+      const res = await fetch(`http://${serverIP}:3001/api/devices/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.token}` },
+        body: JSON.stringify({ deviceId: device.id, password: actionValue })
+      });
+      if (!res.ok) throw new Error('Password update failed');
+      pollDevices();
+      setActionModal(null);
+      setGlobalError('Success: Hardware password updated.');
+    } catch (e: any) { setGlobalError(e.message); }
   };
 
   // Phase 25: Device Security State
@@ -537,9 +674,15 @@ export default function App() {
             console.error('[Identity] Device list is not an array:', devices);
           }
         } else if (listRes.status === 401) {
-          console.warn('[Identity] Session expired or invalid. Logging out.');
-          setIsAuthenticated(false);
-          await (window as any).electronAPI.deleteToken();
+          console.warn('[Identity] Session expired or invalid. Attempting refresh...');
+          const creds = await (window as any).electronAPI.getToken();
+          if (creds?.refresh) {
+            await handleRefresh(creds.refresh);
+            // Retry once after refresh
+            loadDeviceInfo();
+            return;
+          }
+          handleLogout();
         } else {
           console.error('[Identity] Failed to fetch device list:', listRes.status);
         }
@@ -584,11 +727,23 @@ export default function App() {
           console.log(`[Renderer] Connection State: ${pc.connectionState}`);
           if (pc.connectionState === 'connected') {
             setViewerStatus('connected');
+            clearTimeout(connectionTimeout);
           } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
             console.log('[Renderer] WebRTC connection dropped.');
             setViewerStatus('connection_lost');
+            clearTimeout(connectionTimeout);
+          } else if (pc.connectionState === 'closed') {
+            clearTimeout(connectionTimeout);
           }
         };
+
+        const connectionTimeout = setTimeout(() => {
+          if (pc.connectionState !== 'connected' && pc.connectionState !== 'closed') {
+             console.warn('[Renderer] WebRTC Connection timeout.');
+             setViewerStatus('connection_lost');
+             pc.close();
+          }
+        }, 15000); // 15s timeout for ICE/handshake
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
@@ -749,37 +904,6 @@ export default function App() {
       setError(`Network error connecting to ${serverIP}`);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRegenerateKey = async () => {
-    if (!confirm("Generating a new access key means anyone using your current key will no longer be able to connect. This cannot be undone. Are you sure?")) return;
-    
-    try {
-      const creds = await (window as any).electronAPI.getToken();
-      if (!creds?.token) return;
-
-      if (!deviceId) {
-        alert("Could not identify device to regenerate. Please restart the app.");
-        return;
-      }
-
-      const res = await fetch(`http://${serverIP}:3001/api/devices/regenerate-key`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${creds.token}`,
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({ deviceId })
-      });
-      const data = await res.json();
-      if (data.accessKey) {
-        await (window as any).electronAPI.setDeviceAccessKey(data.accessKey);
-        setHostAccessKey(data.accessKey);
-        alert("Access key regenerated safely.");
-      }
-    } catch (e) {
-      alert("Failed to regenerate key.");
     }
   };
 
@@ -1022,7 +1146,15 @@ export default function App() {
             sessionCode={sessionCode} 
             onDisconnect={handleDisconnect}
             onControlEvent={(event: any) => {
-              if (controlChannelRef.current?.readyState === 'open') {
+              if (controlChannelRef.current?.readyState !== 'open') return;
+              
+              if (event instanceof Uint8Array) {
+                // Binary Data (File Transfer)
+                (controlChannelRef.current as any).send(event);
+              } else if (event.type === 'mousemove') {
+                throttledMouseMove(event);
+              } else {
+                // Standard JSON Control Event (Mouse/KB/Clipboard)
                 controlChannelRef.current.send(JSON.stringify(event));
               }
             }}
@@ -1062,7 +1194,7 @@ export default function App() {
                 <Plus className="w-4 h-4" />
               </button>
               <button 
-                onClick={async () => { await (window as any).electronAPI.deleteToken(); setIsAuthenticated(false); }}
+                onClick={handleLogout}
                 className="w-8 h-8 bg-red-500/10 hover:bg-red-500/20 rounded-full flex items-center justify-center text-red-400 border border-red-500/20 transition"
                 title="Sign Out"
               >
@@ -1088,7 +1220,7 @@ export default function App() {
               key={device.id} 
               onContextMenu={(e) => { e.preventDefault(); setContextMenuId(contextMenuId === device.id ? null : device.id); }}
               onClick={() => {
-                if (!device.is_online) { alert("This device is currently offline. Ensure RemoteLink is running on that machine."); return; }
+                if (!device.is_online) { setGlobalError(`${device.device_name} is currently offline.`); return; }
                 handleDeviceClick(device);
               }}
               className={`relative p-4 rounded-2xl border transition-all cursor-pointer group ${selectedDevice?.id === device.id ? 'bg-blue-600/10 border-blue-500/30' : 'bg-white dark:bg-white/[0.02] border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:bg-white/[0.04]'}`}
@@ -1113,11 +1245,41 @@ export default function App() {
               </div>
 
               {contextMenuId === device.id && (
-                <div className="absolute right-2 top-12 w-48 bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 shadow-2xl rounded-xl p-2 z-50 flex flex-col gap-1 backdrop-blur-xl">
-                  {device.is_online && <button onClick={(e) => { e.stopPropagation(); handleDeviceClick(device); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:bg-white/10 rounded-lg">Connect</button>}
-                  <button onClick={(e) => { e.stopPropagation(); handleRename(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:bg-white/10 rounded-lg">Rename Device</button>
-                  <button onClick={(e) => { e.stopPropagation(); handleRevokeTrust(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:bg-white/10 rounded-lg">Revoke Auto-Login</button>
-                  <button onClick={(e) => { e.stopPropagation(); handleRemove(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-red-500/20 text-red-400 rounded-lg">Remove Device</button>
+                <div className="absolute right-2 top-12 w-56 bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 shadow-2xl rounded-xl p-2 z-50 flex flex-col gap-1 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                  {device.is_online && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDeviceClick(device); setContextMenuId(null); }}
+                      className="flex items-center gap-3 px-3 py-2.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-emerald-600 dark:text-emerald-400 transition-colors"
+                    >
+                      <Play className="w-4 h-4" /> Connect Now
+                    </button>
+                  )}
+                  <div className="h-px bg-slate-200 dark:bg-white/5 my-1" />
+                  <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'rename', device }); setActionValue(device.device_name); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-700 dark:text-white/70 transition-colors">
+                    <Edit2 className="w-4 h-4" /> Rename Device
+                  </button>
+                  
+                  {device.is_owned && (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'password', device }); setActionValue(''); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-700 dark:text-white/70 transition-colors">
+                        <KeyRound className="w-4 h-4" /> Change Password
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'regenerate', device }); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-700 dark:text-white/70 transition-colors">
+                        <RefreshCw className="w-4 h-4" /> Regenerate Key
+                      </button>
+                    </>
+                  )}
+
+                  {!device.is_owned && (
+                    <button onClick={(e) => { e.stopPropagation(); handleRevokeTrust(device.id); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-700 dark:text-white/70 transition-colors">
+                      <ShieldOff className="w-4 h-4" /> Revoke Trust
+                    </button>
+                  )}
+
+                  <div className="h-px bg-slate-200 dark:bg-white/5 my-1" />
+                  <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'remove', device }); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-red-500/10 text-red-500 rounded-lg transition-colors">
+                    <Trash2 className="w-4 h-4" /> {device.is_owned ? 'Delete Device' : 'Unlink Device'}
+                  </button>
                 </div>
               )}
             </div>
@@ -1163,7 +1325,7 @@ export default function App() {
                        <div className="text-2xl font-mono text-emerald-400 mt-2 mb-4">{formatCode(hostAccessKey)}</div>
                        {hostSessionId ? 
                          <button onClick={async () => { await (window as any).electronAPI.stopHosting(); setHostSessionId(''); }} className="w-full bg-red-500/10 text-red-400 text-xs py-2 rounded-lg font-bold">Stop Broadcasting</button> :
-                         <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-slate-100 dark:bg-white/5 text-xs py-2 rounded-lg hover:bg-slate-200 dark:bg-white/10">Copy</button><button onClick={handleRegenerateKey} className="flex-1 bg-red-500/10 text-red-500/70 text-xs py-2 rounded-lg hover:bg-red-500/20">Regenerate</button></div>
+                         <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-slate-100 dark:bg-white/5 text-xs py-2 rounded-lg hover:bg-slate-200 dark:bg-white/10">Copy</button><button onClick={handleRegenerateDeviceKey} className="flex-1 bg-red-500/10 text-red-500/70 text-xs py-2 rounded-lg hover:bg-red-500/20">Regenerate</button></div>
                        }
                      </div>
                   )}
@@ -1240,6 +1402,58 @@ export default function App() {
         </div>
       )}
 
+      {/* Device Action Modal */}
+      {actionModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setActionModal(null)} />
+          <div className="w-full max-w-sm bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-white/10 rounded-3xl p-8 z-10 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 uppercase tracking-tight">
+                {actionModal.type === 'rename' ? 'Rename Device' : 
+                 actionModal.type === 'password' ? 'Hardware Password' :
+                 actionModal.type === 'remove' ? 'Remove Device' : 'Regenerate Key'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-white/40 font-medium">
+                {actionModal.type === 'rename' ? 'Give this machine a unique name to identify it easily.' :
+                 actionModal.type === 'password' ? 'This password will be required when others try to view this host.' :
+                 actionModal.type === 'remove' ? `Are you sure you want to ${actionModal.device.is_owned ? 'permanently delete' : 'unlink'} ${actionModal.device.device_name}?` :
+                 'This will change the permanent access key. Existing linked machines will need to be re-added.'}
+              </p>
+            </div>
+
+            {(actionModal.type === 'rename' || actionModal.type === 'password') && (
+              <input 
+                autoFocus
+                type={actionModal.type === 'password' ? 'password' : 'text'}
+                placeholder={actionModal.type === 'password' ? 'New hardware password' : 'Work PC, Living Room, etc.'}
+                className="w-full bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-xl p-4 mb-6 outline-none focus:border-blue-500 transition-all font-mono text-sm"
+                value={actionValue}
+                onChange={e => setActionValue(e.target.value)}
+              />
+            )}
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setActionModal(null)}
+                className="flex-1 py-3 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-white/70 font-bold rounded-xl text-xs uppercase tracking-widest transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (actionModal.type === 'rename') handleRename(actionModal.device);
+                  if (actionModal.type === 'remove') handleRemove(actionModal.device);
+                  if (actionModal.type === 'password') handleSetPassword(actionModal.device);
+                  if (actionModal.type === 'regenerate') handleRegenerateDeviceKey(actionModal.device);
+                }}
+                className={`flex-1 py-3 font-bold rounded-xl text-xs uppercase tracking-widest transition-all ${actionModal.type === 'remove' ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20' : 'bg-blue-600 hover:bg-blue-500 text-slate-900 dark:text-white shadow-lg shadow-blue-600/20'}`}
+              >
+                {actionModal.type === 'remove' ? 'Confirm' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
