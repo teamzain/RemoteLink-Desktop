@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X
-} from 'lucide-react';
+, Sun, Moon} from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
 
@@ -154,14 +154,14 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
 
   return (
     <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+      <div className="flex items-center justify-between bg-slate-100 dark:bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-slate-200 dark:border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Monitor className="text-white w-5 h-5" />
+            <Monitor className="text-slate-900 dark:text-white w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-white uppercase tracking-tight">Viewing Remote Host</h2>
-            <p className="text-[10px] text-white/40 font-mono tracking-widest leading-none mt-1">{sessionCode}</p>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Viewing Remote Host</h2>
+            <p className="text-[10px] text-slate-500 dark:text-white/40 font-mono tracking-widest leading-none mt-1">{sessionCode}</p>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -173,14 +173,14 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
             </div>
            <button 
              onClick={() => window.location.reload()} 
-             className="text-white/40 hover:text-white transition-colors"
+             className="text-slate-500 dark:text-white/40 hover:text-slate-900 dark:text-white transition-colors"
            >
              <ArrowLeft className="w-5 h-5" />
            </button>
         </div>
       </div>
       
-      <div className="flex-grow bg-black rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative group cursor-none">
+      <div className="flex-grow bg-black rounded-3xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl relative group cursor-none">
         <canvas 
           ref={canvasRef} 
           className="w-full h-full object-contain" 
@@ -215,6 +215,19 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
 
 // --- Main App Component ---
 export default function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('theme') as 'light' | 'dark') || 'dark';
+  });
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('test@example.com');
@@ -866,13 +879,13 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#080808]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#080808]">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-blue-500/20 rounded-full" />
             <div className="absolute inset-0 w-16 h-16 border-4 border-t-blue-500 rounded-full animate-spin" />
           </div>
-          <span className="text-white/40 text-xs font-bold uppercase tracking-[0.2em]">Initializing</span>
+          <span className="text-slate-500 dark:text-white/40 text-xs font-bold uppercase tracking-[0.2em]">Initializing</span>
         </div>
       </div>
     );
@@ -880,33 +893,33 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#080808] p-8">
-        <div className="w-full max-w-md bg-white/[0.02] border border-white/10 rounded-[2.5rem] p-10 backdrop-blur-3xl shadow-2xl animate-in fade-in slide-in-from-bottom-8 duration-700">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#080808] p-8">
+        <div className="w-full max-w-md bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 rounded-[2.5rem] p-10 backdrop-blur-3xl shadow-2xl animate-in fade-in slide-in-from-bottom-8 duration-700">
           <div className="mb-10 text-center">
             <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-600/20">
-              <Zap className="text-white w-10 h-10" />
+              <Zap className="text-slate-900 dark:text-white w-10 h-10" />
             </div>
-            <h1 className="text-3xl font-[900] text-white tracking-tight mb-2 uppercase">RemoteLink</h1>
-            <p className="text-white/40 text-sm tracking-wide font-medium">Access power from anywhere.</p>
+            <h1 className="text-3xl font-[900] text-slate-900 dark:text-white tracking-tight mb-2 uppercase">RemoteLink</h1>
+            <p className="text-slate-500 dark:text-white/40 text-sm tracking-wide font-medium">Access power from anywhere.</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-1.5">
-               <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest pl-4">Email Address</label>
+               <label className="text-[10px] font-bold text-slate-400 dark:text-white/30 uppercase tracking-widest pl-4">Email Address</label>
                <input 
                 type="email" 
                 required
-                className="w-full bg-white/[0.03] border border-white/5 text-white rounded-2xl p-4 outline-none focus:border-blue-500/50 focus:bg-white/[0.05] transition-all"
+                className="w-full bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl p-4 outline-none focus:border-blue-500/50 focus:bg-slate-50 dark:bg-white/[0.05] transition-all"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
-               <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest pl-4">Password</label>
+               <label className="text-[10px] font-bold text-slate-400 dark:text-white/30 uppercase tracking-widest pl-4">Password</label>
                <input 
                 type="password" 
                 required
-                className="w-full bg-white/[0.03] border border-white/5 text-white rounded-2xl p-4 outline-none focus:border-blue-500/50 focus:bg-white/[0.05] transition-all"
+                className="w-full bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl p-4 outline-none focus:border-blue-500/50 focus:bg-slate-50 dark:bg-white/[0.05] transition-all"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -914,36 +927,41 @@ export default function App() {
             {error && <div className="text-red-400 text-xs font-medium text-center bg-red-500/10 py-3 rounded-xl border border-red-500/20">{error}</div>}
             
             <div className="pt-2">
-              <button 
-                type="button"
-                onClick={() => setShowSettings(!showSettings)}
-                className="text-[10px] font-bold text-white/20 hover:text-white/50 transition-colors uppercase tracking-widest flex items-center gap-2"
-              >
-                <Settings className={`w-3 h-3 ${showSettings ? 'animate-spin-slow' : ''}`} />
-                {showSettings ? 'Hide Network Settings' : 'Advanced Network Settings'}
-              </button>
+              <div className="flex items-center justify-between">
+                <button 
+                  type="button"
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="text-[10px] font-bold text-slate-400 dark:text-white/20 hover:text-slate-600 dark:text-white/50 transition-colors uppercase tracking-widest flex items-center gap-2"
+                >
+                  <Settings className={`w-3 h-3 ${showSettings ? 'animate-spin-slow' : ''}`} />
+                  {showSettings ? 'Hide Network Settings' : 'Advanced Network Settings'}
+                </button>
+                <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 dark:text-white/30 hover:text-slate-900 dark:text-white transition group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                  {theme === 'dark' ? <><Sun className="w-3 h-3 group-hover:rotate-90 transition-transform" /> Light Mode</> : <><Moon className="w-3 h-3 group-hover:-rotate-12 transition-transform" /> Dark Mode</>}
+                </button>
+              </div>
               
               {showSettings && (
-                <div className="mt-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="mt-4 p-4 bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-white/30 uppercase tracking-[0.2em]">Signaling Server IP</label>
+                    <label className="text-[9px] font-bold text-slate-400 dark:text-white/30 uppercase tracking-[0.2em]">Signaling Server IP</label>
                     <input 
                       type="text"
-                      className="w-full bg-white/[0.03] border border-white/5 text-white/70 text-xs rounded-xl p-3 outline-none focus:border-blue-500/30 transition-all font-mono"
+                      className="w-full bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-slate-700 dark:text-white/70 text-xs rounded-xl p-3 outline-none focus:border-blue-500/30 transition-all font-mono"
                       value={serverIP}
                       onChange={(e) => setServerIP(e.target.value)}
                       placeholder="e.g. 192.168.1.15"
                     />
                   </div>
                   <div className="flex items-center justify-between px-1">
-                    <span className="text-[9px] font-medium text-white/20 uppercase tracking-widest">This Device IP</span>
+                    <span className="text-[9px] font-medium text-slate-400 dark:text-white/20 uppercase tracking-widest">This Device IP</span>
                     <span className="text-[9px] font-mono text-blue-400/50">{localIP}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 uppercase tracking-widest text-sm mt-4">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-slate-900 dark:text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 uppercase tracking-widest text-sm mt-4">
               Unlock Terminal
             </button>
           </form>
@@ -955,28 +973,28 @@ export default function App() {
   // --- Main Dashboard ---
   if (viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connection_lost') {
     return (
-      <div className="min-h-screen bg-[#080808] p-8 flex flex-col relative">
-          <div className="absolute top-4 right-4 z-50 bg-black/80 p-2 rounded border border-white/10 text-[8px] font-mono text-white/40 uppercase">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#080808] p-8 flex flex-col relative">
+          <div className="absolute top-4 right-4 z-50 bg-white/80 dark:bg-black/80 p-2 rounded border border-slate-200 dark:border-white/10 text-[8px] font-mono text-slate-500 dark:text-white/40 uppercase">
             Debug: {viewerStatus} | {viewerError || 'No Errors'}
           </div>
 
           {viewerStatus === 'connection_lost' && (
-            <div className="absolute inset-0 z-[100] bg-[#050505]/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in">
+            <div className="absolute inset-0 z-[100] bg-slate-100/95 dark:bg-[#050505]/95 backdrop-blur-xl flex flex-col items-center justify-center animate-in fade-in">
               <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center mb-8 border border-red-500/20 shadow-2xl shadow-red-500/10">
                 <Monitor className="text-red-500 w-10 h-10" />
               </div>
-              <h2 className="text-3xl font-black text-white mb-3 uppercase tracking-tight">Connection Lost</h2>
-              <p className="text-white/40 text-sm mb-10 tracking-wide font-medium">The remote host went offline or the network dropped.</p>
+              <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-3 uppercase tracking-tight">Connection Lost</h2>
+              <p className="text-slate-500 dark:text-white/40 text-sm mb-10 tracking-wide font-medium">The remote host went offline or the network dropped.</p>
               <div className="flex gap-4">
                 <button 
                   onClick={() => setViewerStatus('idle')}
-                  className="px-8 py-4 rounded-2xl border border-white/10 text-white/70 hover:bg-white/5 transition-all font-bold text-xs uppercase tracking-widest"
+                  className="px-8 py-4 rounded-2xl border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/70 hover:bg-slate-100 dark:bg-white/5 transition-all font-bold text-xs uppercase tracking-widest"
                 >
                   Return Home
                 </button>
                 <button 
                   onClick={() => handleFindDevice()}
-                  className="px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 flex items-center gap-2 text-white transition-all font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20"
+                  className="px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 flex items-center gap-2 text-slate-900 dark:text-white transition-all font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20"
                 >
                   Reconnect
                 </button>
@@ -1001,29 +1019,32 @@ export default function App() {
 
 
   return (
-    <div className="h-screen w-full bg-[#080808] text-white font-sans selection:bg-blue-500/30 flex overflow-hidden">
+    <div className="h-screen w-full bg-slate-50 dark:bg-[#080808] text-slate-900 dark:text-white font-sans selection:bg-blue-500/30 flex overflow-hidden">
       {globalError && (
-        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-center py-2 text-xs font-bold z-[100] flex justify-between px-4 items-center animate-in slide-in-from-top-4">
+        <div className="absolute top-0 left-0 right-0 bg-red-600 text-slate-900 dark:text-white text-center py-2 text-xs font-bold z-[100] flex justify-between px-4 items-center animate-in slide-in-from-top-4">
            <span>{globalError}</span>
            <button onClick={() => setGlobalError('')} className="hover:bg-black/20 p-1 rounded"><X className="w-3 h-3" /></button>
         </div>
       )}
       
       {/* SIDEBAR: My Devices */}
-      <div className="w-[340px] border-r border-white/10 bg-[#0a0a0a] flex flex-col z-10 shrink-0">
-        <div className="p-6 border-b border-white/5 flex flex-col gap-4">
+      <div className="w-[340px] border-r border-slate-200 dark:border-white/10 bg-white dark:bg-[#0a0a0a] flex flex-col z-10 shrink-0">
+        <div className="p-6 border-b border-slate-200 dark:border-white/5 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <Zap className="text-white w-4 h-4" />
+                <Zap className="text-slate-900 dark:text-white w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-sm font-black uppercase tracking-widest text-white/90">My Devices</h2>
+                <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white/90">My Devices</h2>
               </div>
             </div>
             
             <div className="flex gap-2">
-              <button title="Add Existing Device" onClick={() => setShowAddModal(true)} className="w-8 h-8 bg-white/5 hover:bg-white/10 rounded-full flex items-center justify-center border border-white/10 transition">
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-8 h-8 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 rounded-full flex items-center justify-center border border-slate-200 dark:border-white/10 transition" title="Toggle Theme">
+                {theme === 'dark' ? <Sun className="w-4 h-4 text-slate-500 dark:text-white/40" /> : <Moon className="w-4 h-4 text-slate-500 dark:text-white/40" />}
+              </button>
+              <button title="Add Existing Device" onClick={() => setShowAddModal(true)} className="w-8 h-8 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 rounded-full flex items-center justify-center border border-slate-200 dark:border-white/10 transition">
                 <Plus className="w-4 h-4" />
               </button>
               <button 
@@ -1036,13 +1057,13 @@ export default function App() {
             </div>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-white/30" />
             <input 
               type="text" 
               placeholder="Search devices..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs font-mono text-white/80 outline-none focus:border-blue-500/50 transition"
+              className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs font-mono text-slate-800 dark:text-white/80 outline-none focus:border-blue-500/50 transition"
             />
           </div>
         </div>
@@ -1056,93 +1077,93 @@ export default function App() {
                 if (!device.is_online) { alert("This device is currently offline. Ensure RemoteLink is running on that machine."); return; }
                 handleDeviceClick(device);
               }}
-              className={`relative p-4 rounded-2xl border transition-all cursor-pointer group ${selectedDevice?.id === device.id ? 'bg-blue-600/10 border-blue-500/30' : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'}`}
+              className={`relative p-4 rounded-2xl border transition-all cursor-pointer group ${selectedDevice?.id === device.id ? 'bg-blue-600/10 border-blue-500/30' : 'bg-white dark:bg-white/[0.02] border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:bg-white/[0.04]'}`}
             >
               <div className="flex justify-between items-start">
                 <div className="flex gap-3 items-center">
-                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center shadow-inner">
+                  <div className="w-10 h-10 bg-slate-100 dark:bg-white/5 rounded-xl flex items-center justify-center shadow-inner">
                     {device.device_type === 'ios' || device.device_type === 'android' ? 
-                      <Smartphone className={`w-5 h-5 ${device.is_online ? 'text-emerald-400' : 'text-gray-500'}`} /> : 
-                      <Monitor className={`w-5 h-5 ${device.is_online ? 'text-emerald-400' : 'text-gray-500'}`} />
+                      <Smartphone className={`w-5 h-5 ${device.is_online ? 'text-emerald-400' : 'text-slate-400 dark:text-gray-500'}`} /> : 
+                      <Monitor className={`w-5 h-5 ${device.is_online ? 'text-emerald-400' : 'text-slate-400 dark:text-gray-500'}`} />
                     }
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white/90 truncate max-w-[150px]">{device.device_name || 'Unnamed Device'}</h3>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-white/90 truncate max-w-[150px]">{device.device_name || 'Unnamed Device'}</h3>
                     <div className="flex items-center gap-1.5 mt-1">
                       <div className={`w-1.5 h-1.5 rounded-full ${device.is_online ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`} />
-                      <span className="text-[10px] font-mono text-white/40 uppercase tracking-wider">{device.is_online ? 'Online' : 'Offline'}</span>
+                      <span className="text-[10px] font-mono text-slate-500 dark:text-white/40 uppercase tracking-wider">{device.is_online ? 'Online' : 'Offline'}</span>
                     </div>
                   </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); setContextMenuId(contextMenuId === device.id ? null : device.id); }} className="p-1 opacity-0 group-hover:opacity-100 transition"><MoreVertical className="w-4 h-4 text-white/40" /></button>
+                <button onClick={(e) => { e.stopPropagation(); setContextMenuId(contextMenuId === device.id ? null : device.id); }} className="p-1 opacity-0 group-hover:opacity-100 transition"><MoreVertical className="w-4 h-4 text-slate-500 dark:text-white/40" /></button>
               </div>
 
               {contextMenuId === device.id && (
-                <div className="absolute right-2 top-12 w-48 bg-[#111] border border-white/10 shadow-2xl rounded-xl p-2 z-50 flex flex-col gap-1 backdrop-blur-xl">
-                  {device.is_online && <button onClick={(e) => { e.stopPropagation(); handleDeviceClick(device); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-white/10 rounded-lg">Connect</button>}
-                  <button onClick={(e) => { e.stopPropagation(); handleRename(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-white/10 rounded-lg">Rename Device</button>
-                  <button onClick={(e) => { e.stopPropagation(); handleRevokeTrust(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-white/10 rounded-lg">Revoke Auto-Login</button>
+                <div className="absolute right-2 top-12 w-48 bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 shadow-2xl rounded-xl p-2 z-50 flex flex-col gap-1 backdrop-blur-xl">
+                  {device.is_online && <button onClick={(e) => { e.stopPropagation(); handleDeviceClick(device); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:bg-white/10 rounded-lg">Connect</button>}
+                  <button onClick={(e) => { e.stopPropagation(); handleRename(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:bg-white/10 rounded-lg">Rename Device</button>
+                  <button onClick={(e) => { e.stopPropagation(); handleRevokeTrust(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:bg-white/10 rounded-lg">Revoke Auto-Login</button>
                   <button onClick={(e) => { e.stopPropagation(); handleRemove(device.id); setContextMenuId(null); }} className="text-left px-3 py-2 text-xs font-bold hover:bg-red-500/20 text-red-400 rounded-lg">Remove Device</button>
                 </div>
               )}
             </div>
           ))}
           {devices.length === 0 && (
-            <div className="text-center p-8 border border-dashed border-white/10 rounded-2xl mt-4">
-               <Monitor className="w-8 h-8 text-white/20 mx-auto mb-3" />
-               <p className="text-xs text-white/40 font-mono">No devices linked.</p>
+            <div className="text-center p-8 border border-dashed border-slate-200 dark:border-white/10 rounded-2xl mt-4">
+               <Monitor className="w-8 h-8 text-slate-400 dark:text-white/20 mx-auto mb-3" />
+               <p className="text-xs text-slate-500 dark:text-white/40 font-mono">No devices linked.</p>
             </div>
           )}
         </div>
       </div>
 
       {/* MAIN PANEL */}
-      <div className="flex-1 bg-[#050505] relative overflow-y-auto">
+      <div className="flex-1 bg-slate-100 dark:bg-[#050505] relative overflow-y-auto">
         <div className="max-w-4xl mx-auto p-12 w-full h-full flex flex-col items-center justify-center">
           
           {!selectedDevice ? (
             <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
-               <section className="bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-white/20 transition">
+               <section className="bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-3xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-slate-300 dark:border-white/20 transition">
                   <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/20 shadow-2xl">
                     <KeyRound className="text-blue-400 w-8 h-8" />
                   </div>
                   <h3 className="text-xl font-bold mb-2 uppercase tracking-tight">Connect Manually</h3>
-                  <p className="text-white/40 text-center text-xs mb-8">Enter an access key and password to connect to an external machine.</p>
+                  <p className="text-slate-500 dark:text-white/40 text-center text-xs mb-8">Enter an access key and password to connect to an external machine.</p>
                   <div className="w-full space-y-3 mt-auto">
-                    <input type="text" placeholder="000 000 000" className="w-full bg-black/40 border border-white/10 text-white rounded-xl p-4 text-center text-xl font-mono focus:border-blue-500 outline-none" value={sessionCode} onChange={(e) => setSessionCode(formatCode(e.target.value))} />
-                    <input type="password" placeholder="Password" className="w-full bg-black/40 border border-white/10 text-white rounded-xl p-4 text-center text-sm focus:border-blue-500 outline-none" value={accessPassword} onChange={(e) => setAccessPassword(e.target.value)} />
-                    <button onClick={handleConnectToHost} disabled={!sessionCode || !accessPassword || viewerStatus === 'connecting'} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 uppercase text-xs tracking-wider">{viewerStatus === 'connecting' ? 'Connecting...' : 'Connect'}</button>
+                    <input type="text" placeholder="000 000 000" className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-xl font-mono focus:border-blue-500 outline-none" value={sessionCode} onChange={(e) => setSessionCode(formatCode(e.target.value))} />
+                    <input type="password" placeholder="Password" className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-sm focus:border-blue-500 outline-none" value={accessPassword} onChange={(e) => setAccessPassword(e.target.value)} />
+                    <button onClick={handleConnectToHost} disabled={!sessionCode || !accessPassword || viewerStatus === 'connecting'} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-slate-900 dark:text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 uppercase text-xs tracking-wider">{viewerStatus === 'connecting' ? 'Connecting...' : 'Connect'}</button>
                   </div>
                </section>
 
-               <section className="bg-white/[0.02] border border-white/5 rounded-3xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-white/20 transition">
+               <section className="bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-3xl p-8 flex flex-col items-center relative overflow-hidden group hover:border-slate-300 dark:border-white/20 transition">
                   <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/20 shadow-2xl">
                     <Activity className="text-emerald-400 w-8 h-8" />
                   </div>
                   <h3 className="text-xl font-bold mb-2 uppercase tracking-tight">Host Machine</h3>
-                  <p className="text-white/40 text-center text-xs mb-6">Allow remote viewers to access this physical machine.</p>
+                  <p className="text-slate-500 dark:text-white/40 text-center text-xs mb-6">Allow remote viewers to access this physical machine.</p>
                   
                   {hostAccessKey && (
-                     <div className="w-full bg-[#111] p-6 rounded-2xl border border-white/5 text-center mb-4">
+                     <div className="w-full bg-white dark:bg-[#111] p-6 rounded-2xl border border-slate-200 dark:border-white/5 text-center mb-4">
                        <span className="text-[9px] font-bold text-emerald-400/50 uppercase tracking-widest">{hostSessionId ? 'Broadcasting ID' : 'Your Permanent Key'}</span>
                        <div className="text-2xl font-mono text-emerald-400 mt-2 mb-4">{formatCode(hostAccessKey)}</div>
                        {hostSessionId ? 
                          <button onClick={async () => { await (window as any).electronAPI.stopHosting(); setHostSessionId(''); }} className="w-full bg-red-500/10 text-red-400 text-xs py-2 rounded-lg font-bold">Stop Broadcasting</button> :
-                         <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-white/5 text-xs py-2 rounded-lg hover:bg-white/10">Copy</button><button onClick={handleRegenerateKey} className="flex-1 bg-red-500/10 text-red-500/70 text-xs py-2 rounded-lg hover:bg-red-500/20">Regenerate</button></div>
+                         <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-slate-100 dark:bg-white/5 text-xs py-2 rounded-lg hover:bg-slate-200 dark:bg-white/10">Copy</button><button onClick={handleRegenerateKey} className="flex-1 bg-red-500/10 text-red-500/70 text-xs py-2 rounded-lg hover:bg-red-500/20">Regenerate</button></div>
                        }
                      </div>
                   )}
 
                   {!hostSessionId && (
                      <div className="w-full mt-auto space-y-3">
-                       <input type="password" placeholder="Set Access Password..." className="w-full bg-black/40 border border-white/10 text-white rounded-xl p-4 text-center text-sm focus:border-emerald-500 outline-none" value={devicePassword} onChange={e => setDevicePassword(e.target.value)} />
-                       <button onClick={handleStartHosting} disabled={hostStatus === 'connecting'} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl text-center uppercase text-xs tracking-wider">{hostStatus === 'connecting' ? 'Starting...' : 'Start Hosting'}</button>
+                       <input type="password" placeholder="Set Access Password..." className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-sm focus:border-emerald-500 outline-none" value={devicePassword} onChange={e => setDevicePassword(e.target.value)} />
+                       <button onClick={handleStartHosting} disabled={hostStatus === 'connecting'} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-900 dark:text-white font-bold py-4 rounded-xl text-center uppercase text-xs tracking-wider">{hostStatus === 'connecting' ? 'Starting...' : 'Start Hosting'}</button>
                      </div>
                   )}
                </section>
             </div>
           ) : (
-            <div className="w-full max-w-2xl bg-white/[0.02] border border-white/5 rounded-[3rem] p-12 flex flex-col items-center animate-in fade-in slide-in-from-right-8">
+            <div className="w-full max-w-2xl bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 flex flex-col items-center animate-in fade-in slide-in-from-right-8">
                <div className="w-32 h-32 bg-blue-500/10 rounded-[2.5rem] flex items-center justify-center mb-8 border border-blue-500/20 shadow-2xl">
                  {selectedDevice.device_type === 'ios' || selectedDevice.device_type === 'android' ? 
                     <Smartphone className="text-blue-400 w-16 h-16" /> : 
@@ -1161,7 +1182,7 @@ export default function App() {
                </div>
                
                <div className="mt-12 w-full flex gap-4">
-                 <button onClick={() => setSelectedDevice(null)} className="w-1/3 bg-white/5 hover:bg-white/10 rounded-2xl py-5 font-bold uppercase tracking-widest text-xs transition">Back</button>
+                 <button onClick={() => setSelectedDevice(null)} className="w-1/3 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 rounded-2xl py-5 font-bold uppercase tracking-widest text-xs transition">Back</button>
                  <button onClick={() => handleDeviceClick(selectedDevice)} disabled={viewerStatus === 'connecting'} className="w-2/3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-2xl py-5 font-black uppercase tracking-widest text-sm flex justify-center items-center gap-2 shadow-2xl shadow-blue-500/20 transition">
                    {viewerStatus === 'connecting' ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Connect <ArrowRight className="w-4 h-4 ml-2" /></>}
                  </button>
@@ -1172,15 +1193,15 @@ export default function App() {
       </div>
 
       {showPasswordPrompt && (
-        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center animate-in fade-in">
-           <div className="max-w-md w-full bg-[#111] border border-white/10 rounded-3xl p-8 shadow-2xl">
+        <div className="absolute inset-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center animate-in fade-in">
+           <div className="max-w-md w-full bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-3xl p-8 shadow-2xl">
              <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold uppercase tracking-widest">Connect to {showPasswordPrompt.device_name || 'Device'}</h3>
-                <button onClick={() => setShowPasswordPrompt(null)} className="p-2 hover:bg-white/10 rounded-full"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowPasswordPrompt(null)} className="p-2 hover:bg-slate-200 dark:bg-white/10 rounded-full"><X className="w-5 h-5" /></button>
              </div>
-             <input type="password" placeholder="Device Password" value={promptPassword} onChange={e => setPromptPassword(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl p-4 mb-4 outline-none focus:border-blue-500 font-mono text-center text-lg" autoFocus />
+             <input type="password" placeholder="Device Password" value={promptPassword} onChange={e => setPromptPassword(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 mb-4 outline-none focus:border-blue-500 font-mono text-center text-lg" autoFocus />
              <label className="flex items-center gap-3 cursor-pointer mb-8 opacity-70 hover:opacity-100">
-                <input type="checkbox" checked={promptRemember} onChange={e => setPromptRemember(e.target.checked)} className="w-5 h-5 rounded border-white/20" />
+                <input type="checkbox" checked={promptRemember} onChange={e => setPromptRemember(e.target.checked)} className="w-5 h-5 rounded border-slate-300 dark:border-white/20" />
                 <span className="text-sm font-medium">Trust this device (skip password next time)</span>
              </label>
              <button onClick={submitPasswordPrompt} disabled={!promptPassword || viewerStatus === 'connecting'} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 py-4 rounded-xl font-bold uppercase tracking-widest text-sm">Submit</button>
@@ -1189,16 +1210,16 @@ export default function App() {
       )}
 
       {showAddModal && (
-        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-xl flex items-center justify-center animate-in fade-in">
-           <div className="max-w-md w-full bg-[#111] border border-white/10 rounded-3xl p-8 shadow-2xl">
+        <div className="absolute inset-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-xl flex items-center justify-center animate-in fade-in">
+           <div className="max-w-md w-full bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 rounded-3xl p-8 shadow-2xl">
              <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold uppercase tracking-widest">Add Device</h3>
-                <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-white/10 rounded-full"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-slate-200 dark:bg-white/10 rounded-full"><X className="w-5 h-5" /></button>
              </div>
-             <p className="text-xs text-white/50 mb-6 leading-relaxed">Enter the access key and password of a device you want to save to your personal list (for example, a friend's PC or a work computer).</p>
+             <p className="text-xs text-slate-600 dark:text-white/50 mb-6 leading-relaxed">Enter the access key and password of a device you want to save to your personal list (for example, a friend's PC or a work computer).</p>
              <div className="space-y-4 mb-8">
-               <input type="text" placeholder="Access Key" value={addKey} onChange={e => setAddKey(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
-               <input type="password" placeholder="Password" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
+               <input type="text" placeholder="Access Key" value={addKey} onChange={e => setAddKey(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
+               <input type="password" placeholder="Password" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
              </div>
              <button onClick={handleAddDevice} disabled={!addKey || !addPassword} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-4 rounded-xl font-bold uppercase tracking-widest text-sm">Save Device</button>
            </div>
