@@ -119,45 +119,44 @@ function startStreaming() {
   const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    // EXTREME NOISE for debugging - Remove after verification
-    if (Math.random() < 0.1) console.log(`[Host] STDOUT chunk: ${chunk.length} bytes. DC Open: ${videoDataChannel?.isOpen()}`);
-
     if (!videoDataChannel || !videoDataChannel.isOpen()) return;
     const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
     if (DEBUG_NO_SEND) return;
 
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
 
-    // DISCARD leading garbage until we find a start code at index 0
-    while (bufferAccumulator.length > 4) {
-      if (bufferAccumulator[0] === 0 && bufferAccumulator[1] === 0) {
-        if (bufferAccumulator[2] === 1) break; // 3-byte
-        if (bufferAccumulator[2] === 0 && bufferAccumulator[3] === 1) break; // 4-byte
-      }
-      bufferAccumulator = bufferAccumulator.subarray(1);
-    }
-    
-    if (bufferAccumulator.length > 1000000) { // 1MB Safety
-       console.warn('[Host] Buffer accumulator too huge! Clearing.');
-       bufferAccumulator = Buffer.alloc(0);
+    // DIAGNOSTIC LOG for the very first chunk
+    if (bufferAccumulator.length < 100 && bufferAccumulator.length >= chunk.length) {
+      console.log(`[Host] RAW DATA START (hex): ${bufferAccumulator.subarray(0, 16).toString('hex')}`);
     }
 
-    while (bufferAccumulator.length > 4) {
-      // Find the NEXT start code (skipping the one at index 0)
-      let nextStartIdx = -1;
-      for (let i = 1; i <= bufferAccumulator.length - 3; i++) {
-        if (bufferAccumulator[i] === 0 && bufferAccumulator[i+1] === 0) {
-          if (bufferAccumulator[i+2] === 1) { // 3-byte
-            nextStartIdx = i;
-            break;
-          } else if (i <= bufferAccumulator.length - 4 && bufferAccumulator[i+2] === 0 && bufferAccumulator[i+3] === 1) { // 4-byte
-            nextStartIdx = i;
-            break;
-          }
-        }
+    // NAL Splitter (Annex-B)
+    while (true) {
+      // Find the first start code
+      let startIdx = bufferAccumulator.indexOf(START_CODE_3);
+      if (startIdx === -1) break; // Need more data
+
+      // Check if it's actually a 4-byte start code (0x00 00 00 01)
+      if (startIdx > 0 && bufferAccumulator[startIdx - 1] === 0) {
+        startIdx--; // Step back to include the extra 0x00
       }
 
-      if (nextStartIdx === -1) break; // Need more data
+      // DISCARD any garbage before the first start code
+      if (startIdx > 0) {
+        bufferAccumulator = bufferAccumulator.subarray(startIdx);
+        continue; // Re-search from the new index 0
+      }
+
+      // Now bufferAccumulator[0...] is a start code. Find the NEXT one to determine the NAL length.
+      // Search from index 3 (after the current start code)
+      let nextStartIdx = bufferAccumulator.indexOf(START_CODE_3, 3);
+      
+      // Check if it's a 4-byte start code
+      if (nextStartIdx !== -1 && nextStartIdx > 0 && bufferAccumulator[nextStartIdx - 1] === 0) {
+         nextStartIdx--;
+      }
+
+      if (nextStartIdx === -1) break; // Wait for more data to get the full NAL
 
       // Extract one complete NAL unit
       const nalUnit = bufferAccumulator.subarray(0, nextStartIdx);
@@ -167,16 +166,23 @@ function startStreaming() {
         const header = Buffer.alloc(8);
         header.writeBigUInt64LE(BigInt(Date.now()));
         const fullPacket = Buffer.concat([header, nalUnit]);
-        
-        if (Math.random() < 0.1) {
-          console.log(`[Host] SENDING NAL: ${nalUnit.length} bytes, Type: ${nalUnit[nalUnit[2]===1?3:4]&0x1F}`);
+
+        // LOG EVERY 30th NAL (usually once per second)
+        if (Math.random() < 0.05) {
+          const type = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
+          console.log(`[Host] SEND NAL: ${nalUnit.length} bytes, Type: ${type}`);
         }
-        
+
         const success = videoDataChannel.sendMessageBinary(fullPacket);
         if (!success) console.error(`[Host] sendMessageBinary FAILED for ${fullPacket.length} bytes!`);
       } catch (err) {
         console.error('[Host] Failed to send NAL Unit:', err);
       }
+    }
+
+    if (bufferAccumulator.length > 5 * 1024 * 1024) { // 5MB buffer limit
+      console.warn('[Host] Accumulator too large, resetting');
+      bufferAccumulator = Buffer.alloc(0);
     }
   });
 }
