@@ -119,11 +119,23 @@ function startStreaming() {
   const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    if (!videoDataChannel || !videoDataChannel.isOpen()) return;
+    if (!videoDataChannel || !videoDataChannel.isOpen()) {
+      if (Math.random() < 0.01) console.log('[Host] Video DataChannel is NOT open! (Accumulating junk?)');
+      return;
+    }
     const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
     if (DEBUG_NO_SEND) return;
 
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
+
+    // DISCARD leading garbage until we find a start code at index 0
+    while (bufferAccumulator.length > 4) {
+      if (bufferAccumulator[0] === 0 && bufferAccumulator[1] === 0) {
+        if (bufferAccumulator[2] === 1) break; // 3-byte
+        if (bufferAccumulator[2] === 0 && bufferAccumulator[3] === 1) break; // 4-byte
+      }
+      bufferAccumulator = bufferAccumulator.subarray(1);
+    }
 
     while (bufferAccumulator.length > 4) {
       // Find the NEXT start code (skipping the one at index 0)
@@ -152,7 +164,7 @@ function startStreaming() {
         const fullPacket = Buffer.concat([header, nalUnit]);
         
         if (Math.random() < 0.05) {
-          console.log(`[Host] SENDING NAL: ${nalUnit.length} bytes, Start: ${nalUnit[0].toString(16)} ${nalUnit[1].toString(16)} ${nalUnit[2].toString(16)} ${nalUnit[3].toString(16)}`);
+          console.log(`[Host] SENDING NAL: ${nalUnit.length} bytes, Type: ${nalUnit[nalUnit[2]===1?3:4]&0x1F}`);
         }
         
         const success = videoDataChannel.sendMessageBinary(fullPacket);
