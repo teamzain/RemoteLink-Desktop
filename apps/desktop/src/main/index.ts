@@ -119,6 +119,14 @@ function startStreaming() {
   const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
   let nalsCaptured = 0;
+  
+  // HEARTBEAT to prove process is alive and running THIS version
+  const heartbeat = setInterval(() => {
+    if (videoDataChannel) {
+       console.log(`[Host] HEARTBEAT: DC Open: ${videoDataChannel.isOpen()}, NALs so far: ${nalsCaptured}`);
+    }
+  }, 5000);
+
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
     if (!videoDataChannel || !videoDataChannel.isOpen()) return;
     const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
@@ -127,37 +135,31 @@ function startStreaming() {
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
 
     // LOUD LOGGING for first few chunks
-    if (nalsCaptured < 10) {
-      console.log(`[Host] RECV chunk: ${chunk.length} bytes. Accumulator: ${bufferAccumulator.length}. Hex start: ${chunk.subarray(0, 16).toString('hex')}`);
+    if (nalsCaptured < 5) {
+      console.log(`[Host] RECV chunk: ${chunk.length} bytes. Accumulator: ${bufferAccumulator.length}. Hex: ${chunk.subarray(0, 12).toString('hex')}`);
     }
 
     // NAL Splitter (Annex-B)
     while (true) {
-      // Look for any start code (0x00 00 01 or 0x00 00 00 01)
       let foundStartIdx = bufferAccumulator.indexOf(START_CODE_3);
-      if (foundStartIdx === -1) break; // Need more data
+      if (foundStartIdx === -1) break;
 
-      // Step back if it's a 4-byte start code
       if (foundStartIdx > 0 && bufferAccumulator[foundStartIdx - 1] === 0) {
         foundStartIdx--;
       }
 
-      // If we found a start code but not at index 0, discard prefixes
       if (foundStartIdx > 0) {
         bufferAccumulator = bufferAccumulator.subarray(foundStartIdx);
         continue;
       }
 
-      // Search for the NEXT start code (after the current one at index 0)
-      // Skip at least 4 bytes to avoid self-match
       let nextIdx = bufferAccumulator.indexOf(START_CODE_3, 4);
       if (nextIdx !== -1 && nextIdx > 0 && bufferAccumulator[nextIdx - 1] === 0) {
         nextIdx--;
       }
 
-      if (nextIdx === -1) break; // Need more data for the full NAL
+      if (nextIdx === -1) break;
 
-      // Extract one NAL
       const nalUnit = bufferAccumulator.subarray(0, nextIdx);
       bufferAccumulator = bufferAccumulator.subarray(nextIdx);
 
@@ -167,13 +169,23 @@ function startStreaming() {
         const fullPacket = Buffer.concat([header, nalUnit]);
 
         nalsCaptured++;
-        if (nalsCaptured < 50 || nalsCaptured % 30 === 0) {
+        if (nalsCaptured < 10 || nalsCaptured % 60 === 0) {
           const type = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
-          console.log(`[Host] SEND NAL #${nalsCaptured}: ${nalUnit.length} bytes, Type: ${type}`);
+          console.log(`[Host] SENDING NAL #${nalsCaptured}: ${nalUnit.length} bytes, Type: ${type}`);
         }
 
-        const success = videoDataChannel.sendMessageBinary(fullPacket);
-        if (!success) console.error(`[Host] sendMessageBinary FAILED for ${fullPacket.length} bytes!`);
+        // --- FRAGMENTATION for DataChannel Stability ---
+        // Some systems drop packets > 16KB or 64KB. We'll send in 16KB slices if needed.
+        const MAX_CHUNK = 16384; 
+        if (fullPacket.length <= MAX_CHUNK) {
+          videoDataChannel.sendMessageBinary(fullPacket);
+        } else {
+          // Note: The Viewer currently expects 1 NAL per DataChannel message.
+          // If we fragment here, the Viewer's handleBuffer needs to reassemble.
+          // FOR NOW: Let's try sending the whole thing but LOG if it's large.
+          if (fullPacket.length > 64000) console.warn(`[Host] LARGE NAL: ${fullPacket.length} bytes! This might be dropped.`);
+          videoDataChannel.sendMessageBinary(fullPacket);
+        }
       } catch (err) {
         console.error('[Host] Failed to send NAL Unit:', err);
       }
@@ -183,6 +195,10 @@ function startStreaming() {
       console.warn('[Host] Accumulator safety cleared');
       bufferAccumulator = Buffer.alloc(0);
     }
+  });
+
+  ffmpegProcess.on('close', () => {
+    clearInterval(heartbeat);
   });
 }
 
