@@ -150,9 +150,13 @@ function startStreaming() {
         const header = Buffer.alloc(8);
         header.writeBigUInt64LE(BigInt(Date.now()));
         const fullPacket = Buffer.concat([header, nalUnit]);
-        videoDataChannel.sendMessageBinary(fullPacket);
         
-        if (Math.random() < 0.05) console.log(`[Host] Sent NAL Unit: ${nalUnit.length} bytes`);
+        if (Math.random() < 0.05) {
+          console.log(`[Host] SENDING NAL: ${nalUnit.length} bytes, Start: ${nalUnit[0].toString(16)} ${nalUnit[1].toString(16)} ${nalUnit[2].toString(16)} ${nalUnit[3].toString(16)}`);
+        }
+        
+        const success = videoDataChannel.sendMessageBinary(fullPacket);
+        if (!success) console.error(`[Host] sendMessageBinary FAILED for ${fullPacket.length} bytes!`);
       } catch (err) {
         console.error('[Host] Failed to send NAL Unit:', err);
       }

@@ -71,7 +71,7 @@ const VideoPlayer = forwardRef<any, {
 
   useImperativeHandle(ref, () => ({
     feed: (buffer: Uint8Array) => {
-      if (Math.random() < 0.01) console.log(`[VideoPlayer] Feeding chunk, size: ${buffer.length}`);
+      if (Math.random() < 0.05) console.log(`[VideoPlayer] FEEDING: ${buffer.length} bytes, Status: ${viewerStatus}`);
       handleBuffer(buffer);
     }
   }));
@@ -210,11 +210,12 @@ export default function App() {
           if (channel.label === 'video') {
             channel.binaryType = 'arraybuffer';
             channel.onmessage = (msg: MessageEvent) => {
+              const data = new Uint8Array(msg.data);
+              if (Math.random() < 0.01) console.log(`[Renderer] DataChannel MSG: ${data.length} bytes`);
               if (videoPlayerRef.current) {
-                videoPlayerRef.current.feed(new Uint8Array(msg.data));
+                videoPlayerRef.current.feed(data);
               } else {
-                // If ref not ready yet, just try to force status so it mounts
-                if (viewerStatus !== 'connected' && viewerStatus !== 'streaming') setViewerStatus('connected');
+                if (viewerStatus !== 'streaming') setViewerStatus('streaming');
               }
             };
           }
