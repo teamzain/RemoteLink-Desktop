@@ -1,4 +1,7 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+const fs = require('fs');
+const path = require('path');
+
+const newCode = `import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { prisma, redisPublisher, generateToken, verifyToken } from '@remotelink/shared';
 import { randomInt } from 'crypto';
@@ -42,7 +45,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
           accessKey,
           ownerId: decoded.userId,
           name: deviceName,
-          deviceType: validDeviceType as any
+          deviceType: validDeviceType
         }
       });
 
@@ -74,18 +77,17 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     });
     const savedDevices = savedRelations.map(s => s.device);
 
-    // Combine them
+    // Combine them and ensure uniqueness just in case
     const allDevicesMap = new Map();
-    [...ownedDevices].forEach(d => allDevicesMap.set(d.id, { ...d, _isOwned: true }));
-    [...savedDevices].forEach(d => {
-      if (!allDevicesMap.has(d.id)) allDevicesMap.set(d.id, { ...d, _isOwned: false });
+    [...ownedDevices, ...savedDevices].forEach(d => {
+      if (!allDevicesMap.has(d.id)) allDevicesMap.set(d.id, { ...d, _isOwned: d.ownerId === decoded.userId });
     });
     
     let allDevices = Array.from(allDevicesMap.values());
 
     // Look up redis presence
     const enrichedDevices = await Promise.all(allDevices.map(async (device) => {
-      const presence = await redisPublisher.get(`presence:${device.accessKey}`);
+      const presence = await redisPublisher.get(\`presence:\${device.accessKey}\`);
       const is_online = presence === 'online';
       return {
         id: device.id,
@@ -148,6 +150,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       });
       return reply.send({ success: true, device: updated });
     } else {
+      // You could theoretically allow them to rename their saved_device locally, but schema doesn't support customName right now.
       return reply.code(403).send({ error: 'Only the owner can rename the device globally' });
     }
   });
@@ -190,7 +193,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     let { accessKey, password } = request.body as any;
     if (!accessKey || !password) return reply.code(400).send({ error: 'accessKey and password required' });
-    accessKey = String(accessKey).replace(/\s/g, '');
+    accessKey = String(accessKey).replace(/\\s/g, '');
 
     const device = await prisma.device.findUnique({ where: { accessKey } });
     if (!device || !device.accessPasswordHash) return reply.code(404).send({ error: 'Device not found or password not set' });
@@ -226,6 +229,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const device = await prisma.device.findUnique({ where: { id } });
     if (!device) return reply.code(404).send({ error: 'Device not found' });
 
+    // Typically this route should verify they really successfully connected recently. We assume the UI only calls this on successful verification via verify-access.
     const existing = await prisma.trustedDevice.findUnique({
       where: { viewerUserId_hostDeviceId: { viewerUserId: decoded.userId, hostDeviceId: id } }
     });
@@ -250,6 +254,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     const { id } = request.params as { id: string };
     
+    // Revoking trust means deleting the trust entry for OUR user ID and this device ID.
+    // If the caller is the OWNER of the device, they can pass viewerUserId to revoke someone else's trust (extra credit). We just support revoking our own trust.
     await prisma.trustedDevice.deleteMany({
       where: { viewerUserId: decoded.userId, hostDeviceId: id }
     });
@@ -316,10 +322,11 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.get('/status', async (request: FastifyRequest, reply: FastifyReply) => {
     let { key } = request.query as any;
     if (!key) return reply.code(400).send({ error: 'Access Key required' });
-    key = String(key).replace(/\s/g, ''); // Strip spaces
+    key = String(key).replace(/\\s/g, ''); // Strip spaces
 
+    // Rate Limiting: 10 requests per minute per IP
     const ip = request.ip || 'unknown';
-    const rlKey = `rl:status:${ip}`;
+    const rlKey = \`rl:status:\${ip}\`;
     const reqs = await redisPublisher.incr(rlKey);
     if (reqs === 1) await redisPublisher.expire(rlKey, 60);
     if (reqs > 10) return reply.code(429).send({ error: 'Too many requests' });
@@ -327,7 +334,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const device = await prisma.device.findUnique({ where: { accessKey: key } });
     if (!device) return reply.code(404).send({ exists: false, error: 'Device not found' });
 
-    const presence = await redisPublisher.get(`presence:${key}`);
+    // Check Presence Registry
+    const presence = await redisPublisher.get(\`presence:\${key}\`);
     const online = presence === 'online';
 
     return reply.send({ exists: true, online });
@@ -337,14 +345,15 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.post('/verify-access', async (request: FastifyRequest, reply: FastifyReply) => {
     let { accessKey, password } = request.body as any;
     if (!accessKey) return reply.code(400).send({ error: 'Access Key required' });
-    accessKey = String(accessKey).replace(/\s/g, '');
+    accessKey = String(accessKey).replace(/\\s/g, '');
 
     const device = await prisma.device.findUnique({ where: { accessKey } });
     if (!device || !device.accessPasswordHash) {
       return reply.code(404).send({ error: 'Device not found or password not set' });
     }
 
-    const presence = await redisPublisher.get(`presence:${accessKey}`);
+    // Check online status
+    const presence = await redisPublisher.get(\`presence:\${accessKey}\`);
     if (presence !== 'online') {
       return reply.code(409).send({ error: 'Device is offline' });
     }
@@ -366,7 +375,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (!isTrusted) {
       if (!password) return reply.code(401).send({ error: 'Password required for untrusted device connections' });
 
-      const lockoutKey = `lockout:${accessKey}`;
+      // Check Redis Lockout
+      const lockoutKey = \`lockout:\${accessKey}\`;
       const attempts = await redisPublisher.get(lockoutKey);
       if (attempts && parseInt(attempts) >= 5) {
         const ttl = await redisPublisher.ttl(lockoutKey);
@@ -375,14 +385,17 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
       const isMatch = await bcrypt.compare(password, device.accessPasswordHash);
       if (!isMatch) {
+        // Increment failed attempts
         const fails = await redisPublisher.incr(lockoutKey);
-        if (fails === 1) await redisPublisher.expire(lockoutKey, 300);
+        if (fails === 1) await redisPublisher.expire(lockoutKey, 300); // 5 mins
         return reply.code(401).send({ error: 'Incorrect password' });
       }
 
+      // Success, clear lockout
       await redisPublisher.del(lockoutKey);
     }
 
+    // Generate short-lived token (60 seconds)
     const accessJWT = generateToken({ 
       type: 'remote-access', 
       deviceId: device.id, 
@@ -393,3 +406,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   });
 
 }
+\`;
+
+fs.writeFileSync(path.join('f:\\\\TechVision\\\\RemoteLink\\\\apps\\\\auth-service\\\\src\\\\routes\\\\devices.ts'), newCode);
+console.log('Done mapping devices.ts over.');

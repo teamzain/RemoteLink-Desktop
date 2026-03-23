@@ -18,6 +18,17 @@ model User {
   
   sessions  Session[]
   devices   Device[]
+  
+  trustedDevices TrustedDevice[]
+  savedDevices   SavedDevice[]
+}
+
+enum DeviceType {
+  WINDOWS
+  MACOS
+  LINUX
+  IOS
+  ANDROID
 }
 
 model Device {
@@ -25,11 +36,16 @@ model Device {
   accessKey          String   @unique // Format: 9-digits (e.g., 482910374)
   accessPasswordHash String?
   name               String?
+  deviceType         DeviceType @default(WINDOWS)
   status             String   @default("OFFLINE")
   ownerId            String
   owner              User     @relation(fields: [ownerId], references: [id])
+  lastSeenAt         DateTime @default(now())
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  trustedByViewers   TrustedDevice[]
+  savedByUsers       SavedDevice[]
 }
 
 model Session {
@@ -40,4 +56,26 @@ model Session {
   startTime DateTime @default(now())
   endTime   DateTime?
   status    String   @default("ACTIVE") // ACTIVE, COMPLETED, FAILED
+}
+
+model TrustedDevice {
+  viewerUserId   String
+  hostDeviceId   String
+  trustedAt      DateTime @default(now())
+
+  viewer         User     @relation(fields: [viewerUserId], references: [id])
+  hostDevice     Device   @relation(fields: [hostDeviceId], references: [id])
+
+  @@id([viewerUserId, hostDeviceId])
+}
+
+model SavedDevice {
+  userId         String
+  deviceId       String
+  savedAt        DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id])
+  device         Device   @relation(fields: [deviceId], references: [id])
+
+  @@id([userId, deviceId])
 }
