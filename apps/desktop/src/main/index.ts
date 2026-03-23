@@ -60,6 +60,7 @@ let hasRemoteDescription = false;
 
 // --- Global Streaming State for Diagnostics ---
 let bufferAccumulator = Buffer.alloc(0);
+let nalAccumulator = Buffer.alloc(0); // For grouping SPS+PPS+IDR
 let nalsCaptured = 0;
 const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
@@ -108,6 +109,7 @@ function startStreaming() {
 
   // RESET state for new stream
   bufferAccumulator = Buffer.alloc(0);
+  nalAccumulator = Buffer.alloc(0);
   nalsCaptured = 0;
 
   ffmpegProcess.stderr?.on('data', (data: Buffer) => {
@@ -178,20 +180,30 @@ function startStreaming() {
         nalsCaptured++;
         const type = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
         
-        // Log setup NALs and occasionally frame NALs
-        if (type === 7 || type === 8 || nalsCaptured < 5 || nalsCaptured % 100 === 0) {
-          console.log(`[Host] OUT: NAL #${nalsCaptured}, Type: ${type}, Size: ${nalUnit.length}`);
+        // --- NAL ACCUMULATION (Atomic Access Units) ---
+        // Group Parameter Sets (7, 8) and SEI (6) with the following slice (1, 5)
+        if (type === 7 || type === 8 || type === 6 || type === 9) {
+          nalAccumulator = Buffer.concat([nalAccumulator, nalUnit]);
+          return;
+        }
+
+        // VCL NAL (1 or 5): Prepend accumulated headers and send
+        const fullAccessUnit = Buffer.concat([nalAccumulator, nalUnit]);
+        nalAccumulator = Buffer.alloc(0); // Reset for next unit
+
+        if (type === 5 || nalsCaptured < 5 || nalsCaptured % 100 === 0) {
+          console.log(`[Host] OUT: AccessUnit #${nalsCaptured}, Type: ${type}, Size: ${fullAccessUnit.length}`);
         }
 
         // --- FRAGMENTATION for DataChannel Stability ---
-        const MAX_CHUNK = 16000; // Safe MTU for DataChannel (typically ~16KB-64KB)
-        const totalFrags = Math.ceil(nalUnit.length / MAX_CHUNK);
+        const MAX_CHUNK = 16000; 
+        const totalFrags = Math.ceil(fullAccessUnit.length / MAX_CHUNK);
         const timestamp = BigInt(Date.now());
 
         for (let i = 0; i < totalFrags; i++) {
           const start = i * MAX_CHUNK;
-          const end = Math.min(start + MAX_CHUNK, nalUnit.length);
-          const fragPayload = nalUnit.subarray(start, end);
+          const end = Math.min(start + MAX_CHUNK, fullAccessUnit.length);
+          const fragPayload = fullAccessUnit.subarray(start, end);
 
           const packet = Buffer.alloc(10 + fragPayload.length);
           packet.writeBigUInt64LE(timestamp, 0);
@@ -199,11 +211,7 @@ function startStreaming() {
           packet.writeUInt8(totalFrags, 9);
           fragPayload.copy(packet, 10);
 
-          const success = videoDataChannel.sendMessageBinary(packet);
-          if (!success) {
-             console.error(`[Host] sendMessageBinary FAILED at frag ${i}/${totalFrags}`);
-             break;
-          }
+          videoDataChannel.sendMessageBinary(packet);
         }
       } catch (err) {
         console.error('[Host] Failed to send NAL Unit:', err);

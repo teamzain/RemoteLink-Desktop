@@ -88,17 +88,16 @@ const VideoPlayer = forwardRef<any, {
         // 5 = IDR, 7 = SPS, 8 = PPS
         if (nalType === 5 || nalType === 7 || nalType === 8) {
           type = 'key';
-          // ONLY enable decoder after we get the first REAL IDR frame (Type 5)
-          if (nalType === 5 && !hasReceivedKeyframe) {
-            console.log('[VideoPlayer] FIRST IDR RECEIVED. Enabling decoder!');
+          // With Atomic Access Units, receiving 7 or 8 means the IDR is in this buffer too
+          if (!hasReceivedKeyframe) {
+            console.log('[VideoPlayer] ACCESS UNIT (Keyframe) RECEIVED. Enabling decoder!');
             setHasReceivedKeyframe(true);
           }
         }
       }
     }
 
-    // CRITICAL: WebCodecs requires a keyframe (IDR slice) after join or flush.
-    // Ignore all frames (including SPS/PPS as separate chunks) until the first IDR arrives.
+    // CRITICAL: WebCodecs requires a keyframe (Access Unit with IDR) after join or flush.
     if (!hasReceivedKeyframe) return;
 
     if (viewerStatus !== 'streaming') {
