@@ -149,10 +149,6 @@ private:
 
 DXGICapture g_capture;
 
-Napi::Value CaptureFrame(const Napi::CallbackInfo& info) {
-    return g_capture.Capture(info);
-}
-
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "captureFrame"), Napi::Function::New(env, CaptureFrame));
     return exports;

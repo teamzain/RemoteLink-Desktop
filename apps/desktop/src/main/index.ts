@@ -1,21 +1,11 @@
-const { app, shell, BrowserWindow, ipcMain, safeStorage } = require('electron')
-import { join } from 'path'
-
-// Support multiple instances for testing
-const userDataSuffix = process.env.REMOTE_LINK_USER_DATA || process.argv.find(arg => arg.startsWith('--user-data-dir='))?.split('=')[1];
-if (userDataSuffix) {
-  app.name = 'RemoteLinkViewer'; // Change name to prevent default profile conflicts
-  app.setPath('userData', userDataSuffix);
-}
-import { spawn, ChildProcess } from 'child_process'
-import * as fs from 'fs/promises'
-import WebSocket from 'ws'
-import * as os from 'os'
-
-// Use dynamic imports/requires inside functions to prevent unnecessary module loading in viewer instances
-let datachannel: any = null;
-let ffmpegPath: any = null;
-let capture: any = null;
+import { app, shell, BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { join } from 'path';
+import { spawn, ChildProcess } from 'child_process';
+import * as fs from 'fs/promises';
+import { WebSocket } from 'ws';
+import * as os from 'os';
+import ffmpegPath from 'ffmpeg-static';
+import * as datachannel from 'node-datachannel';
 
 const AUTH_PATH = () => join(app.getPath('userData'), 'auth_encrypted.json');
 
@@ -79,30 +69,20 @@ function cleanUpWebRTC() {
 }
 
 function startStreaming() {
-  if (!capture) capture = require('@remotelink/native-capture');
-  if (!ffmpegPath) ffmpegPath = require('ffmpeg-static');
-  
-  console.log('[Host] STARTING STREAMING LOOP...');
+  console.log('[Host] STARTING STREAMING LOOP (Native GDI Capture)...');
   stopStreaming();
-  
-  let firstFrame = capture.captureFrame();
-  if (!firstFrame) {
-    console.log('[Host] No frame captured yet, retrying...');
-    setTimeout(startStreaming, 100);
-    return;
-  }
-  const { width, height } = firstFrame;
-  console.log(`[Host] Capture dimensions: ${width}x${height}`);
 
-  ffmpegProcess = spawn(ffmpegPath, [
-    '-f', 'rawvideo',
-    '-pixel_format', 'bgra',
-    '-video_size', `${width}x${height}`,
-    '-i', '-',
+  // Use FFmpeg's built-in gdigrab to capture the desktop directly at 1080p.
+  // This is MUCH more stable than manual frame passing from the Main process.
+  ffmpegProcess = spawn(ffmpegPath as string, [
+    '-f', 'gdigrab',
+    '-framerate', '30',
+    '-video_size', '1920x1080',
+    '-i', 'desktop',
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
-    '-profile:v', 'baseline', // Max compatibility with WebCodecs
-    '-level', '4.1', // Level 4.1 for 1080p
+    '-profile:v', 'baseline',
+    '-level', '4.1',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
     '-g', '30',
@@ -132,33 +112,17 @@ function startStreaming() {
         header.writeBigUInt64LE(BigInt(Date.now()));
         const fullChunk = Buffer.concat([header, chunk]);
         
-        // Create a separate Uint8Array copy to avoid use-after-free in native addon
-        const safeBuffer = new Uint8Array(fullChunk.length);
-        safeBuffer.set(fullChunk);
-
-        if (Math.random() < 0.1) console.log(`[Host] Sending chunk: ${safeBuffer.length} bytes`);
-        videoDataChannel.sendMessageBinary(safeBuffer);
+        videoDataChannel.sendMessageBinary(fullChunk);
+        
+        if (Math.random() < 0.1) console.log(`[Host] Sent chunk: ${fullChunk.length} bytes`);
       } catch (err) {
         console.error('[Host] Failed to send video chunk:', err);
       }
     }
   });
-
-  let isDraining = false;
-  streamInterval = setInterval(() => {
-    if (isDraining) return;
-    const frame = capture.captureFrame();
-    if (frame && frame.data) {
-      if (ffmpegProcess?.stdin?.write(frame.data) === false) {
-        isDraining = true;
-        ffmpegProcess.stdin.once('drain', () => { isDraining = false; });
-      }
-    }
-  }, 1000 / 30);
 }
 
 function stopStreaming() {
-  if (streamInterval) clearInterval(streamInterval);
   if (ffmpegProcess) {
     ffmpegProcess.stdin?.end();
     ffmpegProcess.kill();
@@ -223,8 +187,6 @@ function initiateHostWebRTC() {
   const viewerId = currentViewerId;
   if (!viewerId) return;
   console.log(`[Host] Initializing WebRTC for viewer: ${viewerId}`);
-  
-  if (!datachannel) datachannel = require('node-datachannel');
   
   // Full reset before new session
   cleanUpWebRTC();
