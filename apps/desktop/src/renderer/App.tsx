@@ -245,7 +245,13 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [viewerStatus]);
 
+  useEffect(() => {
     checkToken();
     (window as any).electronAPI.getLocalIP().then(setLocalIP);
     const removeHostListener = (window as any).electronAPI.onHostStatus((status: string) => {
@@ -344,13 +350,11 @@ export default function App() {
     });
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
       removeHostListener();
       removeSignalingListener();
       pcRef.current?.close();
     };
-  }, [sessionCode, viewerStatus]);
+  }, [sessionCode]);
 
   const checkToken = async () => {
     try {
