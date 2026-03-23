@@ -100,7 +100,7 @@ function startStreaming() {
     '-level', '4.1',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
-    '-x264-params', 'repeat-headers=1:keyint=30:min-keyint=30',
+    '-x264-params', 'repeat-headers=1:keyint=30:min-keyint=30:aud=1:sei=0',
     '-g', '30',
     '-f', 'h264',
     '-'

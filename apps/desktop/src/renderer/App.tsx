@@ -84,16 +84,22 @@ const VideoPlayer = forwardRef<any, {
     if (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 1) {
       nalTypeIdx++; 
       if (nalTypeIdx < chunkData.length) {
-        const typeByte = chunkData[nalTypeIdx] & 0x1F;
+        const nalType = chunkData[nalTypeIdx] & 0x1F;
         // 5 = IDR, 7 = SPS, 8 = PPS
-        if (typeByte === 5 || typeByte === 7 || typeByte === 8) {
+        if (nalType === 5 || nalType === 7 || nalType === 8) {
           type = 'key';
-          if (!hasReceivedKeyframe) setHasReceivedKeyframe(true);
+          // ONLY enable decoder after we get the first REAL IDR frame (Type 5)
+          if (nalType === 5 && !hasReceivedKeyframe) {
+            console.log('[VideoPlayer] FIRST IDR RECEIVED. Enabling decoder!');
+            setHasReceivedKeyframe(true);
+          }
         }
       }
     }
 
-    if (!hasReceivedKeyframe && type !== 'key') return;
+    // CRITICAL: WebCodecs requires a keyframe (IDR slice) after join or flush.
+    // Ignore all frames (including SPS/PPS as separate chunks) until the first IDR arrives.
+    if (!hasReceivedKeyframe) return;
 
     if (viewerStatus !== 'streaming') {
       setViewerStatus('streaming');
