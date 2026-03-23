@@ -1322,7 +1322,13 @@ export default function App() {
                   {hostAccessKey && (
                      <div className="w-full bg-white dark:bg-[#111] p-6 rounded-2xl border border-slate-200 dark:border-white/5 text-center mb-4">
                        <span className="text-[9px] font-bold text-emerald-400/50 uppercase tracking-widest">{hostSessionId ? 'Broadcasting ID' : 'Your Permanent Key'}</span>
-                       <div className="text-2xl font-mono text-emerald-400 mt-2 mb-4">{formatCode(hostAccessKey)}</div>
+                       <div 
+                         onClick={copyAccessKey} 
+                         className="text-2xl font-mono text-emerald-400 mt-2 mb-4 cursor-pointer hover:scale-105 transition-transform active:scale-95" 
+                         title="Click to copy host key"
+                       >
+                         {formatCode(hostAccessKey)}
+                       </div>
                        {hostSessionId ? 
                          <button onClick={async () => { await (window as any).electronAPI.stopHosting(); setHostSessionId(''); }} className="w-full bg-red-500/10 text-red-400 text-xs py-2 rounded-lg font-bold">Stop Broadcasting</button> :
                          <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-slate-100 dark:bg-white/5 text-xs py-2 rounded-lg hover:bg-slate-200 dark:bg-white/10">Copy</button><button onClick={handleRegenerateDeviceKey} className="flex-1 bg-red-500/10 text-red-500/70 text-xs py-2 rounded-lg hover:bg-red-500/20">Regenerate</button></div>
@@ -1394,8 +1400,8 @@ export default function App() {
              </div>
              <p className="text-xs text-slate-600 dark:text-white/50 mb-6 leading-relaxed">Enter the access key and password of a device you want to save to your personal list (for example, a friend's PC or a work computer).</p>
              <div className="space-y-4 mb-8">
-               <input type="text" placeholder="Access Key" value={addKey} onChange={e => setAddKey(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
-               <input type="password" placeholder="Password" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
+               <input type="text" placeholder="Access Key" value={addKey} onChange={e => setAddKey(e.target.value)} className="w-full bg-white dark:bg-black border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
+               <input type="password" placeholder="Password" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full bg-white dark:bg-black border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
              </div>
              <button onClick={handleAddDevice} disabled={!addKey || !addPassword} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-4 rounded-xl font-bold uppercase tracking-widest text-sm">Save Device</button>
            </div>

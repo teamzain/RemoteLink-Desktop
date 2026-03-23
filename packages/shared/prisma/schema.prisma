@@ -1,27 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id             String          @id @default(uuid())
+  email          String          @unique
+  password       String?
+  name           String?
+  role           String          @default("USER")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  devices        Device[]
+  savedDevices   SavedDevice[]
+  sessions       Session[]
+  subscription   Subscription?
+  trustedDevices TrustedDevice[]
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String?  // nullable for OAuth users
-  name      String?
-  role      String   @default("USER") // USER, ADMIN
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  sessions  Session[]
-  devices   Device[]
-  
-  trustedDevices TrustedDevice[]
-  savedDevices   SavedDevice[]
-  subscription   Subscription?
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  plan                 Plan               @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  user                 User               @relation(fields: [userId], references: [id])
+}
+
+model PlanLimit {
+  plan                   Plan    @id
+  maxConcurrentSessions  Int
+  maxDevices             Int
+  sessionDurationMinutes Int
+  fileTransfer           Boolean @default(false)
+  sessionRecording       Boolean @default(false)
+  teamMembers            Int
+}
+
+model Device {
+  id                 String          @id @default(uuid())
+  accessKey          String          @unique
+  accessPasswordHash String?
+  name               String?
+  deviceType         DeviceType      @default(WINDOWS)
+  status             String          @default("OFFLINE")
+  ownerId            String
+  lastSeenAt         DateTime        @default(now())
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  owner              User            @relation(fields: [ownerId], references: [id])
+  savedByUsers       SavedDevice[]
+  trustedByViewers   TrustedDevice[]
+}
+
+model Session {
+  id        String    @id @default(uuid())
+  hostId    String
+  viewerId  String
+  startTime DateTime  @default(now())
+  endTime   DateTime?
+  status    String    @default("ACTIVE")
+  viewer    User      @relation(fields: [viewerId], references: [id])
+}
+
+model TrustedDevice {
+  viewerUserId String
+  hostDeviceId String
+  trustedAt    DateTime @default(now())
+  hostDevice   Device   @relation(fields: [hostDeviceId], references: [id])
+  viewer       User     @relation(fields: [viewerUserId], references: [id])
+
+  @@id([viewerUserId, hostDeviceId])
+}
+
+model SavedDevice {
+  userId   String
+  deviceId String
+  savedAt  DateTime @default(now())
+  device   Device   @relation(fields: [deviceId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@id([userId, deviceId])
 }
 
 enum Plan {
@@ -38,83 +106,10 @@ enum SubscriptionStatus {
   TRIALING
 }
 
-model Subscription {
-  id                   String             @id @default(uuid())
-  userId               String             @unique
-  user                 User               @relation(fields: [userId], references: [id])
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  plan                 Plan               @default(FREE)
-  status               SubscriptionStatus @default(ACTIVE)
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean            @default(false)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-}
-
-model PlanLimit {
-  plan                     Plan    @id
-  maxConcurrentSessions    Int
-  maxDevices               Int     // -1 for unlimited
-  sessionDurationMinutes   Int     // -1 for unlimited
-  fileTransfer             Boolean @default(false)
-  sessionRecording         Boolean @default(false)
-  teamMembers              Int     // -1 for unlimited
-}
-
 enum DeviceType {
   WINDOWS
   MACOS
   LINUX
   IOS
   ANDROID
-}
-
-model Device {
-  id                 String   @id @default(uuid())
-  accessKey          String   @unique // Format: 9-digits (e.g., 482910374)
-  accessPasswordHash String?
-  name               String?
-  deviceType         DeviceType @default(WINDOWS)
-  status             String   @default("OFFLINE")
-  ownerId            String
-  owner              User     @relation(fields: [ownerId], references: [id])
-  lastSeenAt         DateTime @default(now())
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  trustedByViewers   TrustedDevice[]
-  savedByUsers       SavedDevice[]
-}
-
-model Session {
-  id        String   @id @default(uuid())
-  hostId    String
-  viewerId  String
-  viewer    User     @relation(fields: [viewerId], references: [id])
-  startTime DateTime @default(now())
-  endTime   DateTime?
-  status    String   @default("ACTIVE") // ACTIVE, COMPLETED, FAILED
-}
-
-model TrustedDevice {
-  viewerUserId   String
-  hostDeviceId   String
-  trustedAt      DateTime @default(now())
-
-  viewer         User     @relation(fields: [viewerUserId], references: [id])
-  hostDevice     Device   @relation(fields: [hostDeviceId], references: [id])
-
-  @@id([viewerUserId, hostDeviceId])
-}
-
-model SavedDevice {
-  userId         String
-  deviceId       String
-  savedAt        DateTime @default(now())
-
-  user           User     @relation(fields: [userId], references: [id])
-  device         Device   @relation(fields: [deviceId], references: [id])
-
-  @@id([userId, deviceId])
 }
