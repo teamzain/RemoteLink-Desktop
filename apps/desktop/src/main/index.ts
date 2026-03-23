@@ -61,6 +61,7 @@ let hasRemoteDescription = false;
 // --- Global Streaming State for Diagnostics ---
 let bufferAccumulator = Buffer.alloc(0);
 let nalAccumulator = Buffer.alloc(0); // For grouping SPS+PPS+IDR
+let hasVCLInAccumulator = false; // To track if we have a frame to send
 let nalsCaptured = 0;
 const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 
@@ -110,6 +111,7 @@ function startStreaming() {
   // RESET state for new stream
   bufferAccumulator = Buffer.alloc(0);
   nalAccumulator = Buffer.alloc(0);
+  hasVCLInAccumulator = false;
   nalsCaptured = 0;
 
   ffmpegProcess.stderr?.on('data', (data: Buffer) => {
@@ -167,18 +169,21 @@ function startStreaming() {
         const nalType = (nalUnit.length > 4) ? 
           ((nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F)) : 0;
         
-        // --- AUD-BASED GROUPING ---
-        // A new frame starts with AUD(9), SPS(7), or PPS(8).
-        // If we see a new frame start and already have ANY data, then send the previous AU.
-        const isNewFrame = (nalType === 9 || nalType === 7 || nalType === 8);
+        // --- VCL-AWARE AUD GROUPING ---
+        // A new frame starts with AUD(9), SPS(7), PPS(8), or SEI(6)
+        const isHeader = (nalType === 7 || nalType === 8 || nalType === 6 || nalType === 9);
+        const isVCL = (nalType === 1 || nalType === 5);
 
-        if (isNewFrame && nalAccumulator.length > 0) {
+        // Transition: If we see a new header and already have VCL data, then send the previous frame now.
+        if (isHeader && hasVCLInAccumulator && nalAccumulator.length > 0) {
           sendAccessUnit(nalAccumulator, videoDataChannel);
           nalAccumulator = Buffer.alloc(0);
+          hasVCLInAccumulator = false;
         }
 
         // Accumulate this NAL into the current Access Unit
         nalAccumulator = Buffer.concat([nalAccumulator, nalUnit]);
+        if (isVCL) hasVCLInAccumulator = true;
 
       } catch (err) {
         console.error('[Host] Failed to process NAL Unit:', err);

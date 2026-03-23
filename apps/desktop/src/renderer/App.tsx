@@ -80,21 +80,17 @@ const VideoPlayer = forwardRef<any, {
 
     let type: 'key' | 'delta' = 'delta';
     
-    // NAL type detection
-    let nalTypeIdx = 0;
-    while (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 0) nalTypeIdx++;
-    if (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 1) {
-      nalTypeIdx++; 
-      if (nalTypeIdx < chunkData.length) {
-        const nalType = chunkData[nalTypeIdx] & 0x1F;
-        // 5 = IDR, 7 = SPS, 8 = PPS
+    // NAL type detection: Scan the first 100 bytes for a Keyframe-related NAL (5, 7, 8)
+    for (let i = 0; i < Math.min(chunkData.length - 4, 100); i++) {
+      if (chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 1) {
+        const nalType = chunkData[i+3] & 0x1F;
         if (nalType === 5 || nalType === 7 || nalType === 8) {
           type = 'key';
-          // With Atomic Access Units, receiving 7 or 8 means the IDR is in this buffer too
           if (!hasReceivedKeyframe) {
             console.log('[VideoPlayer] ACCESS UNIT (Keyframe) RECEIVED. Enabling decoder!');
             setHasReceivedKeyframe(true);
           }
+          break;
         }
       }
     }
