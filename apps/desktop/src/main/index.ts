@@ -4,8 +4,18 @@ import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import { WebSocket } from 'ws';
 import * as os from 'os';
-import ffmpegPath from 'ffmpeg-static';
 import * as datachannel from 'node-datachannel';
+
+// --- FFmpeg Path Discovery ---
+const getFFmpegPath = () => {
+    // In production, we assume it's bundled or in a specific location
+    if (app.isPackaged) {
+        return join(process.resourcesPath, 'ffmpeg.exe');
+    }
+    // In development (Vite), we look in the monorepo root node_modules
+    // since @remotelink/desktop is in apps/desktop/
+    return join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe');
+};
 
 const AUTH_PATH = () => join(app.getPath('userData'), 'auth_encrypted.json');
 
@@ -74,7 +84,7 @@ function startStreaming() {
 
   // Use FFmpeg's built-in gdigrab to capture the desktop directly at 1080p.
   // This is MUCH more stable than manual frame passing from the Main process.
-  ffmpegProcess = spawn(ffmpegPath as string, [
+  ffmpegProcess = spawn(getFFmpegPath(), [
     '-f', 'gdigrab',
     '-framerate', '30',
     '-video_size', '1920x1080',
