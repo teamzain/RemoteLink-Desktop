@@ -83,7 +83,7 @@ function startStreaming() {
   stopStreaming();
 
   // Use FFmpeg's built-in gdigrab to capture the desktop directly at 1080p.
-  // This is MUCH more stable than manual frame passing from the Main process.
+  // We use repeat-headers=1 and a short keyframe interval (g=30) so new viewers join fast.
   ffmpegProcess = spawn(getFFmpegPath(), [
     '-f', 'gdigrab',
     '-framerate', '30',
@@ -95,6 +95,7 @@ function startStreaming() {
     '-level', '4.1',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
+    '-x264-params', 'repeat-headers=1:keyint=30:min-keyint=30',
     '-g', '30',
     '-f', 'h264',
     '-'
@@ -112,21 +113,48 @@ function startStreaming() {
     if (code !== 0 && code !== null) console.warn(`[Host-FFmpeg] Exited with code: ${code}`);
   });
 
+  // --- Annex-B NAL Unit Splitter ---
+  let bufferAccumulator = Buffer.alloc(0);
+  const START_CODE_4 = Buffer.from([0x00, 0x00, 0x00, 0x01]);
+  const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
+
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    if (videoDataChannel && videoDataChannel.isOpen()) {
-      const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
-      if (DEBUG_NO_SEND) return;
+    if (!videoDataChannel || !videoDataChannel.isOpen()) return;
+    const DEBUG_NO_SEND = process.env.REMOTE_LINK_DEBUG_NO_SEND === 'true';
+    if (DEBUG_NO_SEND) return;
+
+    bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
+
+    while (bufferAccumulator.length > 4) {
+      // Find the NEXT start code (skipping the one at index 0)
+      let nextStartIdx = -1;
+      for (let i = 1; i <= bufferAccumulator.length - 3; i++) {
+        if (bufferAccumulator[i] === 0 && bufferAccumulator[i+1] === 0) {
+          if (bufferAccumulator[i+2] === 1) { // 3-byte
+            nextStartIdx = i;
+            break;
+          } else if (i <= bufferAccumulator.length - 4 && bufferAccumulator[i+2] === 0 && bufferAccumulator[i+3] === 1) { // 4-byte
+            nextStartIdx = i;
+            break;
+          }
+        }
+      }
+
+      if (nextStartIdx === -1) break; // Need more data
+
+      // Extract one complete NAL unit
+      const nalUnit = bufferAccumulator.subarray(0, nextStartIdx);
+      bufferAccumulator = bufferAccumulator.subarray(nextStartIdx);
 
       try {
         const header = Buffer.alloc(8);
         header.writeBigUInt64LE(BigInt(Date.now()));
-        const fullChunk = Buffer.concat([header, chunk]);
+        const fullPacket = Buffer.concat([header, nalUnit]);
+        videoDataChannel.sendMessageBinary(fullPacket);
         
-        videoDataChannel.sendMessageBinary(fullChunk);
-        
-        if (Math.random() < 0.1) console.log(`[Host] Sent chunk: ${fullChunk.length} bytes`);
+        if (Math.random() < 0.05) console.log(`[Host] Sent NAL Unit: ${nalUnit.length} bytes`);
       } catch (err) {
-        console.error('[Host] Failed to send video chunk:', err);
+        console.error('[Host] Failed to send NAL Unit:', err);
       }
     }
   });

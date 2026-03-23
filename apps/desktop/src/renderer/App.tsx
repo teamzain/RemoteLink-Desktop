@@ -43,9 +43,17 @@ const VideoPlayer = forwardRef<any, {
 
     const chunkData = new Uint8Array(buffer.buffer, buffer.byteOffset + 8, buffer.byteLength - 8);
     let type: 'key' | 'delta' = 'delta';
-    if (chunkData.length > 4) {
-      const typeByte = chunkData[4] & 0x1F;
-      if (typeByte === 5 || typeByte === 7) type = 'key';
+    
+    // Robust NAL unit type detection for Annex-B (skipping 00 00 01 or 00 00 00 01)
+    let nalTypeIdx = 0;
+    while (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 0) nalTypeIdx++;
+    if (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 1) {
+      nalTypeIdx++; // Skip the '1' of the start code
+      if (nalTypeIdx < chunkData.length) {
+        const typeByte = chunkData[nalTypeIdx] & 0x1F;
+        // 5 = IDR, 7 = SPS, 8 = PPS
+        if (typeByte === 5 || typeByte === 7 || typeByte === 8) type = 'key';
+      }
     }
 
     const encodedChunk = new (window as any).EncodedVideoChunk({
@@ -434,7 +442,7 @@ export default function App() {
   }
 
   // --- Main Dashboard ---
-  if (viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') {
+  if (viewerStatus === 'streaming' || viewerStatus === 'connected') {
     return (
       <div className="min-h-screen bg-[#080808] p-8 flex flex-col relative">
           <div className="absolute top-4 right-4 z-50 bg-black/80 p-2 rounded border border-white/10 text-[8px] font-mono text-white/40 uppercase">
