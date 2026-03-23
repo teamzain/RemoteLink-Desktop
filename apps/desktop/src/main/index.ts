@@ -93,6 +93,7 @@ function startStreaming() {
     '-f', 'gdigrab',
     '-framerate', '30',
     '-i', 'desktop',
+    // Simple scaling for better compatibility and performance
     '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
     '-c:v', 'libx264',
     '-pix_fmt', 'yuv420p',
@@ -162,17 +163,21 @@ function startStreaming() {
       bufferAccumulator = bufferAccumulator.subarray(nextIdx);
 
       try {
-        const nalType = (nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F);
+        // Safe NAL type detection: Ensure we have enough data to read type byte
+        const nalType = (nalUnit.length > 4) ? 
+          ((nalUnit[2] === 1) ? (nalUnit[3] & 0x1F) : (nalUnit[4] & 0x1F)) : 0;
         
-        // --- AUD-BASED ACCESS UNIT GROUPING ---
-        // A new Access Unit (Frame) starts with AUD (9), SPS (7), PPS (8), or SEI (6)
-        const isHeader = (nalType === 7 || nalType === 8 || nalType === 6 || nalType === 9);
+        // --- AUD-BASED GROUPING ---
+        // A new frame starts with AUD(9), SPS(7), or PPS(8).
+        // If we see a new frame start and already have ANY data, then send the previous AU.
+        const isNewFrame = (nalType === 9 || nalType === 7 || nalType === 8);
 
-        if (isHeader && nalAccumulator.length > 0) {
+        if (isNewFrame && nalAccumulator.length > 0) {
           sendAccessUnit(nalAccumulator, videoDataChannel);
           nalAccumulator = Buffer.alloc(0);
         }
 
+        // Accumulate this NAL into the current Access Unit
         nalAccumulator = Buffer.concat([nalAccumulator, nalUnit]);
 
       } catch (err) {
