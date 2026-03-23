@@ -325,8 +325,9 @@ export default function App() {
             console.error('[Identity] Device list is not an array:', devices);
           }
         } else if (listRes.status === 401) {
-          console.warn('[Identity] Session expired or invalid. Please sign out and in again.');
-          // Optional: setIsAuthenticated(false); 
+          console.warn('[Identity] Session expired or invalid. Logging out.');
+          setIsAuthenticated(false);
+          await (window as any).electronAPI.deleteToken();
         } else {
           console.error('[Identity] Failed to fetch device list:', listRes.status);
         }

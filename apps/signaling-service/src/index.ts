@@ -1,3 +1,6 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { redisPublisher, redisSubscriber, EventChannel, verifyToken } from '@remotelink/shared';
@@ -63,7 +66,7 @@ wss.on('connection', (ws) => {
 
           const decoded = verifyToken(token);
           if (!decoded || decoded.type !== 'remote-access') {
-            console.warn(`[Signaling] Join refused for ${targetSessionId}: Invalid or expired token`);
+            console.warn(`[Signaling] Join refused for ${targetSessionId}: Invalid or expired token. Decoded result:`, decoded);
             return ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Invalid or expired access token' }));
           }
 

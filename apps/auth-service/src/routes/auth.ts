@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { prisma, publishEvent, EventChannel, generateToken } from '@remotelink/shared';
+import { prisma, publishEvent, EventChannel, generateToken, verifyToken } from '@remotelink/shared';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -59,8 +59,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const { refreshToken } = request.body as any;
     if (!refreshToken) return reply.code(400).send({ error: 'Refresh token required' });
     
-    // Real implementation requires verifying the refresh token signature here.
-    const token = generateToken({ refreshed: true });
-    return reply.send({ token, refreshToken });
+    // Verify the refresh token signature and extract userId, role
+    const decoded = verifyToken(refreshToken);
+    if (!decoded || !decoded.userId || decoded.type !== 'refresh') {
+       return reply.code(401).send({ error: 'Invalid refresh token' });
+    }
+
+    const token = generateToken({ userId: decoded.userId, role: decoded.role });
+    const newRefreshToken = generateToken({ userId: decoded.userId, role: decoded.role, type: 'refresh' } as any);
+    return reply.send({ token, refreshToken: newRefreshToken });
   });
 }
