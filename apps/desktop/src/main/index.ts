@@ -136,8 +136,7 @@ function startStreaming() {
   }
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    // DIAGNOSTIC: Log the literal first few bytes of every chunk
-    console.log(`[Host] STDOUT: ${chunk.length} bytes. Hex start: ${chunk.subarray(0, 12).toString('hex')}`);
+    // if (Math.random() < 0.01) console.log(`[Host] STDOUT: ${chunk.length} bytes`);
 
     if (!videoDataChannel || !videoDataChannel.isOpen()) {
        // if (Math.random() < 0.1) console.warn('[Host] DataChannel not open, dropping chunk.');

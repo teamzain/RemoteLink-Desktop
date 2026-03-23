@@ -25,12 +25,12 @@ const VideoPlayer = forwardRef<any, {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [latency, setLatency] = useState<number>(0);
   const decoderRef = useRef<any>(null);
+  const [hasReceivedKeyframe, setHasReceivedKeyframe] = useState(false);
 
   // --- REASSEMBLY STATE ---
   const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
 
   const handleFragment = (data: Uint8Array) => {
-    // 10-byte Header: [8-byte timestamp][1-byte fragIdx][1-byte totalFrags]
     if (data.length < 10) return;
     const view = new DataView(data.buffer, data.byteOffset, 10);
     const ts = view.getBigInt64(0, true);
@@ -49,7 +49,6 @@ const VideoPlayer = forwardRef<any, {
     }
 
     if (entry.count === entry.total) {
-      // Reassemble NAL
       const totalSize = entry.fragments.reduce((acc, f) => acc + (f ? f.length : 0), 0);
       const fullNAL = new Uint8Array(totalSize);
       let offset = 0;
@@ -60,11 +59,9 @@ const VideoPlayer = forwardRef<any, {
         }
       }
       
-      // Feed Assembled NAL to Decoder
       feedToDecoder(fullNAL, ts);
       reassemblyMap.current.delete(ts);
       
-      // Housekeeping: prevent memory leak from dropped fragments
       if (reassemblyMap.current.size > 20) {
         const oldestTs = Array.from(reassemblyMap.current.keys()).sort()[0];
         reassemblyMap.current.delete(oldestTs);
@@ -75,38 +72,42 @@ const VideoPlayer = forwardRef<any, {
   const feedToDecoder = (chunkData: Uint8Array, timestamp: bigint) => {
     if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
     
-    if (viewerStatus !== 'streaming') {
-      console.log('[Viewer] First video NAL reassembled and fed to decoder!');
-      setViewerStatus('streaming');
-    }
-    
     const now = Date.now();
     const frameLatency = now - Number(timestamp);
     if (Math.random() < 0.05) setLatency(frameLatency);
 
     let type: 'key' | 'delta' = 'delta';
     
-    // NAL type detection (Annex-B skipping)
+    // NAL type detection
     let nalTypeIdx = 0;
     while (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 0) nalTypeIdx++;
     if (nalTypeIdx < chunkData.length && chunkData[nalTypeIdx] === 1) {
       nalTypeIdx++; 
       if (nalTypeIdx < chunkData.length) {
         const typeByte = chunkData[nalTypeIdx] & 0x1F;
-        if (typeByte === 5 || typeByte === 7 || typeByte === 8) type = 'key';
+        // 5 = IDR, 7 = SPS, 8 = PPS
+        if (typeByte === 5 || typeByte === 7 || typeByte === 8) {
+          type = 'key';
+          if (!hasReceivedKeyframe) setHasReceivedKeyframe(true);
+        }
       }
     }
 
-    const encodedChunk = new (window as any).EncodedVideoChunk({
-      type: type,
-      timestamp: Number(timestamp) * 1000, 
-      data: chunkData,
-    });
+    if (!hasReceivedKeyframe && type !== 'key') return;
+
+    if (viewerStatus !== 'streaming') {
+      setViewerStatus('streaming');
+    }
 
     try {
+      const encodedChunk = new (window as any).EncodedVideoChunk({
+        type: type,
+        timestamp: Number(timestamp) * 1000, 
+        data: chunkData,
+      });
       decoderRef.current.decode(encodedChunk);
     } catch (e) {
-      console.warn('Decode failed:', e);
+      console.warn('[VideoPlayer] Decoder push failed:', e);
     }
   };
 
@@ -116,10 +117,14 @@ const VideoPlayer = forwardRef<any, {
     }
   }));
 
-  useEffect(() => {
+  const initDecoder = () => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
+
+    if (decoderRef.current) {
+       try { decoderRef.current.close(); } catch {}
+    }
 
     const decoder = new (window as any).VideoDecoder({
       output: (frame: any) => {
@@ -127,7 +132,9 @@ const VideoPlayer = forwardRef<any, {
         frame.close();
       },
       error: (e: any) => {
-        console.error('VideoDecoder error:', e);
+        console.error('[VideoPlayer] Decoder hardware error:', e);
+        setHasReceivedKeyframe(false); // Force wait for next IDR
+        setTimeout(initDecoder, 1000); // Attempt recovery
       },
     });
 
@@ -137,12 +144,16 @@ const VideoPlayer = forwardRef<any, {
     });
     
     decoderRef.current = decoder;
+    console.log('[VideoPlayer] Decoder initialized.');
+  };
 
+  useEffect(() => {
+    initDecoder();
     return () => {
-      if (decoder.state !== 'closed') decoder.close();
+      if (decoderRef.current) decoderRef.current.close();
       decoderRef.current = null;
     };
-  }, [setViewerStatus]);
+  }, []);
 
   return (
     <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-500">
@@ -157,10 +168,12 @@ const VideoPlayer = forwardRef<any, {
           </div>
         </div>
         <div className="flex items-center gap-4">
-           <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-             <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-             <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{latency}ms Latency</span>
-           </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+              <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                {latency <= 0 ? 'STABLE' : `${latency}ms`} Latency
+              </span>
+            </div>
            <button 
              onClick={() => window.location.reload()} 
              className="text-white/40 hover:text-white transition-colors"
