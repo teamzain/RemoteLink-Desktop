@@ -7,7 +7,7 @@ import { useImperativeHandle, forwardRef } from 'react';
 
 // --- Video Player Component (WebCodecs + Canvas) ---
 // --- Video Player Component (WebCodecs + Canvas) ---
-const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, onControlEvent }: any, ref) => {
+const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, onControlEvent, onDisconnect }: any, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [latency, setLatency] = useState<number>(0);
   const decoderRef = useRef<any>(null);
@@ -172,7 +172,7 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
               </span>
             </div>
            <button 
-             onClick={() => window.location.reload()} 
+             onClick={onDisconnect} 
              className="text-slate-500 dark:text-white/40 hover:text-slate-900 dark:text-white transition-colors"
            >
              <ArrowLeft className="w-5 h-5" />
@@ -270,6 +270,15 @@ export default function App() {
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
   const [globalError, setGlobalError] = useState('');
 
+  const handleDisconnect = () => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    setViewerStatus('idle');
+    pollDevices();
+  };
+
   const pollDevices = async () => {
     try {
       const creds = await (window as any).electronAPI.getToken();
@@ -301,7 +310,10 @@ export default function App() {
   
   // Handlers for the UI
   const handleDeviceClick = async (device: any) => {
-    if (!device.is_online) return;
+    if (!device.is_online) {
+      setGlobalError(`${device.device_name} is currently offline.`);
+      return;
+    }
     setSelectedDevice(device);
     setViewerStatus('connecting');
     setViewerError('');
@@ -509,14 +521,15 @@ export default function App() {
         }
       } else {
         // We have a local key, but we need the database UUID for password/regen actions
-        const listRes = await fetch(`http://${serverIP}:3001/api/devices/`, {
+        const listRes = await fetch(`http://${serverIP}:3001/api/devices/mine`, {
           headers: { 'Authorization': `Bearer ${creds.token}` }
         });
         
         if (listRes.ok) {
-          const devices = await listRes.json();
-          if (Array.isArray(devices)) {
-            const existing = devices.find((d: any) => d.accessKey === localKey);
+          const fetchedDevices = await listRes.json();
+          setDevices(fetchedDevices); // Populate device list immediately on load
+          if (Array.isArray(fetchedDevices)) {
+            const existing = fetchedDevices.find((d: any) => d.accessKey === localKey);
             if (existing) {
               deviceUuid = existing.id;
             }
@@ -987,7 +1000,7 @@ export default function App() {
               <p className="text-slate-500 dark:text-white/40 text-sm mb-10 tracking-wide font-medium">The remote host went offline or the network dropped.</p>
               <div className="flex gap-4">
                 <button 
-                  onClick={() => setViewerStatus('idle')}
+                  onClick={handleDisconnect}
                   className="px-8 py-4 rounded-2xl border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/70 hover:bg-slate-100 dark:bg-white/5 transition-all font-bold text-xs uppercase tracking-widest"
                 >
                   Return Home
@@ -1007,6 +1020,7 @@ export default function App() {
             viewerStatus={viewerStatus} 
             setViewerStatus={setViewerStatus} 
             sessionCode={sessionCode} 
+            onDisconnect={handleDisconnect}
             onControlEvent={(event: any) => {
               if (controlChannelRef.current?.readyState === 'open') {
                 controlChannelRef.current.send(JSON.stringify(event));

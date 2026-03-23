@@ -8,6 +8,19 @@ function generateAccessKey(): string {
   return randomInt(0, 1000000000).toString().padStart(9, '0');
 }
 
+async function mapDevice(device: any, userId: string): Promise<any> {
+    const presence = await redisPublisher.get(`presence:${device.accessKey}`);
+    return {
+      id: device.id,
+      device_name: device.name,
+      device_type: device.deviceType.toLowerCase(),
+      access_key: device.accessKey,
+      last_seen_at: device.lastSeenAt,
+      is_online: presence === 'online',
+      is_owned: device.ownerId === userId
+    };
+}
+
 export default async function deviceRoutes(fastify: FastifyInstance) {
   
   // 1. Register a new device for the current user
@@ -46,7 +59,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         }
       });
 
-      return reply.code(201).send(device);
+      const mapped = await mapDevice(device, decoded.userId);
+      return reply.code(201).send(mapped);
     } catch (err: any) {
       console.error('[Device Registration Error]', err);
       return reply.code(500).send({ error: 'Failed to register device: ' + err.message });
@@ -85,17 +99,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     // Look up redis presence
     const enrichedDevices = await Promise.all(allDevices.map(async (device) => {
-      const presence = await redisPublisher.get(`presence:${device.accessKey}`);
-      const is_online = presence === 'online';
-      return {
-        id: device.id,
-        device_name: device.name,
-        device_type: device.deviceType.toLowerCase(),
-        access_key: device.accessKey,
-        last_seen_at: device.lastSeenAt,
-        is_online,
-        is_owned: device._isOwned
-      };
+      return mapDevice(device, decoded.userId);
     }));
 
     // Sort: Online first, then by lastSeenAt DESC
@@ -209,7 +213,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       });
     }
 
-    return reply.send({ success: true, device: { id: device.id, name: device.name } });
+    const mapped = await mapDevice(device, decoded.userId);
+    return reply.send({ success: true, device: mapped });
   });
 
   // 6. Trust Device
