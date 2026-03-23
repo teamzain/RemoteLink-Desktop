@@ -22,19 +22,32 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const decoded = verifyToken(token);
       if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
+      const { name } = request.body as any || {};
+      const deviceName = name || 'Remote PC';
+
+      // Check if this machine (by name) is already registered for this user
+      const existing = await prisma.device.findFirst({
+        where: { 
+          ownerId: decoded.userId,
+          name: deviceName
+        }
+      });
+
+      if (existing) {
+        return reply.code(200).send(existing);
+      }
+
       // Generate strictly unique 9-digit key
       let accessKey = generateAccessKey();
       while (await prisma.device.findUnique({ where: { accessKey } })) {
         accessKey = generateAccessKey();
       }
 
-      const { name } = request.body as any || {};
-
       const device = await prisma.device.create({
         data: {
           accessKey,
           ownerId: decoded.userId,
-          name: name || 'Remote PC'
+          name: deviceName
         }
       });
 

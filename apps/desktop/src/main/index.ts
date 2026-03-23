@@ -473,10 +473,17 @@ ipcMain.handle('auth:getDeviceAccessKey', async () => {
     const encrypted = await fs.readFile(KEY_PATH);
     if (!encrypted || encrypted.length === 0) return null;
     
+    let decrypted = '';
     if (safeStorage.isEncryptionAvailable()) {
-      return safeStorage.decryptString(encrypted);
+      decrypted = safeStorage.decryptString(encrypted);
+    } else {
+      decrypted = encrypted.toString('utf8');
     }
-    return encrypted.toString('utf8');
+    
+    if (!decrypted || decrypted === 'undefined' || decrypted === 'null') {
+      return null;
+    }
+    return decrypted;
   } catch (e) {
     console.error('[DeviceIdentity] Failed to read or decrypt access key:', e);
     return null;

@@ -286,6 +286,7 @@ export default function App() {
       if (!creds?.token) return;
       
       let localKey = await (window as any).electronAPI.getDeviceAccessKey();
+      let deviceUuid = '';
 
       if (!localKey) {
         // Auto-register this specific machine
@@ -299,13 +300,31 @@ export default function App() {
           body: JSON.stringify({ name: machineName })
         });
         const newDevice = await regRes.json();
-        localKey = newDevice.accessKey;
-        await (window as any).electronAPI.setDeviceAccessKey(localKey);
+        
+        if (newDevice.accessKey) {
+          localKey = newDevice.accessKey;
+          deviceUuid = newDevice.id;
+          await (window as any).electronAPI.setDeviceAccessKey(localKey);
+        } else {
+          console.error('[Identity] Registration returned no key:', newDevice);
+        }
+      } else {
+        // We have a local key, but we need the database UUID for password/regen actions
+        const listRes = await fetch(`http://${serverIP}:3001/api/devices/`, {
+          headers: { 'Authorization': `Bearer ${creds.token}` }
+        });
+        const devices = await listRes.json();
+        const existing = devices.find((d: any) => d.accessKey === localKey);
+        if (existing) {
+          deviceUuid = existing.id;
+        }
       }
 
-      setDeviceId(localKey); // We don't necessarily need the DB ID anymore, but keep state for set-password
-      setHostAccessKey(localKey);
-      console.log(`[Identity] Loaded securely: ${localKey}`);
+      if (localKey) {
+        setDeviceId(deviceUuid);
+        setHostAccessKey(localKey);
+        console.log(`[Identity] Locked Identity: ${localKey} (ID: ${deviceUuid})`);
+      }
     } catch (e: any) {
       console.error('[Identity] Load failed:', e);
     }
@@ -465,12 +484,26 @@ export default function App() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch(`http://${serverIP}:3001/api/auth/login`, {
+      let res = await fetch(`http://${serverIP}:3001/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
+      let data = await res.json();
+      
+      // Auto-register if user doesn't exist (smooth onboarding for demo purposes)
+      if (!res.ok && data.error === 'Invalid credentials') {
+        const regRes = await fetch(`http://${serverIP}:3001/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name: email.split('@')[0] })
+        });
+        if (regRes.ok) {
+          res = regRes;
+          data = await regRes.json();
+        }
+      }
+
       if (res.ok) {
         localStorage.setItem('remote_link_server_ip', serverIP);
         await (window as any).electronAPI.setToken(data.token, data.refreshToken);
@@ -492,14 +525,8 @@ export default function App() {
       const creds = await (window as any).electronAPI.getToken();
       if (!creds?.token) return;
 
-      const devRes = await fetch(`http://${serverIP}:3001/api/devices/?machineId=undefined`, {
-        headers: { 'Authorization': `Bearer ${creds.token}` }
-      }); // Temporary hack to get Device ID until we fix full flow
-      const devices = await devRes.json();
-      const deviceIdToRegen = devices.find((d: any) => d.accessKey === hostAccessKey)?.id;
-
-      if (!deviceIdToRegen) {
-        alert("Could not identify device to regenerate.");
+      if (!deviceId) {
+        alert("Could not identify device to regenerate. Please restart the app.");
         return;
       }
 
@@ -509,7 +536,7 @@ export default function App() {
           'Authorization': `Bearer ${creds.token}`,
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify({ deviceId: deviceIdToRegen })
+        body: JSON.stringify({ deviceId })
       });
       const data = await res.json();
       if (data.accessKey) {
@@ -535,6 +562,10 @@ export default function App() {
       const creds = await (window as any).electronAPI.getToken();
       if (!creds?.token) throw new Error('Please sign in first');
 
+      if (!hostAccessKey) {
+        throw new Error('Permanent identity not loaded. Please wait or re-sign in.');
+      }
+
       // 2. Set/Sync Password if provided (deviceId and hostAccessKey are already loaded)
       if (devicePassword && deviceId) {
         localStorage.setItem('device_password', devicePassword);
@@ -550,7 +581,8 @@ export default function App() {
 
       // 3. Start Signaling with permanent Access Key
       const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey);
-      console.log(`[Host] Initialization successful. SessionID: ${sessionId}`);
+      console.log(`[Host] Identity Registered with signaling: ${sessionId}`);
+      
       if (!sessionId) throw new Error('Signaling server did not return a Session ID');
       
       setHostSessionId(sessionId); 
@@ -783,48 +815,53 @@ export default function App() {
               </div>
             )}
 
-            {hostAccessKey && (
-              <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 mb-8 text-center">
-                 <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] block mb-1">Your Permanent Access Key</span>
-                 <div className="text-xl font-black text-blue-400 tracking-widest Lato mb-2">
-                   {formatCode(hostAccessKey)}
-                 </div>
-                 <div className="flex gap-2 justify-center">
-                   <button onClick={copyAccessKey} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors text-white/60">Copy</button>
-                   <button onClick={handleRegenerateKey} className="text-xs bg-red-500/10 hover:bg-red-500/20 px-3 py-1 rounded transition-colors text-red-400">Regenerate</button>
-                 </div>
+            {!hostAccessKey && isAuthenticated && (
+              <div className="w-full bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 mb-8 text-center animate-pulse">
+                <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] block mb-1">Acquiring Identity...</span>
+                <div className="text-xl font-black text-blue-400/40 tracking-widest Lato">000 000 000</div>
               </div>
             )}
 
-            {hostSessionId ? (
-              <div className="w-full flex flex-col items-center">
-                <div className="w-full bg-black/40 border border-white/5 rounded-3xl p-8 mb-8 text-center relative pointer-events-none">
-                   <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.3em] block mb-4">Secure Access Key</span>
-                   <div className="text-4xl font-black text-white tracking-widest Lato mb-2">
-                     {formatCode(hostSessionId)}
-                   </div>
-                   <div className="flex items-center justify-center gap-2 mt-4">
-                     <div className="px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-                       <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Active Broadcasting</span>
+            {hostAccessKey && (
+              <div className={`w-full border rounded-3xl p-8 mb-8 text-center transition-all duration-500 ${hostSessionId ? 'bg-blue-600/10 border-blue-500/30 shadow-2xl shadow-blue-500/10' : 'bg-white/5 border-white/10'}`}>
+                 <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] block mb-2">
+                   {hostSessionId ? 'Broadcasting Identity' : 'Your Permanent Access Key'}
+                 </span>
+                 <div className={`text-4xl font-[900] tracking-widest Lato mb-4 transition-colors ${hostSessionId ? 'text-white' : 'text-blue-400'}`}>
+                   {formatCode(hostAccessKey)}
+                 </div>
+                 
+                 {hostSessionId ? (
+                   <div className="flex flex-col items-center gap-4">
+                     <div className="px-4 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20 flex items-center gap-2">
+                       <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                       <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Active & Online</span>
+                     </div>
+                     <div className="flex gap-3 w-full">
+                        <button 
+                          onClick={copyAccessKey}
+                          className="flex-grow bg-white/5 hover:bg-white/10 text-white font-bold py-3 rounded-xl border border-white/10 transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Copy Key
+                        </button>
+                        <button 
+                          onClick={async () => { await (window as any).electronAPI.stopHosting(); setHostSessionId(''); }}
+                          className="flex-grow bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-3 rounded-xl border border-red-500/20 transition-all text-[10px] uppercase tracking-widest"
+                        >
+                          Kill Link
+                        </button>
                      </div>
                    </div>
-                </div>
-                <div className="flex gap-4 w-full">
-                  <button 
-                    onClick={() => { navigator.clipboard.writeText(formatCode(hostSessionId)); }}
-                    className="flex-grow bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl border border-white/10 transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
-                  >
-                    <Copy className="w-4 h-4" /> Copy ID
-                  </button>
-                  <button 
-                    onClick={async () => { await (window as any).electronAPI.stopHosting(); setHostSessionId(''); }}
-                    className="flex-grow bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-4 rounded-2xl border border-red-500/20 transition-all text-xs uppercase tracking-widest"
-                  >
-                    Kill Link
-                  </button>
-                </div>
+                 ) : (
+                   <div className="flex gap-2 justify-center">
+                     <button onClick={copyAccessKey} className="text-[10px] font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-colors text-white/60">Copy</button>
+                     <button onClick={handleRegenerateKey} className="text-[10px] font-bold uppercase tracking-widest bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-xl transition-colors text-red-400/60 hover:text-red-400">Regenerate</button>
+                   </div>
+                 )}
               </div>
-            ) : (
+            )}
+
+            {!hostSessionId && (
               <div className="w-full mt-auto">
                 {hostStatus === 'status' && (
                   <div className="bg-blue-500/10 border border-blue-500/20 text-blue-400 p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center mb-4 animate-pulse">
