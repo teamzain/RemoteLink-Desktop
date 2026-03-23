@@ -1,7 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { prisma, publishEvent, EventChannel } from '@remotelink/shared';
-import { generateToken } from '../utils/jwt';
+import { prisma, publishEvent, EventChannel, generateToken } from '@remotelink/shared';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {

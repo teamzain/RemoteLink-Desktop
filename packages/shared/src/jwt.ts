@@ -28,8 +28,10 @@ export const generateToken = (payload: object, expiresIn: any = '24h'): string =
 export const verifyToken = (token: string): any => {
   const isPem = publicKey.includes('BEGIN PUBLIC KEY');
   const algorithm = isPem ? 'RS256' : 'HS256';
+  // HS256 is symmetric; it must use the same secret (privateKey) for both signing and verifying
+  const secret = isPem ? publicKey.trim() : privateKey.trim();
   try {
-    return jwt.verify(token, publicKey.trim(), { algorithms: [algorithm] });
+    return jwt.verify(token, secret, { algorithms: [algorithm] });
   } catch (e) {
     return null;
   }

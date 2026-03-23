@@ -1,7 +1,6 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { prisma, redisPublisher } from '@remotelink/shared';
-import { generateToken, verifyToken } from '../utils/jwt';
+import { prisma, redisPublisher, generateToken, verifyToken } from '@remotelink/shared';
 import { randomInt } from 'crypto';
 
 // Helper to generate 9-digit CSPRNG key
