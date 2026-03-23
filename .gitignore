@@ -11,6 +11,7 @@ dist/
 dist-electron/
 release/
 build/
+!packages/native-input/build/
 *.exe
 *.zip
 *.dmg
