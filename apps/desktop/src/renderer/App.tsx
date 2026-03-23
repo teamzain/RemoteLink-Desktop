@@ -313,10 +313,22 @@ export default function App() {
         const listRes = await fetch(`http://${serverIP}:3001/api/devices/`, {
           headers: { 'Authorization': `Bearer ${creds.token}` }
         });
-        const devices = await listRes.json();
-        const existing = devices.find((d: any) => d.accessKey === localKey);
-        if (existing) {
-          deviceUuid = existing.id;
+        
+        if (listRes.ok) {
+          const devices = await listRes.json();
+          if (Array.isArray(devices)) {
+            const existing = devices.find((d: any) => d.accessKey === localKey);
+            if (existing) {
+              deviceUuid = existing.id;
+            }
+          } else {
+            console.error('[Identity] Device list is not an array:', devices);
+          }
+        } else if (listRes.status === 401) {
+          console.warn('[Identity] Session expired or invalid. Please sign out and in again.');
+          // Optional: setIsAuthenticated(false); 
+        } else {
+          console.error('[Identity] Failed to fetch device list:', listRes.status);
         }
       }
 

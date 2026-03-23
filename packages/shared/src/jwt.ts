@@ -30,9 +30,12 @@ export const verifyToken = (token: string): any => {
   const algorithm = isPem ? 'RS256' : 'HS256';
   // HS256 is symmetric; it must use the same secret (privateKey) for both signing and verifying
   const secret = isPem ? publicKey.trim() : privateKey.trim();
+  
   try {
-    return jwt.verify(token, secret, { algorithms: [algorithm] });
-  } catch (e) {
+    const decoded = jwt.verify(token, secret, { algorithms: [algorithm] });
+    return decoded;
+  } catch (e: any) {
+    console.error(`[JWT] Verification failed (${algorithm}):`, e.message);
     return null;
   }
 };
