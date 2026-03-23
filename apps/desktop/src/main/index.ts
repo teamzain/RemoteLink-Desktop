@@ -180,6 +180,7 @@ function setupSignalingHandlers(ws: WebSocket) {
   ws.removeAllListeners('message');
   ws.on('message', (message) => {
     const data = JSON.parse(message.toString());
+    console.log(`[Host] Received SIGNALING: ${data.type}`);
     if (data.type === 'registered') {
       mainWindow?.webContents.send('host:status', 'Registered: ' + data.sessionId);
     } else if (data.type === 'viewer-joined') {

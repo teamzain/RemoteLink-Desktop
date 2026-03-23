@@ -434,9 +434,12 @@ export default function App() {
   }
 
   // --- Main Dashboard ---
-  if (viewerStatus === 'streaming' || viewerStatus === 'connected') {
+  if (viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') {
     return (
-      <div className="min-h-screen bg-[#080808] p-8 flex flex-col">
+      <div className="min-h-screen bg-[#080808] p-8 flex flex-col relative">
+          <div className="absolute top-4 right-4 z-50 bg-black/80 p-2 rounded border border-white/10 text-[8px] font-mono text-white/40 uppercase">
+            Debug: {viewerStatus} | {viewerError || 'No Errors'}
+          </div>
           <VideoPlayer 
             ref={videoPlayerRef}
             viewerStatus={viewerStatus} 
