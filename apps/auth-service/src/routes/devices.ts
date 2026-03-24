@@ -160,9 +160,12 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         return reply.code(200).send(mapped);
       }
 
-      let accessKey = generateAccessKey();
-      while (await prisma.device.findUnique({ where: { accessKey } })) {
+      let accessKey = (request.body as any)?.accessKey;
+      if (!accessKey || (await prisma.device.findUnique({ where: { accessKey } }))) {
         accessKey = generateAccessKey();
+        while (await prisma.device.findUnique({ where: { accessKey } })) {
+          accessKey = generateAccessKey();
+        }
       }
 
       const device = await prisma.device.create({

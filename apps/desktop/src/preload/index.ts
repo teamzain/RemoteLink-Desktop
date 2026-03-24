@@ -10,8 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopHosting: () => ipcRenderer.invoke('host:stop'),
   connectToHost: (sessionId: string, serverIP?: string, token?: string) => ipcRenderer.invoke('viewer:connect', sessionId, serverIP, token),
   getLocalIP: () => ipcRenderer.invoke('system:getLocalIP'),
-  getDeviceAccessKey: () => ipcRenderer.invoke('auth:getDeviceAccessKey'),
-  setDeviceAccessKey: (key: string) => ipcRenderer.invoke('auth:setDeviceAccessKey', key),
+  getDeterministicKey: () => ipcRenderer.invoke('system:getDeterministicKey'),
   getMachineName: () => ipcRenderer.invoke('system:getMachineName'),
   onHostStatus: (callback: (status: string) => void) => {
     const listener = (_: any, status: string) => callback(status);

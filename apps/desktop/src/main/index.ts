@@ -387,10 +387,16 @@ function initiateHostWebRTC() {
               await fs.writeFile(savePath, transfer.buffer);
               fileTransfers.delete(header.name);
               
-              new Notification({
-                title: 'File Received',
-                body: `Saved ${header.name} to Downloads`
-              }).show();
+              const notification = new Notification({
+                title: 'File Received via RemoteLink',
+                body: `Saved to: ${savePath}`
+              });
+
+              notification.on('click', () => {
+                shell.showItemInFolder(savePath);
+              });
+
+              notification.show();
               mainWindow?.webContents.send('host:status', `File Received: ${header.name}`);
             }
           }
@@ -574,43 +580,21 @@ ipcMain.handle('system:getLocalIP', () => {
   return '127.0.0.1';
 });
 
-ipcMain.handle('auth:getDeviceAccessKey', async () => {
-  const KEY_PATH = join(app.getPath('userData'), 'device_access_key');
-  try {
-    const encrypted = await fs.readFile(KEY_PATH);
-    if (!encrypted || encrypted.length === 0) return null;
-    
-    let decrypted = '';
-    if (safeStorage.isEncryptionAvailable()) {
-      decrypted = safeStorage.decryptString(encrypted);
-    } else {
-      decrypted = encrypted.toString('utf8');
+ipcMain.handle('system:getDeterministicKey', () => {
+  const interfaces = os.networkInterfaces();
+  let mac = '';
+  for (const key of Object.keys(interfaces)) {
+    const list = interfaces[key];
+    if (list) {
+      const valid = list.find(i => !i.internal && i.mac !== '00:00:00:00:00:00');
+      if (valid) { mac = valid.mac; break; }
     }
-    
-    if (!decrypted || decrypted === 'undefined' || decrypted === 'null') {
-      return null;
-    }
-    return decrypted;
-  } catch (e) {
-    console.error('[DeviceIdentity] Failed to read or decrypt access key:', e);
-    return null;
   }
-});
-
-ipcMain.handle('auth:setDeviceAccessKey', async (_event, key: string) => {
-  const KEY_PATH = join(app.getPath('userData'), 'device_access_key');
-  try {
-    if (!key) throw new Error("Key is undefined or empty");
-    const validKey = String(key);
-    
-    const data = safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(validKey) : Buffer.from(validKey, 'utf8');
-    await fs.writeFile(KEY_PATH, data);
-    console.log(`[DeviceIdentity] Access key successfully stored: ${validKey}`);
-    return true;
-  } catch (e) {
-    console.error('[DeviceIdentity] Failed to save access key:', e);
-    return false;
-  }
+  if (!mac) mac = os.hostname();
+  
+  const hash = require('crypto').createHash('sha256').update(mac).digest('hex');
+  const code = (BigInt('0x' + hash.substring(0, 12)) % 1000000000n).toString().padStart(9, '0');
+  return code;
 });
 
 ipcMain.handle('system:getMachineName', () => os.hostname());

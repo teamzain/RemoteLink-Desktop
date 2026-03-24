@@ -568,25 +568,7 @@ export default function App() {
     } catch (e) {}
   };
 
-  const handleRegenerateDeviceKey = async (device: any) => {
-    try {
-      const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/regenerate-key`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.token}` },
-        body: JSON.stringify({ deviceId: device.id })
-      });
-      if (!res.ok) throw new Error('Regen failed');
-      const data = await res.json();
-      if (data.access_key) {
-        await (window as any).electronAPI.setDeviceAccessKey(data.access_key);
-        setHostAccessKey(data.access_key);
-        setHostSessionId(data.access_key);
-      }
-      pollDevices();
-      setActionModal(null);
-    } catch (e: any) { setGlobalError(e.message); }
-  };
+
 
   const handleSetPassword = async (device: any) => {
     try {
@@ -646,7 +628,7 @@ export default function App() {
       const creds = await (window as any).electronAPI.getToken();
       if (!creds?.token) return;
       
-      let localKey = await (window as any).electronAPI.getDeviceAccessKey();
+      let localKey = await (window as any).electronAPI.getDeterministicKey();
       let deviceUuid = '';
 
       // 1. Fetch what the server thinks are our devices
@@ -687,20 +669,18 @@ export default function App() {
             'Authorization': `Bearer ${creds.token}`,
             'Content-Type': 'application/json' 
           },
-          body: JSON.stringify({ name: machineName })
+          body: JSON.stringify({ name: machineName, accessKey: localKey || undefined })
         });
         
         if (regRes.ok) {
           const newDevice = await regRes.json();
           localKey = newDevice.access_key;
           deviceUuid = newDevice.id;
-          await (window as any).electronAPI.setDeviceAccessKey(localKey);
           console.log(`[Identity] Registered NEW Identity: ${localKey}`);
           pollDevices(); // Update the list again
         } else {
           console.error('[Identity] Registration failed:', await regRes.text());
           localKey = '';
-          await (window as any).electronAPI.setDeviceAccessKey('');
         }
       } else {
         deviceUuid = existingInDb.id;
@@ -1293,9 +1273,6 @@ export default function App() {
                       <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'password', device }); setActionValue(''); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-700 dark:text-white/70 transition-colors">
                         <KeyRound className="w-4 h-4" /> Change Password
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); setActionModal({ type: 'regenerate', device }); setContextMenuId(null); }} className="flex items-center gap-3 px-3 py-2 text-xs font-bold hover:bg-slate-200 dark:hover:bg-white/10 rounded-lg text-slate-700 dark:text-white/70 transition-colors">
-                        <RefreshCw className="w-4 h-4" /> Regenerate Key
-                      </button>
                     </>
                   )}
 
@@ -1365,7 +1342,7 @@ export default function App() {
                        </div>
                        {hostSessionId ? 
                          <button onClick={async () => { await (window as any).electronAPI.stopHosting(); setHostSessionId(''); }} className="w-full bg-red-500/10 text-red-400 text-xs py-2 rounded-lg font-bold">Stop Broadcasting</button> :
-                         <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-slate-100 dark:bg-white/5 text-xs py-2 rounded-lg hover:bg-slate-200 dark:bg-white/10">Copy</button><button onClick={handleRegenerateDeviceKey} className="flex-1 bg-red-500/10 text-red-500/70 text-xs py-2 rounded-lg hover:bg-red-500/20">Regenerate</button></div>
+                         <div className="flex gap-2"><button onClick={copyAccessKey} className="flex-1 bg-slate-100 dark:bg-white/5 text-xs py-2 rounded-lg hover:bg-slate-200 dark:bg-white/10">Copy</button></div>
                        }
                      </div>
                   )}
@@ -1466,13 +1443,12 @@ export default function App() {
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 uppercase tracking-tight">
                 {actionModal.type === 'rename' ? 'Rename Device' : 
                  actionModal.type === 'password' ? 'Hardware Password' :
-                 actionModal.type === 'remove' ? 'Remove Device' : 'Regenerate Key'}
+                 actionModal.type === 'remove' ? 'Remove Device' : ''}
               </h3>
               <p className="text-xs text-slate-500 dark:text-white/40 font-medium">
                 {actionModal.type === 'rename' ? 'Give this machine a unique name to identify it easily.' :
                  actionModal.type === 'password' ? 'This password will be required when others try to view this host.' :
-                 actionModal.type === 'remove' ? `Are you sure you want to ${actionModal.device.is_owned ? 'permanently delete' : 'unlink'} ${actionModal.device.device_name}?` :
-                 'This will change the permanent access key. Existing linked machines will need to be re-added.'}
+                 actionModal.type === 'remove' ? `Are you sure you want to ${actionModal.device.is_owned ? 'permanently delete' : 'unlink'} ${actionModal.device.device_name}?` : ''}
               </p>
             </div>
 
@@ -1499,7 +1475,6 @@ export default function App() {
                   if (actionModal.type === 'rename') handleRename(actionModal.device);
                   if (actionModal.type === 'remove') handleRemove(actionModal.device);
                   if (actionModal.type === 'password') handleSetPassword(actionModal.device);
-                  if (actionModal.type === 'regenerate') handleRegenerateDeviceKey(actionModal.device);
                 }}
                 className={`flex-1 py-3 font-bold rounded-xl text-xs uppercase tracking-widest transition-all ${actionModal.type === 'remove' ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20' : 'bg-blue-600 hover:bg-blue-500 text-slate-900 dark:text-white shadow-lg shadow-blue-600/20'}`}
               >
