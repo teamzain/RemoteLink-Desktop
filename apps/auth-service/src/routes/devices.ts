@@ -23,8 +23,121 @@ async function mapDevice(device: any, userId: string): Promise<any> {
 
 export default async function deviceRoutes(fastify: FastifyInstance) {
   
+  // 0. Add Existing Device (Moved to top for matching priority)
+  fastify.post('/add-existing', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+    
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    let { accessKey, password } = request.body as any;
+    if (!accessKey || !password) return reply.code(400).send({ error: 'accessKey and password required' });
+    accessKey = String(accessKey).replace(/\s/g, '');
+    console.log(`[Device-Debug] Attempting to add existing device: ${accessKey}`);
+
+    const device = await prisma.device.findUnique({ where: { accessKey } });
+    if (!device) {
+      console.log(`[Device-Debug] Device not found in DB for key: ${accessKey}`);
+      return reply.code(404).send({ error: 'Device not found' });
+    }
+    
+    if (!device.accessPasswordHash) {
+      console.log(`[Device-Debug] Device found but has no accessPasswordHash: ${accessKey}`);
+      return reply.code(404).send({ error: 'Device has no access password set yet' });
+    }
+
+    const isMatch = await bcrypt.compare(password, device.accessPasswordHash);
+    if (!isMatch) {
+      console.log(`[Device-Debug] Password mismatch for device: ${accessKey}`);
+      return reply.code(401).send({ error: 'Incorrect password' });
+    }
+
+    // Safe to link
+    const existingLink = await prisma.savedDevice.findUnique({
+      where: { userId_deviceId: { userId: decoded.userId, deviceId: device.id } }
+    });
+
+    if (!existingLink) {
+      await prisma.savedDevice.create({
+        data: { userId: decoded.userId, deviceId: device.id }
+      });
+    }
+
+    const mapped = await mapDevice(device, decoded.userId);
+    return reply.send({ success: true, device: mapped });
+  });
+  
+  // 1. Verify access key + password and return 60s JWT (Viewer Step 2)
+  fastify.post('/verify-access', async (request: FastifyRequest, reply: FastifyReply) => {
+    let { accessKey, password } = request.body as any;
+    if (!accessKey) return reply.code(400).send({ error: 'Access Key required' });
+    accessKey = String(accessKey).replace(/\s/g, '');
+    console.log(`[Device-Debug] verify-access attempt for: ${accessKey}`);
+
+    const device = await prisma.device.findUnique({ where: { accessKey } });
+    if (!device) {
+      console.log(`[Device-Debug] verify-access: Device not found in DB for key: ${accessKey}`);
+      return reply.code(404).send({ error: 'Device not found' });
+    }
+    
+    if (!device.accessPasswordHash) {
+      console.log(`[Device-Debug] verify-access: Device found but has no accessPasswordHash: ${accessKey}`);
+      return reply.code(404).send({ error: 'Device has no access password set yet. Go to host settings and set one.' });
+    }
+
+    const presence = await redisPublisher.get(`presence:${accessKey}`);
+    if (presence !== 'online') {
+      return reply.code(409).send({ error: 'Device is offline' });
+    }
+
+    // Check if user is trusted (Passwordless bypass)
+    let isTrusted = false;
+    const authHeader = request.headers.authorization;
+    if (authHeader) {
+      const token = authHeader.split(' ')[1];
+      const decodedUser = verifyToken(token);
+      if (decodedUser && decodedUser.userId) {
+        const trustCheck = await prisma.trustedDevice.findUnique({
+          where: { viewerUserId_hostDeviceId: { viewerUserId: decodedUser.userId, hostDeviceId: device.id } }
+        });
+        if (trustCheck) isTrusted = true;
+      }
+    }
+
+    if (!isTrusted) {
+      if (!password) return reply.code(401).send({ error: 'Password required for untrusted device connections' });
+
+      const lockoutKey = `lockout:${accessKey}`;
+      const attempts = await redisPublisher.get(lockoutKey);
+      if (attempts && parseInt(attempts) >= 5) {
+        const ttl = await redisPublisher.ttl(lockoutKey);
+        return reply.code(429).send({ error: 'Too many attempts', retryAfter: ttl });
+      }
+
+      const isMatch = await bcrypt.compare(password, device.accessPasswordHash);
+      if (!isMatch) {
+        const fails = await redisPublisher.incr(lockoutKey);
+        if (fails === 1) await redisPublisher.expire(lockoutKey, 300);
+        return reply.code(401).send({ error: 'Incorrect password' });
+      }
+
+      await redisPublisher.del(lockoutKey);
+    }
+
+    const accessJWT = generateToken({ 
+      type: 'remote-access', 
+      deviceId: device.id, 
+      accessKey: device.accessKey 
+    }, '60s');
+
+    return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted } });
+  });
+  
   // 1. Register a new device for the current user
   fastify.post('/register', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log(`[Device-Debug] Registration attempt received`);
     try {
       const authHeader = request.headers.authorization;
       if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
@@ -32,6 +145,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const token = authHeader.split(' ')[1];
       const decoded = verifyToken(token);
       if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+      console.log(`[Device-Debug] Registration for userId: ${decoded.userId}`);
 
       const { name, deviceType } = request.body as any || {};
       const deviceName = name || 'Remote PC';
@@ -42,7 +156,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       });
 
       if (existing) {
-        return reply.code(200).send(existing);
+        const mapped = await mapDevice(existing, decoded.userId);
+        return reply.code(200).send(mapped);
       }
 
       let accessKey = generateAccessKey();
@@ -183,39 +298,6 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // 5. Add Existing Device
-  fastify.post('/add-existing', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
-
-    let { accessKey, password } = request.body as any;
-    if (!accessKey || !password) return reply.code(400).send({ error: 'accessKey and password required' });
-    accessKey = String(accessKey).replace(/\s/g, '');
-
-    const device = await prisma.device.findUnique({ where: { accessKey } });
-    if (!device || !device.accessPasswordHash) return reply.code(404).send({ error: 'Device not found or password not set' });
-
-    const isMatch = await bcrypt.compare(password, device.accessPasswordHash);
-    if (!isMatch) return reply.code(401).send({ error: 'Incorrect password' });
-
-    // Safe to link
-    const existingLink = await prisma.savedDevice.findUnique({
-      where: { userId_deviceId: { userId: decoded.userId, deviceId: device.id } }
-    });
-
-    if (!existingLink) {
-      await prisma.savedDevice.create({
-        data: { userId: decoded.userId, deviceId: device.id }
-      });
-    }
-
-    const mapped = await mapDevice(device, decoded.userId);
-    return reply.send({ success: true, device: mapped });
-  });
 
   // 6. Trust Device
   fastify.post('/:id/trust', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -287,7 +369,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       data: { accessKey }
     });
 
-    return reply.send({ accessKey: updated.accessKey });
+    return reply.send({ access_key: updated.accessKey });
   });
 
   // Set/Update machine password
@@ -338,63 +420,6 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     return reply.send({ exists: true, online });
   });
 
-  // Verify access key + password and return 60s JWT (Viewer Step 2)
-  fastify.post('/verify-access', async (request: FastifyRequest, reply: FastifyReply) => {
-    let { accessKey, password } = request.body as any;
-    if (!accessKey) return reply.code(400).send({ error: 'Access Key required' });
-    accessKey = String(accessKey).replace(/\s/g, '');
 
-    const device = await prisma.device.findUnique({ where: { accessKey } });
-    if (!device || !device.accessPasswordHash) {
-      return reply.code(404).send({ error: 'Device not found or password not set' });
-    }
-
-    const presence = await redisPublisher.get(`presence:${accessKey}`);
-    if (presence !== 'online') {
-      return reply.code(409).send({ error: 'Device is offline' });
-    }
-
-    // Check if user is trusted (Passwordless bypass)
-    let isTrusted = false;
-    const authHeader = request.headers.authorization;
-    if (authHeader) {
-      const token = authHeader.split(' ')[1];
-      const decodedUser = verifyToken(token);
-      if (decodedUser && decodedUser.userId) {
-        const trustCheck = await prisma.trustedDevice.findUnique({
-          where: { viewerUserId_hostDeviceId: { viewerUserId: decodedUser.userId, hostDeviceId: device.id } }
-        });
-        if (trustCheck) isTrusted = true;
-      }
-    }
-
-    if (!isTrusted) {
-      if (!password) return reply.code(401).send({ error: 'Password required for untrusted device connections' });
-
-      const lockoutKey = `lockout:${accessKey}`;
-      const attempts = await redisPublisher.get(lockoutKey);
-      if (attempts && parseInt(attempts) >= 5) {
-        const ttl = await redisPublisher.ttl(lockoutKey);
-        return reply.code(429).send({ error: 'Too many attempts', retryAfter: ttl });
-      }
-
-      const isMatch = await bcrypt.compare(password, device.accessPasswordHash);
-      if (!isMatch) {
-        const fails = await redisPublisher.incr(lockoutKey);
-        if (fails === 1) await redisPublisher.expire(lockoutKey, 300);
-        return reply.code(401).send({ error: 'Incorrect password' });
-      }
-
-      await redisPublisher.del(lockoutKey);
-    }
-
-    const accessJWT = generateToken({ 
-      type: 'remote-access', 
-      deviceId: device.id, 
-      accessKey: device.accessKey 
-    }, '60s');
-
-    return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted } });
-  });
 
 }

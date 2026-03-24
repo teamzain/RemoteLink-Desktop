@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // Force-syncing file state to resolve HMR/Vite discrepancies.
 import {
   Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X
-, Sun, Moon, Edit2, Trash2, ShieldOff, RefreshCw} from 'lucide-react';
+, Sun, Moon, Edit2, Trash2, ShieldOff, RefreshCw, Eye, EyeOff} from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
 
@@ -297,13 +297,19 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('test@example.com');
   const [password, setPassword] = useState('password123');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
+  const [accessPassword, setAccessPassword] = useState('');
+  const [showManualPassword, setShowManualPassword] = useState(false);
   const [error, setError] = useState('');
 
   const [hostSessionId, setHostSessionId] = useState('');
   const [hostStatus, setHostStatus] = useState<'idle' | 'connecting' | 'error' | 'status'>('idle');
   const [hostMessage, setHostMessage] = useState('');
   const [hostError, setHostError] = useState('');
+  const [hostAccessKey, setHostAccessKey] = useState('');
+  const [devicePassword, setDevicePassword] = useState(localStorage.getItem('device_password') || '');
+  const [showHostPassword, setShowHostPassword] = useState(false);
 
   const [serverIP, setServerIP] = useState(localStorage.getItem('remote_link_server_ip') || '127.0.0.1');
   const [localIP, setLocalIP] = useState('127.0.0.1');
@@ -345,10 +351,12 @@ export default function App() {
   const [showPasswordPrompt, setShowPasswordPrompt] = useState<any | null>(null); // { device }
   const [promptPassword, setPromptPassword] = useState('');
   const [promptRemember, setPromptRemember] = useState(true);
+  const [showPromptPassword, setShowPromptPassword] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addKey, setAddKey] = useState('');
   const [addPassword, setAddPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
 
   const [contextMenuMsg, setContextMenuMsg] = useState(''); // Tooltip offline
   const [contextMenuId, setContextMenuId] = useState<string | null>(null);
@@ -386,7 +394,7 @@ export default function App() {
       } else if (res.status === 401) {
         const creds = await (window as any).electronAPI.getToken();
         if (creds?.refresh) {
-          await handleRefresh(creds.refresh);
+          await (window as any).electronAPI.setToken(creds.token, creds.refresh); // Just trigger a save
           pollDevices();
           return;
         }
@@ -492,13 +500,15 @@ export default function App() {
   const handleAddDevice = async () => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/add-existing`, {
+      const url = `http://${serverIP}:3001/api/devices/add-existing`;
+      console.log(`[Fetch-Debug] POST to ${url}`);
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${creds.token}`
         },
-        body: JSON.stringify({ accessKey: addKey, password: addPassword })
+        body: JSON.stringify({ accessKey: addKey.replace(/\s/g, ''), password: addPassword })
       });
       const data = await res.json();
       if (res.ok) {
@@ -567,6 +577,12 @@ export default function App() {
         body: JSON.stringify({ deviceId: device.id })
       });
       if (!res.ok) throw new Error('Regen failed');
+      const data = await res.json();
+      if (data.access_key) {
+        await (window as any).electronAPI.setDeviceAccessKey(data.access_key);
+        setHostAccessKey(data.access_key);
+        setHostSessionId(data.access_key);
+      }
       pollDevices();
       setActionModal(null);
     } catch (e: any) { setGlobalError(e.message); }
@@ -587,10 +603,7 @@ export default function App() {
     } catch (e: any) { setGlobalError(e.message); }
   };
 
-  // Phase 25: Device Security State
-  const [accessPassword, setAccessPassword] = useState('');
-  const [devicePassword, setDevicePassword] = useState(localStorage.getItem('device_password') || '');
-  const [hostAccessKey, setHostAccessKey] = useState('');
+
   const [deviceId, setDeviceId] = useState('');
   const [viewerStep, setViewerStep] = useState<1 | 2>(1);
 
@@ -636,8 +649,37 @@ export default function App() {
       let localKey = await (window as any).electronAPI.getDeviceAccessKey();
       let deviceUuid = '';
 
-      if (!localKey) {
-        // Auto-register this specific machine
+      // 1. Fetch what the server thinks are our devices
+      const listRes = await fetch(`http://${serverIP}:3001/api/devices/mine`, {
+        headers: { 'Authorization': `Bearer ${creds.token}` }
+      });
+
+      if (!listRes.ok) {
+        if (listRes.status === 401) {
+          console.warn('[Identity] Session expired during loadDeviceInfo');
+          const refreshRes = await (window as any).electronAPI.getToken();
+          if (refreshRes?.refresh) {
+            await handleRefresh(refreshRes.refresh);
+            loadDeviceInfo(); // retry
+          } else {
+            handleLogout();
+          }
+        }
+        return;
+      }
+
+      const fetchedDevices = await listRes.json();
+      setDevices(fetchedDevices);
+
+      // 2. Check if our local identity is still valid in the DB
+      let existingInDb = null;
+      if (localKey && Array.isArray(fetchedDevices)) {
+        existingInDb = fetchedDevices.find((d: any) => d.access_key === localKey);
+      }
+
+      if (!localKey || !existingInDb) {
+        // We have no key, or our key was deleted from the server. Register fresh!
+        console.log(`[Identity] No valid local key found${localKey ? ' (Stale)' : ''}. Registering...`);
         const machineName = await (window as any).electronAPI.getMachineName?.() || 'RemoteLink PC';
         const regRes = await fetch(`http://${serverIP}:3001/api/devices/register`, {
           method: 'POST',
@@ -647,51 +689,28 @@ export default function App() {
           },
           body: JSON.stringify({ name: machineName })
         });
-        const newDevice = await regRes.json();
         
-        if (newDevice.accessKey) {
-          localKey = newDevice.accessKey;
+        if (regRes.ok) {
+          const newDevice = await regRes.json();
+          localKey = newDevice.access_key;
           deviceUuid = newDevice.id;
           await (window as any).electronAPI.setDeviceAccessKey(localKey);
+          console.log(`[Identity] Registered NEW Identity: ${localKey}`);
+          pollDevices(); // Update the list again
         } else {
-          console.error('[Identity] Registration returned no key:', newDevice);
+          console.error('[Identity] Registration failed:', await regRes.text());
+          localKey = '';
+          await (window as any).electronAPI.setDeviceAccessKey('');
         }
       } else {
-        // We have a local key, but we need the database UUID for password/regen actions
-        const listRes = await fetch(`http://${serverIP}:3001/api/devices/mine`, {
-          headers: { 'Authorization': `Bearer ${creds.token}` }
-        });
-        
-        if (listRes.ok) {
-          const fetchedDevices = await listRes.json();
-          setDevices(fetchedDevices); // Populate device list immediately on load
-          if (Array.isArray(fetchedDevices)) {
-            const existing = fetchedDevices.find((d: any) => d.accessKey === localKey);
-            if (existing) {
-              deviceUuid = existing.id;
-            }
-          } else {
-            console.error('[Identity] Device list is not an array:', devices);
-          }
-        } else if (listRes.status === 401) {
-          console.warn('[Identity] Session expired or invalid. Attempting refresh...');
-          const creds = await (window as any).electronAPI.getToken();
-          if (creds?.refresh) {
-            await handleRefresh(creds.refresh);
-            // Retry once after refresh
-            loadDeviceInfo();
-            return;
-          }
-          handleLogout();
-        } else {
-          console.error('[Identity] Failed to fetch device list:', listRes.status);
-        }
+        deviceUuid = existingInDb.id;
+        console.log(`[Identity] Verified existing identity: ${localKey}`);
       }
 
       if (localKey) {
         setDeviceId(deviceUuid);
         setHostAccessKey(localKey);
-        console.log(`[Identity] Locked Identity: ${localKey} (ID: ${deviceUuid})`);
+        setHostSessionId(localKey); // Update the visual registration code
       }
     } catch (e: any) {
       console.error('[Identity] Load failed:', e);
@@ -924,18 +943,23 @@ export default function App() {
         throw new Error('Permanent identity not loaded. Please wait or re-sign in.');
       }
 
-      // 2. Set/Sync Password if provided (deviceId and hostAccessKey are already loaded)
-      if (devicePassword && deviceId) {
-        localStorage.setItem('device_password', devicePassword);
-        await fetch(`http://${serverIP}:3001/api/devices/set-password`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${creds.token}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({ deviceId, password: devicePassword })
-        });
+      if (!devicePassword) {
+        throw new Error('Please set an access password before hosting.');
       }
+      if (!deviceId) {
+        throw new Error('Please wait for your device identity to load or restart the app.');
+      }
+
+      // 2. Set/Sync Password
+      localStorage.setItem('device_password', devicePassword);
+      await fetch(`http://${serverIP}:3001/api/devices/set-password`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${creds.token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ deviceId, password: devicePassword })
+      });
 
       // 3. Start Signaling with permanent Access Key
       const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey);
@@ -1053,13 +1077,18 @@ export default function App() {
             </div>
             <div className="space-y-1.5">
                <label className="text-[10px] font-bold text-slate-400 dark:text-white/30 uppercase tracking-widest pl-4">Password</label>
-               <input 
-                type="password" 
-                required
-                className="w-full bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl p-4 outline-none focus:border-blue-500/50 focus:bg-slate-50 dark:bg-white/[0.05] transition-all"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+               <div className="relative">
+                  <input 
+                   type={showLoginPassword ? "text" : "password"} 
+                   required
+                   className="w-full bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl p-4 outline-none focus:border-blue-500/50 focus:bg-slate-50 dark:bg-white/[0.05] transition-all pr-12"
+                   value={password}
+                   onChange={(e) => setPassword(e.target.value)}
+                 />
+                 <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/50 transition">
+                   {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                 </button>
+                </div>
             </div>
             {error && <div className="text-red-400 text-xs font-medium text-center bg-red-500/10 py-3 rounded-xl border border-red-500/20">{error}</div>}
             
@@ -1307,7 +1336,12 @@ export default function App() {
                   <p className="text-slate-500 dark:text-white/40 text-center text-xs mb-8">Enter an access key and password to connect to an external machine.</p>
                   <div className="w-full space-y-3 mt-auto">
                     <input type="text" placeholder="000 000 000" className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-xl font-mono focus:border-blue-500 outline-none" value={sessionCode} onChange={(e) => setSessionCode(formatCode(e.target.value))} />
-                    <input type="password" placeholder="Password" className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-sm focus:border-blue-500 outline-none" value={accessPassword} onChange={(e) => setAccessPassword(e.target.value)} />
+                    <div className="relative">
+                      <input type={showManualPassword ? "text" : "password"} placeholder="Password" className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-sm focus:border-blue-500 outline-none pr-12" value={accessPassword} onChange={(e) => setAccessPassword(e.target.value)} />
+                      <button onClick={() => setShowManualPassword(!showManualPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/50 transition">
+                        {showManualPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                     <button onClick={handleConnectToHost} disabled={!sessionCode || !accessPassword || viewerStatus === 'connecting'} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-slate-900 dark:text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 uppercase text-xs tracking-wider">{viewerStatus === 'connecting' ? 'Connecting...' : 'Connect'}</button>
                   </div>
                </section>
@@ -1338,7 +1372,12 @@ export default function App() {
 
                   {!hostSessionId && (
                      <div className="w-full mt-auto space-y-3">
-                       <input type="password" placeholder="Set Access Password..." className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-sm focus:border-emerald-500 outline-none" value={devicePassword} onChange={e => setDevicePassword(e.target.value)} />
+                       <div className="relative">
+                         <input type={showHostPassword ? "text" : "password"} placeholder="Set Access Password..." className="w-full bg-slate-200 dark:bg-black/40 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 text-center text-sm focus:border-emerald-500 outline-none pr-12" value={devicePassword} onChange={e => setDevicePassword(e.target.value)} />
+                         <button onClick={() => setShowHostPassword(!showHostPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/50 transition">
+                           {showHostPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                         </button>
+                       </div>
                        <button onClick={handleStartHosting} disabled={hostStatus === 'connecting'} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-900 dark:text-white font-bold py-4 rounded-xl text-center uppercase text-xs tracking-wider">{hostStatus === 'connecting' ? 'Starting...' : 'Start Hosting'}</button>
                      </div>
                   )}
@@ -1381,7 +1420,12 @@ export default function App() {
                 <h3 className="text-lg font-bold uppercase tracking-widest">Connect to {showPasswordPrompt.device_name || 'Device'}</h3>
                 <button onClick={() => setShowPasswordPrompt(null)} className="p-2 hover:bg-slate-200 dark:bg-white/10 rounded-full"><X className="w-5 h-5" /></button>
              </div>
-             <input type="password" placeholder="Device Password" value={promptPassword} onChange={e => setPromptPassword(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 mb-4 outline-none focus:border-blue-500 font-mono text-center text-lg" autoFocus />
+              <div className="relative mb-4">
+                <input type={showPromptPassword ? "text" : "password"} placeholder="Device Password" value={promptPassword} onChange={e => setPromptPassword(e.target.value)} className="w-full bg-black border border-slate-200 dark:border-white/10 rounded-xl p-4 outline-none focus:border-blue-500 font-mono text-center text-lg pr-12" autoFocus />
+                <button onClick={() => setShowPromptPassword(!showPromptPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/50 transition">
+                   {showPromptPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
              <label className="flex items-center gap-3 cursor-pointer mb-8 opacity-70 hover:opacity-100">
                 <input type="checkbox" checked={promptRemember} onChange={e => setPromptRemember(e.target.checked)} className="w-5 h-5 rounded border-slate-300 dark:border-white/20" />
                 <span className="text-sm font-medium">Trust this device (skip password next time)</span>
@@ -1400,8 +1444,13 @@ export default function App() {
              </div>
              <p className="text-xs text-slate-600 dark:text-white/50 mb-6 leading-relaxed">Enter the access key and password of a device you want to save to your personal list (for example, a friend's PC or a work computer).</p>
              <div className="space-y-4 mb-8">
-               <input type="text" placeholder="Access Key" value={addKey} onChange={e => setAddKey(e.target.value)} className="w-full bg-white dark:bg-black border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
-               <input type="password" placeholder="Password" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full bg-white dark:bg-black border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
+               <input type="text" placeholder="Access Key" value={addKey} onChange={e => setAddKey(formatCode(e.target.value))} className="w-full bg-white dark:bg-black border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 outline-none focus:border-emerald-500 font-mono" />
+                <div className="relative">
+                  <input type={showAddPassword ? "text" : "password"} placeholder="Password" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full bg-white dark:bg-black border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-xl p-4 outline-none focus:border-emerald-500 font-mono pr-12" />
+                  <button onClick={() => setShowAddPassword(!showAddPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-white/20 hover:text-slate-600 dark:hover:text-white/50 transition">
+                     {showAddPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
              </div>
              <button onClick={handleAddDevice} disabled={!addKey || !addPassword} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 py-4 rounded-xl font-bold uppercase tracking-widest text-sm">Save Device</button>
            </div>

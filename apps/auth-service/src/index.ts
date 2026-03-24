@@ -13,6 +13,10 @@ server.register(cors, {
   origin: '*' // Allow all local renderer origins
 });
 
+server.addHook('onRequest', async (request, reply) => {
+  console.log(`[Auth-Service] ${request.method} ${request.url}`);
+});
+
 server.get('/health', async () => {
   return { status: 'ok', service: 'auth-service' };
 });
@@ -22,6 +26,11 @@ server.register(oauthRoutes, { prefix: '/api/auth/oauth' });
 server.register(mfaRoutes, { prefix: '/api/auth/2fa' });
 server.register(passwordRoutes, { prefix: '/api/auth/password' });
 server.register(deviceRoutes, { prefix: '/api/devices' });
+
+server.setNotFoundHandler((request, reply) => {
+  console.log(`[Auth-Service-Wildcard] 404: ${request.method} ${request.url}`);
+  reply.code(404).send({ error: `Not Found: ${request.method} ${request.url}` });
+});
 
 server.setErrorHandler((error, request, reply) => {
   server.log.error(error);

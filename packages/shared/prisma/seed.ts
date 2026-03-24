@@ -9,7 +9,7 @@ async function main() {
     {
       plan: 'FREE',
       maxConcurrentSessions: 1,
-      maxDevices: 1,
+      maxDevices: 10,
       sessionDurationMinutes: 10,
       fileTransfer: false,
       sessionRecording: false,
@@ -18,7 +18,7 @@ async function main() {
     {
       plan: 'PRO',
       maxConcurrentSessions: 3,
-      maxDevices: 5,
+      maxDevices: 50,
       sessionDurationMinutes: 240,
       fileTransfer: true,
       sessionRecording: false,
@@ -45,7 +45,7 @@ async function main() {
   ];
 
   for (const p of plans) {
-    await prisma.planLimit.upsert({
+    await (prisma as any).planLimit.upsert({
       where: { plan: p.plan as any },
       update: p,
       create: p as any,

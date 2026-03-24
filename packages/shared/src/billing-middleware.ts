@@ -27,6 +27,7 @@ export async function getPlanLimits(userId: string) {
 
 export function checkPlanLimit(limitName: LimitName) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
+    console.log(`[Billing-Middleware] Checking limit: ${limitName} for ${request.url}`);
     try {
       const authHeader = request.headers.authorization;
       if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
