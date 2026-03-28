@@ -1,0 +1,67 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useAuthStore } from './store/authStore'
+import Landing from './pages/Landing'
+import FeaturesPage from './pages/landing/FeaturesPage'
+import SolutionsPage from './pages/landing/SolutionsPage'
+import PricingPage from './pages/landing/PricingPage'
+import ResourcesPage from './pages/landing/ResourcesPage'
+import DashboardHome from './pages/dashboard/DashboardHome'
+import Devices from './pages/dashboard/Devices'
+import Billing from './pages/dashboard/Billing'
+import Settings from './pages/dashboard/Settings'
+import SessionViewer from './pages/session/SessionViewer'
+import WebHost from './pages/session/WebHost'
+import Login from './pages/auth/Login'
+import Register from './pages/auth/Register'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import TwoFactor from './pages/auth/TwoFactor'
+import ResetPassword from './pages/auth/ResetPassword'
+import AuthCallback from './pages/auth/AuthCallback'
+
+import React, { useEffect } from 'react'
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const token = useAuthStore((state) => state.accessToken)
+  const isLoading = useAuthStore((state) => state.isLoading)
+
+  if (isLoading) return null; // Or a loading spinner
+  if (!token) return <Navigate to="/login" />
+  return <>{children}</>
+}
+
+function App() {
+  const initialize = useAuthStore((state) => state.initialize)
+
+  useEffect(() => {
+    initialize()
+  }, [initialize])
+
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/features" element={<FeaturesPage />} />
+      <Route path="/solutions" element={<SolutionsPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/resources" element={<ResourcesPage />} />
+      
+      {/* Dashboard Routes (Protected) */}
+      <Route path="/dashboard" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
+      <Route path="/dashboard/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
+      <Route path="/dashboard/sessions" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
+      <Route path="/dashboard/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/dashboard/host" element={<ProtectedRoute><WebHost /></ProtectedRoute>} />
+      <Route path="/session/:deviceId" element={<ProtectedRoute><SessionViewer /></ProtectedRoute>} />
+
+      {/* Auth Routes */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/2fa" element={<TwoFactor />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+    </Routes>
+  )
+}
+
+export default App

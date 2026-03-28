@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('viewer:video-chunk', listener);
     return () => ipcRenderer.removeListener('viewer:video-chunk', listener);
   },
+  onFileReceived: (callback: (data: any) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('host:file-received', listener);
+    return () => ipcRenderer.removeListener('host:file-received', listener);
+  },
+  openPath: (savePath: string) => ipcRenderer.invoke('system:openPath', savePath),
   sendSignalingMessage: (msg: any) => ipcRenderer.send('viewer:send-signaling', msg),
   onSignalingMessage: (callback: (msg: any) => void) => {
     const listener = (_: any, msg: any) => callback(msg);
@@ -36,5 +42,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clipboard: {
     readText: () => ipcRenderer.invoke('clipboard:readText'),
     writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text)
+  },
+  isPackaged: () => ipcRenderer.invoke('system:isPackaged'),
+  log: (msg: string, level: 'info' | 'warn' | 'error' = 'info') => ipcRenderer.invoke('system:log', msg, level),
+  onAuthDeepLinkSuccess: (callback: (tokens: { accessToken: string, refreshToken: string }) => void) => {
+    const listener = (_: any, tokens: { accessToken: string, refreshToken: string }) => callback(tokens);
+    ipcRenderer.on('auth:deep-link-success', listener);
+    return () => ipcRenderer.removeListener('auth:deep-link-success', listener);
   }
 });

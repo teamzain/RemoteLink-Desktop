@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import cron from 'node-cron';
 import { prisma, verifyToken } from '@remotelink/shared';
 import rawBody from 'fastify-raw-body';
+import cors from '@fastify/cors';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy';
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_dummy';
@@ -18,6 +19,11 @@ server.register(rawBody, {
   global: false,
   encoding: 'utf8',
   runFirst: true,
+});
+
+server.register(cors, {
+  origin: true,
+  credentials: true
 });
 
 // 1. GET /billing/plans — Returns all four plans
@@ -68,8 +74,25 @@ server.post('/billing/subscribe', async (request, reply) => {
   if (!plan) return reply.code(400).send({ error: 'Plan name is required' });
 
   try {
-    const sub = await (prisma as any).subscription.findUnique({ where: { userId: decoded.userId } });
-    if (!sub || !sub.stripeCustomerId) return reply.code(404).send({ error: 'Customer not found' });
+    let sub = await (prisma as any).subscription.findUnique({ where: { userId: decoded.userId } });
+    if (!sub || !sub.stripeCustomerId) {
+      const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
+      if (!user) return reply.code(404).send({ error: 'User not found' });
+      
+      const customer = await stripe.customers.create({ email: user.email });
+      sub = await (prisma as any).subscription.upsert({
+        where: { userId: decoded.userId },
+        create: {
+          userId: decoded.userId,
+          stripeCustomerId: customer.id,
+          plan: 'FREE',
+          status: 'ACTIVE'
+        },
+        update: {
+          stripeCustomerId: customer.id
+        }
+      });
+    }
 
     if (plan === 'FREE') {
       await (prisma as any).subscription.update({
@@ -149,8 +172,26 @@ server.get('/billing/current', async (request, reply) => {
   const decoded = verifyToken(token);
   if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
-  const sub = await (prisma as any).subscription.findUnique({ where: { userId: decoded.userId } });
-  if (!sub) return reply.code(404).send({ error: 'Subscription not found' });
+  let sub = await (prisma as any).subscription.findUnique({ where: { userId: decoded.userId } });
+  if (!sub) {
+    const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
+    if (!user) return reply.code(404).send({ error: 'User not found' });
+    
+    try {
+      const customer = await stripe.customers.create({ email: user.email });
+      sub = await (prisma as any).subscription.create({
+        data: {
+          userId: decoded.userId,
+          stripeCustomerId: customer.id,
+          plan: 'FREE',
+          status: 'ACTIVE'
+        }
+      });
+    } catch (err: any) {
+      server.log.error(err);
+      return reply.code(500).send({ error: 'Failed to create missing subscription: ' + err.message });
+    }
+  }
 
   return {
     plan: sub.plan,
@@ -158,6 +199,31 @@ server.get('/billing/current', async (request, reply) => {
     currentPeriodEnd: sub.currentPeriodEnd,
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd
   };
+});
+
+// 5b. POST /billing/portal — Create Stripe Customer Portal session
+server.post('/billing/portal', async (request, reply) => {
+  const authHeader = request.headers.authorization;
+  if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+  try {
+    const sub = await (prisma as any).subscription.findUnique({ where: { userId: decoded.userId } });
+    if (!sub || !sub.stripeCustomerId) return reply.code(404).send({ error: 'Customer not found' });
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: sub.stripeCustomerId,
+      return_url: process.env.WEB_APP_URL || 'http://localhost:5173/billing',
+    });
+
+    return { url: portalSession.url };
+  } catch (err: any) {
+    server.log.error(err);
+    return reply.code(500).send({ error: 'Failed to create portal session: ' + err.message });
+  }
 });
 
 // 6. GET /billing/invoices — Fetch invoice history

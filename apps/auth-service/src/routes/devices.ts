@@ -111,7 +111,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
       const lockoutKey = `lockout:${accessKey}`;
       const attempts = await redisPublisher.get(lockoutKey);
-      if (attempts && parseInt(attempts) >= 5) {
+      if (attempts && parseInt(attempts) >= 20) {
         const ttl = await redisPublisher.ttl(lockoutKey);
         return reply.code(429).send({ error: 'Too many attempts', retryAfter: ttl });
       }
@@ -124,13 +124,32 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       }
 
       await redisPublisher.del(lockoutKey);
+
+      // Persist trust for future passwordless connections
+      const authHeader = request.headers.authorization;
+      if (authHeader) {
+        const token = authHeader.split(' ')[1];
+        const decodedUser = verifyToken(token);
+        if (decodedUser && decodedUser.userId) {
+          try {
+            await prisma.trustedDevice.upsert({
+              where: { viewerUserId_hostDeviceId: { viewerUserId: decodedUser.userId, hostDeviceId: device.id } },
+              update: {},
+              create: { viewerUserId: decodedUser.userId, hostDeviceId: device.id }
+            });
+            isTrusted = true;
+          } catch (e) {
+            console.warn('[Device-Debug] Failed to persist trust relationship', e);
+          }
+        }
+      }
     }
 
     const accessJWT = generateToken({ 
       type: 'remote-access', 
       deviceId: device.id, 
       accessKey: device.accessKey 
-    }, '60s');
+    }, '5m');
 
     return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted } });
   });
@@ -151,16 +170,46 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const deviceName = name || 'Remote PC';
       const validDeviceType = ['WINDOWS', 'MACOS', 'LINUX', 'IOS', 'ANDROID'].includes(deviceType?.toUpperCase()) ? deviceType.toUpperCase() : 'WINDOWS';
 
-      const existing = await prisma.device.findFirst({
-        where: { ownerId: decoded.userId, name: deviceName }
-      });
+      let accessKey = (request.body as any)?.accessKey;
+      let password = (request.body as any)?.password;
+
+      let existing = null;
+      if (accessKey) {
+        existing = await prisma.device.findUnique({ where: { accessKey } });
+      }
+
+      if (!existing) {
+        existing = await prisma.device.findFirst({
+          where: { ownerId: decoded.userId, name: deviceName }
+        });
+      }
 
       if (existing) {
+        let updateData: any = {};
+        
+        // Always sync the name if provided and different
+        if (deviceName && deviceName !== existing.name) {
+          updateData.name = deviceName;
+        }
+
+        if (accessKey && accessKey !== existing.accessKey) {
+           // Ensure the new deterministic key doesn't clash
+           const clash = await prisma.device.findUnique({ where: { accessKey } });
+           if (!clash) updateData.accessKey = accessKey;
+        }
+        if (password) {
+           const bcrypt = require('bcrypt');
+           updateData.accessPasswordHash = await bcrypt.hash(password, 10);
+        }
+        
+        if (Object.keys(updateData).length > 0) {
+           existing = await prisma.device.update({ where: { id: existing.id }, data: updateData });
+        }
+        
         const mapped = await mapDevice(existing, decoded.userId);
         return reply.code(200).send(mapped);
       }
 
-      let accessKey = (request.body as any)?.accessKey;
       if (!accessKey || (await prisma.device.findUnique({ where: { accessKey } }))) {
         accessKey = generateAccessKey();
         while (await prisma.device.findUnique({ where: { accessKey } })) {

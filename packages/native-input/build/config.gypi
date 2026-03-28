@@ -515,11 +515,12 @@
     "globalconfig": "C:\\Users\\PC\\AppData\\Roaming\\npm\\etc\\npmrc",
     "global_prefix": "C:\\Users\\PC\\AppData\\Roaming\\npm",
     "init_module": "C:\\Users\\PC\\.npm-init.js",
+    "legacy_peer_deps": "true",
     "local_prefix": "F:\\TechVision\\RemoteLink",
     "node_gyp": "C:\\Program Files\\nodejs\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
     "npm_version": "11.6.2",
     "prefix": "C:\\Users\\PC\\AppData\\Roaming\\npm",
     "userconfig": "C:\\Users\\PC\\.npmrc",
-    "user_agent": "npm/11.6.2 node/v24.13.0 win32 x64 workspaces/false"
+    "user_agent": "npm/11.6.2 node/v24.13.0 win32 x64 workspaces/true"
   }
 }

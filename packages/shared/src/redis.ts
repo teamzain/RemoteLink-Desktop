@@ -41,3 +41,12 @@ export const subscribeToEvent = (
     }
   });
 };
+
+export const blacklistToken = async (token: string, ttl: number) => {
+  await redisPublisher.set(`blacklist:${token}`, '1', 'EX', ttl);
+};
+
+export const isTokenBlacklisted = async (token: string) => {
+  const result = await redisPublisher.get(`blacklist:${token}`);
+  return result === '1';
+};

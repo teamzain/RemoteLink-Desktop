@@ -1,4 +1,5 @@
-import { app, shell, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification } from 'electron';
+import { app, shell, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu } from 'electron';
+import log from 'electron-log';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { spawn, ChildProcess } from 'child_process';
@@ -8,22 +9,25 @@ import * as os from 'os';
 import * as datachannel from 'node-datachannel';
 import * as input from '@remotelink/native-input';
 
-// --- FFmpeg Path Discovery ---
-const getFFmpegPath = () => {
-    // In production, we assume it's bundled or in a specific location
-    if (app.isPackaged) {
-        return join(process.resourcesPath, 'ffmpeg.exe');
-    }
-    // In development (Vite), we look in the monorepo root node_modules
-    // since @remotelink/desktop is in apps/desktop/
-    return join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe');
-};
+// import * as keytar from 'keytar'; // keytar fails to install without build tools
 
-const AUTH_PATH = () => join(app.getPath('userData'), 'auth_encrypted.json');
+const PROTOCOL = 'remotelink';
+const TOKEN_KEY = 'remotelink_access_token';
+const REFRESH_KEY = 'remotelink_refresh_token';
+const AUTH_STORE_PATH = join(app.getPath('userData'), 'remotelink_auth.json');
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [join(app.getAppPath())]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
 
 async function getAuthTokens() {
   try {
-    const data = await fs.readFile(AUTH_PATH(), 'utf8');
+    if (!safeStorage.isEncryptionAvailable()) return { token: null, refresh: null };
+    const data = await fs.readFile(AUTH_STORE_PATH, 'utf8');
     const { encToken, encRefresh } = JSON.parse(data);
     return {
       token: safeStorage.decryptString(Buffer.from(encToken, 'hex')),
@@ -41,12 +45,82 @@ async function setAuthTokens(token: string, refresh: string) {
       encToken: safeStorage.encryptString(token).toString('hex'),
       encRefresh: safeStorage.encryptString(refresh).toString('hex')
     };
-    await fs.writeFile(AUTH_PATH(), JSON.stringify(encrypted));
+    await fs.writeFile(AUTH_STORE_PATH, JSON.stringify(encrypted));
     return true;
   } catch (e) {
     return false;
   }
 }
+
+async function deleteAuthTokens() {
+  try {
+    await fs.unlink(AUTH_STORE_PATH);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function handleDeepLink(url: string) {
+  if (!url.startsWith(`${PROTOCOL}://`)) return;
+  
+  log.info(`[Auth] Deep link received: ${url}`);
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.host === 'auth' && parsedUrl.pathname === '/callback') {
+      const accessToken = parsedUrl.searchParams.get('accessToken');
+      const refreshToken = parsedUrl.searchParams.get('refreshToken');
+      
+      if (accessToken && refreshToken) {
+        setAuthTokens(accessToken, refreshToken).then(() => {
+          mainWindow?.webContents.send('auth:deep-link-success', { accessToken, refreshToken });
+        });
+      }
+    }
+  } catch (e) {
+    log.error('[Auth] Failed to parse deep link:', e);
+  }
+}
+
+// Ensure single instance and handle second instance deep links
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+    // Windows deep link handling
+    const url = commandLine.pop();
+    if (url) handleDeepLink(url);
+  });
+}
+
+// --- Logging Configuration ---
+log.transports.file.level = 'info';
+log.transports.file.maxSize = 1024 * 1024; // 1MB
+(log.transports.file as any).maxFiles = 5;
+log.transports.console.level = 'info';
+// Ensure logs are in a clear location
+log.transports.file.resolvePath = () => join(app.getPath('userData'), 'logs', 'main.log');
+
+log.errorHandler.startCatching();
+
+log.info(`--- App Start: ${app.name} v${app.getVersion()} [${process.arch}] ---`);
+
+// --- FFmpeg Path Discovery ---
+const getFFmpegPath = () => {
+    // In production, we assume it's bundled or in a specific location
+    if (app.isPackaged) {
+        return join(process.resourcesPath, 'ffmpeg.exe');
+    }
+    // In development (Vite), we look in the monorepo root node_modules
+    // since @remotelink/desktop is in apps/desktop/
+    return join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe');
+};
+
 
 let mainWindow: any = null;
 let signalingWs: WebSocket | null = null;
@@ -61,6 +135,7 @@ let iceCandidatesQueue: any[] = [];
 let hasRemoteDescription = false;
 let lastClipboardText = '';
 let clipboardInterval: NodeJS.Timeout | null = null;
+let sessionStartTime: number | null = null;
 
 // --- Global Streaming State for Diagnostics ---
 let bufferAccumulator = Buffer.alloc(0);
@@ -73,7 +148,7 @@ const START_CODE_3 = Buffer.from([0x00, 0x00, 0x01]);
 const fileTransfers = new Map<string, { buffer: Buffer, received: number, total: number, chunks: number }>();
 
 function cleanUpWebRTC() {
-  console.log('[Host] Performing full WebRTC cleanup...');
+  log.info('[Host] Performing full WebRTC cleanup...');
   stopStreaming();
   if (dataChannel) {
     try { dataChannel.close(); } catch {}
@@ -89,6 +164,11 @@ function cleanUpWebRTC() {
   }
   iceCandidatesQueue = [];
   hasRemoteDescription = false;
+  if (sessionStartTime) {
+    const duration = ((Date.now() - sessionStartTime) / 1000).toFixed(1);
+    log.info(`[Host] Session ended. Duration: ${duration}s`);
+    sessionStartTime = null;
+  }
   currentViewerId = null;
 
   if (clipboardInterval) {
@@ -239,6 +319,56 @@ function sendAccessUnit(data: Buffer, channel: any) {
   }
 }
 
+function enforceSecureUrl(url: string) {
+  if (app.isPackaged) {
+    if (url.startsWith('http://') || url.startsWith('ws://')) {
+      throw new Error(`CRITICAL SECURITY VIOLATION: Insecure protocol detected in production: ${url}`);
+    }
+  }
+  return url;
+}
+
+function getSecureServerUrl(serverIP: string, protocol: 'http' | 'ws') {
+  if (app.isPackaged) {
+    const secureProto = protocol === 'http' ? 'https' : 'wss';
+    return `${secureProto}://${serverIP}`;
+  }
+  return `${protocol}://${serverIP}`;
+}
+
+function setupCSP() {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const csp = app.isPackaged 
+      ? [
+          "default-src 'self'; " +
+          "script-src 'self'; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "img-src 'self' data: https:; " +
+          "connect-src 'self' https: wss:; " +
+          "font-src 'self' data: https://fonts.gstatic.com; " +
+          "object-src 'none'; " +
+          "frame-src 'none';"
+        ]
+      : [
+          "default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:*; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:*; " +
+          "style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:* https://fonts.googleapis.com; " +
+          "img-src 'self' data: https: http: http://localhost:* http://127.0.0.1:*; " +
+          "connect-src 'self' https: wss: http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; " +
+          "font-src 'self' data: http://localhost:* http://127.0.0.1:* https://fonts.gstatic.com; " +
+          "object-src 'none'; " +
+          "frame-src 'none';"
+        ];
+
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': csp
+      }
+    });
+  });
+}
+
 function stopStreaming() {
   if (ffmpegProcess) {
     ffmpegProcess.stdin?.end();
@@ -248,6 +378,8 @@ function stopStreaming() {
 }
 
 function createWindow() {
+  setupCSP();
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -255,6 +387,7 @@ function createWindow() {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
     },
   });
 
@@ -265,7 +398,53 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.setAppUserModelId('com.remotelink.desktop');
+app.whenReady().then(() => {
+  if (app.isPackaged) {
+    const serverIP = process.env.REMOTE_LINK_SERVER_IP;
+    // If packaged, we MUST have a server IP and it MUST NOT be localhost/127.0.0.1
+    // unless explicitly allowed (but here we'll be strict as per prompt).
+    if (serverIP && (serverIP === '127.0.0.1' || serverIP === 'localhost' || serverIP.startsWith('http://') || serverIP.startsWith('ws://'))) {
+       throw new Error(`CRITICAL SECURITY ERROR: Insecure backend configuration detected in production mode. Backend must use HTTPS/WSS and a non-local domain.`);
+    }
+  }
+  createWindow();
+
+  // Register DevTools Toggle
+  const { globalShortcut } = require('electron');
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    if (mainWindow) mainWindow.webContents.toggleDevTools();
+  });
+  
+  // Check for initial deep link (Windows)
+  const initialUrl = process.argv.find(arg => arg.startsWith(`${PROTOCOL}://`));
+  if (initialUrl) {
+    setTimeout(() => handleDeepLink(initialUrl), 1000); // Give renderer time to load
+  }
+  
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'View Logs',
+          click: () => {
+             shell.openPath(join(app.getPath('userData'), 'logs'));
+          }
+        },
+        { type: 'separator' },
+        { role: 'about' }
+      ]
+    }
+  ]);
+  Menu.setApplicationMenu(menu);
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -275,12 +454,12 @@ function setupSignalingHandlers(ws: WebSocket) {
   ws.removeAllListeners('message');
   ws.on('message', (message) => {
     const data = JSON.parse(message.toString());
-    console.log(`[Host] Received SIGNALING: ${data.type}`);
+    log.info(`[Host] Received SIGNALING: ${data.type}`);
     if (data.type === 'registered') {
       mainWindow?.webContents.send('host:status', 'Registered: ' + data.sessionId);
     } else if (data.type === 'viewer-joined') {
       if (currentViewerId === data.viewerId && peerConnection && (peerConnection.state() === 'connected' || peerConnection.state() === 'connecting')) {
-        console.log('[Host] Viewer rejoined but session exists. Skipping re-init.');
+        log.info('[Host] Viewer rejoined but session exists. Skipping re-init.');
         return;
       }
       currentViewerId = data.viewerId;
@@ -294,10 +473,11 @@ function setupSignalingHandlers(ws: WebSocket) {
       iceCandidatesQueue = [];
     } else if (data.type === 'ice-candidate' && currentViewerId) {
       if (data.candidate) {
+        const mid = data.mid || data.sdpMid || "";
         if (hasRemoteDescription) {
-          peerConnection?.addRemoteCandidate(data.candidate, data.mid);
+          peerConnection?.addRemoteCandidate(data.candidate, mid);
         } else {
-          iceCandidatesQueue.push(data);
+          iceCandidatesQueue.push({ candidate: data.candidate, mid });
         }
       }
     }
@@ -307,7 +487,8 @@ function setupSignalingHandlers(ws: WebSocket) {
 function initiateHostWebRTC() {
   const viewerId = currentViewerId;
   if (!viewerId) return;
-  console.log(`[Host] Initializing WebRTC for viewer: ${viewerId}`);
+  log.info(`[Host] Initializing WebRTC for viewer: ${viewerId}`);
+  sessionStartTime = Date.now();
   
   // Full reset before new session
   cleanUpWebRTC();
@@ -322,11 +503,17 @@ function initiateHostWebRTC() {
   });
 
   peerConnection.onLocalCandidate((candidate: string, mid: string) => {
-    signalingWs?.send(JSON.stringify({ type: 'ice-candidate', candidate, mid, targetId: currentViewerId }));
+    signalingWs?.send(JSON.stringify({ 
+      type: 'ice-candidate', 
+      candidate, 
+      sdpMid: mid, 
+      sdpMLineIndex: 0,
+      targetId: currentViewerId 
+    }));
   });
 
   peerConnection.onStateChange((state: string) => {
-    console.log(`[Host] PC State: ${state}`);
+    log.info(`[Host] PC State: ${state}`);
     mainWindow?.webContents.send('host:status', `WebRTC: ${state}`);
   });
 
@@ -355,6 +542,28 @@ function initiateHostWebRTC() {
           if (event.text && event.text !== lastClipboardText) {
             lastClipboardText = event.text;
             clipboard.writeText(event.text);
+          }
+          break;
+        case 'action':
+          const { action } = event;
+          log.info(`[Host] Remote Action Received: ${action}`);
+          const { exec } = require('child_process');
+          
+          if (process.platform === 'win32') {
+            switch (action) {
+              case 'shutdown': exec('shutdown /s /t 0'); break;
+              case 'reboot': exec('shutdown /r /t 0'); break;
+              case 'lock': exec('rundll32.exe user32.dll,LockWorkStation'); break;
+              case 'volume_up': exec('powershell -Command "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]175)"'); break;
+              case 'volume_down': exec('powershell -Command "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]174)"'); break;
+              case 'volume_mute': exec('powershell -Command "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]173)"'); break;
+            }
+          } else {
+            // Linux/Mac Fallbacks
+            switch (action) {
+              case 'shutdown': exec('shutdown -h now'); break;
+              case 'reboot': exec('reboot'); break;
+            }
           }
           break;
       }
@@ -397,18 +606,18 @@ function initiateHostWebRTC() {
               });
 
               notification.show();
-              mainWindow?.webContents.send('host:status', `File Received: ${header.name}`);
+              mainWindow?.webContents.send('host:status', `File Saved: ${savePath}`);
             }
           }
-        } catch (err) {
-          console.error('[Host] Binary message processing failed:', err);
+        } catch (err: any) {
+          log.error('[Host] Binary message processing failed:', err.stack || err.message);
         }
       }
     }
   });
 
   videoDataChannel.onOpen(() => {
-    console.log('[Host] Video DataChannel OPENED. Starting encoder...');
+    log.info('[Host] Video DataChannel OPENED. Starting encoder...');
     startStreaming();
 
     // Start Clipboard Polling
@@ -424,25 +633,25 @@ function initiateHostWebRTC() {
     }, 500);
   });
   videoDataChannel.onClosed(() => {
-    console.log('[Host] Video DataChannel CLOSED');
+    log.info('[Host] Video DataChannel CLOSED');
     stopStreaming();
   });
 }
 
 // --- Signaling Proxy for Viewer ---
 function setupViewerSignalingProxy(sessionId: string) {
-  console.log(`[Proxy] Initializing Signaling Proxy for session: ${sessionId}`);
+  log.info(`[Proxy] Initializing Signaling Proxy for session: ${sessionId}`);
   viewerWs?.removeAllListeners('message');
   viewerWs?.on('message', (message) => {
     const data = JSON.parse(message.toString());
-    console.log(`[Proxy] Received FROM SERVER: ${data.type}`);
+    log.info(`[Proxy] Received FROM SERVER: ${data.type}`);
     // Forward all incoming signaling messages to the Renderer
     mainWindow?.webContents.send('viewer:signaling-message', data);
   });
 }
 
 ipcMain.on('viewer:send-signaling', (_event: any, msg: any) => {
-  console.log(`[Proxy] Sending TO SERVER: ${msg.type}`);
+  log.info(`[Proxy] Sending TO SERVER: ${msg.type}`);
   viewerWs?.send(JSON.stringify(msg));
 });
 
@@ -456,12 +665,17 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
     try { signalingWs.close(); } catch {}
   }
   
-  console.log(`[Host] Connecting to signaling server at: ${serverIP}:3002 (Attempt ${hostReconnectAttempts + 1})`);
-  signalingWs = new WebSocket(`ws://${serverIP}:3002`);
+  if (app.isPackaged && (serverIP === '127.0.0.1' || serverIP === 'localhost')) {
+    log.warn('[Security] Warning: Localhost detection in production package.');
+  }
+
+  const wsUrl = getSecureServerUrl(serverIP, 'ws') + ':3002';
+  log.info(`[Host] Connecting to signaling server at: ${wsUrl} (Attempt ${hostReconnectAttempts + 1})`);
+  signalingWs = new WebSocket(enforceSecureUrl(wsUrl));
   setupSignalingHandlers(signalingWs);
   
   signalingWs.on('open', () => {
-    console.log('[Host] Signaling connected');
+    log.info('[Host] Signaling connected');
     hostReconnectAttempts = 0; // reset
     signalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
   });
@@ -469,21 +683,22 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
   signalingWs.on('message', (message) => {
     const data = JSON.parse(message.toString());
     if (data.type === 'registered' && resolve) {
+        log.info('[Host] Successfully registered with signaling server');
         resolve(data.sessionId);
         resolve = null; // Prevent double resolve
     }
   });
 
   signalingWs.on('error', (err) => {
-    console.error('[Host] Signaling WS Error:', err.message);
+    log.error('[Host] Signaling WS Error:', err.stack || err.message);
     if (reject) {
       reject(err);
       reject = null;
     }
   });
 
-  signalingWs.on('close', () => {
-    console.log('[Host] Signaling server disconnected');
+  signalingWs.on('close', (code, reason) => {
+    log.info(`[Host] Signaling server disconnected. Code: ${code}, Reason: ${reason}`);
     if (reject) {
        reject(new Error('Signaling server disconnected during initial connection'));
        reject = null;
@@ -517,6 +732,8 @@ ipcMain.handle('host:start', async (_event, accessKey?: string) => {
       const serverIP = process.env.REMOTE_LINK_SERVER_IP || '127.0.0.1';
       activeHostToken = token;
       activeHostAccessKey = accessKey || '';
+      
+      log.info(`[Host] Starting hosting sequence for accessKey: ${activeHostAccessKey}`);
       hostReconnectAttempts = 0;
       connectHostSignaling(serverIP, token, activeHostAccessKey, resolve, reject);
     } catch (e: any) { reject(e); }
@@ -536,8 +753,9 @@ ipcMain.handle('viewer:connect', async (_event: any, rawSessionId: string, serve
     try {
       const { token: storedToken } = await getAuthTokens();
       const token = providedToken || storedToken;
-      console.log(`[Viewer] Connecting to signaling server at: ${serverIP}:3002`);
-      viewerWs = new WebSocket(`ws://${serverIP}:3002`);
+      const wsUrl = getSecureServerUrl(serverIP, 'ws') + ':3002';
+      console.log(`[Viewer] Connecting to signaling server at: ${wsUrl}`);
+      viewerWs = new WebSocket(enforceSecureUrl(wsUrl));
       viewerWs.removeAllListeners('message'); 
       viewerWs.once('open', () => {
         viewerWs?.send(JSON.stringify({ type: 'join', sessionId, token }));
@@ -598,14 +816,20 @@ ipcMain.handle('system:getDeterministicKey', () => {
 });
 
 ipcMain.handle('system:getMachineName', () => os.hostname());
+ipcMain.handle('system:openPath', (_event, savePath) => shell.showItemInFolder(savePath));
+ipcMain.handle('clipboard:readText', () => clipboard.readText());
+ipcMain.handle('clipboard:writeText', (_event, text) => {
+  lastClipboardText = text; // Update to avoid echo
+  clipboard.writeText(text);
+});
 ipcMain.handle('auth:getToken', () => getAuthTokens());
 ipcMain.handle('auth:setToken', (_event: any, t: string, r: string) => setAuthTokens(t, r));
 ipcMain.handle('auth:deleteToken', async () => {
-  try { await fs.unlink(AUTH_PATH()); return true; } catch { return false; }
+  return deleteAuthTokens();
 });
 ipcMain.handle('system:ping', () => 'pong');
-ipcMain.handle('clipboard:readText', () => clipboard.readText());
-ipcMain.handle('clipboard:writeText', (_event, text) => {
-  lastClipboardText = text;
-  clipboard.writeText(text);
+ipcMain.handle('system:isPackaged', () => app.isPackaged);
+ipcMain.handle('system:log', (_event, msg: string, level: string) => {
+  const l = level as 'info' | 'warn' | 'error';
+  (log as any)[l]?.(msg);
 });

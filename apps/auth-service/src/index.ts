@@ -1,4 +1,7 @@
 import Fastify from 'fastify';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import cors from '@fastify/cors';
 import { prisma, redisPublisher, EventChannel } from '@remotelink/shared';
 import authRoutes from './routes/auth';

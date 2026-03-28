@@ -1,13 +1,75 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { authenticator } = require('otplib');
+import * as QRCode from 'qrcode';
+import { prisma, verifyToken } from '@remotelink/shared';
 
 export default async function mfaRoutes(fastify: FastifyInstance) {
-  fastify.post('/setup', async (request: FastifyRequest, reply: FastifyReply) => {
-    // TODO: Generate TOTP secret and QR code URI for authenticator apps
-    return reply.send({ message: '2FA setup placeholder' });
+  // 1. Generate 2FA Secret & QR Code
+  fastify.post('/enable', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
+    if (!user) return reply.code(404).send({ error: 'User not found' });
+
+    const secret = authenticator.generateSecret();
+    const otpauth = authenticator.keyuri(user.email, 'RemoteLink', secret);
+    const qrCode = await QRCode.toDataURL(otpauth);
+
+    // Save temporary secret to user (or a separate table)
+    await (prisma as any).user.update({
+      where: { id: user.id },
+      data: { twoFactorSecret: secret }
+    });
+
+    return reply.send({ qr_code: qrCode });
   });
 
+  // 2. Verify & Activate 2FA
   fastify.post('/verify', async (request: FastifyRequest, reply: FastifyReply) => {
-    // TODO: Verify TOTP token and enable 2FA for the user
-    return reply.send({ message: '2FA verification placeholder' });
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const { code } = request.body as any;
+    if (!code) return reply.code(400).send({ error: 'Verification code required' });
+
+    const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
+    if (!user || !user.twoFactorSecret) return reply.code(400).send({ error: '2FA not initialized' });
+
+    const isValid = authenticator.verify({ token: code, secret: user.twoFactorSecret });
+    if (!isValid) return reply.code(400).send({ error: 'Invalid verification code' });
+
+    await (prisma as any).user.update({
+      where: { id: user.id },
+      data: { is2FAEnabled: true }
+    });
+
+    return reply.send({ success: true });
+  });
+
+  // 3. Disable 2FA
+  fastify.post('/disable', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    await (prisma as any).user.update({
+      where: { id: decoded.userId },
+      data: { is2FAEnabled: false, twoFactorSecret: null }
+    });
+
+    return reply.send({ success: true });
   });
 }

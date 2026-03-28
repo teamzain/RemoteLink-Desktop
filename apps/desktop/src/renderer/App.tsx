@@ -1,77 +1,160 @@
 import React, { useState, useEffect, useRef } from 'react';
 // Force-syncing file state to resolve HMR/Vite discrepancies.
 import {
-  Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X
-, Sun, Moon, Edit2, Trash2, ShieldOff, RefreshCw, Eye, EyeOff} from 'lucide-react';
+  Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
+  RefreshCw, Eye, EyeOff, CreditCard, Power, Volume2, Volume1, VolumeX, Lock, Sun, Moon, Edit2, Trash2, ShieldOff
+} from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
+import api from './lib/api';
+import { useAuthStore } from './store/authStore';
 
-// --- Video Player Component (WebCodecs + Canvas) ---
-// --- Video Player Component (WebCodecs + Canvas) ---
-const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, onControlEvent, onDisconnect }: any, ref) => {
+// --- Premium Mobile Device Frame ---
+// --- Premium Mobile Device Frame ---
+const MobileDeviceFrame = ({ children, orientation = 'portrait' }: { children: React.ReactNode, orientation?: 'portrait' | 'landscape' }) => {
+  return (
+    <div className={`relative mx-auto transition-all duration-700 ease-in-out drop-shadow-[0_25px_50px_rgba(0,0,0,0.5)] ${orientation === 'portrait' ? 'h-[85vh] aspect-[9/19.5]' : 'w-[85vw] aspect-[19.5/9]'}`}>
+      {/* Outer Chassis */}
+      <div className="absolute inset-0 bg-[#0f0f0f] rounded-[3rem] border-[6px] border-[#1f1f1f] shadow-[0_0_0_2px_#2a2a2a] overflow-hidden">
+        {/* Antenna Lines */}
+        <div className="absolute top-10 left-[-6px] w-2 h-8 bg-[#2a2a2a]" />
+        <div className="absolute bottom-10 left-[-6px] w-2 h-8 bg-[#2a2a2a]" />
+        
+        {/* Screen Container */}
+        <div className="absolute inset-1.5 bg-black rounded-[2.5rem] overflow-hidden border border-white/5 flex items-center justify-center">
+          {children}
+        </div>
+
+        {/* Top Notch/Dynamic Island Look */}
+        {orientation === 'portrait' && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full flex items-center justify-center gap-1.5 px-3 border border-white/5 shadow-inner">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500/40 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+            <div className="flex-grow h-1 bg-white/5 rounded-full" />
+          </div>
+        )}
+      </div>
+
+      {/* Buttons */}
+      {orientation === 'portrait' && (
+        <>
+          <div className="absolute top-24 -left-2 w-1.5 h-12 bg-[#1f1f1f] rounded-l-md border-r border-black/20" />
+          <div className="absolute top-40 -left-2 w-1.5 h-12 bg-[#1f1f1f] rounded-l-md border-r border-black/20" />
+          <div className="absolute top-32 -right-2 w-1.5 h-20 bg-[#1f1f1f] rounded-r-md border-l border-black/20" />
+        </>
+      )}
+    </div>
+  );
+};
+
+// --- Premium Desktop/Monitor Frame ---
+const DesktopDeviceFrame = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <div className="relative w-full h-full p-8 flex flex-col items-center justify-center animate-in zoom-in-95 duration-700">
+      {/* Monitor Chassis */}
+      <div className="relative w-full aspect-video bg-[#0f0f0f] rounded-[1.5rem] border-[10px] border-[#1f1f1f] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.8),0_0_0_2px_#2a2a2a] overflow-hidden flex items-center justify-center">
+        {/* Screen */}
+        <div className="absolute inset-0 bg-black flex items-center justify-center">
+          {children}
+        </div>
+        {/* LED Indicator */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+      </div>
+      {/* Stand Neck */}
+      <div className="w-24 h-8 bg-gradient-to-b from-[#1f1f1f] to-[#0f0f0f] border-x border-white/5" />
+      {/* Stand Base */}
+      <div className="w-48 h-3 bg-[#1a1a1a] rounded-t-xl border border-white/5 shadow-lg" />
+    </div>
+  );
+};
+
+// --- Video Player Component (Hybrid: WebRTC Track + Legacy WebCodecs) ---
+interface VideoPlayerProps {
+  viewerStatus: string;
+  setViewerStatus: (status: any) => void;
+  sessionCode: string;
+  onDisconnect: () => void;
+  onControlEvent: (event: any) => void;
+  remoteStream: MediaStream | null;
+  deviceType?: string;
+  deviceName?: string;
+}
+const VideoPlayer = forwardRef<any, VideoPlayerProps>(({ 
+  viewerStatus, 
+  setViewerStatus, 
+  sessionCode, 
+  onDisconnect,
+  onControlEvent,
+  remoteStream,
+  deviceType,
+  deviceName
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [latency, setLatency] = useState<number>(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const decoderRef = useRef<any>(null);
-  const [hasReceivedKeyframe, setHasReceivedKeyframe] = useState(false);
+  const [latency, setLatency] = useState(0);
   const [transferProgress, setTransferProgress] = useState<{name: string, p: number} | null>(null);
+  const [zoomMode, setZoomMode] = useState<'fit' | 'original'>('fit');
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- REASSEMBLY STATE ---
+  const [hasReceivedKeyframe, setHasReceivedKeyframe] = useState(false);
   const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
+  
+  const isMobile = deviceType?.toLowerCase() === 'android' || deviceType?.toLowerCase() === 'ios';
 
-  const handleFragment = (data: Uint8Array) => {
-    if (data.length < 10) return;
-    const view = new DataView(data.buffer, data.byteOffset, 10);
-    const ts = view.getBigInt64(0, true);
-    const fragIdx = view.getUint8(8);
-    const totalFrags = view.getUint8(9);
+  useImperativeHandle(ref, () => ({
+    feed: (data: Uint8Array) => {
+      if (remoteStream) return; // Ignore custom data if using standard stream
+      
+      if (data.length < 10) return;
+      const view = new DataView(data.buffer, data.byteOffset, 10);
+      const ts = view.getBigInt64(0, true);
+      const fragIdx = view.getUint8(8);
+      const totalFrags = view.getUint8(9);
 
-    let entry = reassemblyMap.current.get(ts);
-    if (!entry) {
-      entry = { fragments: new Array(totalFrags).fill(null), count: 0, total: totalFrags };
-      reassemblyMap.current.set(ts, entry);
-    }
+      let entry = reassemblyMap.current.get(ts);
+      if (!entry) {
+        entry = { fragments: new Array(totalFrags).fill(null), count: 0, total: totalFrags };
+        reassemblyMap.current.set(ts, entry);
+      }
 
-    if (!entry.fragments[fragIdx]) {
-      entry.fragments[fragIdx] = data.slice(10);
-      entry.count++;
-    }
+      if (!entry.fragments[fragIdx]) {
+        entry.fragments[fragIdx] = data.slice(10);
+        entry.count++;
+      }
 
-    if (entry.count === entry.total) {
-      const totalSize = entry.fragments.reduce((acc, f) => acc + (f ? f.length : 0), 0);
-      const fullNAL = new Uint8Array(totalSize);
-      let offset = 0;
-      for (const f of entry.fragments) {
-        if (f) {
-           fullNAL.set(f, offset);
-           offset += f.length;
+      if (entry.count === entry.total) {
+        const totalSize = entry.fragments.reduce((acc, f) => acc + (f ? f.length : 0), 0);
+        const fullNAL = new Uint8Array(totalSize);
+        let offset = 0;
+        for (const f of entry.fragments) {
+          if (f) {
+            fullNAL.set(f, offset);
+            offset += f.length;
+          }
+        }
+        
+        feedToDecoder(fullNAL, ts);
+        reassemblyMap.current.delete(ts);
+        
+        if (reassemblyMap.current.size > 20) {
+          const oldestTs = Array.from(reassemblyMap.current.keys()).sort() as any[];
+          reassemblyMap.current.delete(oldestTs[0]);
         }
       }
-      
-      feedToDecoder(fullNAL, ts);
-      reassemblyMap.current.delete(ts);
-      
-      if (reassemblyMap.current.size > 20) {
-        const oldestTs = Array.from(reassemblyMap.current.keys()).sort()[0];
-        reassemblyMap.current.delete(oldestTs);
-      }
     }
-  };
+  }));
 
   const feedToDecoder = (chunkData: Uint8Array, timestamp: bigint) => {
     if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
     
     const now = Date.now();
-    // Unique ID is (ms * 1000 + seq). Extract MS for latency.
     const msTimestamp = Number(timestamp / 1000n);
     const frameLatency = now - msTimestamp;
     if (Math.random() < 0.05) setLatency(frameLatency);
 
     let type: 'key' | 'delta' = 'delta';
-    
-    // NAL type detection: Scan the first 100 bytes for a Keyframe-related NAL (5, 7, 8)
     for (let i = 0; i < Math.min(chunkData.length - 4, 100); i++) {
-        // Detect Annex-B start code: 00 00 01 (3-byte) or 00 00 00 01 (4-byte)
         if (chunkData[i] === 0 && chunkData[i+1] === 0) {
             let nalType = -1;
             if (chunkData[i+2] === 1) { 
@@ -83,7 +166,6 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
             if (nalType === 5 || nalType === 7 || nalType === 8) {
                 type = 'key';
                 if (!hasReceivedKeyframe) {
-                    console.log(`[VideoPlayer] SYNC SUCCESS! Initial keyframe detected (NAL=${nalType}).`);
                     setHasReceivedKeyframe(true);
                 }
                 break;
@@ -91,7 +173,6 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
         }
     }
 
-    // CRITICAL: WebCodecs REQUIRES a keyframe (Type 5/IDR) as the very first decoded chunk.
     if (!hasReceivedKeyframe) return;
 
     if (viewerStatus !== 'streaming') {
@@ -101,7 +182,6 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
     try {
       const encodedChunk = new (window as any).EncodedVideoChunk({
         type: type,
-        // Use total unique ID as Microsecond timestamp for WebCodecs
         timestamp: Number(timestamp), 
         data: chunkData,
       });
@@ -111,14 +191,8 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
     }
   };
 
-  useImperativeHandle(ref, () => ({
-    feed: (buffer: Uint8Array) => {
-      handleFragment(buffer);
-    }
-  }));
-
   const initDecoder = () => {
-    if (!canvasRef.current) return;
+    if (remoteStream || !canvasRef.current) return;
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
 
@@ -133,8 +207,8 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
       },
       error: (e: any) => {
         console.error('[VideoPlayer] Decoder hardware error:', e);
-        setHasReceivedKeyframe(false); // Force wait for next IDR
-        setTimeout(initDecoder, 1000); // Attempt recovery
+        setHasReceivedKeyframe(false);
+        setTimeout(initDecoder, 1000);
       },
     });
 
@@ -153,29 +227,113 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
       if (decoderRef.current) decoderRef.current.close();
       decoderRef.current = null;
     };
-  }, []);
+  }, [remoteStream]);
+
+  useEffect(() => {
+    if (videoRef.current && remoteStream) {
+      videoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
+  const handleMouseEvent = (e: React.MouseEvent, type: string) => {
+    const target = remoteStream ? videoRef.current : canvasRef.current;
+    const rect = target?.getBoundingClientRect();
+    if (rect) {
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      onControlEvent({ type, button: (e as any).button, x, y });
+    }
+  };
+
+  const renderContent = () => (
+    <>
+      {remoteStream ? (
+        <video 
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none cursor-move'}`}
+          onMouseMove={(e) => handleMouseEvent(e, 'mousemove')}
+          onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
+          onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
+          onContextMenu={(e) => e.preventDefault()}
+        />
+      ) : (
+        <canvas
+          ref={canvasRef}
+          width={1920}
+          height={1080}
+          className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none cursor-move'}`}
+          onMouseMove={(e) => handleMouseEvent(e, 'mousemove')}
+          onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
+          onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
+          onContextMenu={(e) => e.preventDefault()}
+        />
+      )}
+    </>
+  );
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between bg-slate-100 dark:bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-slate-200 dark:border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Monitor className="text-slate-900 dark:text-white w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Viewing Remote Host</h2>
-            <p className="text-[10px] text-slate-500 dark:text-white/40 font-mono tracking-widest leading-none mt-1">{sessionCode}</p>
+    <div className="w-full h-full flex flex-col gap-4 animate-in fade-in duration-500 relative">
+      <div className="flex items-center justify-between bg-slate-100/10 dark:bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-slate-200/10 dark:border-white/10 shadow-lg">
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onDisconnect}
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/70 hover:text-white"
+            title="Back to Dashboard"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-3 border-l border-white/10 pl-4">
+            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Smartphone className="text-white w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-tight">{deviceName || 'Remote Device'}</h2>
+              <p className="text-[10px] text-slate-500 dark:text-white/40 font-mono tracking-widest leading-none mt-1">{sessionCode}</p>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
             {transferProgress && (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1 px-4">
                 <span className="text-[8px] font-bold text-blue-400 uppercase tracking-widest">Sending {transferProgress.name}</span>
                 <div className="w-24 h-1 bg-blue-500/20 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${transferProgress.p}%` }} />
                 </div>
               </div>
             )}
+            
+            <div className="flex bg-black/20 rounded-xl p-1 border border-white/5">
+               <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} className={`p-2 rounded-lg transition-all ${zoomMode === 'original' ? 'bg-blue-500 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'}`} title={zoomMode === 'fit' ? 'Switch to Original Size' : 'Switch to Fit Screen'}>
+                 <Search className="w-4 h-4" />
+               </button>
+               <button onClick={() => {
+                 if (!document.fullscreenElement) {
+                   containerRef.current?.requestFullscreen();
+                   setIsFullScreen(true);
+                 } else {
+                   document.exitFullscreen();
+                   setIsFullScreen(false);
+                 }
+               }} className="p-2 hover:bg-white/5 rounded-lg text-white/60 hover:text-white transition-all" title="Toggle Full Screen">
+                 <Monitor className="w-4 h-4" />
+               </button>
+               <div className="w-px h-4 bg-white/10 mx-1 self-center" />
+               <button onClick={() => onControlEvent({ type: 'action', action: 'volume_down' })} className="p-2 hover:bg-white/5 rounded-lg text-white/60 hover:text-white transition-all" title="Volume Down"><Volume1 size={16} /></button>
+               <button onClick={() => onControlEvent({ type: 'action', action: 'volume_up' })} className="p-2 hover:bg-white/5 rounded-lg text-white/60 hover:text-white transition-all" title="Volume Up"><Volume2 size={16} /></button>
+               <button onClick={() => onControlEvent({ type: 'action', action: 'volume_mute' })} className="p-2 hover:bg-white/5 rounded-lg text-white/60 hover:text-white transition-all" title="Mute"><VolumeX size={16} /></button>
+               <div className="w-px h-4 bg-white/10 mx-1 self-center" />
+               <button onClick={() => onControlEvent({ type: 'request-keyframe' })} className="p-2 hover:bg-white/5 rounded-lg text-emerald-400/60 hover:text-emerald-400 transition-all" title="Reset Stream Quality"><RefreshCw size={16} /></button>
+               <div className="w-px h-4 bg-white/10 mx-1 self-center" />
+               <button onClick={() => onControlEvent({ type: 'action', action: 'lock' })} className="p-2 hover:bg-blue-500/20 rounded-lg text-blue-400/60 hover:text-blue-400 transition-all" title="Lock Remote Screen"><Lock size={16} /></button>
+               <button onClick={() => onControlEvent({ type: 'action', action: 'shutdown' })} className="p-2 hover:bg-orange-500/20 rounded-lg text-orange-400/60 hover:text-orange-400 transition-all" title="Remote Shutdown"><Power size={16} /></button>
+               <button onClick={() => onControlEvent({ type: 'action', action: 'reboot' })} className="p-2 hover:bg-red-500/20 rounded-lg text-red-400/60 hover:text-red-400 transition-all" title="Remote Reboot"><RefreshCw size={16} className="rotate-45" /></button>
+            </div>
+            
+            <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-lg border border-emerald-500/20 uppercase tracking-widest">Connected</span>
+
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -186,7 +344,6 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
                 
                 const CHUNK_SIZE = 16 * 1024; // 16KB
                 const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-                const reader = new FileReader();
 
                 setTransferProgress({ name: file.name, p: 0 });
 
@@ -215,7 +372,6 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
                   onControlEvent(fullBuffer);
                   setTransferProgress({ name: file.name, p: Math.round(((i + 1) / totalChunks) * 100) });
                   
-                  // Throttling to prevent overwhelming the data channel
                   if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
                 }
                 
@@ -236,43 +392,22 @@ const VideoPlayer = forwardRef(({ viewerStatus, setViewerStatus, sessionCode, on
                 {latency <= 0 ? 'STABLE' : `${latency}ms`} Latency
               </span>
             </div>
-           <button 
-             onClick={onDisconnect} 
-             className="text-slate-500 dark:text-white/40 hover:text-slate-900 dark:text-white transition-colors"
-           >
-             <ArrowLeft className="w-5 h-5" />
-           </button>
         </div>
       </div>
       
-      <div className="flex-grow bg-black rounded-3xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-2xl relative group cursor-none">
-        <canvas 
-          ref={canvasRef} 
-          className="w-full h-full object-contain" 
-          width={1920} 
-          height={1080}
-          onMouseMove={(e) => {
-            const rect = canvasRef.current?.getBoundingClientRect();
-            if (rect) {
-              const x = (e.clientX - rect.left) / rect.width;
-              const y = (e.clientY - rect.top) / rect.height;
-              onControlEvent({ type: 'mousemove', x, y });
-            }
-          }}
-          onMouseDown={(e) => {
-            onControlEvent({ type: 'mousedown', button: e.button });
-          }}
-          onMouseUp={(e) => {
-            onControlEvent({ type: 'mouseup', button: e.button });
-          }}
-          onWheel={(e) => {
-            // Optional: Wheel logic
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-          }}
-        />
-        <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border-2 border-blue-500/20 rounded-3xl" />
+      <div 
+        ref={containerRef}
+        className={`flex-grow flex items-center justify-center relative overflow-hidden ${zoomMode === 'original' ? 'cursor-grab active:cursor-grabbing overflow-auto custom-scrollbar' : ''} ${!isMobile ? 'bg-black/40 backdrop-blur-sm rounded-[2rem] border border-white/10 shadow-inner' : ''}`}
+      >
+        {isMobile ? (
+          <MobileDeviceFrame>
+            {renderContent()}
+          </MobileDeviceFrame>
+        ) : (
+          <DesktopDeviceFrame>
+            {renderContent()}
+          </DesktopDeviceFrame>
+        )}
       </div>
     </div>
   );
@@ -294,14 +429,19 @@ export default function App() {
   }, [theme]);
 
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [email, setEmail] = useState('test@example.com');
-  const [password, setPassword] = useState('password123');
+  const { user, accessToken, login: storeLogin, register: storeRegister, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
+  const isAuthenticated = !!accessToken;
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
   const [accessPassword, setAccessPassword] = useState('');
   const [showManualPassword, setShowManualPassword] = useState(false);
   const [error, setError] = useState('');
+
+
+
 
   const [hostSessionId, setHostSessionId] = useState('');
   const [hostStatus, setHostStatus] = useState<'idle' | 'connecting' | 'error' | 'status'>('idle');
@@ -314,6 +454,16 @@ export default function App() {
   const [serverIP, setServerIP] = useState(localStorage.getItem('remote_link_server_ip') || '127.0.0.1');
   const [localIP, setLocalIP] = useState('127.0.0.1');
   const [showSettings, setShowSettings] = useState(false);
+  const [isPackaged, setIsPackaged] = useState(false);
+
+  useEffect(() => {
+    (window as any).electronAPI.isPackaged?.().then(setIsPackaged);
+  }, []);
+
+  const getApiUrl = (port: number, path: string) => {
+    const proto = isPackaged ? 'https' : 'http';
+    return `${proto}://${serverIP}:${port}${path}`;
+  };
 
   const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'error' | 'connected' | 'streaming' | 'connection_lost'>('idle');
   const [viewerError, setViewerError] = useState('');
@@ -337,13 +487,13 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    setIsAuthenticated(false);
-    await (window as any).electronAPI.deleteToken();
+    await storeLogout();
   };
   const lastClipboardRef = useRef<string>('');
   
   
   // --- New Device Management State ---
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<any[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -376,34 +526,22 @@ export default function App() {
       pcRef.current.close();
       pcRef.current = null;
     }
+    setRemoteStream(null);
     setViewerStatus('idle');
     pollDevices();
   };
 
   const pollDevices = async () => {
     try {
-      const creds = await (window as any).electronAPI.getToken();
-      if (!creds?.token) return;
-      const res = await fetch(`http://${serverIP}:3001/api/devices/mine`, {
-        headers: { 'Authorization': `Bearer ${creds.token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDevices(data);
-        setGlobalError('');
-      } else if (res.status === 401) {
-        const creds = await (window as any).electronAPI.getToken();
-        if (creds?.refresh) {
-          await (window as any).electronAPI.setToken(creds.token, creds.refresh); // Just trigger a save
-          pollDevices();
-          return;
-        }
-        await (window as any).electronAPI.deleteToken();
-        setIsAuthenticated(false);
+      const { data } = await api.get('/api/devices/mine');
+      setDevices(data);
+      setGlobalError('');
+    } catch (e: any) {
+      if (e.response?.status === 401) {
+        // Handled by api interceptor mostly, but ensure we reflect it
+        handleLogout();
         setGlobalError('Session expired. Please log in again.');
       }
-    } catch (e: any) {
-      if (e.message.includes('401')) handleLogout();
     }
   };
 
@@ -432,33 +570,21 @@ export default function App() {
     setViewerStatus('connecting');
     setViewerError('');
     try {
-      const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/verify-access`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${creds.token}`
-        },
-        body: JSON.stringify({ accessKey: device.access_key, password: '' })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        // Trusted bypass logic succeeded!
-        await (window as any).electronAPI.connectToHost(device.access_key, serverIP, data.token);
-        setSessionCode(device.access_key);
-        setViewerStatus('connected');
-      } else if (res.status === 401) {
-        // Password required
-        setViewerStatus('idle');
-        setPromptPassword('');
-        setPromptRemember(true);
-        setShowPasswordPrompt(device);
-      } else {
-        throw new Error(data.error || 'Failed to verify access');
-      }
+      const { data } = await api.post('/api/devices/verify-access', { accessKey: device.access_key, password: '' });
+      // Trusted bypass logic succeeded!
+      await (window as any).electronAPI.connectToHost(device.access_key, serverIP, data.token);
+      setSessionCode(device.access_key);
+      setViewerStatus('connected');
     } catch (e: any) {
       setViewerStatus('idle');
-      setGlobalError(e.message || 'Connection failed.');
+      if (e.response?.status === 401) {
+        // Password required
+        setShowPasswordPrompt(device);
+        setPromptPassword('');
+        setPromptRemember(false);
+      } else {
+        setGlobalError(e.response?.data?.error || e.message || 'Connection failed.');
+      }
     }
   };
 
@@ -467,30 +593,14 @@ export default function App() {
     const device = showPasswordPrompt;
     setViewerStatus('connecting');
     try {
-      const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/verify-access`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${creds.token}`
-        },
-        body: JSON.stringify({ accessKey: device.access_key, password: promptPassword })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        if (promptRemember) {
-           await fetch(`http://${serverIP}:3001/api/devices/${device.id}/trust`, {
-             method: 'POST',
-             headers: { 'Authorization': `Bearer ${creds.token}` }
-           });
-        }
-        await (window as any).electronAPI.connectToHost(device.access_key, serverIP, data.token);
-        setSessionCode(device.access_key);
-        setViewerStatus('connected');
-        setShowPasswordPrompt(null);
-      } else {
-        throw new Error(data.error || 'Access Denied');
+      const { data } = await api.post('/api/devices/verify-access', { accessKey: device.access_key, password: promptPassword });
+      if (promptRemember) {
+          await api.post(`/api/devices/${device.id}/trust`);
       }
+      await (window as any).electronAPI.connectToHost(device.access_key, serverIP, data.token);
+      setSessionCode(device.access_key);
+      setViewerStatus('connected');
+      setShowPasswordPrompt(null);
     } catch (e: any) {
       setViewerStatus('idle');
       setGlobalError(e.message || 'Connection failed.');
@@ -499,43 +609,20 @@ export default function App() {
 
   const handleAddDevice = async () => {
     try {
-      const creds = await (window as any).electronAPI.getToken();
-      const url = `http://${serverIP}:3001/api/devices/add-existing`;
-      console.log(`[Fetch-Debug] POST to ${url}`);
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${creds.token}`
-        },
-        body: JSON.stringify({ accessKey: addKey.replace(/\s/g, ''), password: addPassword })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setShowAddModal(false);
-        setAddKey('');
-        setAddPassword('');
-        pollDevices();
-      } else {
-        setGlobalError(data.error || 'Failed to add device');
-      }
-    } catch (e) {
-      setGlobalError('Network error adding device');
+      await api.post('/api/devices/add-existing', { accessKey: addKey.replace(/\s/g, ''), password: addPassword });
+      setShowAddModal(false);
+      setAddKey('');
+      setAddPassword('');
+      pollDevices();
+    } catch (e: any) {
+      setGlobalError(e.response?.data?.error || e.message || 'Network error adding device');
     }
   };
 
   const handleRename = async (device: any) => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/${device.id}/name`, {
-        method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${creds.token}`
-        },
-        body: JSON.stringify({ device_name: actionValue })
-      });
-      if (!res.ok) throw new Error('Rename failed');
+      await api.patch(`/api/devices/${device.id}/name`, { device_name: actionValue });
       pollDevices();
       setActionModal(null);
       if (selectedDevice?.id === device.id) setSelectedDevice({ ...selectedDevice, device_name: actionValue });
@@ -545,11 +632,7 @@ export default function App() {
   const handleRemove = async (device: any) => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/${device.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${creds.token}` }
-      });
-      if (!res.ok) throw new Error('Removal failed');
+      await api.delete(`/api/devices/${device.id}`);
       pollDevices();
       setActionModal(null);
       if (selectedDevice?.id === device.id) setSelectedDevice(null);
@@ -559,10 +642,7 @@ export default function App() {
   const handleRevokeTrust = async (id: string) => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      await fetch(`http://${serverIP}:3001/api/devices/${id}/trust`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${creds.token}` }
-      });
+      await api.delete(`/api/devices/${id}/trust`);
       setGlobalError('Success: Trust revoked for this device.');
       pollDevices();
     } catch (e) {}
@@ -573,12 +653,7 @@ export default function App() {
   const handleSetPassword = async (device: any) => {
     try {
       const creds = await (window as any).electronAPI.getToken();
-      const res = await fetch(`http://${serverIP}:3001/api/devices/set-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.token}` },
-        body: JSON.stringify({ deviceId: device.id, password: actionValue })
-      });
-      if (!res.ok) throw new Error('Password update failed');
+      await api.post(getApiUrl(3001, '/api/devices/set-password'), { deviceId: device.id, password: actionValue });
       pollDevices();
       setActionModal(null);
       setGlobalError('Success: Hardware password updated.');
@@ -623,6 +698,64 @@ export default function App() {
     return () => clearInterval(interval);
   }, [viewerStatus]);
 
+  const [showBillingModal, setShowBillingModal] = useState(false);
+  const [billingPlans, setBillingPlans] = useState<any[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<any>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+
+  const [fileReceivedModal, setFileReceivedModal] = useState<{name: string, path: string} | null>(null);
+
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api?.onFileReceived) return;
+    const unsub = api.onFileReceived((data: any) => {
+      setFileReceivedModal(data);
+    });
+    return () => unsub();
+  }, []);
+
+  const fetchBillingInfo = async () => {
+    try {
+      setShowBillingModal(true);
+      setBillingLoading(true);
+      const creds = await (window as any).electronAPI.getToken();
+      if (!creds?.token) return;
+
+      const [plansRes, currentRes] = await Promise.all([
+        fetch(getApiUrl(3003, '/billing/plans')),
+        fetch(getApiUrl(3003, '/billing/current'), {
+          headers: { 'Authorization': `Bearer ${creds.token}` }
+        })
+      ]);
+
+      if (plansRes.ok) setBillingPlans(await plansRes.json());
+      if (currentRes.ok) setCurrentPlan(await currentRes.json());
+    } catch (err: any) {
+      console.error('Failed to fetch billing info', err);
+      setGlobalError('Failed to load billing details: ' + err.message);
+      setShowBillingModal(false);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleSubscribe = async (planName: string) => {
+    try {
+      setBillingLoading(true);
+      const creds = await (window as any).electronAPI.getToken();
+      const res = await fetch(getApiUrl(3003, '/billing/subscribe'), {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${creds.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planName, paymentMethodId: 'pm_card_visa' })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      fetchBillingInfo();
+    } catch (err: any) {
+      setGlobalError('Subscription failed: ' + err.message);
+      setBillingLoading(false);
+    }
+  };
+
   const loadDeviceInfo = async () => {
     try {
       const creds = await (window as any).electronAPI.getToken();
@@ -632,25 +765,7 @@ export default function App() {
       let deviceUuid = '';
 
       // 1. Fetch what the server thinks are our devices
-      const listRes = await fetch(`http://${serverIP}:3001/api/devices/mine`, {
-        headers: { 'Authorization': `Bearer ${creds.token}` }
-      });
-
-      if (!listRes.ok) {
-        if (listRes.status === 401) {
-          console.warn('[Identity] Session expired during loadDeviceInfo');
-          const refreshRes = await (window as any).electronAPI.getToken();
-          if (refreshRes?.refresh) {
-            await handleRefresh(refreshRes.refresh);
-            loadDeviceInfo(); // retry
-          } else {
-            handleLogout();
-          }
-        }
-        return;
-      }
-
-      const fetchedDevices = await listRes.json();
+      const { data: fetchedDevices } = await api.get('/api/devices/mine');
       setDevices(fetchedDevices);
 
       // 2. Check if our local identity is still valid in the DB
@@ -663,25 +778,15 @@ export default function App() {
         // We have no key, or our key was deleted from the server. Register fresh!
         console.log(`[Identity] No valid local key found${localKey ? ' (Stale)' : ''}. Registering...`);
         const machineName = await (window as any).electronAPI.getMachineName?.() || 'RemoteLink PC';
-        const regRes = await fetch(`http://${serverIP}:3001/api/devices/register`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${creds.token}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({ name: machineName, accessKey: localKey || undefined })
+        const { data: newDevice } = await api.post('/api/devices/register', { 
+           name: machineName, 
+           accessKey: localKey || undefined 
         });
         
-        if (regRes.ok) {
-          const newDevice = await regRes.json();
-          localKey = newDevice.access_key;
-          deviceUuid = newDevice.id;
-          console.log(`[Identity] Registered NEW Identity: ${localKey}`);
-          pollDevices(); // Update the list again
-        } else {
-          console.error('[Identity] Registration failed:', await regRes.text());
-          localKey = '';
-        }
+        localKey = newDevice.access_key;
+        deviceUuid = newDevice.id;
+        console.log(`[Identity] Registered NEW Identity: ${localKey}`);
+        pollDevices(); // Update the list again
       } else {
         deviceUuid = existingInDb.id;
         console.log(`[Identity] Verified existing identity: ${localKey}`);
@@ -702,7 +807,17 @@ export default function App() {
   }, [isAuthenticated, serverIP]);
 
   useEffect(() => {
-    checkToken();
+    checkAuth().finally(() => setLoading(false));
+    
+    // Listen for Google OAuth deep link success
+    const unsubDeepLink = (window as any).electronAPI.onAuthDeepLinkSuccess?.(async (tokens: any) => {
+       console.log('[Auth] Deep link success received in renderer');
+       // We need user info too, but for now we can just mark as authenticated
+       // and let checkAuth or a /me call fix the rest
+       await setAuth({ id: '', email: '', name: 'Google User', plan: 'Free', avatar: null }, tokens.accessToken, tokens.refreshToken);
+       checkAuth(); 
+    });
+
     (window as any).electronAPI.getLocalIP().then(setLocalIP);
     const removeHostListener = (window as any).electronAPI.onHostStatus((status: string) => {
       setHostStatus('status');
@@ -744,13 +859,20 @@ export default function App() {
           }
         }, 15000); // 15s timeout for ICE/handshake
 
+        pc.ontrack = (event) => {
+          console.log('[Renderer] Standard Video Track received!');
+          setRemoteStream(event.streams[0]);
+          if (viewerStatus !== 'streaming') setViewerStatus('streaming');
+        };
+
         pc.onicecandidate = (event) => {
           if (event.candidate) {
             console.log(`[Renderer] Generated local ICE candidate: ${event.candidate.candidate.substring(0, 30)}...`);
             (window as any).electronAPI.sendSignalingMessage({
               type: 'ice-candidate',
               candidate: event.candidate.candidate,
-              mid: event.candidate.sdpMid,
+              sdpMid: event.candidate.sdpMid,
+              sdpMLineIndex: event.candidate.sdpMLineIndex,
               targetId: sessionCode.replace(/\s/g, '')
             });
           }
@@ -772,14 +894,45 @@ export default function App() {
             };
           } else if (channel.label === 'control') {
             controlChannelRef.current = channel;
+            
+            const sendKeyframeRequest = () => {
+              if (channel.readyState === 'open') {
+                console.log('[Renderer] Control DataChannel ACTIVE. Requesting keyframe...');
+                channel.send(JSON.stringify({ type: 'request-keyframe' }));
+              }
+            };
+
+            if (channel.readyState === 'open') {
+              sendKeyframeRequest();
+            } else {
+              channel.onopen = sendKeyframeRequest;
+            }
+
+            const clipboardInterval = setInterval(async () => {
+              if (viewerStatus === 'streaming' && channel.readyState === 'open') {
+                const text = await (window as any).electronAPI.clipboard.readText();
+                if (text && text !== lastClipboardRef.current) {
+                  lastClipboardRef.current = text;
+                  channel.send(JSON.stringify({ type: 'clipboard', text }));
+                }
+              }
+            }, 1000);
+
             channel.onmessage = (e) => {
               try {
                 const data = JSON.parse(e.data);
                 if (data.type === 'clipboard' && data.text) {
                   lastClipboardRef.current = data.text;
                   (window as any).electronAPI.clipboard.writeText(data.text);
+                } else if (data.type === 'file-sent') {
+                  setFileReceivedModal(data);
                 }
               } catch (err) {}
+            };
+
+            channel.onclose = () => {
+              console.log('[Renderer] Control Channel closed.');
+              clearInterval(clipboardInterval);
             };
             console.log('[Renderer] Control DataChannel ready.');
           }
@@ -811,8 +964,8 @@ export default function App() {
         console.log('[Renderer] Received ICE candidate from host');
         const cand: RTCIceCandidateInit = {
           candidate: data.candidate,
-          sdpMid: data.mid,
-          sdpMLineIndex: 0
+          sdpMid: data.sdpMid || data.mid,
+          sdpMLineIndex: data.sdpMLineIndex ?? 0
         };
         if (pcRef.current && pcRef.current.remoteDescription) {
           pcRef.current.addIceCandidate(cand).catch(err => console.error('[Renderer] Add remote candidate error:', err));
@@ -836,71 +989,15 @@ export default function App() {
     };
   }, [sessionCode]);
 
-  const checkToken = async () => {
-    try {
-      const creds = await (window as any).electronAPI.getToken();
-      if (creds?.token) setIsAuthenticated(true);
-      else if (creds?.refresh) handleRefresh(creds.refresh);
-    } catch (err) {
-      console.error('Failed to load credentials', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = async (refreshToken: string) => {
-    try {
-      const res = await fetch(`http://${serverIP}:3001/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        await (window as any).electronAPI.setToken(data.token, data.refreshToken);
-        setIsAuthenticated(true);
-      } else {
-        await (window as any).electronAPI.deleteToken();
-      }
-    } catch (e) {
-      await (window as any).electronAPI.deleteToken();
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      let res = await fetch(`http://${serverIP}:3001/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      let data = await res.json();
-      
-      // Auto-register if user doesn't exist (smooth onboarding for demo purposes)
-      if (!res.ok && data.error === 'Invalid credentials') {
-        const regRes = await fetch(`http://${serverIP}:3001/api/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name: email.split('@')[0] })
-        });
-        if (regRes.ok) {
-          res = regRes;
-          data = await regRes.json();
-        }
-      }
-
-      if (res.ok) {
-        localStorage.setItem('remote_link_server_ip', serverIP);
-        await (window as any).electronAPI.setToken(data.token, data.refreshToken);
-        setIsAuthenticated(true);
-      } else {
-        setError(data.error || 'Login failed');
-      }
-    } catch (err) {
-      setError(`Network error connecting to ${serverIP}`);
+      await storeLogin(email, password);
+      localStorage.setItem('remote_link_server_ip', serverIP);
+    } catch (err: any) {
+      setError(err.response?.data?.error || `Network error connecting to ${serverIP}`);
     } finally {
       setLoading(false);
     }
@@ -932,14 +1029,7 @@ export default function App() {
 
       // 2. Set/Sync Password
       localStorage.setItem('device_password', devicePassword);
-      await fetch(`http://${serverIP}:3001/api/devices/set-password`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${creds.token}`,
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({ deviceId, password: devicePassword })
-      });
+      await api.post('/api/devices/set-password', { deviceId, password: devicePassword });
 
       // 3. Start Signaling with permanent Access Key
       const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey);
@@ -962,13 +1052,7 @@ export default function App() {
     setViewerError('');
     try {
       const cleanKey = sessionCode.replace(/\s/g, '');
-      const res = await fetch(`http://${serverIP}:3001/api/devices/status?key=${cleanKey}`);
-      const data = await res.json();
-      
-      if (!res.ok) {
-        if (res.status === 429) throw new Error('Too many checks. Please wait.');
-        throw new Error(data.error || 'Failed to check status');
-      }
+      const { data } = await api.get(`/api/devices/status?key=${cleanKey}`);
       if (!data.exists) throw new Error('Device not found. Check the access key.');
       if (!data.online) throw new Error('This machine is currently offline.');
 
@@ -986,19 +1070,10 @@ export default function App() {
     setViewerError('');
     try {
       // 1. Verify Access and Get Token
-      const authRes = await fetch(`http://${serverIP}:3001/api/devices/verify-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessKey: sessionCode.replace(/\s/g, ''), password: accessPassword })
+      const { data: authData } = await api.post('/api/devices/verify-access', {
+        accessKey: sessionCode.replace(/\s/g, ''),
+        password: accessPassword
       });
-      
-      const authData = await authRes.json();
-      if (!authRes.ok) {
-        if (authRes.status === 429 && authData.retryAfter) {
-          throw new Error(`Too many attempts. Try again in ${authData.retryAfter} seconds.`);
-        }
-        throw new Error(authData.error || 'Access Denied');
-      }
 
       // 2. Connect to Signaling with One-Time Token
       await (window as any).electronAPI.connectToHost(sessionCode.replace(/\s/g, ''), serverIP, authData.token);
@@ -1082,8 +1157,8 @@ export default function App() {
                   <Settings className={`w-3 h-3 ${showSettings ? 'animate-spin-slow' : ''}`} />
                   {showSettings ? 'Hide Network Settings' : 'Advanced Network Settings'}
                 </button>
-                <button type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="text-slate-500 dark:text-white/30 hover:text-slate-900 dark:text-white transition group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-                  {theme === 'dark' ? <><Sun className="w-3 h-3 group-hover:rotate-90 transition-transform" /> Light Mode</> : <><Moon className="w-3 h-3 group-hover:-rotate-12 transition-transform" /> Dark Mode</>}
+                <button type="button" onClick={() => setTheme('light')} className="text-slate-500 hover:text-slate-900 transition group flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                  <Sun className="w-3 h-3 group-hover:rotate-90 transition-transform" /> Light Mode
                 </button>
               </div>
               
@@ -1107,7 +1182,7 @@ export default function App() {
               )}
             </div>
 
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-slate-900 dark:text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 uppercase tracking-widest text-sm mt-4">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 uppercase tracking-widest text-sm mt-4">
               Unlock Terminal
             </button>
           </form>
@@ -1153,9 +1228,14 @@ export default function App() {
             viewerStatus={viewerStatus} 
             setViewerStatus={setViewerStatus} 
             sessionCode={sessionCode} 
+            remoteStream={remoteStream}
+            deviceType={selectedDevice?.device_type}
             onDisconnect={handleDisconnect}
             onControlEvent={(event: any) => {
-              if (controlChannelRef.current?.readyState !== 'open') return;
+              if (controlChannelRef.current?.readyState !== 'open') {
+                console.warn('[Viewer] Control channel NOT OPEN. State:', controlChannelRef.current?.readyState);
+                return;
+              }
               
               if (event instanceof Uint8Array) {
                 // Binary Data (File Transfer)
@@ -1163,7 +1243,8 @@ export default function App() {
               } else if (event.type === 'mousemove') {
                 throttledMouseMove(event);
               } else {
-                // Standard JSON Control Event (Mouse/KB/Clipboard)
+                // Standard JSON Control Event (Mouse/KB/Clipboard/Action)
+                console.log('[Viewer] Sending control event:', event.type, event.action || '');
                 controlChannelRef.current.send(JSON.stringify(event));
               }
             }}
@@ -1196,6 +1277,9 @@ export default function App() {
             </div>
             
             <div className="flex gap-2">
+              <button onClick={() => fetchBillingInfo()} className="w-8 h-8 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-full flex items-center justify-center text-indigo-500 border border-indigo-500/20 transition" title="Billing & Plans">
+                <CreditCard className="w-4 h-4" />
+              </button>
               <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="w-8 h-8 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 rounded-full flex items-center justify-center border border-slate-200 dark:border-white/10 transition" title="Toggle Theme">
                 {theme === 'dark' ? <Sun className="w-4 h-4 text-slate-500 dark:text-white/40" /> : <Moon className="w-4 h-4 text-slate-500 dark:text-white/40" />}
               </button>
@@ -1319,7 +1403,7 @@ export default function App() {
                         {showManualPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
-                    <button onClick={handleConnectToHost} disabled={!sessionCode || !accessPassword || viewerStatus === 'connecting'} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-slate-900 dark:text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 uppercase text-xs tracking-wider">{viewerStatus === 'connecting' ? 'Connecting...' : 'Connect'}</button>
+                    <button onClick={handleConnectToHost} disabled={!sessionCode || !accessPassword || viewerStatus === 'connecting'} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 uppercase text-xs tracking-wider">{viewerStatus === 'connecting' ? 'Connecting...' : 'Connect'}</button>
                   </div>
                </section>
 
@@ -1355,7 +1439,7 @@ export default function App() {
                            {showHostPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                          </button>
                        </div>
-                       <button onClick={handleStartHosting} disabled={hostStatus === 'connecting'} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-900 dark:text-white font-bold py-4 rounded-xl text-center uppercase text-xs tracking-wider">{hostStatus === 'connecting' ? 'Starting...' : 'Start Hosting'}</button>
+                       <button onClick={handleStartHosting} disabled={hostStatus === 'connecting'} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-4 rounded-xl text-center uppercase text-xs tracking-wider">{hostStatus === 'connecting' ? 'Starting...' : 'Start Hosting'}</button>
                      </div>
                   )}
                </section>
@@ -1363,7 +1447,7 @@ export default function App() {
           ) : (
             <div className="w-full max-w-2xl bg-white dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-[3rem] p-12 flex flex-col items-center animate-in fade-in slide-in-from-right-8">
                <div className="w-32 h-32 bg-blue-500/10 rounded-[2.5rem] flex items-center justify-center mb-8 border border-blue-500/20 shadow-2xl">
-                 {selectedDevice.device_type === 'ios' || selectedDevice.device_type === 'android' ? 
+                 {selectedDevice.device_type?.toLowerCase() === 'ios' || selectedDevice.device_type?.toLowerCase() === 'android' ? 
                     <Smartphone className="text-blue-400 w-16 h-16" /> : 
                     <Monitor className="text-blue-400 w-16 h-16" />
                  }
@@ -1379,12 +1463,12 @@ export default function App() {
                  <span className="uppercase text-blue-400">{selectedDevice.device_type}</span>
                </div>
                
-               <div className="mt-12 w-full flex gap-4">
-                 <button onClick={() => setSelectedDevice(null)} className="w-1/3 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 rounded-2xl py-5 font-bold uppercase tracking-widest text-xs transition">Back</button>
-                 <button onClick={() => handleDeviceClick(selectedDevice)} disabled={viewerStatus === 'connecting'} className="w-2/3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-2xl py-5 font-black uppercase tracking-widest text-sm flex justify-center items-center gap-2 shadow-2xl shadow-blue-500/20 transition">
-                   {viewerStatus === 'connecting' ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Connect <ArrowRight className="w-4 h-4 ml-2" /></>}
-                 </button>
-               </div>
+                <div className="mt-12 w-full flex gap-4">
+                  <button onClick={() => setSelectedDevice(null)} className="w-1/3 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 rounded-2xl py-5 font-bold uppercase tracking-widest text-xs transition">Back</button>
+                  <button onClick={() => handleDeviceClick(selectedDevice)} disabled={viewerStatus === 'connecting'} className="w-2/3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-sm flex justify-center items-center gap-2 shadow-2xl shadow-blue-500/20 transition">
+                    {viewerStatus === 'connecting' ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Connect <ArrowRight className="w-4 h-4 ml-2" /></>}
+                  </button>
+                </div>
             </div>
           )}
         </div>
@@ -1479,6 +1563,80 @@ export default function App() {
                 className={`flex-1 py-3 font-bold rounded-xl text-xs uppercase tracking-widest transition-all ${actionModal.type === 'remove' ? 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20' : 'bg-blue-600 hover:bg-blue-500 text-slate-900 dark:text-white shadow-lg shadow-blue-600/20'}`}
               >
                 {actionModal.type === 'remove' ? 'Confirm' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBillingModal && (
+        <div className="absolute inset-0 z-[200] bg-slate-900/40 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in" onClick={() => setShowBillingModal(false)}>
+          <div className="bg-white dark:bg-[#111] border border-slate-200 dark:border-white/10 shadow-2xl rounded-2xl p-6 w-[600px] max-w-[90vw] flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-black uppercase text-slate-900 dark:text-white">Billing & Plans</h3>
+                <p className="text-xs text-slate-500 dark:text-white/40 mt-1 font-medium">Your current active plan is: <strong className="text-indigo-500">{currentPlan?.plan || 'Loading...'}</strong></p>
+              </div>
+              <button onClick={() => setShowBillingModal(false)} className="w-8 h-8 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:bg-white/10 transition-colors rounded-full flex justify-center items-center">
+                <X className="w-4 h-4 text-slate-500 dark:text-white/40" />
+              </button>
+            </div>
+
+            {billingLoading && !billingPlans.length ? (
+               <div className="py-12 flex justify-center"><RefreshCw className="w-8 h-8 animate-spin text-slate-400" /></div>
+            ) : (
+               <div className="grid grid-cols-2 gap-4">
+                 {billingPlans.map((plan: any) => (
+                   <div key={plan.name} className="border border-slate-200 dark:border-white/10 rounded-xl p-4 flex flex-col bg-slate-50 dark:bg-white/[0.02]">
+                     <div className="flex justify-between items-start mb-4">
+                       <h4 className="font-bold text-slate-800 dark:text-white uppercase">{plan.name}</h4>
+                       <span className="text-sm font-black text-indigo-500">${plan.price}{plan.price !== 'Custom' && <span className="text-[10px] text-slate-500 font-normal">/mo</span>}</span>
+                     </div>
+                     <ul className="text-[10px] space-y-2 mb-6 flex-1 text-slate-600 dark:text-white/60 font-medium">
+                       {plan.features.map((f: string, i: number) => <li key={i}>• {f}</li>)}
+                     </ul>
+                     <button 
+                       onClick={() => handleSubscribe(plan.name)}
+                       disabled={currentPlan?.plan === plan.name || billingLoading}
+                       className={`py-2 px-4 rounded-lg text-xs font-bold uppercase tracking-wider transition ${currentPlan?.plan === plan.name ? 'bg-emerald-500/20 text-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20'}`}
+                     >
+                       {currentPlan?.plan === plan.name ? 'Active' : billingLoading ? 'Processing...' : 'Subscribe'}
+                     </button>
+                   </div>
+                 ))}
+               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {fileReceivedModal && (
+        <div className="absolute inset-0 z-[300] bg-slate-900/60 dark:bg-black/90 backdrop-blur-md flex items-center justify-center animate-in zoom-in duration-200" onClick={() => setFileReceivedModal(null)}>
+          <div className="bg-white dark:bg-[#111] border border-emerald-500/30 shadow-2xl shadow-emerald-500/20 rounded-2xl p-8 w-[450px] max-w-[90vw] flex flex-col items-center text-center relative" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 mb-6 border border-emerald-500/20">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">File Received</h3>
+            <p className="text-sm font-bold text-slate-600 dark:text-white/60 mb-2 truncate w-full px-4">{fileReceivedModal.name}</p>
+            <div className="bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg py-2 px-3 mb-8 w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[9px] text-slate-500 dark:text-white/40" title={fileReceivedModal.path}>
+              {fileReceivedModal.path}
+            </div>
+            
+            <div className="flex gap-3 w-full">
+              <button 
+                onClick={() => setFileReceivedModal(null)} 
+                className="flex-1 py-3 px-4 font-bold rounded-xl text-xs uppercase tracking-widest bg-slate-200 hover:bg-slate-300 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-white/80 transition-colors"
+              >
+                Dismiss
+              </button>
+              <button 
+                onClick={() => {
+                  (window as any).electronAPI.openPath(fileReceivedModal.path);
+                  setFileReceivedModal(null);
+                }} 
+                className="flex-1 py-3 px-4 font-bold rounded-xl text-xs uppercase tracking-widest bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-all font-sans"
+              >
+                Open Folder
               </button>
             </div>
           </div>

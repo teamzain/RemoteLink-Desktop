@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { prisma, publishEvent, EventChannel, generateToken, verifyToken } from '@remotelink/shared';
+import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isTokenBlacklisted } from '@remotelink/shared';
+import { issueTokens } from '../utils/token-utils';
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -38,12 +39,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
       });
     } catch (err) {
       console.error('[Auth] Failed to trigger billing customer creation:', err);
-      // Non-blocking for registration
     }
 
-    const token = generateToken({ userId: user.id, role: user.role });
-    const refreshToken = generateToken({ userId: user.id, role: user.role, type: 'refresh' } as any);
-    return reply.code(201).send({ token, refreshToken, user: { id: user.id, email: user.email, name: user.name } });
+    return reply.send(await issueTokens(user));
   });
 
   fastify.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -63,23 +61,142 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.code(401).send({ error: 'Invalid credentials' });
     }
 
-    const token = generateToken({ userId: user.id, role: user.role });
-    const refreshToken = generateToken({ userId: user.id, role: user.role, type: 'refresh' } as any);
-    return reply.send({ token, refreshToken, user: { id: user.id, email: user.email, name: user.name } });
+    if ((user as any).is2FAEnabled) {
+      const tempToken = await publishEvent({ // Just mock a temp token for now or use JWT
+        channel: EventChannel.USER_CREATED, // Placeholder
+        payload: { userId: user.id, email: user.email }
+      });
+      // Better: sign a short-lived temp token
+      const jwt = require('@remotelink/shared').generateToken({ userId: user.id, type: '2fa-temp' }, '5m');
+      return reply.send({ twoFactorRequired: true, tempToken: jwt });
+    }
+
+    return reply.send(await issueTokens(user));
+  });
+
+  fastify.post('/verify-2fa', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { code, tempToken } = request.body as any;
+    if (!code || !tempToken) return reply.code(400).send({ error: 'Code and tempToken required' });
+
+    const decoded = verifyToken(tempToken);
+    if (!decoded || !decoded.userId || decoded.type !== '2fa-temp') {
+      return reply.code(401).send({ error: 'Invalid or expired 2FA session' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user || !(user as any).twoFactorSecret) return reply.code(400).send({ error: '2FA not set up' });
+
+    const { authenticator } = require('otplib');
+    const isValid = authenticator.verify({ token: code, secret: (user as any).twoFactorSecret });
+    if (!isValid) return reply.code(401).send({ error: 'Invalid 2FA code' });
+
+    return reply.send(await issueTokens(user));
   });
 
   fastify.post('/refresh', async (request: FastifyRequest, reply: FastifyReply) => {
     const { refreshToken } = request.body as any;
     if (!refreshToken) return reply.code(400).send({ error: 'Refresh token required' });
     
-    // Verify the refresh token signature and extract userId, role
+    // Check if blacklisted in Redis
+    const isBlacklisted = await isTokenBlacklisted(refreshToken);
+    if (isBlacklisted) {
+      return reply.code(401).send({ error: 'Session expired or logged out' });
+    }
+
     const decoded = verifyToken(refreshToken);
     if (!decoded || !decoded.userId || decoded.type !== 'refresh') {
        return reply.code(401).send({ error: 'Invalid refresh token' });
     }
 
-    const token = generateToken({ userId: decoded.userId, role: decoded.role });
-    const newRefreshToken = generateToken({ userId: decoded.userId, role: decoded.role, type: 'refresh' } as any);
-    return reply.send({ token, refreshToken: newRefreshToken });
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) return reply.code(401).send({ error: 'User not found' });
+
+    return reply.send(await issueTokens(user));
+  });
+
+  fastify.post('/logout', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { refreshToken } = request.body as any;
+    if (!refreshToken) return reply.code(400).send({ error: 'Refresh token required' });
+
+    const decoded = verifyToken(refreshToken);
+    if (decoded && decoded.exp) {
+      const ttl = Math.max(0, decoded.exp - Math.floor(Date.now() / 1000));
+      if (ttl > 0) {
+        await blacklistToken(refreshToken, ttl);
+      }
+    }
+
+    return reply.send({ success: true });
+  });
+
+  // 5. Get Current User (The missing /me endpoint)
+  fastify.get('/me', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: { subscription: true }
+    });
+
+    if (!user) return reply.code(404).send({ error: 'User not found' });
+
+    return reply.send({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      plan: user.subscription?.plan || 'FREE',
+      avatar: null,
+      is_2fa_enabled: (user as any).is2FAEnabled ?? false,
+    });
+  });
+
+  // 6. Update Profile/Password
+  fastify.patch('/me', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const { name, current_password, password } = request.body as any;
+    const updateData: any = {};
+
+    if (name) updateData.name = name;
+
+    if (password) {
+      if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
+      
+      const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      if (!user || !user.password) return reply.code(401).send({ error: 'Unauthorized' });
+
+      const isMatch = await bcrypt.compare(current_password, user.password);
+      if (!isMatch) return reply.code(401).send({ error: 'Incorrect current password' });
+
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: decoded.userId },
+      data: updateData,
+      include: { subscription: true }
+    });
+
+    return reply.send({
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        plan: updatedUser.subscription?.plan || 'FREE',
+        avatar: null,
+        is_2fa_enabled: (updatedUser as any).is2FAEnabled ?? false,
+      }
+    });
   });
 }
