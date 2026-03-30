@@ -522,7 +522,7 @@ export default function App() {
   const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(localStorage.getItem('is_auto_host_enabled') === 'true');
   const [showHostPassword, setShowHostPassword] = useState(false);
 
-  const [serverIP, setServerIP] = useState(localStorage.getItem('remote_link_server_ip') || '127.0.0.1');
+  const [serverIP, setServerIP] = useState(localStorage.getItem('remote_link_server_ip') || '159.65.84.190');
   const [localIP, setLocalIP] = useState('127.0.0.1');
   const [showSettings, setShowSettings] = useState(false);
   const [isPackaged, setIsPackaged] = useState(false);

@@ -11,7 +11,8 @@ const getBaseURL = async () => {
       return `https://${serverIP}`;
     }
   }
-  return `http://${serverIP}:3001`;
+  // During development, we point to the production IP on port 80 (proxied by Caddy)
+  return `http://${serverIP}`;
 };
 
 const api = axios.create();

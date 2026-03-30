@@ -1,4 +1,3 @@
-# Use Node.js LTS
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -11,7 +10,7 @@ COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY apps/auth-service ./apps/auth-service
 
-# Install dependencies
+# Install dependencies for the whole workspace
 RUN npm install
 
 # Build shared packages first
@@ -25,10 +24,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/apps/auth-service/dist ./apps/auth-service/dist
-COPY --from=builder /app/apps/auth-service/package.json ./apps/auth-service/package.json
+# Copy ALL node_modules and built files to ensure sub-workspace dependencies are found
+COPY --from=builder /app ./
 
 EXPOSE 3001
 
