@@ -6,7 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import { redisPublisher, redisSubscriber, verifyToken } from '@remotelink/shared';
 
-const PORT = 3002;
+const PORT = parseInt(process.env.PORT || '3002', 10);
 
 // In-memory map of active connections on this specific instance
 const localClients = new Map<string, WebSocket>();
@@ -41,6 +41,18 @@ async function broadcastPresence(sessionId: string, status: 'online' | 'offline'
       if (clientWs && clientWs.readyState === WebSocket.OPEN) {
         clientWs.send(update);
       }
+    }
+  }
+}
+
+// Broadcast total active viewer sessions to all connected clients
+function broadcastGlobalStats() {
+  const activeSessions = new Set(viewerRegistry.values()).size;
+  const statsUpdate = JSON.stringify({ type: 'global-stats', activeSessions });
+  
+  for (const ws of localClients.values()) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(statsUpdate);
     }
   }
 }
@@ -130,6 +142,7 @@ async function startServer() {
                   viewerClientId: data.viewerClientId || connectionId // Use clientId if provided, fallback to socketId
                 }));
               }
+              broadcastGlobalStats();
             } else {
               ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Session not found' }));
             }
@@ -148,6 +161,7 @@ async function startServer() {
             }
             break;
 
+          case 'request-offer':
           case 'offer':
           case 'answer':
           case 'ice-candidate':
@@ -183,6 +197,11 @@ async function startServer() {
           broadcastPresence(sessionId, 'offline');
         }
         reverseRegistry.delete(connectionId);
+      }
+      
+      if (viewerRegistry.has(connectionId)) {
+        viewerRegistry.delete(connectionId);
+        broadcastGlobalStats();
       }
     });
 

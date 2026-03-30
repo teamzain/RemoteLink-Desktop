@@ -503,7 +503,6 @@ function setupSignalingHandlers(ws: WebSocket) {
         if (c.candidate) peerConnection?.addRemoteCandidate(c.candidate, c.mid);
       });
       iceCandidatesQueue = [];
-    } else if (data.type === 'ice-candidate' && currentViewerId) {
       if (data.candidate) {
         const mid = data.mid || data.sdpMid || "";
         if (hasRemoteDescription) {
@@ -512,6 +511,10 @@ function setupSignalingHandlers(ws: WebSocket) {
           iceCandidatesQueue.push({ candidate: data.candidate, mid });
         }
       }
+    } else if (data.type === 'request-offer') {
+      const viewerId = data.senderId || data.viewerId;
+      log.info(`[Host] Viewer ${viewerId} requested an offer. Initiating WebRTC...`);
+      initiateHostWebRTC(viewerId);
     }
   });
 }

@@ -26,6 +26,8 @@ interface SnowSidebarProps {
   setSelectedDevice: (device: any) => void;
   handleLogout: () => void;
   user: any;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const SnowSidebar: React.FC<SnowSidebarProps> = ({ 
@@ -34,7 +36,9 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   setCurrentView, 
   setSelectedDevice,
   handleLogout,
-  user
+  user,
+  isOpen,
+  onClose
 }) => {
   const isDashboard = currentView === 'dashboard' && !selectedDevice;
   const isDevices = currentView === 'devices' && !selectedDevice;
@@ -61,7 +65,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   `;
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-[212px] bg-white border-r border-[rgba(28,28,28,0.08)] flex flex-col font-inter z-30 shadow-sm overflow-hidden">
+    <aside className={`fixed left-0 top-0 bottom-0 w-[212px] bg-white border-r border-[rgba(28,28,28,0.08)] flex flex-col font-inter z-30 shadow-sm overflow-hidden transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       
       {/* Brand Logo Section */}
       <div className="flex items-center gap-3 px-5 pt-8 mb-10 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>

@@ -15,7 +15,8 @@ import {
   PieChart, 
   Pie 
 } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Activity, ShieldCheck, Zap } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
+import { useSessionStore } from '../../store/sessionStore';
 
 const performanceData = [
   { name: 'Jan', current: 6000, previous: 4000 },
@@ -43,7 +44,7 @@ interface MetricCardProps {
 }
 
 const MetricCard: React.FC<MetricCardProps & { data?: any[] }> = ({ title, value, trend, isPositive, bg, data }) => (
-  <div className={`p-4 lg:p-5 rounded-[24px] flex-1 min-w-[160px] sm:min-w-[220px] flex flex-col gap-2 lg:gap-3 ${bg} border border-[rgba(28,28,28,0.04)] shadow-sm hover:shadow-md transition-all duration-300 group`}>
+  <div className={`p-4 lg:p-5 rounded-[24px] flex-1 min-w-[160px] sm:min-w-[180px] flex flex-col gap-2 lg:gap-3 ${bg} border border-[rgba(28,28,28,0.04)] shadow-sm hover:shadow-md transition-all duration-300 group`}>
     <div className="flex justify-between items-start">
       <span className="text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">{title}</span>
       <div className={`px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1 uppercase tracking-tighter ${isPositive ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
@@ -97,6 +98,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export const SnowDashboard: React.FC<{
   devices: any[];
 }> = ({ devices }) => {
+  const { activeSessionCount } = useSessionStore();
   const [streamData, setStreamData] = React.useState(performanceData);
 
   // Dynamically calculate OS distribution from connected devices
@@ -145,7 +147,7 @@ export const SnowDashboard: React.FC<{
       <div className="flex-1 flex flex-col p-4 lg:p-8 pt-6 overflow-y-auto custom-scrollbar bg-[#F8F9FA]/50">
         
         {/* Metric Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-8">
           <MetricCard 
             title="Registered Nodes" 
             value={devices.length.toString()} 
@@ -164,7 +166,7 @@ export const SnowDashboard: React.FC<{
           />
           <MetricCard 
             title="Active Sessions" 
-            value={Math.floor(onlineCount * 0.7).toString()} 
+            value={activeSessionCount.toString()} 
             trend="+18.2%" 
             isPositive={true} 
             bg="bg-white" 

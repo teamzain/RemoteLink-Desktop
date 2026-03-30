@@ -13,11 +13,14 @@ interface SnowRightBarProps {
   devices: any[];
   notifications: any[];
   onDeviceClick: (device: any) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notifications, onDeviceClick }) => {
+export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notifications, onDeviceClick, isOpen, onClose }) => {
   return (
-    <aside className="w-[280px] min-w-[280px] h-full border-l border-[rgba(28,28,28,0.1)] p-6 flex flex-col bg-white overflow-y-auto custom-scrollbar font-inter z-20">
+    <>
+      <aside className={`fixed xl:static right-0 top-0 bottom-0 w-[280px] min-w-[280px] h-full border-l border-[rgba(28,28,28,0.1)] p-6 flex flex-col bg-white overflow-y-auto custom-scrollbar font-inter z-30 shadow-2xl xl:shadow-none transition-transform duration-300 xl:translate-x-0 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       
       {/* Top Section - Alerts */}
       <div className="mb-10">
@@ -83,5 +86,12 @@ export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notificatio
       </div>
 
     </aside>
+    {isOpen && (
+      <div 
+        className="fixed inset-0 bg-black/20 backdrop-blur-sm z-20 xl:hidden"
+        onClick={onClose}
+      />
+    )}
+  </>
   );
 };

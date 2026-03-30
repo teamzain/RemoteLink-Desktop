@@ -48,8 +48,9 @@ server.setErrorHandler((error, request, reply) => {
 
 const start = async () => {
   try {
-    await server.listen({ port: 3001, host: '0.0.0.0' });
-    server.log.info('Auth service listening on port 3001');
+    const port = parseInt(process.env.PORT || '3001', 10);
+    await server.listen({ port, host: '0.0.0.0' });
+    server.log.info(`Auth service listening on port ${port}`);
   } catch (err) {
     server.log.error(err);
     process.exit(1);

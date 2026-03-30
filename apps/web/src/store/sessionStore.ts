@@ -14,6 +14,7 @@ interface SessionState {
   activeSession: Session | null;
   ws: WebSocket | null;
   connectionId: string | null;
+  activeSessionCount: number;
   startSession: (deviceId: string) => void;
   updateSessionStatus: (status: Session['status']) => void;
   updateLatency: (latency: number) => void;
@@ -33,6 +34,7 @@ const dispatchMessage = (type: string, data: any) => {
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   activeSession: null,
+  activeSessionCount: 0,
   ws: null,
   connectionId: null,
 
@@ -80,6 +82,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       try {
         const msg = JSON.parse(event.data);
         if (msg.type !== 'ping') console.log('[Signaling] Received:', msg.type, msg);
+        
+        if (msg.type === 'global-stats') {
+          set({ activeSessionCount: msg.activeSessions || 0 });
+        }
+        
         dispatchMessage(msg.type, msg);
       } catch (e) {
         console.warn('[Signaling] Failed to parse message', event.data);

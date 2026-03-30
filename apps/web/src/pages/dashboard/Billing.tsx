@@ -10,7 +10,7 @@ const Billing: React.FC = () => {
   useEffect(() => {
     const fetchBilling = async () => {
       try {
-        const billingUrl = import.meta.env.DEV ? 'http://localhost:3003' : import.meta.env.VITE_API_URL;
+        const billingUrl = import.meta.env.VITE_BILLING_URL || import.meta.env.VITE_API_URL;
         const { data } = await api.get(`${billingUrl}/billing/current`);
         setBillingInfo(data);
       } catch (err) {
@@ -29,7 +29,7 @@ const Billing: React.FC = () => {
 
   const handleManagePortal = async () => {
     try {
-      const billingUrl = import.meta.env.DEV ? 'http://localhost:3003' : import.meta.env.VITE_API_URL;
+      const billingUrl = import.meta.env.VITE_BILLING_URL || import.meta.env.VITE_API_URL;
       const { data } = await api.post(`${billingUrl}/billing/portal`);
       window.location.href = data.url;
     } catch (err) {

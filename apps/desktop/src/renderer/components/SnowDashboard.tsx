@@ -43,7 +43,7 @@ interface MetricCardProps {
 }
 
 const MetricCard: React.FC<MetricCardProps & { data?: any[] }> = ({ title, value, trend, isPositive, bg, data }) => (
-  <div className={`p-5 rounded-[24px] flex-1 min-w-[220px] flex flex-col gap-3 ${bg} border border-[rgba(28,28,28,0.04)] shadow-sm hover:shadow-md transition-all duration-300 group`}>
+  <div className={`p-5 rounded-[24px] flex-1 min-w-[180px] flex flex-col gap-3 ${bg} border border-[rgba(28,28,28,0.04)] shadow-sm hover:shadow-md transition-all duration-300 group`}>
     <div className="flex justify-between items-start">
       <span className="text-[13px] font-semibold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">{title}</span>
       <div className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ${isPositive ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
@@ -96,7 +96,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const SnowDashboard: React.FC<{
   devices: any[];
-}> = ({ devices }) => {
+  activeSessionCount: number;
+}> = ({ devices, activeSessionCount }) => {
   const [streamData, setStreamData] = React.useState(performanceData);
 
   // Dynamically calculate OS distribution from connected devices
@@ -145,7 +146,7 @@ export const SnowDashboard: React.FC<{
       <div className="flex-1 flex flex-col p-8 pt-6 overflow-y-auto custom-scrollbar bg-[#F8F9FA]/50">
         
         {/* Metric Cards Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <MetricCard 
             title="Registered Nodes" 
             value={devices.length.toString()} 
@@ -164,7 +165,7 @@ export const SnowDashboard: React.FC<{
           />
           <MetricCard 
             title="Active Sessions" 
-            value={Math.floor(onlineCount * 0.7).toString()} 
+            value={activeSessionCount.toString()} 
             trend="+18.2%" 
             isPositive={true} 
             bg="bg-white" 

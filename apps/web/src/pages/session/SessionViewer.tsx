@@ -16,8 +16,6 @@ import {
 } from 'lucide-react';
 import { useSessionStore } from '../../store/sessionStore';
 
-// Legacy frames removed for clean theater mode.
-
 // Generate a stable client ID for this session to handle React StrictMode double-mounts
 const viewerClientId = Math.random().toString(36).substring(7);
 
@@ -31,7 +29,7 @@ const SessionViewer: React.FC = () => {
   const passedDeviceName: string | undefined = (location.state as any)?.deviceName;
   const accessKey: string | undefined = (location.state as any)?.accessKey;
 
-  const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'connected' | 'streaming' | 'connection_lost'>('connecting');
+  const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'connected' | 'streaming' | 'connection_lost' | 'error'>('connecting');
   const [zoomMode, setZoomMode] = useState<'fit' | 'original'>('fit');
   const [transferProgress, setTransferProgress] = useState<{name: string, p: number} | null>(null);
 
@@ -50,6 +48,7 @@ const SessionViewer: React.FC = () => {
   const decoderRef = useRef<any>(null);
   const hasReceivedKeyframeRef = useRef(false);
   const [, forceRender] = useState({}); // used when hasReceivedKeyframe updates
+  const iceQueue = useRef<any[]>([]);
 
   const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
 
@@ -99,7 +98,6 @@ const SessionViewer: React.FC = () => {
     if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
     
     let type: 'key' | 'delta' = 'delta';
-    // Scan for NAL units to find keyframes (SPS, PPS, or IDR)
     for (let i = 0; i < Math.min(chunkData.length - 5, 256); i++) {
         const isHeader4 = chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 0 && chunkData[i+3] === 1;
         const isHeader3 = chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 1;
@@ -124,13 +122,10 @@ const SessionViewer: React.FC = () => {
         }
     }
 
-    if (!hasReceivedKeyframeRef.current) {
-      if (Math.random() < 0.05) console.log(`[VideoPlayer] Buffering (No keyframe yet). Data Size: ${chunkData.length}`);
-      return;
-    }
+    if (!hasReceivedKeyframeRef.current) return;
 
     if (viewerStatus !== 'streaming') {
-      console.log(`[VideoPlayer] Transitioning to STREAMING. First frame: ${type}, size: ${chunkData.length}`);
+      console.log(`[VideoPlayer] Transitioning to STREAMING. First frame type: ${type}, size: ${chunkData.length}`);
       setViewerStatus('streaming');
     }
 
@@ -143,6 +138,11 @@ const SessionViewer: React.FC = () => {
         timestamp: Number(timestamp), 
         data: chunkData,
       });
+      
+      if (Math.random() < 0.01) {
+        console.log(`[VideoPlayer] Feeding ${type} frame to decoder (${chunkData.length} bytes)`);
+      }
+      
       decoderRef.current.decode(encodedChunk);
     } catch (e) {
       console.warn('[VideoPlayer] Decoder push failed:', e);
@@ -163,6 +163,10 @@ const SessionViewer: React.FC = () => {
     if (!entry.fragments[fragIdx]) {
       entry.fragments[fragIdx] = data.slice(10);
       entry.count++;
+      
+      if (Math.random() < 0.005) {
+        console.log(`[WebRTC] Fragment arrival: TS=${ts} Frag=${fragIdx+1}/${totalFrags}`);
+      }
     }
     if (entry.count === entry.total) {
       const totalSize = entry.fragments.reduce((acc, f) => acc + (f ? f.length : 0), 0);
@@ -184,21 +188,90 @@ const SessionViewer: React.FC = () => {
     if (!accessToken || !deviceId) return;
     const ws = initSocket(accessToken);
 
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pcRef.current = pc;
+
     const handleOpen = () => {
+      console.log('[Signaling] Join session:', accessKey || deviceId);
       sendMessage('join', { sessionId: accessKey || deviceId, token: accessToken, viewerClientId });
-      // Add viewer request here to make sure host initiates the offer
-      setTimeout(() => {
-        sendMessage('request-offer', { targetId: accessKey || deviceId });
-      }, 500);
     };
 
     if (ws.readyState === WebSocket.OPEN) handleOpen();
     const cleanupOpen = onMessage('open', handleOpen);
 
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    pcRef.current = pc;
+    const cleanupOffer = onMessage('offer', async (msg: any) => {
+      if (!pcRef.current) return;
+      console.log('[WebRTC] Received offer, setting remote description');
+      
+      const sdp = msg.sdp || msg;
+      const senderId = msg.senderId || msg.sourceId;
+      if (msg.hostType) setDeviceType(msg.hostType);
+      
+      try {
+        await pcRef.current.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+        const answer = await pcRef.current.createAnswer();
+        await pcRef.current.setLocalDescription(answer);
+        sendMessage('answer', { targetId: senderId || accessKey || deviceId, sdp: answer.sdp });
+        
+        // Process queued ice candidates
+        if (iceQueue.current.length > 0) {
+          console.log(`[WebRTC] Processing ${iceQueue.current.length} queued ICE candidates`);
+          while (iceQueue.current.length > 0) {
+            const cand = iceQueue.current.shift();
+            await pcRef.current.addIceCandidate(new RTCIceCandidate(cand));
+          }
+        }
+      } catch (e) {
+        console.error('[WebRTC] Offer handling error:', e);
+      }
+    });
+
+    const cleanupIce = onMessage('ice-candidate', async (msg: any) => {
+      if (!pcRef.current) return;
+      
+      const candidateData = {
+        candidate: typeof msg.candidate === 'string' ? msg.candidate : msg.candidate?.candidate, 
+        sdpMid: msg.sdpMid || msg.candidate?.sdpMid,
+        sdpMLineIndex: msg.sdpMLineIndex || msg.candidate?.sdpMLineIndex
+      };
+
+      if (!candidateData.candidate) return;
+
+      if (pcRef.current.remoteDescription) {
+        try { 
+          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidateData as RTCIceCandidateInit)); 
+        } catch (e) {
+          console.error('[WebRTC] Add ICE candidate failed:', e);
+        }
+      } else {
+        console.log('[WebRTC] Queueing ICE candidate (remote description not set)');
+        iceQueue.current.push(candidateData);
+      }
+    });
+
+    const handshakeInterval = setInterval(() => {
+      if (pcRef.current && !pcRef.current.remoteDescription && viewerStatus !== 'error') {
+        const retries = (handshakeInterval as any)._retries || 0;
+        (handshakeInterval as any)._retries = retries + 1;
+        console.log(`[Signaling] retry request-offer (${retries + 1})...`);
+        sendMessage('request-offer', { targetId: accessKey || deviceId });
+        
+        if (retries > 5) {
+          console.warn('[Signaling] Host not responding to offer requests. Check if host is online.');
+        }
+      }
+    }, 2000);
+
+    pc.onicegatheringstatechange = () => {
+      console.log(`[WebRTC] ICE Gathering State: ${pc.iceGatheringState}`);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[WebRTC] ICE Connection State: ${pc.iceConnectionState}`);
+    };
 
     pc.onconnectionstatechange = () => {
+      console.log(`[WebRTC] Connection State: ${pc.connectionState}`);
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         setViewerStatus('connection_lost');
       }
@@ -216,81 +289,66 @@ const SessionViewer: React.FC = () => {
     };
 
     pc.ontrack = (event) => {
+      console.log('[WebRTC] Stream Track Received');
       setRemoteStream(event.streams[0]);
       setViewerStatus('streaming');
       updateSessionStatus('active');
     };
 
     pc.ondatachannel = (event) => {
-      if (event.channel.label === 'control') {
-        dataChannelRef.current = event.channel;
-        event.channel.onopen = () => {
-          console.log('[Web] Control DataChannel ACTIVE. Requesting keyframe...');
-          event.channel.send(JSON.stringify({ type: 'request-keyframe' }));
+      const channel = event.channel;
+      console.log(`[WebRTC] Incoming DataChannel: ${channel.label}`);
+      
+      if (channel.label === 'control') {
+        dataChannelRef.current = channel;
+        channel.onopen = () => {
+          console.log('[WebRTC] Control DataChannel OPEN');
+          channel.send(JSON.stringify({ type: 'request-keyframe' }));
         };
-        event.channel.onmessage = (e) => {
+        channel.onclose = () => console.log('[WebRTC] Control DataChannel CLOSED');
+        channel.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
             if (data.type === 'clipboard' && data.text) navigator.clipboard.writeText(data.text).catch(() => {});
           } catch {}
         };
-      } else if (event.channel.label === 'video') {
-        event.channel.binaryType = 'arraybuffer';
-        event.channel.onopen = () => {
+      } else if (channel.label === 'video') {
+        channel.binaryType = 'arraybuffer';
+        channel.onopen = () => {
+          console.log('[WebRTC] Video DataChannel OPEN');
           if (!remoteStream) { setViewerStatus('streaming'); updateSessionStatus('active'); initDecoder(); }
         };
-        event.channel.onmessage = (e) => {
+        channel.onclose = () => console.log('[WebRTC] Video DataChannel CLOSED');
+        channel.onmessage = (e) => {
           if (!remoteStream) handleFragment(new Uint8Array(e.data as ArrayBuffer));
         };
       }
     };
 
-    const cleanupOffer = onMessage('offer', async (msg) => {
-      // It might come as msg directly or msg.sdp depending on signaling wrapper
-      const sdp = msg.sdp || msg;
-      const senderId = msg.senderId || msg.sourceId;
-      if (msg.hostType) setDeviceType(msg.hostType);
-      
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        sendMessage('answer', { targetId: senderId || accessKey || deviceId, sdp: answer.sdp });
-      } catch (e) {
-        console.error('[WebRTC] Failed to handle offer', e);
-      }
-    });
-
-    const cleanupIce = onMessage('ice-candidate', async (msg) => {
-      try {
-        if (!msg.candidate) return;
-        await pc.addIceCandidate(new RTCIceCandidate({ 
-          candidate: typeof msg.candidate === 'string' ? msg.candidate : msg.candidate.candidate, 
-          sdpMid: msg.sdpMid || msg.candidate.sdpMid,
-          sdpMLineIndex: msg.sdpMLineIndex || msg.candidate.sdpMLineIndex
-        }));
-      } catch (e) {
-        console.warn('[WebRTC] Failed to add ICE candidate', e);
-      }
-    });
-
     const cleanupLatency = onMessage('session:latency', ({ value }) => { updateLatency(value); });
     const cleanupDisconnect = onMessage('disconnect', () => setViewerStatus('connection_lost'));
+    const cleanupError = onMessage('error', () => {
+      console.error('[Signaling] WebSocket error received');
+      setViewerStatus('error');
+    });
 
     return () => {
-      pc.close();
+      console.log('[WebRTC] Cleaning up session components...');
+      clearInterval(handshakeInterval);
       cleanupOpen();
       cleanupOffer();
       cleanupIce();
       cleanupLatency();
       cleanupDisconnect();
-      closeSocket();
+      cleanupError();
+      pc.close();
+      pcRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, accessToken]);
 
   const onControlEvent = useCallback((data: any) => {
-    if (viewerStatus !== 'streaming') return;
+    if (viewerStatus !== 'streaming' && viewerStatus !== 'connected') return;
     if (data instanceof Uint8Array) {
       if (dataChannelRef.current?.readyState === 'open') dataChannelRef.current.send(data as any);
     } else {
@@ -309,14 +367,13 @@ const SessionViewer: React.FC = () => {
     };
   }, [onControlEvent]);
 
-  // --- Handshake Watchdog (Force Image Recovery) ---
   useEffect(() => {
      const timer = setInterval(() => {
         if ((viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') && !hasReceivedKeyframeRef.current && !remoteStream) {
            console.log('[Web] Screen timeout (black) - Requesting keyframe recovery...');
            onControlEvent({ type: 'request-keyframe' });
         }
-     }, 4000); // 4s interval
+     }, 4000);
      return () => clearInterval(timer);
   }, [viewerStatus, remoteStream, onControlEvent]);
 
@@ -340,7 +397,6 @@ const SessionViewer: React.FC = () => {
   const handleTouchEvent = (e: React.TouchEvent, type: string) => {
     const target = (remoteStream ? videoRef.current : canvasRef.current) as HTMLElement;
     if (!target) return;
-    // Handle touchend which doesn't have touches[0]
     const touch = e.touches.length > 0 ? e.touches[0] : e.changedTouches[0];
     if (!touch) return;
     const rect = target.getBoundingClientRect();
@@ -367,7 +423,7 @@ const SessionViewer: React.FC = () => {
           playsInline
           onLoadedMetadata={(e) => {
             e.currentTarget.play().catch(console.error);
-            forceRender({}); // Ensure render happens after video loads
+            forceRender({}); 
           }}
           className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none cursor-move'}`}
           style={{ minHeight: '100px', minWidth: '100px', backgroundColor: '#0A0A0A' }}
@@ -440,8 +496,6 @@ const SessionViewer: React.FC = () => {
   return (
     <div className="min-h-screen bg-white flex flex-col relative overflow-hidden font-inter select-none">
       <div className="flex-grow flex flex-col min-h-0 relative z-10 bg-[#0A0A0A]">
-        
-        {/* SnowUI Premium Header */}
         <div className="h-20 flex items-center justify-between px-4 sm:px-8 bg-white border-b border-[rgba(28,28,28,0.06)] shadow-sm z-50">
           <div className="flex items-center gap-4 sm:gap-6">
             <button 
@@ -461,7 +515,7 @@ const SessionViewer: React.FC = () => {
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-[9px] sm:text-[10px] text-[rgba(28,28,28,0.3)] font-black tracking-[0.2em]">{accessKey || deviceId}</p>
                   <div className="w-1 h-1 rounded-full bg-[rgba(28,28,28,0.1)]" />
-                  <span className="text-[8px] sm:text-[9px] font-black text-blue-600 uppercase tracking-widest">{viewerStatus}</span>
+                  <span className="text-[8px] sm:text-[9px] font-black text-blue-600 uppercase tracking-widest">{deviceType || 'Remote Node'} / {viewerStatus}</span>
                 </div>
               </div>
             </div>
@@ -519,7 +573,6 @@ const SessionViewer: React.FC = () => {
                   
                   const CHUNK_SIZE = 16 * 1024; // 16KB
                   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
                   setTransferProgress({ name: file.name, p: 0 });
 
                   for (let i = 0; i < totalChunks; i++) {
@@ -546,7 +599,6 @@ const SessionViewer: React.FC = () => {
                     
                     onControlEvent(fullBuffer);
                     setTransferProgress({ name: file.name, p: Math.round(((i + 1) / totalChunks) * 100) });
-                    
                     if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
                   }
                   
@@ -564,7 +616,6 @@ const SessionViewer: React.FC = () => {
           </div>
         </div>
 
-        {/* Video Player Area */}
         <div 
           ref={containerRef}
           className={`flex-grow flex items-center justify-center relative overflow-hidden bg-[#0A0A0A] ${zoomMode === 'original' ? 'cursor-grab active:cursor-grabbing overflow-auto custom-scrollbar' : ''}`}
@@ -572,7 +623,6 @@ const SessionViewer: React.FC = () => {
         >
           <div className="w-full h-full relative group">
             {renderVideoContent()}
-            {/* Subtle vignette effect for premium look */}
             <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
           </div>
         </div>

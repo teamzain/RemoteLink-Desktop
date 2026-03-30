@@ -491,6 +491,9 @@ export default function App() {
   const isViewer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'viewer';
   const [isViewerWindow, setIsViewerWindow] = useState(isViewer);
   
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRightBarOpen, setIsRightBarOpen] = useState(false);
+
   // Persistent Client ID for signaling stability (survives re-mounts/Strict Mode)
   const [viewerClientId] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -498,6 +501,7 @@ export default function App() {
     if (!cid) {
       cid = 'v-' + Math.random().toString(36).substring(2, 15);
       sessionStorage.setItem('viewer_client_id', cid);
+      return cid;
     }
     return cid;
   });
@@ -595,6 +599,7 @@ export default function App() {
     { action: 'Security scan completed.', time: 'Just now', icon: ShieldCheck, color: 'bg-[#E6F1FD]' },
     { action: 'Client initialized.', time: 'Just now', icon: Activity, color: 'bg-[#E6F1FD]' },
   ]);
+  const [activeSessionCount, setActiveSessionCount] = useState(0);
 
   const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' = 'system') => {
     const iconMap = {
@@ -752,23 +757,21 @@ export default function App() {
         try {
           const data = JSON.parse(e.data);
           if (data.type === 'presence-update') {
-             // Robust Case-Insensitive & Space-Agnostic Comparison (V5 Hardening)
-             const incomingId = String(data.sessionId || '').toLowerCase().replace(/\s/g, '');
-             
-             // Check if status changed to add notification
-             const deviceMatch = devices.find(d => String(d.access_key || '').toLowerCase().replace(/\s/g, '') === incomingId);
-             if (deviceMatch && deviceMatch.is_online !== (data.status === 'online')) {
-               addNotification(`${deviceMatch.device_name} is now ${data.status}`, 'host');
-             }
-             
-             setDevices(prev => prev.map(d => {
-               const localId = String(d.access_key || '').toLowerCase().replace(/\s/g, '');
-               return localId === incomingId 
-                ? { ...d, is_online: data.status === 'online' } 
-                : d;
-             }));
+            const incomingId = String(data.sessionId || '').toLowerCase().replace(/\s/g, '');
+            const deviceMatch = devices.find(d => String(d.access_key || '').toLowerCase().replace(/\s/g, '') === incomingId);
+            if (deviceMatch && deviceMatch.is_online !== (data.status === 'online')) {
+              addNotification(`${deviceMatch.device_name} is now ${data.status}`, 'host');
+            }
+            setDevices(prev => prev.map(d => {
+              const localId = String(d.access_key || '').toLowerCase().replace(/\s/g, '');
+              return localId === incomingId ? { ...d, is_online: data.status === 'online' } : d;
+            }));
+          } else if (data.type === 'global-stats') {
+            setActiveSessionCount(data.activeSessions || 0);
           }
-        } catch {}
+        } catch (err) {
+          console.error('[Monitor] Message parse error:', err);
+        }
       };
       
       const handleFocus = () => pollDevices();
@@ -1686,47 +1689,75 @@ export default function App() {
       <SnowSidebar 
         currentView={currentView}
         selectedDevice={selectedDevice}
-        setCurrentView={setCurrentView}
+        setCurrentView={(v) => { setCurrentView(v); setIsSidebarOpen(false); }}
         setSelectedDevice={setSelectedDevice}
         handleLogout={() => {
            storeLogout();
            setAuth({} as any, '', '');
         }}
         user={user}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <div className="flex-1 flex overflow-hidden ml-[212px] relative transition-all duration-300">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-20 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <div className={`flex-1 flex overflow-hidden transition-all duration-300 relative ${isAuthenticated ? 'md:ml-[212px]' : ''}`}>
         <main className="flex-1 flex flex-col overflow-hidden relative bg-white">
           {/* Workspace Header - Re-structured for Breadcrumbs */}
-          <header className="h-[64px] flex items-center justify-between px-8 flex-shrink-0 z-10 w-full bg-[#F8F9FA]/60 backdrop-blur-md border-b border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col gap-1.5">
-               <div className="flex items-center gap-1.5 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
-                  <span className="hover:text-[rgba(28,28,28,0.4)] cursor-pointer transition-colors" onClick={() => setCurrentView('dashboard')}>SyncLink Nodes</span>
-                  <span className="opacity-50">/</span>
-                  <span className="text-[rgba(28,28,28,0.6)]">{selectedDevice ? 'Terminal' : currentView === 'host' ? 'Host' : currentView}</span>
+          <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-[#F8F9FA]/60 backdrop-blur-md border-b border-[rgba(28,28,28,0.04)]">
+            <div className="flex items-center gap-4">
+               {/* Mobile Menu Toggle */}
+               <button 
+                 onClick={() => setIsSidebarOpen(true)}
+                 className="p-2 md:hidden hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
+               >
+                 <LayoutGrid size={20} className="text-[#1C1C1C]" />
+               </button>
+
+               <div className="flex flex-col gap-0.5 md:gap-1.5">
+                  <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
+                     <span className="hover:text-[rgba(28,28,28,0.4)] cursor-pointer transition-colors hidden sm:inline" onClick={() => setCurrentView('dashboard')}>SyncLink Nodes</span>
+                     <span className="opacity-50 hidden sm:inline">/</span>
+                     <span className="text-[rgba(28,28,28,0.6)]">{selectedDevice ? 'Terminal' : currentView === 'host' ? 'Host' : currentView}</span>
+                  </div>
+                  <h1 className="text-lg md:text-2xl font-bold text-[#1C1C1C] tracking-tight capitalize truncate max-w-[120px] md:max-w-none">
+                     {selectedDevice ? selectedDevice.device_name : currentView === 'host' ? 'Host This Device' : currentView}
+                  </h1>
                </div>
-               <h1 className="text-2xl font-bold text-[#1C1C1C] tracking-tight capitalize">
-                  {selectedDevice ? selectedDevice.device_name : currentView === 'host' ? 'Host This Device' : currentView}
-               </h1>
             </div>
 
-            <div className="flex items-center gap-6">
-               <div className="flex items-center bg-white rounded-xl border border-[rgba(28,28,28,0.06)] pl-4 pr-1 py-1 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all w-64 h-9">
+            <div className="flex items-center gap-3 md:gap-6">
+               <div className="hidden sm:flex items-center bg-white rounded-xl border border-[rgba(28,28,28,0.06)] pl-4 pr-1 py-1 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all w-48 md:w-64 h-9">
                  <Search className="w-3.5 h-3.5 text-[rgba(28,28,28,0.2)] mr-2" />
                  <input 
                    type="text" 
-                   placeholder="Search nodes, settings..." 
+                   placeholder="Search nodes..." 
                    value={searchQuery}
                    onChange={e => setSearchQuery(e.target.value)}
                    className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[rgba(28,28,28,0.2)]"
                  />
                </div>
                
-               <div className="flex items-center gap-4">
+               <div className="flex items-center gap-2 md:gap-4">
                   <button onClick={pollDevices} className="p-2 text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors" title="Refresh Sync">
                     <RefreshCw className="w-4 h-4" />
                   </button>
                   <div className="w-8 h-8 rounded-xl bg-[rgba(28,28,28,0.04)] border border-[rgba(0,0,0,0.04)] flex items-center justify-center text-[10px] font-bold text-[#1C1C1C]">ZB</div>
+                  
+                  {/* Right Bar Toggle for Tablet/Smaller */}
+                  <button 
+                    onClick={() => setIsRightBarOpen(!isRightBarOpen)}
+                    className="p-2 xl:hidden hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
+                  >
+                    <Activity size={20} className={isRightBarOpen ? 'text-blue-600' : 'text-[#1C1C1C]'} />
+                  </button>
                </div>
             </div>
           </header>
@@ -1771,7 +1802,7 @@ export default function App() {
             ) : currentView === 'dashboard' ? (
               /* --- SNOW UI DASHBOARD VIEW --- */
               <div className="w-full animate-in fade-in duration-700">
-                 <SnowDashboard devices={devices} />
+                 <SnowDashboard devices={devices} activeSessionCount={activeSessionCount} />
               </div>
             ) : currentView === 'host' ? (
               /* --- HOST THIS DEVICE VIEW --- */
@@ -1872,7 +1903,13 @@ export default function App() {
         </main>
 
         {/* --- SNOW UI RIGHT SIDEBAR --- */}
-        <SnowRightBar devices={devices} notifications={notifications} onDeviceClick={(dev) => { setSelectedDevice(dev); setCurrentView('devices'); }} />
+        <SnowRightBar 
+          devices={devices} 
+          notifications={notifications} 
+          onDeviceClick={(dev) => { setSelectedDevice(dev); setCurrentView('devices'); setIsRightBarOpen(false); }} 
+          isOpen={isRightBarOpen}
+          onClose={() => setIsRightBarOpen(false)}
+        />
       </div>
 
       {/* MODALS LAYER */}
