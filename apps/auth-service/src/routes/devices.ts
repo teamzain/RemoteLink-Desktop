@@ -256,7 +256,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       where: { userId: decoded.userId },
       include: { device: true }
     });
-    const savedDevices = savedRelations.map(s => s.device);
+    const savedDevices = savedRelations.map((s: any) => s.device);
 
     // Combine them
     const allDevicesMap = new Map();
