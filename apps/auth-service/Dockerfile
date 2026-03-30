@@ -1,5 +1,6 @@
 FROM node:20-alpine AS builder
 
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Copy root workspace configurations
@@ -25,6 +26,7 @@ RUN npm run build -w @remotelink/auth-service
 # Production image
 FROM node:20-alpine
 
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Copy ALL node_modules and built files to ensure sub-workspace dependencies are found
