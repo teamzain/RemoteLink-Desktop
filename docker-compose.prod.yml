@@ -32,12 +32,15 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3001
       BILLING_SERVICE_URL: http://billing-service:3004
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   signaling-service:
     build:
@@ -59,9 +62,11 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379
       PORT: 3003
     depends_on:
       - postgres
+      - redis
 
   billing-service:
     build:
@@ -70,10 +75,12 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://redis:6379
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       PORT: 3004
     depends_on:
       - postgres
+      - redis
 
   # TURN Server
   coturn:
