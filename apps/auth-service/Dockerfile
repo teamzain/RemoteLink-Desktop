@@ -13,6 +13,9 @@ COPY apps/auth-service ./apps/auth-service
 # Install dependencies for the whole workspace
 RUN npm install
 
+# Generate Prisma Client (CRITICAL FIX)
+RUN npm run db:generate -w @remotelink/shared
+
 # Build shared packages first
 RUN npm run build -w @remotelink/shared
 

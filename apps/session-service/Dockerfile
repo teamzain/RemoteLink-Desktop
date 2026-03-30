@@ -8,6 +8,10 @@ COPY packages/shared ./packages/shared
 COPY apps/session-service ./apps/session-service
 
 RUN npm install
+
+# Generate Prisma Client (CRITICAL FIX)
+RUN npm run db:generate -w @remotelink/shared
+
 RUN npm run build -w @remotelink/shared
 RUN npm run build -w @remotelink/session-service
 

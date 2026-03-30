@@ -8,6 +8,10 @@ COPY packages/shared ./packages/shared
 COPY apps/signaling-service ./apps/signaling-service
 
 RUN npm install
+
+# Generate Prisma Client (CRITICAL FIX)
+RUN npm run db:generate -w @remotelink/shared
+
 RUN npm run build -w @remotelink/shared
 RUN npm run build -w @remotelink/signaling-service
 
