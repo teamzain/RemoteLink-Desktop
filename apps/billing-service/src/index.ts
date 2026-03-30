@@ -26,6 +26,10 @@ server.register(cors, {
   credentials: true
 });
 
+server.get('/health', async () => {
+  return { status: 'ok', service: 'billing-service' };
+});
+
 // 1. GET /billing/plans — Returns all four plans
 server.get('/billing/plans', async (request, reply) => {
   const plans = [

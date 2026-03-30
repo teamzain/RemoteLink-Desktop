@@ -4,6 +4,10 @@ import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isToke
 import { issueTokens } from '../utils/token-utils';
 
 export default async function authRoutes(fastify: FastifyInstance) {
+  fastify.get('/health', async () => {
+    return { status: 'ok', service: 'auth-service' };
+  });
+
   fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
     const { email, password, name } = request.body as any;
     
