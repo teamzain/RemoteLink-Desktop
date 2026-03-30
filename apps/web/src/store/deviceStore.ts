@@ -7,6 +7,7 @@ interface Device {
   name: string;
   device_name: string;
   type: string;
+  device_type: string; // Add for SnowDevices compatibility
   access_key: string;
   is_online: boolean;
   last_seen_at: string;
@@ -36,6 +37,7 @@ export const useDeviceStore = create<DeviceState>((set) => ({
       const normalized = data.map((d: any) => ({
         ...d,
         name: d.device_name || d.name || 'Unnamed Device',
+        device_type: d.os_type || d.type || 'desktop',
         last_seen: d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : 'Never',
       }));
       set({ devices: normalized });
@@ -52,6 +54,7 @@ export const useDeviceStore = create<DeviceState>((set) => ({
         const normalized = {
           ...data,
           name: data.device_name || data.name || 'Unnamed Device',
+          device_type: data.os_type || data.type || 'desktop',
           last_seen: data.last_seen_at ? new Date(data.last_seen_at).toLocaleString() : 'Never',
         };
         return { devices: [...state.devices, normalized] };

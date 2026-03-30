@@ -1,19 +1,33 @@
 // @ts-nocheck
 import axios from 'axios';
 
-const getBaseURL = () => {
+const isElectron = !!(window as any).electronAPI;
+
+const getBaseURL = async () => {
   const serverIP = localStorage.getItem('remote_link_server_ip') || '127.0.0.1';
+  if (isElectron) {
+    const isPackaged = await (window as any).electronAPI.isPackaged();
+    if (isPackaged) {
+      return `https://${serverIP}`;
+    }
+  }
   return `http://${serverIP}:3001`;
 };
 
-const api = axios.create({
-  baseURL: getBaseURL(),
-});
+const api = axios.create();
 
 // Update baseURL on each request in case it changed in localStorage
 api.interceptors.request.use(async (config) => {
-  config.baseURL = getBaseURL();
-  const { token } = await window.electronAPI.getToken();
+  config.baseURL = await getBaseURL();
+  
+  let token;
+  if (isElectron) {
+    const result = await (window as any).electronAPI.getToken();
+    token = result?.token;
+  } else {
+    token = localStorage.getItem('access_token');
+  }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -39,7 +53,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    const isViewer = window.location.search.includes('viewer=true');
+
     if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/devices/verify-access')) {
+      if (isViewer) {
+        // Viewer windows use temporary tokens. Do NOT refresh or delete the main token.
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -54,21 +75,39 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const { refresh: refreshToken } = await window.electronAPI.getToken();
+      let refreshToken;
+      if (isElectron) {
+        const result = await (window as any).electronAPI.getToken();
+        refreshToken = result?.refresh;
+      } else {
+        refreshToken = localStorage.getItem('refresh_token');
+      }
+
       if (!refreshToken) {
         isRefreshing = false;
-        await window.electronAPI.deleteToken();
+        if (isElectron) {
+           await (window as any).electronAPI.deleteToken();
+        } else {
+           localStorage.removeItem('access_token');
+           localStorage.removeItem('refresh_token');
+        }
         return Promise.reject(error);
       }
 
       try {
-        const { data } = await axios.post(`${getBaseURL()}/api/auth/refresh`, {
+        const baseURL = await getBaseURL();
+        const { data } = await axios.post(`${baseURL}/api/auth/refresh`, {
           refreshToken,
         });
 
         const { accessToken, refreshToken: newRefreshToken } = data;
 
-        await window.electronAPI.setToken(accessToken, newRefreshToken);
+        if (isElectron) {
+            await (window as any).electronAPI.setToken(accessToken, newRefreshToken);
+        } else {
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('refresh_token', newRefreshToken);
+        }
 
         processQueue(null, accessToken);
         isRefreshing = false;
@@ -78,7 +117,12 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         isRefreshing = false;
-        await window.electronAPI.deleteToken();
+        if (isElectron) {
+            await (window as any).electronAPI.deleteToken();
+        } else {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+        }
         return Promise.reject(refreshError);
       }
     }

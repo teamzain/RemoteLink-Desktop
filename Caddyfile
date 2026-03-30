@@ -4,22 +4,26 @@
 
 {$DOMAIN} {
     # Auth Service
-    handle_path /api/auth* {
+    handle /api/auth* {
+        reverse_proxy auth-service:3001
+    }
+    
+    handle /api/devices* {
         reverse_proxy auth-service:3001
     }
 
     # Signaling Service (WebSocket)
-    handle_path /api/signal* {
+    handle /api/signal* {
         reverse_proxy signaling-service:3002
     }
 
     # Session Service
-    handle_path /api/session* {
+    handle /api/session* {
         reverse_proxy session-service:3003
     }
 
     # Billing Service
-    handle_path /api/billing* {
+    handle /billing* {
         reverse_proxy billing-service:3004
     }
 

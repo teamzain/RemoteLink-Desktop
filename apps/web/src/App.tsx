@@ -9,8 +9,10 @@ import DashboardHome from './pages/dashboard/DashboardHome'
 import Devices from './pages/dashboard/Devices'
 import Billing from './pages/dashboard/Billing'
 import Settings from './pages/dashboard/Settings'
+import Profile from './pages/dashboard/Profile'
+import Support from './pages/dashboard/Support'
+import Documentation from './pages/dashboard/Documentation'
 import SessionViewer from './pages/session/SessionViewer'
-import WebHost from './pages/session/WebHost'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
@@ -50,7 +52,9 @@ function App() {
       <Route path="/dashboard/sessions" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
       <Route path="/dashboard/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="/dashboard/host" element={<ProtectedRoute><WebHost /></ProtectedRoute>} />
+      <Route path="/dashboard/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/dashboard/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+      <Route path="/dashboard/documentation" element={<ProtectedRoute><Documentation /></ProtectedRoute>} />
       <Route path="/session/:deviceId" element={<ProtectedRoute><SessionViewer /></ProtectedRoute>} />
 
       {/* Auth Routes */}

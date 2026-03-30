@@ -68,13 +68,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data } = await api.post('/api/auth/register', { name, email, password });
       get().setAuth(data.user, data.accessToken, data.refreshToken);
-      
-      // Setup Stripe customer immediately after registration
-      try {
-        await api.post('/api/billing/create-customer');
-      } catch (e) {
-        console.error('Failed to create stripe customer:', e);
-      }
     } finally {
       set({ isLoading: false });
     }

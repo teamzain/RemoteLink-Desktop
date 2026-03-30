@@ -9,12 +9,13 @@ function generateAccessKey(): string {
 }
 
 async function mapDevice(device: any, userId: string): Promise<any> {
-    const presence = await redisPublisher.get(`presence:${device.accessKey}`);
+    const cleanKey = String(device.accessKey).replace(/\s/g, '');
+    const presence = await redisPublisher.get(`presence:${cleanKey}`);
     return {
       id: device.id,
       device_name: device.name,
-      device_type: device.deviceType.toLowerCase(),
-      access_key: device.accessKey,
+      device_type: (device.deviceType || 'DESKTOP').toLowerCase(),
+      access_key: device.accessKey, // keep formatted key for display if needed
       last_seen_at: device.lastSeenAt,
       is_online: presence === 'online',
       is_owned: device.ownerId === userId
@@ -171,8 +172,10 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const validDeviceType = ['WINDOWS', 'MACOS', 'LINUX', 'IOS', 'ANDROID'].includes(deviceType?.toUpperCase()) ? deviceType.toUpperCase() : 'WINDOWS';
 
       let accessKey = (request.body as any)?.accessKey;
+      if (accessKey) accessKey = String(accessKey).replace(/\s/g, ''); // Standardize
+      
       let password = (request.body as any)?.password;
-
+ 
       let existing = null;
       if (accessKey) {
         existing = await prisma.device.findUnique({ where: { accessKey } });

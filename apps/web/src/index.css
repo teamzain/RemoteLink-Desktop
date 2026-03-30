@@ -1,15 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: Lato, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --snow-primary: #1C1C1C;
+  --snow-secondary: #F8F9FA;
+  --snow-accent: #3B82F6;
+  --bg-app: #F8F9FA;
+  --surface: #FFFFFF;
+  --border: rgba(28, 28, 28, 0.06);
+  --text-primary: #1C1C1C;
+  --text-secondary: rgba(28, 28, 28, 0.4);
+  
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light;
-  color: #0f172a;
-  background-color: #f1f5f9;
+  color: var(--text-primary);
+  background-color: var(--bg-app);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -20,4 +31,54 @@
 body {
   margin: 0;
   min-width: 320px;
+  background-color: var(--bg-app);
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  /* SnowUI Card styles */
+  .purity-card {
+    @apply bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] shadow-sm transition-all duration-300;
+  }
+
+  .purity-card-hover {
+    @apply bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] shadow-sm hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer;
+  }
+
+  /* SnowUI Primary Button (Squared) */
+  .snow-btn {
+    @apply px-6 py-3.5 rounded-none font-semibold text-white text-sm tracking-tight transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2;
+    background-color: var(--snow-primary);
+  }
+
+  .snow-btn:hover {
+    @apply opacity-95 shadow-lg shadow-black/10;
+  }
+  
+  .snow-btn-secondary {
+    @apply px-6 py-3.5 rounded-none font-semibold text-[#1C1C1C] text-sm tracking-tight transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 bg-[#F8F9FA] border border-[rgba(28,28,28,0.08)] hover:border-[rgba(28,28,28,0.2)];
+  }
+
+  /* Input SnowUI style */
+  .purity-input {
+    @apply w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] px-4 py-3.5 text-sm font-medium outline-none transition-all duration-300 placeholder:text-[rgba(28,28,28,0.2)];
+  }
+
+  .purity-input:focus {
+    @apply bg-white border-[rgba(28,28,28,0.2)] ring-4 ring-black/5;
+  }
+
+  /* Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-[rgba(28,28,28,0.1)] rounded-full; }
+
+  /* Status badge */
+  .badge-online {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100;
+  }
+
+  .badge-offline {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 border border-slate-100;
+  }
 }

@@ -7,11 +7,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setToken: (token: string, refresh: string) => ipcRenderer.invoke('auth:setToken', token, refresh),
   deleteToken: () => ipcRenderer.invoke('auth:deleteToken'),
   startHosting: (accessKey?: string) => ipcRenderer.invoke('host:start', accessKey),
+  getHostStatus: () => ipcRenderer.invoke('host:getStatus'),
   stopHosting: () => ipcRenderer.invoke('host:stop'),
-  connectToHost: (sessionId: string, serverIP?: string, token?: string) => ipcRenderer.invoke('viewer:connect', sessionId, serverIP, token),
+  connectToHost: (sessionId: string, serverIP?: string, token?: string, viewerClientId?: string) => ipcRenderer.invoke('viewer:connect', sessionId, serverIP, token, viewerClientId),
   getLocalIP: () => ipcRenderer.invoke('system:getLocalIP'),
   getDeterministicKey: () => ipcRenderer.invoke('system:getDeterministicKey'),
   getMachineName: () => ipcRenderer.invoke('system:getMachineName'),
+  openViewerWindow: (sessionId: string, serverIP: string, token: string, deviceName?: string) => ipcRenderer.invoke('viewer:open-window', sessionId, serverIP, token, deviceName),
   onHostStatus: (callback: (status: string) => void) => {
     const listener = (_: any, status: string) => callback(status);
     ipcRenderer.on('host:status', listener);

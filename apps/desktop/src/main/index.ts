@@ -122,9 +122,11 @@ const getFFmpegPath = () => {
 };
 
 
-let mainWindow: any = null;
-let signalingWs: WebSocket | null = null;
-let viewerWs: WebSocket | null = null;
+let mainWindow: BrowserWindow | null = null;
+let hostSignalingWs: WebSocket | null = null;
+const viewerWindows = new Map<string, BrowserWindow>();
+const viewerSignalingSockets = new Map<string, WebSocket>();
+
 let peerConnection: any = null;
 let dataChannel: any = null;
 let videoDataChannel: any = null;
@@ -136,6 +138,10 @@ let hasRemoteDescription = false;
 let lastClipboardText = '';
 let clipboardInterval: NodeJS.Timeout | null = null;
 let sessionStartTime: number | null = null;
+let lastViewerJoinTime = 0;
+let lastViewerId = '';
+let lastViewerClientId = ''; // Persistent browser-assigned ID for stable reconnects
+let currentHostSessionId = ''; // Track active hosting session for UI sync
 
 // --- Global Streaming State for Diagnostics ---
 let bufferAccumulator = Buffer.alloc(0);
@@ -208,7 +214,7 @@ function startStreaming() {
   nalsCaptured = 0;
 
   ffmpegProcess.stderr?.on('data', (data: Buffer) => {
-    // console.log(`[Host-FFmpeg-Stderr] ${data.toString()}`);
+    log.info(`[Host-FFmpeg-Stderr] ${data.toString()}`);
   });
 
   ffmpegProcess.on('error', (err: any) => {
@@ -227,6 +233,11 @@ function startStreaming() {
 
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
     if (!videoDataChannel || !videoDataChannel.isOpen()) return;
+
+    // Diagnostic: Log first 16 bytes of raw output occasionally
+    if (Math.random() < 0.001) {
+      console.log(`[Host-FFmpeg] Raw Chunk Size: ${chunk.length}, Start: ${chunk.subarray(0, 16).toString('hex')}`);
+    }
 
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
 
@@ -278,6 +289,10 @@ function startStreaming() {
         nalAccumulator = Buffer.concat([nalAccumulator, nalUnit]);
         if (isVCL) hasVCLInAccumulator = true;
 
+        if (nalType === 5) {
+          console.log('[Host-FFmpeg] Keyframe (IDR) detected and buffered.');
+        }
+
       } catch (err) {
         console.error('[Host] Failed to process NAL Unit:', err);
       }
@@ -300,7 +315,7 @@ function sendAccessUnit(data: Buffer, channel: any) {
 
   // If the internal buffer is too full, skip this unit to avoid crashing the connection
   if (channel.bufferedAmount() > 5 * 1024 * 1024) {
-    if (Math.random() < 0.1) console.warn(`[Host] DataChannel buffer full (${channel.bufferedAmount()} bytes). Skipping AU.`);
+    if (Math.random() < 0.05) log.warn(`[Host] DataChannel buffer full (${channel.bufferedAmount()} bytes). Skipping AU.`);
     return;
   }
 
@@ -456,14 +471,31 @@ function setupSignalingHandlers(ws: WebSocket) {
     const data = JSON.parse(message.toString());
     log.info(`[Host] Received SIGNALING: ${data.type}`);
     if (data.type === 'registered') {
+      currentHostSessionId = data.sessionId || '';
       mainWindow?.webContents.send('host:status', 'Registered: ' + data.sessionId);
     } else if (data.type === 'viewer-joined') {
-      if (currentViewerId === data.viewerId && peerConnection && (peerConnection.state() === 'connected' || peerConnection.state() === 'connecting')) {
-        log.info('[Host] Viewer rejoined but session exists. Skipping re-init.');
+      const now = Date.now();
+      const incomingClientId = data.viewerClientId || data.viewerId;
+      
+      // If the SAME browser client reconnects (e.g. React Strict Mode double-mount),
+      // wait 1s to let stale sockets die, then refresh the session.
+      if (lastViewerClientId === incomingClientId) {
+        log.info(`[Host] Same viewer reconnected (clientId: ${incomingClientId}). Refreshing session in 1s...`);
+        setTimeout(() => initiateHostWebRTC(data.viewerId), 1000);
         return;
       }
-      currentViewerId = data.viewerId;
-      initiateHostWebRTC();
+
+      // Debounce: Reduce to 200ms to allow React Strict Mode rapid reconnects from Web client
+      if (now - lastViewerJoinTime < 200) {
+        log.info(`[Host] Ignoring rapid viewer-join within 200ms cooldown window.`);
+        return;
+      }
+      
+      lastViewerJoinTime = now;
+      lastViewerId = data.viewerId;
+      lastViewerClientId = incomingClientId;
+      log.info(`[Host] New viewer joined (clientId: ${incomingClientId}). Initiating WebRTC...`);
+      initiateHostWebRTC(data.viewerId);
     } else if (data.type === 'answer') {
       peerConnection?.setRemoteDescription(data.sdp, 'answer');
       hasRemoteDescription = true;
@@ -484,8 +516,7 @@ function setupSignalingHandlers(ws: WebSocket) {
   });
 }
 
-function initiateHostWebRTC() {
-  const viewerId = currentViewerId;
+function initiateHostWebRTC(viewerId: string) {
   if (!viewerId) return;
   log.info(`[Host] Initializing WebRTC for viewer: ${viewerId}`);
   sessionStartTime = Date.now();
@@ -499,17 +530,21 @@ function initiateHostWebRTC() {
   });
 
   peerConnection.onLocalDescription((sdp: string, _type: string) => {
-    signalingWs?.send(JSON.stringify({ type: 'offer', sdp, targetId: currentViewerId }));
+    hostSignalingWs?.send(JSON.stringify({ type: 'offer', sdp, targetId: currentViewerId }));
   });
 
   peerConnection.onLocalCandidate((candidate: string, mid: string) => {
-    signalingWs?.send(JSON.stringify({ 
+    hostSignalingWs?.send(JSON.stringify({ 
       type: 'ice-candidate', 
       candidate, 
       sdpMid: mid, 
       sdpMLineIndex: 0,
       targetId: currentViewerId 
     }));
+  });
+
+  peerConnection.onGatheringStateChange((state: string) => {
+    log.info(`[Host] ICE Gathering State: ${state}`);
   });
 
   peerConnection.onStateChange((state: string) => {
@@ -544,6 +579,10 @@ function initiateHostWebRTC() {
             clipboard.writeText(event.text);
           }
           break;
+        case 'request-keyframe':
+          log.info('[Host] Viewer requested keyframe. Forcing stream restart...');
+          startStreaming();
+          break;
         case 'action':
           const { action } = event;
           log.info(`[Host] Remote Action Received: ${action}`);
@@ -551,12 +590,15 @@ function initiateHostWebRTC() {
           
           if (process.platform === 'win32') {
             switch (action) {
-              case 'shutdown': exec('shutdown /s /t 0'); break;
-              case 'reboot': exec('shutdown /r /t 0'); break;
+              case 'shutdown': exec('shutdown /s /f /t 0'); break;
+              case 'reboot': exec('shutdown /r /f /t 0'); break;
               case 'lock': exec('rundll32.exe user32.dll,LockWorkStation'); break;
-              case 'volume_up': exec('powershell -Command "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]175)"'); break;
-              case 'volume_down': exec('powershell -Command "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]174)"'); break;
-              case 'volume_mute': exec('powershell -Command "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]173)"'); break;
+              case 'task_manager': exec('taskmgr.exe'); break;
+              case 'browser': exec('start https://www.google.com'); break;
+              case 'explorer': exec('explorer.exe'); break;
+              case 'show_desktop': 
+                exec('powershell -ExecutionPolicy Bypass -Command "(new-object -com shell.application).toggleDesktop()"');
+                break;
             }
           } else {
             // Linux/Mac Fallbacks
@@ -639,30 +681,54 @@ function initiateHostWebRTC() {
 }
 
 // --- Signaling Proxy for Viewer ---
-function setupViewerSignalingProxy(sessionId: string) {
+function setupViewerSignalingProxy(sessionId: string, socket: WebSocket) {
   log.info(`[Proxy] Initializing Signaling Proxy for session: ${sessionId}`);
-  viewerWs?.removeAllListeners('message');
-  viewerWs?.on('message', (message) => {
+  socket.removeAllListeners('message');
+  socket.on('message', (message) => {
     const data = JSON.parse(message.toString());
     log.info(`[Proxy] Received FROM SERVER: ${data.type}`);
-    // Forward all incoming signaling messages to the Renderer
-    mainWindow?.webContents.send('viewer:signaling-message', data);
+    // Forward to the specific window managing this session
+    const win = viewerWindows.get(sessionId);
+    if (win) {
+      win.webContents.send('viewer:signaling-message', data);
+    } else {
+      // Fallback to main window if it's the dashboard initiating
+      mainWindow?.webContents.send('viewer:signaling-message', data);
+    }
   });
 }
 
-ipcMain.on('viewer:send-signaling', (_event: any, msg: any) => {
+ipcMain.on('viewer:send-signaling', (event, msg) => {
   log.info(`[Proxy] Sending TO SERVER: ${msg.type}`);
-  viewerWs?.send(JSON.stringify(msg));
+  // Find which session this window belongs to
+  let socket: WebSocket | undefined;
+  for (const [sid, win] of viewerWindows.entries()) {
+    if (win.webContents === event.sender) {
+      socket = viewerSignalingSockets.get(sid);
+      break;
+    }
+  }
+  
+  if (!socket) {
+    // Fallback search in all sockets (or just the latest one)
+    socket = Array.from(viewerSignalingSockets.values()).pop();
+  }
+
+  socket?.send(JSON.stringify(msg));
 });
 
 let activeHostAccessKey = '';
 let activeHostToken = '';
 let hostReconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 3;
+let hostHeartbeatInterval: NodeJS.Timeout | null = null;
 
 function connectHostSignaling(serverIP: string, token: string, accessKey: string, resolve?: any, reject?: any) {
-  if (signalingWs) {
-    try { signalingWs.close(); } catch {}
+  if (hostSignalingWs) {
+    try { 
+      if (hostHeartbeatInterval) clearInterval(hostHeartbeatInterval);
+      hostSignalingWs.close(); 
+    } catch {}
   }
   
   if (app.isPackaged && (serverIP === '127.0.0.1' || serverIP === 'localhost')) {
@@ -671,16 +737,24 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
 
   const wsUrl = getSecureServerUrl(serverIP, 'ws') + ':3002';
   log.info(`[Host] Connecting to signaling server at: ${wsUrl} (Attempt ${hostReconnectAttempts + 1})`);
-  signalingWs = new WebSocket(enforceSecureUrl(wsUrl));
-  setupSignalingHandlers(signalingWs);
+  hostSignalingWs = new WebSocket(enforceSecureUrl(wsUrl));
+  setupSignalingHandlers(hostSignalingWs);
   
-  signalingWs.on('open', () => {
+  hostSignalingWs.on('open', () => {
     log.info('[Host] Signaling connected');
     hostReconnectAttempts = 0; // reset
-    signalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
+    hostSignalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
+    
+    // Start heartbeat to refresh TTL in signaling service
+    if (hostHeartbeatInterval) clearInterval(hostHeartbeatInterval);
+    hostHeartbeatInterval = setInterval(() => {
+       if (hostSignalingWs?.readyState === 1) { // WebSocket.OPEN
+          hostSignalingWs.send(JSON.stringify({ type: 'heartbeat' }));
+       }
+    }, 30000); // Send every 30s for a 60s TTL
   });
   
-  signalingWs.on('message', (message) => {
+  hostSignalingWs.on('message', (message) => {
     const data = JSON.parse(message.toString());
     if (data.type === 'registered' && resolve) {
         log.info('[Host] Successfully registered with signaling server');
@@ -689,7 +763,7 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
     }
   });
 
-  signalingWs.on('error', (err) => {
+  hostSignalingWs.on('error', (err) => {
     log.error('[Host] Signaling WS Error:', err.stack || err.message);
     if (reject) {
       reject(err);
@@ -697,8 +771,12 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
     }
   });
 
-  signalingWs.on('close', (code, reason) => {
+  hostSignalingWs.on('close', (code, reason) => {
     log.info(`[Host] Signaling server disconnected. Code: ${code}, Reason: ${reason}`);
+    if (hostHeartbeatInterval) {
+       clearInterval(hostHeartbeatInterval);
+       hostHeartbeatInterval = null;
+    }
     if (reject) {
        reject(new Error('Signaling server disconnected during initial connection'));
        reject = null;
@@ -733,57 +811,192 @@ ipcMain.handle('host:start', async (_event, accessKey?: string) => {
       activeHostToken = token;
       activeHostAccessKey = accessKey || '';
       
-      log.info(`[Host] Starting hosting sequence for accessKey: ${activeHostAccessKey}`);
+      log.info(`[Host] host:start IPC received from window. AccessKey: ${activeHostAccessKey}`);
       hostReconnectAttempts = 0;
       connectHostSignaling(serverIP, token, activeHostAccessKey, resolve, reject);
     } catch (e: any) { reject(e); }
   });
 });
 
+ipcMain.handle('host:getStatus', async () => {
+  if (hostSignalingWs && hostSignalingWs.readyState === 1) { // WebSocket.OPEN
+    return { 
+      status: 'status', 
+      sessionId: currentHostSessionId 
+    };
+  }
+  return { status: 'idle' };
+});
+
 ipcMain.handle('host:stop', () => {
+  log.info('[Host] host:stop IPC received. Terminating hosting...');
   activeHostToken = ''; // Prevent auto-reconnect
-  if (signalingWs) { signalingWs.close(); signalingWs = null; }
+  if (hostSignalingWs && hostSignalingWs.readyState === 1) { // WebSocket.OPEN
+    const socketToClose = hostSignalingWs;
+    try {
+      socketToClose.send(JSON.stringify({ type: 'unregister' }));
+    } catch (e) {
+      log.error('[Host] Failed to send unregister:', e);
+    }
+    // Give it a tiny moment to send before closing
+    setTimeout(() => {
+      socketToClose.close();
+      if (hostSignalingWs === socketToClose) {
+        hostSignalingWs = null;
+      }
+    }, 100);
+  } else if (hostSignalingWs) {
+    hostSignalingWs.close();
+    hostSignalingWs = null;
+  }
   cleanUpWebRTC();
   return { success: true };
 });
 
-ipcMain.handle('viewer:connect', async (_event: any, rawSessionId: string, serverIP: string = '127.0.0.1', providedToken?: string) => {
+// Deduplicate concurrent viewer:connect calls for the same session
+const inFlightViewerConnections = new Map<string, Promise<any>>();
+
+ipcMain.handle('viewer:connect', async (event, rawSessionId: string, serverIP: string = '127.0.0.1', providedToken?: string, viewerClientId?: string) => {
   const sessionId = rawSessionId.replace(/\s/g, '');
-  return new Promise(async (resolve, reject) => {
+
+  // If there's already an in-flight connection attempt, return the same promise
+  if (inFlightViewerConnections.has(sessionId)) {
+    log.info(`[Viewer] De-duplicating concurrent connect call for: ${sessionId}`);
+    return inFlightViewerConnections.get(sessionId);
+  }
+
+  const promise = new Promise(async (resolve, reject) => {
     try {
       const { token: storedToken } = await getAuthTokens();
       const token = providedToken || storedToken;
       const wsUrl = getSecureServerUrl(serverIP, 'ws') + ':3002';
-      console.log(`[Viewer] Connecting to signaling server at: ${wsUrl}`);
-      viewerWs = new WebSocket(enforceSecureUrl(wsUrl));
-      viewerWs.removeAllListeners('message'); 
-      viewerWs.once('open', () => {
-        viewerWs?.send(JSON.stringify({ type: 'join', sessionId, token }));
-      });
-      viewerWs.on('message', (data) => {
-        const msg = JSON.parse(data.toString());
-        if (msg.type === 'joined') {
-          if (msg.success) { 
-            console.log('[Viewer] JOIN SUCCESS (Proxy initialized)');
-            setupViewerSignalingProxy(sessionId); 
-            resolve(true); 
+      log.info(`[Viewer] Connecting to signaling server at: ${wsUrl}`);
+
+      // Safely terminate any existing stale socket
+      const existingSocket = viewerSignalingSockets.get(sessionId);
+      if (existingSocket) {
+        try {
+          existingSocket.removeAllListeners();
+          if (existingSocket.readyState === 0) {
+            (existingSocket as any).terminate(); // Safe for CONNECTING state
+          } else if (existingSocket.readyState === 1) {
+            existingSocket.close();
           }
-          else {
-            reject(new Error(msg.error));
-          }
+        } catch (e) {
+          // Ignore close errors on stale sockets
         }
+        viewerSignalingSockets.delete(sessionId);
+      }
+
+      const socket = new WebSocket(enforceSecureUrl(wsUrl));
+      viewerSignalingSockets.set(sessionId, socket);
+
+      socket.on('error', (err) => {
+        log.error('[Viewer] WebSocket error:', err.message);
+        inFlightViewerConnections.delete(sessionId);
+        reject(err);
       });
-      viewerWs.on('error', (err) => {
-         console.error('[Viewer] WS Error:', err.message);
-         if (reject) reject(err);
+
+      socket.once('open', () => {
+        const joinMsg: any = { type: 'join', sessionId, token };
+        if (viewerClientId) joinMsg.viewerClientId = viewerClientId;
+        socket.send(JSON.stringify(joinMsg));
+        log.info(`[Viewer] Sent join for session: ${sessionId} with clientId: ${viewerClientId || 'none'}`);
+
+        socket.on('message', (raw) => {
+          try {
+            const data = JSON.parse(raw.toString());
+            log.info(`[Viewer-Proxy] Received: ${data.type}`);
+
+            if (data.type === 'joined') {
+              inFlightViewerConnections.delete(sessionId);
+              if (data.success) {
+                log.info('[Viewer] Join confirmed. Signaling proxy active.');
+                resolve(true);
+              } else {
+                log.error('[Viewer] Join rejected:', data.error);
+                reject(new Error(data.error || 'Session not found'));
+              }
+              return;
+            }
+
+            // Forward offer/ice-candidate to the correct window
+            const win = viewerWindows.get(sessionId);
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('viewer:signaling-message', data);
+            } else {
+              mainWindow?.webContents.send('viewer:signaling-message', data);
+            }
+          } catch (e) {
+            log.error('[Viewer-Proxy] Failed to parse message:', e);
+          }
+        });
       });
-      viewerWs.on('close', () => {
-         console.log('[Viewer] WS Closed');
-         mainWindow?.webContents.send('viewer:signaling-disconnected');
-      });
-    } catch (e: any) { reject(e); }
+    } catch (e: any) {
+      inFlightViewerConnections.delete(sessionId);
+      reject(e);
+    }
   });
+
+  inFlightViewerConnections.set(sessionId, promise);
+  return promise;
 });
+
+ipcMain.handle('viewer:open-window', async (_event, sessionId: string, serverIP: string, token: string, deviceName?: string) => {
+  const win = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    backgroundColor: '#050505',
+    title: `SyncLink - ${deviceName || sessionId}`,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  viewerWindows.set(sessionId, win);
+
+  const query = new URLSearchParams({
+    view: 'viewer',
+    sessionId,
+    serverIP,
+    token: token || '',
+    deviceName: deviceName || ''
+  }).toString();
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(`${process.env.VITE_DEV_SERVER_URL}?${query}`);
+  } else {
+    win.loadFile(join(__dirname, '../../dist/index.html'), { 
+      query: { 
+        view: 'viewer', 
+        sessionId, 
+        serverIP, 
+        token: token || '', 
+        deviceName: deviceName || '' 
+      } as any 
+    });
+  }
+
+  win.on('closed', () => {
+    viewerWindows.delete(sessionId);
+    const socket = viewerSignalingSockets.get(sessionId);
+    if (socket) {
+      try { socket.close(); } catch {}
+      viewerSignalingSockets.delete(sessionId);
+    }
+  });
+
+  // Automatically open console as requested by user
+  win.webContents.once('dom-ready', () => {
+    win.webContents.openDevTools({ mode: 'detach' });
+  });
+
+  return true;
+});
+
 
 ipcMain.handle('system:getLocalIP', () => {
   const interfaces = os.networkInterfaces();

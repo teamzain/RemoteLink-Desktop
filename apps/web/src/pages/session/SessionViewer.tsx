@@ -1,77 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Box,
-  AppBar,
-  Toolbar,
-  Typography,
-  Stack,
-  Chip,
-  IconButton,
-  Tooltip,
-  Button,
-  Drawer,
-  List,
-  ListItem,
-  ListItemText,
-  Backdrop,
-  CircularProgress,
-  ThemeProvider,
-} from '@mui/material';
-import {
-  Fullscreen as FullscreenIcon,
-  FullscreenExit as FullscreenExitIcon,
-  ContentPaste as ContentPasteIcon,
-  FolderOpen as FolderOpenIcon,
-  Keyboard as KeyboardIcon,
-  Logout as LogoutIcon,
-  ErrorOutline as ErrorOutlineIcon,
-  Circle as CircleIcon,
-} from '@mui/icons-material';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { lightTheme } from '../../theme';
+import {
+  ArrowLeft,
+  Smartphone,
+  Activity,
+  Search,
+  Monitor,
+  RefreshCw,
+  Lock,
+  Power,
+  Plus,
+  MonitorOff,
+  Globe,
+  Folder
+} from 'lucide-react';
 import { useSessionStore } from '../../store/sessionStore';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const StyledBox = Box as any;
+// Legacy frames removed for clean theater mode.
 
-const shortcuts = [
-  { key: 'Ctrl + Alt + Del', desc: 'Secure Attention Sequence' },
-  { key: 'Win + R', desc: 'Run Command' },
-  { key: 'Alt + Tab', desc: 'Switch Windows' },
-  { key: 'Ctrl + Shift + Esc', desc: 'Task Manager' },
-  { key: 'Win + E', desc: 'File Explorer' },
-];
-
-// --- Premium Mobile Device Frame ---
-const MobileDeviceFrame = ({ children, orientation = 'portrait' }: { children: React.ReactNode, orientation?: 'portrait' | 'landscape' }) => {
-  return (
-    <div className={`relative mx-auto transition-all duration-700 ease-in-out ${orientation === 'portrait' ? 'h-[85vh] aspect-[9/19.5]' : 'w-[85vw] aspect-[19.5/9]'}`}>
-      <div className="absolute inset-0 bg-[#0f0f0f] rounded-[3rem] border-[6px] border-[#1f1f1f] shadow-[0_0_0_2px_#2a2a2a,0_40px_100px_-20px_rgba(0,0,0,0.8)] overflow-hidden">
-        <div className="absolute top-10 left-[-6px] w-2 h-8 bg-[#2a2a2a]" />
-        <div className="absolute bottom-10 left-[-6px] w-2 h-8 bg-[#2a2a2a]" />
-        
-        <div className="absolute inset-1.5 bg-black rounded-[2.5rem] overflow-hidden border border-white/5 flex items-center justify-center">
-          {children}
-        </div>
-
-        {orientation === 'portrait' && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full flex items-center justify-center gap-1.5 px-3 border border-white/5">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500/20" />
-            <div className="flex-grow h-1 bg-white/5 rounded-full" />
-          </div>
-        )}
-      </div>
-
-      {orientation === 'portrait' && (
-        <>
-          <div className="absolute top-24 -left-2 w-1.5 h-12 bg-[#1f1f1f] rounded-l-md border-r border-black/20" />
-          <div className="absolute top-40 -left-2 w-1.5 h-12 bg-[#1f1f1f] rounded-l-md border-r border-black/20" />
-          <div className="absolute top-32 -right-2 w-1.5 h-20 bg-[#1f1f1f] rounded-r-md border-l border-black/20" />
-        </>
-      )}
-    </div>
-  );
-};
+// Generate a stable client ID for this session to handle React StrictMode double-mounts
+const viewerClientId = Math.random().toString(36).substring(7);
 
 const SessionViewer: React.FC = () => {
   const { deviceId } = useParams();
@@ -80,24 +28,29 @@ const SessionViewer: React.FC = () => {
   const { initSocket, closeSocket, sendMessage, onMessage, activeSession, updateLatency, updateSessionStatus } = useSessionStore();
   
   const accessToken: string | undefined = (location.state as any)?.accessToken;
-  const deviceName: string | undefined = (location.state as any)?.deviceName;
+  const passedDeviceName: string | undefined = (location.state as any)?.deviceName;
   const accessKey: string | undefined = (location.state as any)?.accessKey;
 
-  const [toolbarVisible, setToolbarVisible] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'lost'>('connecting');
-  
+  const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'connected' | 'streaming' | 'connection_lost'>('connecting');
+  const [zoomMode, setZoomMode] = useState<'fit' | 'original'>('fit');
+  const [transferProgress, setTransferProgress] = useState<{name: string, p: number} | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const timerRef = useRef<any>(null);
 
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [deviceType, setDeviceType] = useState<string | null>((location.state as any)?.deviceType || null);
+  const deviceName = passedDeviceName || deviceId || 'Remote Node';
+
   const decoderRef = useRef<any>(null);
   const hasReceivedKeyframeRef = useRef(false);
+  const [, forceRender] = useState({}); // used when hasReceivedKeyframe updates
+
   const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
 
   const initDecoder = () => {
@@ -107,17 +60,25 @@ const SessionViewer: React.FC = () => {
     if (decoderRef.current) {
        try { decoderRef.current.close(); } catch {}
     }
+    const VideoDecoder = (window as any).VideoDecoder;
+    if (!VideoDecoder) return;
+
     try {
-      const decoder = new (window as any).VideoDecoder({
+      const decoder = new VideoDecoder({
         output: (frame: any) => {
           if (canvasRef.current) {
             ctx.drawImage(frame, 0, 0, canvasRef.current.width, canvasRef.current.height);
+          }
+          if (!hasReceivedKeyframeRef.current) {
+            hasReceivedKeyframeRef.current = true;
+            forceRender({});
           }
           frame.close();
         },
         error: (e: any) => {
           console.error('[WebRTC] Decoder error:', e);
           hasReceivedKeyframeRef.current = false;
+          forceRender({});
         },
       });
       decoder.configure({ codec: 'avc1.42E029', optimizeForLatency: true });
@@ -130,30 +91,61 @@ const SessionViewer: React.FC = () => {
   useEffect(() => {
     if (videoRef.current && remoteStream) {
       videoRef.current.srcObject = remoteStream;
+      videoRef.current.play().catch(() => {});
     }
   }, [remoteStream]);
 
   const feedToDecoder = (chunkData: Uint8Array, timestamp: bigint) => {
     if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
+    
     let type: 'key' | 'delta' = 'delta';
-    for (let i = 0; i < Math.min(chunkData.length - 4, 100); i++) {
-        if (chunkData[i] === 0 && chunkData[i+1] === 0) {
+    // Scan for NAL units to find keyframes (SPS, PPS, or IDR)
+    for (let i = 0; i < Math.min(chunkData.length - 5, 256); i++) {
+        const isHeader4 = chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 0 && chunkData[i+3] === 1;
+        const isHeader3 = chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 1;
+        
+        if (isHeader4 || isHeader3) {
             let nalType = -1;
-            if (chunkData[i+2] === 1) { nalType = chunkData[i+3] & 0x1F; }
-            else if (chunkData[i+2] === 0 && chunkData[i+3] === 1) { nalType = chunkData[i+4] & 0x1F; }
+            if (isHeader4) { 
+                nalType = chunkData[i+4] & 0x1F;
+            } else {
+                nalType = chunkData[i+3] & 0x1F;
+            }
+
             if (nalType === 5 || nalType === 7 || nalType === 8) {
                 type = 'key';
-                hasReceivedKeyframeRef.current = true;
+                if (!hasReceivedKeyframeRef.current) {
+                    console.log(`[VideoPlayer] Initial Keyframe Found (type:${nalType})`);
+                    hasReceivedKeyframeRef.current = true;
+                    forceRender({});
+                }
                 break;
             }
         }
     }
-    if (!hasReceivedKeyframeRef.current) return;
+
+    if (!hasReceivedKeyframeRef.current) {
+      if (Math.random() < 0.05) console.log(`[VideoPlayer] Buffering (No keyframe yet). Data Size: ${chunkData.length}`);
+      return;
+    }
+
+    if (viewerStatus !== 'streaming') {
+      console.log(`[VideoPlayer] Transitioning to STREAMING. First frame: ${type}, size: ${chunkData.length}`);
+      setViewerStatus('streaming');
+    }
+
     try {
-      const encodedChunk = new (window as any).EncodedVideoChunk({ type, timestamp: Number(timestamp), data: chunkData });
+      const EncodedVideoChunk = (window as any).EncodedVideoChunk;
+      if (!EncodedVideoChunk) return;
+      
+      const encodedChunk = new EncodedVideoChunk({
+        type: type,
+        timestamp: Number(timestamp), 
+        data: chunkData,
+      });
       decoderRef.current.decode(encodedChunk);
     } catch (e) {
-      console.warn('Decoder push failed:', e);
+      console.warn('[VideoPlayer] Decoder push failed:', e);
     }
   };
 
@@ -193,7 +185,11 @@ const SessionViewer: React.FC = () => {
     const ws = initSocket(accessToken);
 
     const handleOpen = () => {
-      sendMessage('join', { sessionId: accessKey || deviceId, token: accessToken });
+      sendMessage('join', { sessionId: accessKey || deviceId, token: accessToken, viewerClientId });
+      // Add viewer request here to make sure host initiates the offer
+      setTimeout(() => {
+        sendMessage('request-offer', { targetId: accessKey || deviceId });
+      }, 500);
     };
 
     if (ws.readyState === WebSocket.OPEN) handleOpen();
@@ -201,6 +197,12 @@ const SessionViewer: React.FC = () => {
 
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     pcRef.current = pc;
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        setViewerStatus('connection_lost');
+      }
+    };
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -215,7 +217,7 @@ const SessionViewer: React.FC = () => {
 
     pc.ontrack = (event) => {
       setRemoteStream(event.streams[0]);
-      setStatus('connected');
+      setViewerStatus('streaming');
       updateSessionStatus('active');
     };
 
@@ -235,7 +237,7 @@ const SessionViewer: React.FC = () => {
       } else if (event.channel.label === 'video') {
         event.channel.binaryType = 'arraybuffer';
         event.channel.onopen = () => {
-          if (!remoteStream) { setStatus('connected'); updateSessionStatus('active'); initDecoder(); }
+          if (!remoteStream) { setViewerStatus('streaming'); updateSessionStatus('active'); initDecoder(); }
         };
         event.channel.onmessage = (e) => {
           if (!remoteStream) handleFragment(new Uint8Array(e.data as ArrayBuffer));
@@ -243,19 +245,29 @@ const SessionViewer: React.FC = () => {
       }
     };
 
-    const cleanupOffer = onMessage('offer', async ({ senderId, sdp, hostType }) => {
-      if (hostType) setDeviceType(hostType);
-      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      sendMessage('answer', { targetId: senderId, sdp: answer.sdp });
+    const cleanupOffer = onMessage('offer', async (msg) => {
+      // It might come as msg directly or msg.sdp depending on signaling wrapper
+      const sdp = msg.sdp || msg;
+      const senderId = msg.senderId || msg.sourceId;
+      if (msg.hostType) setDeviceType(msg.hostType);
+      
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sendMessage('answer', { targetId: senderId || accessKey || deviceId, sdp: answer.sdp });
+      } catch (e) {
+        console.error('[WebRTC] Failed to handle offer', e);
+      }
     });
 
     const cleanupIce = onMessage('ice-candidate', async (msg) => {
       try {
+        if (!msg.candidate) return;
         await pc.addIceCandidate(new RTCIceCandidate({ 
-          candidate: typeof msg.candidate === 'string' ? msg.candidate : msg.candidate?.candidate, 
-          sdpMid: msg.mid || msg.candidate?.sdpMid 
+          candidate: typeof msg.candidate === 'string' ? msg.candidate : msg.candidate.candidate, 
+          sdpMid: msg.sdpMid || msg.candidate.sdpMid,
+          sdpMLineIndex: msg.sdpMLineIndex || msg.candidate.sdpMLineIndex
         }));
       } catch (e) {
         console.warn('[WebRTC] Failed to add ICE candidate', e);
@@ -263,7 +275,7 @@ const SessionViewer: React.FC = () => {
     });
 
     const cleanupLatency = onMessage('session:latency', ({ value }) => { updateLatency(value); });
-    const cleanupDisconnect = onMessage('disconnect', () => setStatus('lost'));
+    const cleanupDisconnect = onMessage('disconnect', () => setViewerStatus('connection_lost'));
 
     return () => {
       pc.close();
@@ -277,17 +289,36 @@ const SessionViewer: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId, accessToken]);
 
-  const handleInput = (type: 'mouse' | 'keyboard', data: any) => {
-    if (status === 'connected' && dataChannelRef.current?.readyState === 'open') {
-      const typeMap: Record<string, string> = {
-        'move': 'mousemove',
-        'down': type === 'mouse' ? 'mousedown' : 'keydown',
-        'up': type === 'mouse' ? 'mouseup' : 'keyup',
-      };
-      const eventType = typeMap[data.type] || data.type;
-      dataChannelRef.current.send(JSON.stringify({ type: eventType, ...data }));
+  const onControlEvent = useCallback((data: any) => {
+    if (viewerStatus !== 'streaming') return;
+    if (data instanceof Uint8Array) {
+      if (dataChannelRef.current?.readyState === 'open') dataChannelRef.current.send(data as any);
+    } else {
+      if (dataChannelRef.current?.readyState === 'open') dataChannelRef.current.send(JSON.stringify(data));
     }
-  };
+  }, [viewerStatus]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => onControlEvent({ type: 'keydown', keyCode: e.keyCode });
+    const handleKeyUp = (e: KeyboardEvent) => onControlEvent({ type: 'keyup', keyCode: e.keyCode });
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [onControlEvent]);
+
+  // --- Handshake Watchdog (Force Image Recovery) ---
+  useEffect(() => {
+     const timer = setInterval(() => {
+        if ((viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') && !hasReceivedKeyframeRef.current && !remoteStream) {
+           console.log('[Web] Screen timeout (black) - Requesting keyframe recovery...');
+           onControlEvent({ type: 'request-keyframe' });
+        }
+     }, 4000); // 4s interval
+     return () => clearInterval(timer);
+  }, [viewerStatus, remoteStream, onControlEvent]);
 
   const handleMouseEvent = (e: React.MouseEvent, type: string) => {
     const target = (remoteStream ? videoRef.current : canvasRef.current) as HTMLElement;
@@ -295,92 +326,258 @@ const SessionViewer: React.FC = () => {
     const rect = target.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
-    const controlType = type === 'move' ? 'mousemove' : (type === 'down' ? 'mousedown' : 'mouseup');
-    handleInput('mouse', { type: controlType, button: (e as any).button, x, y });
+    onControlEvent({ type, button: (e as any).button, x, y });
   };
 
-  const isMobile = deviceType?.toLowerCase() === 'android' || deviceType?.toLowerCase() === 'ios';
+  const throttledMouseMove = useRef(0);
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - throttledMouseMove.current < 16) return; // ~60fps
+    throttledMouseMove.current = now;
+    handleMouseEvent(e, 'mousemove');
+  };
 
-  const renderContent = () => (
-    <>
+  const handleTouchEvent = (e: React.TouchEvent, type: string) => {
+    const target = (remoteStream ? videoRef.current : canvasRef.current) as HTMLElement;
+    if (!target) return;
+    // Handle touchend which doesn't have touches[0]
+    const touch = e.touches.length > 0 ? e.touches[0] : e.changedTouches[0];
+    if (!touch) return;
+    const rect = target.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) / rect.width;
+    const y = (touch.clientY - rect.top) / rect.height;
+    onControlEvent({ type, button: 0, x, y });
+  };
+
+  const throttledTouchMove = useRef(0);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const now = Date.now();
+    if (now - throttledTouchMove.current < 16) return;
+    throttledTouchMove.current = now;
+    handleTouchEvent(e, 'mousemove');
+  };
+
+  const renderVideoContent = () => (
+    <div className="w-full h-full flex items-center justify-center relative bg-[#0A0A0A]">
       {remoteStream ? (
-        <video
+        <video 
           ref={videoRef}
           autoPlay
           muted
           playsInline
-          onMouseMove={(e) => handleMouseEvent(e, 'move')}
-          onMouseDown={(e) => handleMouseEvent(e, 'down')}
-          onMouseUp={(e) => handleMouseEvent(e, 'up')}
+          onLoadedMetadata={(e) => {
+            e.currentTarget.play().catch(console.error);
+            forceRender({}); // Ensure render happens after video loads
+          }}
+          className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none cursor-move'}`}
+          style={{ minHeight: '100px', minWidth: '100px', backgroundColor: '#0A0A0A' }}
+          onMouseMove={handleMouseMove}
+          onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
+          onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
+          onTouchStart={(e) => handleTouchEvent(e, 'mousedown')}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={(e) => handleTouchEvent(e, 'mouseup')}
           onContextMenu={(e) => e.preventDefault()}
-          style={{ width: '100%', height: '100%', objectFit: isMobile ? 'cover' : 'contain', cursor: 'none', backgroundColor: '#000' }}
         />
       ) : (
-        <canvas
-          ref={canvasRef} width={1920} height={1080}
-          onMouseMove={(e) => handleMouseEvent(e, 'move')}
-          onMouseDown={(e) => handleMouseEvent(e, 'down')}
-          onMouseUp={(e) => handleMouseEvent(e, 'up')}
-          onContextMenu={(e) => e.preventDefault()}
-          style={{ width: '100%', height: '100%', objectFit: isMobile ? 'cover' : 'contain', cursor: 'none', backgroundColor: '#000' }}
-        />
+        <div className="relative w-full h-full flex flex-col items-center justify-center bg-[#0A0A0A] cursor-crosshair">
+          {!hasReceivedKeyframeRef.current && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0A0A0A]/90 backdrop-blur-md animate-pulse">
+              <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-white/80 animate-spin mb-6 shadow-[0_0_30px_rgba(255,255,255,0.1)]" />
+              <span className="text-[11px] font-bold text-white/90 uppercase tracking-[0.4em]">Connecting</span>
+              <span className="text-[9px] text-white/40 mt-3 uppercase tracking-widest font-semibold">Waiting for Secure Stream...</span>
+            </div>
+          )}
+          <canvas
+            ref={canvasRef}
+            width={1920}
+            height={1080}
+            className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none'} ${!hasReceivedKeyframeRef.current ? 'opacity-0' : 'opacity-100'}`}
+            onMouseMove={handleMouseMove}
+            onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
+            onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
+            onTouchStart={(e) => handleTouchEvent(e, 'mousedown')}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={(e) => handleTouchEvent(e, 'mouseup')}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+        </div>
       )}
-    </>
+    </div>
   );
 
-  useEffect(() => {
-    const handleMouseMove = () => {
-      setToolbarVisible(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => { setToolbarVisible(false); }, 3000);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    handleMouseMove();
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setIsFullscreen(true); }
-    else { if (document.exitFullscreen) { document.exitFullscreen(); setIsFullscreen(false); } }
-  };
-
-  const getLatencyColor = () => {
-    const lat = activeSession?.latency || 0;
-    if (lat < 50) return 'success';
-    if (lat < 150) return 'warning';
-    return 'error';
-  };
+  if (viewerStatus === 'connection_lost') {
+    return (
+      <div className="min-h-screen bg-white flex flex-col relative overflow-hidden font-inter">
+        <div className="absolute inset-0 z-[100] bg-white/95 backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-700">
+          <div className="w-24 h-24 bg-red-50 rounded-[32px] flex items-center justify-center mb-8 border border-red-100 shadow-2xl">
+            <MonitorOff className="text-red-500 w-10 h-10" />
+          </div>
+          <h2 className="text-4xl font-black text-[#1C1C1C] mb-4 uppercase tracking-tighter">Connection Fault</h2>
+          <p className="text-[10px] text-[rgba(28,28,28,0.4)] mb-12 tracking-[0.2em] font-black uppercase">The remote node has severed the secure link</p>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => {
+                closeSocket();
+                navigate('/dashboard/devices');
+              }}
+              className="px-12 py-3 border border-[rgba(28,28,28,0.06)] rounded-xl font-bold text-xs uppercase hover:bg-[rgba(28,28,28,0.02)] transition-all"
+            >
+              TERMINATE
+            </button>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-12 py-3 bg-[#1C1C1C] text-white rounded-xl font-bold text-xs uppercase shadow-xl shadow-black/10 hover:opacity-90 transition-all"
+            >
+              RE-ESTABLISH
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <ThemeProvider theme={lightTheme}>
-      <StyledBox sx={{ width: '100vw', height: '100vh', bgcolor: 'background.default', overflow: 'hidden', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }} component="div">
-        {isMobile ? <MobileDeviceFrame>{renderContent()}</MobileDeviceFrame> : renderContent()}
-        <AppBar elevation={4} sx={{ position: 'absolute', top: 0, left: 0, right: 0, bgcolor: 'background.paper', backgroundImage: 'none', opacity: toolbarVisible ? 0.9 : 0, backdropFilter: 'blur(8px)', transition: 'opacity 0.3s ease-in-out', pointerEvents: toolbarVisible ? 'auto' : 'none', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Toolbar sx={{ justifyContent: 'space-between' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>{deviceName || deviceId}</Typography>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Chip icon={<CircleIcon sx={{ fontSize: '10px !important' }} />} label={`${activeSession?.latency || 0}ms`} size="small" color={getLatencyColor()} sx={{ fontWeight: 900, px: 1 }} />
-              <Tooltip title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}><IconButton color="inherit" onClick={toggleFullscreen}>{isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}</IconButton></Tooltip>
-              <Tooltip title="Clipboard"><IconButton color="inherit"><ContentPasteIcon /></IconButton></Tooltip>
-              <Tooltip title="File Transfer"><IconButton color="inherit"><FolderOpenIcon /></IconButton></Tooltip>
-              <Tooltip title="Shortcuts"><IconButton color="inherit" onClick={() => setShowShortcuts(true)}><KeyboardIcon /></IconButton></Tooltip>
-              <Button variant="outlined" color="error" size="small" startIcon={<LogoutIcon />} sx={{ ml: 2, fontWeight: 800, borderRadius: '8px' }} onClick={() => navigate('/dashboard')}>Disconnect</Button>
-            </Stack>
-          </Toolbar>
-        </AppBar>
-        <Drawer anchor="right" open={showShortcuts} onClose={() => setShowShortcuts(false)} PaperProps={{ sx: { width: 300, bgcolor: 'background.paper', backgroundImage: 'none' } }}>
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 900, mb: 3 }}>Keyboard Shortcuts</Typography>
-            <List>{shortcuts.map((s) => (<ListItem key={s.key} disablePadding sx={{ mb: 2 }}><ListItemText primary={s.key} secondary={s.desc} primaryTypographyProps={{ fontWeight: 800, fontFamily: 'monospace' }} /></ListItem>))}</List>
-          </Box>
-        </Drawer>
-        <Backdrop open={status === 'reconnecting' || status === 'connecting'} sx={{ color: 'primary.main', zIndex: (theme) => theme.zIndex.drawer + 1, flexDirection: 'column', gap: 2, bgcolor: 'rgba(255, 255, 255, 0.9)' }}><CircularProgress color="inherit" /><Typography variant="h6" sx={{ fontWeight: 700, color: 'text.primary' }}>{status === 'connecting' ? 'Establishing secure connection...' : 'Reconnecting...'}</Typography></Backdrop>
-        <Backdrop open={status === 'lost'} sx={{ color: 'text.primary', zIndex: (theme) => theme.zIndex.drawer + 1, flexDirection: 'column', gap: 2, bgcolor: 'rgba(255, 255, 255, 0.95)' }}><ErrorOutlineIcon color="error" sx={{ fontSize: 60 }} /><Typography variant="h5" sx={{ fontWeight: 900 }}>Connection lost</Typography><Button variant="contained" color="primary" onClick={() => navigate('/dashboard')} sx={{ mt: 2, borderRadius: '20px', px: 4 }}>Return to dashboard</Button></Backdrop>
-      </StyledBox>
-    </ThemeProvider>
+    <div className="min-h-screen bg-white flex flex-col relative overflow-hidden font-inter select-none">
+      <div className="flex-grow flex flex-col min-h-0 relative z-10 bg-[#0A0A0A]">
+        
+        {/* SnowUI Premium Header */}
+        <div className="h-20 flex items-center justify-between px-4 sm:px-8 bg-white border-b border-[rgba(28,28,28,0.06)] shadow-sm z-50">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <button 
+              onClick={() => navigate(-1)}
+              className="p-3 bg-[#F8F9FA] hover:bg-[rgba(28,28,28,0.05)] text-[#1C1C1C] transition-all rounded-[14px] border border-[rgba(28,28,28,0.04)] active:scale-95"
+              title="Terminate Link"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-3 sm:gap-4 border-l border-[rgba(28,28,28,0.06)] pl-4 sm:pl-6">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#1C1C1C] rounded-[16px] flex items-center justify-center shadow-lg shadow-black/10">
+                <Smartphone className="text-white w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <h2 className="text-xs sm:text-sm font-black text-[#1C1C1C] uppercase tracking-tighter">{deviceName}</h2>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-[9px] sm:text-[10px] text-[rgba(28,28,28,0.3)] font-black tracking-[0.2em]">{accessKey || deviceId}</p>
+                  <div className="w-1 h-1 rounded-full bg-[rgba(28,28,28,0.1)]" />
+                  <span className="text-[8px] sm:text-[9px] font-black text-blue-600 uppercase tracking-widest">{viewerStatus}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto custom-scrollbar pb-1 sm:pb-0">
+              {transferProgress && (
+                <div className="hidden sm:flex flex-col items-end gap-1.5 px-6 border-r border-[rgba(28,28,28,0.06)]">
+                  <span className="text-[9px] font-black text-[#1C1C1C] uppercase tracking-[0.2em]">Deploying Payload...</span>
+                  <div className="w-32 h-1 bg-[#F8F9FA] rounded-full overflow-hidden border border-[rgba(28,28,28,0.04)]">
+                    <div className="h-full bg-[#1C1C1C] transition-all duration-300" style={{ width: `${transferProgress.p}%` }} />
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex bg-[#F8F9FA] p-1.5 border border-[rgba(28,28,28,0.06)] rounded-none gap-1 shrink-0">
+                 <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} className={`p-2 transition-all rounded-none ${zoomMode === 'original' ? 'bg-[#1C1C1C] text-white' : 'text-[#1C1C1C]/40 hover:text-[#1C1C1C] hover:bg-white'}`} title="Scale Toggle">
+                   <Search size={16} />
+                 </button>
+                 <button onClick={() => {
+                   if (!document.fullscreenElement) {
+                     containerRef.current?.requestFullscreen();
+                   } else {
+                     document.exitFullscreen();
+                   }
+                 }} className="p-2 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" title="Full Screen">
+                   <Monitor size={16} />
+                 </button>
+                 <div className="w-px h-5 bg-[rgba(28,28,28,0.06)] mx-1 self-center" />
+                 <button onClick={() => onControlEvent({ type: 'action', action: 'volume_down' })} className="p-2 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" title="Task Manager"><Activity size={16} /></button>
+                 <button onClick={() => onControlEvent({ type: 'action', action: 'browser' })} className="p-2 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" title="Browser"><Globe size={16} /></button>
+                 <button onClick={() => onControlEvent({ type: 'action', action: 'explorer' })} className="p-2 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" title="File Explorer"><Folder size={16} /></button>
+                 <div className="w-px h-5 bg-[rgba(28,28,28,0.06)] mx-1 self-center" />
+                 <button onClick={() => onControlEvent({ type: 'request-keyframe' })} className="p-2 hover:bg-emerald-50 text-emerald-500/60 hover:text-emerald-600 transition-all rounded-none" title="Refresh Stream"><RefreshCw size={16} /></button>
+                 <div className="w-px h-5 bg-[rgba(28,28,28,0.06)] mx-1 self-center" />
+                 <button onClick={() => onControlEvent({ type: 'action', action: 'lock' })} className="p-2 hover:bg-blue-50 text-blue-500/60 hover:text-blue-600 transition-all rounded-none" title="Lock Screen"><Lock size={16} /></button>
+                 <button onClick={() => onControlEvent({ type: 'action', action: 'shutdown' })} className="p-2 hover:bg-red-50 text-red-500/60 hover:text-red-600 transition-all rounded-none" title="Emergency Shutdown"><Power size={16} /></button>
+              </div>
+              
+              <div className="hidden lg:flex items-center gap-3 ml-4">
+                <span className="px-2 py-0.5 rounded-full border border-emerald-500 text-[9px] font-bold text-emerald-500 uppercase tracking-widest bg-emerald-50">STABLE</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest leading-none">Signal Optimal</span>
+                  <span className="text-[10px] font-mono text-[rgba(28,28,28,0.3)] mt-0.5">{activeSession?.latency || 0}ms</span>
+                </div>
+              </div>
+
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  const CHUNK_SIZE = 16 * 1024; // 16KB
+                  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+                  setTransferProgress({ name: file.name, p: 0 });
+
+                  for (let i = 0; i < totalChunks; i++) {
+                    const start = i * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const chunk = file.slice(start, end);
+                    const arrayBuffer = await chunk.arrayBuffer();
+                    
+                    const header = JSON.stringify({
+                      type: 'file-chunk',
+                      name: file.name,
+                      totalSize: file.size,
+                      offset: start,
+                      chunkIndex: i,
+                      totalChunks: totalChunks
+                    });
+                    
+                    const headerBuffer = new TextEncoder().encode(header);
+                    const fullBuffer = new Uint8Array(4 + headerBuffer.length + arrayBuffer.byteLength);
+                    const view = new DataView(fullBuffer.buffer);
+                    view.setUint32(0, headerBuffer.length, true);
+                    fullBuffer.set(headerBuffer, 4);
+                    fullBuffer.set(new Uint8Array(arrayBuffer), 4 + headerBuffer.length);
+                    
+                    onControlEvent(fullBuffer);
+                    setTransferProgress({ name: file.name, p: Math.round(((i + 1) / totalChunks) * 100) });
+                    
+                    if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
+                  }
+                  
+                  setTimeout(() => setTransferProgress(null), 2000);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+              />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 text-blue-400 transition ml-2 shrink-0"
+                title="Transfer File"
+              >
+                <Plus size={16} />
+              </button>
+          </div>
+        </div>
+
+        {/* Video Player Area */}
+        <div 
+          ref={containerRef}
+          className={`flex-grow flex items-center justify-center relative overflow-hidden bg-[#0A0A0A] ${zoomMode === 'original' ? 'cursor-grab active:cursor-grabbing overflow-auto custom-scrollbar' : ''}`}
+          style={{ minHeight: '50vh' }}
+        >
+          <div className="w-full h-full relative group">
+            {renderVideoContent()}
+            {/* Subtle vignette effect for premium look */}
+            <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
