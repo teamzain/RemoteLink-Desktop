@@ -15,10 +15,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/apps/session-service/dist ./apps/session-service/dist
-COPY --from=builder /app/apps/session-service/package.json ./apps/session-service/package.json
+# Copy the entire workspace to ensure sub-workspace dependencies are found
+COPY --from=builder /app ./
 
 EXPOSE 3003
 
