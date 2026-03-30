@@ -1,8 +1,14 @@
 {
-    email {$EMAIL}
+    # Disable HTTPS auto-redirect for IP-based hosting
+    auto_https off
 }
 
-{$DOMAIN} {
+:80 {
+    # Health check
+    handle /health {
+        reverse_proxy auth-service:3001
+    }
+
     # Auth Service
     handle /api/auth* {
         reverse_proxy auth-service:3001
@@ -26,7 +32,4 @@
     handle /billing* {
         reverse_proxy billing-service:3004
     }
-
-    # Everything else (if you want to host static web here too)
-    # reverse_proxy web:80
 }
