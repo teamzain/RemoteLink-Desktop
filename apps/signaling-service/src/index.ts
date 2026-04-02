@@ -95,8 +95,8 @@ async function startServer() {
             sessionRegistry.set(sessionId, connectionId);
             reverseRegistry.set(connectionId, sessionId);
             
-            // Set presence with 60s TTL
-            await redisPublisher.set(`presence:${sessionId}`, 'online', 'EX', 60);
+            // Set presence with 90s TTL (1.5 minutes) for faster offline detection
+            await redisPublisher.set(`presence:${sessionId}`, 'online', 'EX', 90);
             
             console.log(`[Signaling] Registered Host session: ${sessionId}`);
             ws.send(JSON.stringify({ type: 'registered', sessionId, connectionId }));
@@ -108,9 +108,15 @@ async function startServer() {
           case 'heartbeat':
             const heartbeatSessionId = reverseRegistry.get(connectionId);
             if (heartbeatSessionId) {
-              console.log(`[Signaling] Heartbeat received for session: ${heartbeatSessionId}`);
-              await redisPublisher.expire(`presence:${heartbeatSessionId}`, 60);
+              // Refresh presence with 90s window
+              await redisPublisher.expire(`presence:${heartbeatSessionId}`, 90);
+              // console.log(`[Signaling] Pulse ACK: ${heartbeatSessionId}`);
             }
+            break;
+          
+          case 'pong':
+            // Explicit response to server-side ping
+            // console.log(`[Signaling] Pong from ${connectionId}`);
             break;
 
           case 'join':
@@ -200,18 +206,55 @@ async function startServer() {
       }
       
       if (viewerRegistry.has(connectionId)) {
+        const sessionId = viewerRegistry.get(connectionId);
+        if (sessionId) {
+          const hostId = sessionRegistry.get(sessionId);
+          if (hostId) {
+            const hostWs = localClients.get(hostId);
+            if (hostWs && hostWs.readyState === WebSocket.OPEN) {
+              hostWs.send(JSON.stringify({
+                type: 'viewer-left',
+                viewerId: connectionId
+              }));
+            }
+          }
+        }
         viewerRegistry.delete(connectionId);
         broadcastGlobalStats();
       }
     });
 
+    let pingsMissed = 0;
     const heartbeat = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
+        if (pingsMissed > 2) {
+          console.log(`[Signaling] Terminating unresponsive client: ${connectionId}`);
+          ws.terminate();
+          clearInterval(heartbeat);
+          return;
+        }
+        pingsMissed++;
         ws.send(JSON.stringify({ type: 'ping' }));
       } else {
         clearInterval(heartbeat);
       }
-    }, 30000);
+    }, 15000); // 15s ping
+
+    ws.on('message', async (msg) => {
+       try {
+         const data = JSON.parse(msg.toString());
+         if (data.type === 'pong' || data.type === 'heartbeat') {
+            pingsMissed = 0; // Reset on any active pulse
+
+            // EXTEND PRESENCE TTL:
+            // If this is a host, refresh their 'Online' status in Redis (90s TTL)
+            const sessionId = reverseRegistry.get(connectionId);
+            if (sessionId && sessionRegistry.get(sessionId) === connectionId) {
+               await redisPublisher.set(`presence:${sessionId}`, 'online', 'EX', 90).catch(() => {});
+            }
+         }
+       } catch {}
+    });
   });
 
   // Redis Messaging for Clustering

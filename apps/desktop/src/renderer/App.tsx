@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import logo from './assets/logo.png';
 // Force-syncing file state to resolve HMR/Vite discrepancies.
 import {
   Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
@@ -18,6 +19,7 @@ import { SnowBilling } from './components/SnowBilling';
 import { SnowDocumentation } from './components/SnowDocumentation';
 import { SnowProfile } from './components/SnowProfile';
 import { SnowSupport } from './components/SnowSupport';
+import { SnowSettings } from './components/SnowSettings';
 import { SnowSplashScreen } from './components/SnowSplashScreen';
 
 const mockPerformanceData = [
@@ -41,6 +43,7 @@ interface VideoPlayerProps {
   remoteStream: MediaStream | null;
   deviceType?: string;
   deviceName?: string;
+  controlChannelRef: React.RefObject<RTCDataChannel | null>;
 }
 const VideoPlayer = forwardRef<any, VideoPlayerProps>(({ 
   viewerStatus, 
@@ -50,7 +53,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
   onControlEvent,
   remoteStream,
   deviceType,
-  deviceName
+  deviceName,
+  controlChannelRef
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,10 +66,23 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [hasReceivedKeyframe, setHasReceivedKeyframe] = useState(false);
+  const [packetsReceived, setPacketsReceived] = useState(0);
+  const [lastPacketTime, setLastPacketTime] = useState<number | null>(null);
+  const [decodeErrors, setDecodeErrors] = useState(0);
   const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
+  const [localMouse, setLocalMouse] = useState<{x: number, y: number} | null>(null);
+
+  // Bind WebRTC stream to video element
+  useEffect(() => {
+    if (videoRef.current && remoteStream) {
+      videoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   useImperativeHandle(ref, () => ({
     feed: (data: Uint8Array) => {
+      setPacketsReceived(p => p + 1);
+      setLastPacketTime(Date.now());
       if (remoteStream) return; // Ignore custom data if using standard stream
       
       if (data.length < 10) return;
@@ -108,46 +125,112 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
   }));
 
   const feedToDecoder = (chunkData: Uint8Array, timestamp: bigint) => {
-    if (!decoderRef.current || decoderRef.current.state !== 'configured') return;
+    if (!decoderRef.current) return;
     
-    const now = Date.now();
-    const msTimestamp = Number(timestamp / 1000n);
-    const frameLatency = now - msTimestamp;
-    if (Math.random() < 0.05) setLatency(frameLatency);
-
-    let type: 'key' | 'delta' = 'delta';
-    // Scan for NAL units to find keyframes (SPS, PPS, or IDR)
-    for (let i = 0; i < Math.min(chunkData.length - 5, 256); i++) {
-        const isHeader4 = chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 0 && chunkData[i+3] === 1;
-        const isHeader3 = chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 1;
-        
-        if (isHeader4 || isHeader3) {
-            let nalType = -1;
-            if (isHeader4) { 
-                nalType = chunkData[i+4] & 0x1F;
-            } else {
-                nalType = chunkData[i+3] & 0x1F;
-            }
-
-            if (nalType === 5 || nalType === 7 || nalType === 8) {
-                type = 'key';
-                if (!hasReceivedKeyframe) {
-                    console.log(`[VideoPlayer] Initial Keyframe Found (type:${nalType})`);
-                    setHasReceivedKeyframe(true);
-                }
+    // 1. Manually Split Annex-B Chunk into individual NALs
+    const nals: Uint8Array[] = [];
+    let i = 0;
+    while (i < chunkData.length - 3) {
+      if (chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 1) {
+        const start = i + 3;
+        let end = chunkData.length;
+        for (let j = start; j < chunkData.length - 2; j++) {
+            if (chunkData[j] === 0 && chunkData[j+1] === 0 && (chunkData[j+2] === 1 || (chunkData[j+2] === 0 && chunkData[j+3] === 1))) {
+                end = j;
                 break;
             }
         }
+        nals.push(chunkData.subarray(start, end));
+        i = end;
+      } else if (chunkData[i] === 0 && chunkData[i+1] === 0 && chunkData[i+2] === 0 && chunkData[i+3] === 1) {
+        const start = i + 4;
+        let end = chunkData.length;
+        for (let j = start; j < chunkData.length - 2; j++) {
+            if (chunkData[j] === 0 && chunkData[j+1] === 0 && (chunkData[j+2] === 1 || (chunkData[j+2] === 0 && chunkData[j+3] === 1))) {
+                end = j;
+                break;
+            }
+        }
+        nals.push(chunkData.subarray(start, end));
+        i = end;
+      } else {
+          i++;
+      }
     }
 
-    if (!hasReceivedKeyframe) {
-      if (Math.random() < 0.05) console.log(`[VideoPlayer] Buffering (No keyframe yet). Data Size: ${chunkData.length}`);
-      return;
+    if (nals.length === 0) {
+        console.warn(`[VideoPlayer] Received chunk of ${chunkData.length} bytes but NO NAL units found!`);
+        return;
+    }
+
+    // 2. Extract SPS / PPS & Reconfigure WebCodecs (Required on Windows)
+    let sps: Uint8Array | null = null;
+    let pps: Uint8Array | null = null;
+    let type: 'key' | 'delta' = 'delta';
+    let nalTypesFound = [];
+
+    for (const nal of nals) {
+        const nalType = nal[0] & 0x1F;
+        nalTypesFound.push(nalType);
+        if (nalType === 7) sps = nal;
+        if (nalType === 8) pps = nal;
+        if (nalType === 5) type = 'key';
+    }
+
+    console.log(`[VideoPlayer] Chunk parsed! Found ${nals.length} NALs. Types: [${nalTypesFound.join(', ')}]`);
+
+    let isCurrentlyConfigured = hasReceivedKeyframe;
+
+    if (sps && pps && !hasReceivedKeyframe) {
+        console.log(`[VideoPlayer] Constructing Extradata... SPS Length: ${sps.length}, PPS Length: ${pps.length}`);
+        const extradata = new Uint8Array(11 + sps.length + pps.length);
+        extradata.set([0x01, sps[1], sps[2], sps[3], 0xFF, 0xE1, (sps.length >> 8) & 0xFF, sps.length & 0xFF], 0);
+        extradata.set(sps, 8);
+        extradata.set([0x01, (pps.length >> 8) & 0xFF, pps.length & 0xFF], 8 + sps.length);
+        extradata.set(pps, 8 + sps.length + 3);
+
+        const codecString = `avc1.${[sps[1], sps[2], sps[3]].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+        console.log(`[VideoPlayer] Configuring Hardware Engine: ${codecString}`);
+
+        decoderRef.current.configure({
+            codec: codecString,
+            description: extradata,
+            optimizeForLatency: true
+        });
+
+        console.log(`[VideoPlayer] Decoder successfully configured with AVCDecoderConfigurationRecord.`);
+        setHasReceivedKeyframe(true);
+        isCurrentlyConfigured = true; // Local override to allow this specific chunk to decode
+    }
+
+    if (!isCurrentlyConfigured) {
+        if (Math.random() < 0.05) console.warn(`[VideoPlayer] Dropping ${nalTypesFound.join(',')} frame because no SPS/PPS Keyframe initialized engine yet.`);
+        return;
     }
 
     if (viewerStatus !== 'streaming') {
-      console.log(`[VideoPlayer] Transitioning to STREAMING. First frame: ${type}, size: ${chunkData.length}`);
+      console.log(`[VideoPlayer] Transitioning to STREAMING. UI should update.`);
       setViewerStatus('streaming');
+    }
+
+    // 3. Rebuild chunk in AVCC 4-byte length-prefix format
+    // CRITICAL: We MUST filter out SPS/PPS if they are also provided in the 'description' 
+    // to prevent decoder failures on Windows Media Foundation.
+    const vclNals = nals.filter(nal => {
+        const type = nal[0] & 0x1F;
+        return type === 1 || type === 5;
+    });
+
+    if (vclNals.length === 0) return; // No actual video data in this chunk
+
+    const avccLength = vclNals.reduce((acc, nal) => acc + 4 + nal.length, 0);
+    const avccData = new Uint8Array(avccLength);
+    let offset = 0;
+    for (const nal of vclNals) {
+        const view = new DataView(avccData.buffer, avccData.byteOffset + offset, 4);
+        view.setUint32(0, nal.length, false);
+        avccData.set(nal, offset + 4);
+        offset += 4 + nal.length;
     }
 
     try {
@@ -157,17 +240,24 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
       const encodedChunk = new EncodedVideoChunk({
         type: type,
         timestamp: Number(timestamp), 
-        data: chunkData,
+        data: avccData,
       });
       decoderRef.current.decode(encodedChunk);
     } catch (e) {
-      console.warn('[VideoPlayer] Decoder push failed:', e);
+      console.error('[VideoPlayer] Decoder CRASHED on chunk processing:', e);
     }
   };
+
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
 
   // --- Handshake Watchdog (Force Image Recovery) ---
   useEffect(() => {
      let timer: any;
+     // Focus the container to ensure keyboard events are captured
+     if (viewerStatus === 'streaming') {
+        viewerContainerRef.current?.focus();
+     }
+     
      // Watchdog should start if we are "connecting" or "connected" but no data has flowed for 5 seconds
      if ((viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') && !hasReceivedKeyframe && !remoteStream) {
         timer = setTimeout(() => {
@@ -177,6 +267,51 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
      }
      return () => clearTimeout(timer);
   }, [viewerStatus, hasReceivedKeyframe, remoteStream, onControlEvent]);
+
+  // --- Keyboard Handlers ---
+  useEffect(() => {
+    if ((viewerStatus !== 'streaming' && viewerStatus !== 'connected') || !onControlEvent) return;
+    
+    console.warn(`[DIAGNOSTIC] REMOTE CAPTURE ACTIVE. Monitoring all keystrokes in ${viewerStatus} mode.`);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent browser shortcuts when in the viewer (except basic ones if needed)
+      if (['Tab', 'Backspace', 'Enter', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+      
+      // Map JS keys and special characters to Windows-style VK codes
+      const vkMap: Record<string, number> = {
+        'Enter': 0x0D, 'Backspace': 0x08, 'Tab': 0x09, 'Escape': 0x1B, ' ': 0x20,
+        'ArrowLeft': 0x25, 'ArrowUp': 0x26, 'ArrowRight': 0x27, 'ArrowDown': 0x28,
+        'Delete': 0x2E, 'Home': 0x24, 'End': 0x23, 'Insert': 0x2D, 'PageUp': 0x21, 'PageDown': 0x22,
+        'F1': 0x70, 'F2': 0x71, 'F3': 0x72, 'F4': 0x73, 'F5': 0x74, 'F6': 0x75, 'F7': 0x76, 'F8': 0x77, 'F9': 0x78, 'F10': 0x79, 'F11': 0x7A, 'F12': 0x7B,
+        'Shift': 0x10, 'Control': 0x11, 'Alt': 0x12, 'Meta': 0x5B, 'CapsLock': 0x14, 'ScrollLock': 0x91, 'NumLock': 0x90
+      };
+
+      const vk = vkMap[e.key] || e.keyCode; // Fallback for letters/numbers
+      console.log(`[Diagnostic] Capture: Key ${e.key} -> VK ${vk.toString(16)}`);
+      onControlEvent({ type: 'keydown', keyCode: vk });
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const vkMap: Record<string, number> = {
+        'Enter': 0x0D, 'Backspace': 0x08, 'Tab': 0x09, 'Escape': 0x1B, ' ': 0x20,
+        'ArrowLeft': 0x25, 'ArrowUp': 0x26, 'ArrowRight': 0x27, 'ArrowDown': 0x28,
+        'Shift': 0x10, 'Control': 0x11, 'Alt': 0x12, 'Meta': 0x5B
+      };
+      const vk = vkMap[e.key] || e.keyCode;
+      onControlEvent({ type: 'keyup', keyCode: vk });
+    };
+
+    // Use capturing phase to ensure we beat button/input focus
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
+  }, [viewerStatus, onControlEvent]);
 
   const initDecoder = () => {
     if (remoteStream || !canvasRef.current) return;
@@ -210,6 +345,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
       },
       error: (e: any) => {
         console.error('[VideoPlayer] Decoder hardware error:', e);
+        setDecodeErrors(d => d + 1);
         setHasReceivedKeyframe(false);
         setTimeout(initDecoder, 1000);
       },
@@ -232,234 +368,434 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     };
   }, [remoteStream]);
 
+  // Assign stream to video element whenever it changes
   useEffect(() => {
     if (videoRef.current && remoteStream) {
       videoRef.current.srcObject = remoteStream;
-      // Explicitly trigger play to override browser auto-play restrictions
       videoRef.current.play().catch(err => {
-        console.warn('[VideoPlayer] Auto-play blocked, wait for user interaction:', err);
+        console.warn('[VideoPlayer] Auto-play blocked:', err);
       });
     }
   }, [remoteStream]);
 
+  // --- Manual Wheel Listener (Fixes Passive event error) ---
+  useEffect(() => {
+    const target = remoteStream ? videoRef.current : canvasRef.current;
+    if (!target) return;
+
+    const onWheel = (e: Event) => {
+      const we = e as WheelEvent;
+      we.preventDefault();
+      onControlEvent({ type: 'wheel', deltaX: we.deltaX, deltaY: we.deltaY });
+    };
+
+    target.addEventListener('wheel', onWheel, { passive: false });
+    return () => target.removeEventListener('wheel', onWheel);
+  }, [remoteStream, onControlEvent, zoomMode]);
+
+  const lastMouseMoveRef = useRef<number>(0);
+  const MOUSE_THROTTLE_MS = 16; // ~60fps
+
+  const uiTimeoutRef = useRef<any>(null);
+
+  const resetUITimeout = () => {
+    if (viewerContainerRef.current) {
+      viewerContainerRef.current.setAttribute('data-ui-hidden', 'false');
+    }
+    clearTimeout(uiTimeoutRef.current);
+    uiTimeoutRef.current = setTimeout(() => {
+      if (viewerContainerRef.current) {
+        viewerContainerRef.current.setAttribute('data-ui-hidden', 'true');
+      }
+    }, 2000);
+  };
+
   const handleMouseEvent = (e: React.MouseEvent, type: string) => {
+    resetUITimeout();
+
     const target = remoteStream ? videoRef.current : canvasRef.current;
     const rect = target?.getBoundingClientRect();
-    if (rect) {
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
+    if (rect && target) {
+      // Get intrinsic video/canvas dimensions for letterbox correction
+      let videoWidth: number, videoHeight: number;
+      if (remoteStream && videoRef.current) {
+        videoWidth = videoRef.current.videoWidth;
+        videoHeight = videoRef.current.videoHeight;
+      } else if (canvasRef.current) {
+        videoWidth = canvasRef.current.width;   // intrinsic 1920
+        videoHeight = canvasRef.current.height; // intrinsic 1080
+      } else {
+        videoWidth = 0; videoHeight = 0;
+      }
+
+      if (videoWidth === 0 || videoHeight === 0) {
+        // Fallback to simple client-to-element ratio if stream isn't reporting intrinsic dimensions yet
+        let x = (e.clientX - rect.left) / rect.width;
+        let y = (e.clientY - rect.top) / rect.height;
+        if (type === 'mousedown') console.warn('[Diagnostic] Tap: Fallback used (videoWidth 0)');
+        
+        // Clamp to 0.0–1.0
+        x = Math.max(0, Math.min(1, x));
+        y = Math.max(0, Math.min(1, y));
+
+        if (type === 'mousemove') {
+          setLocalMouse({ x: e.clientX, y: e.clientY });
+          const now = Date.now();
+          if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
+          lastMouseMoveRef.current = now;
+        }
+
+        onControlEvent({ type, button: (e as any).button, x, y });
+        return;
+      }
+
+      let x: number, y: number;
+      if (zoomMode === 'fit') {
+        const containerWidth = rect.width;
+        const containerHeight = rect.height;
+        const containerRatio = containerWidth / containerHeight;
+        const videoRatio = videoWidth / videoHeight;
+
+        let actualWidth, actualHeight, offsetX, offsetY;
+        if (containerRatio > videoRatio) {
+          // Pillarboxed: black bars on left/right
+          actualHeight = containerHeight;
+          actualWidth = containerHeight * videoRatio;
+          offsetX = (containerWidth - actualWidth) / 2;
+          offsetY = 0;
+        } else {
+          // Letterboxed: black bars on top/bottom
+          actualWidth = containerWidth;
+          actualHeight = containerWidth / videoRatio;
+          offsetX = 0;
+          offsetY = (containerHeight - actualHeight) / 2;
+        }
+
+        x = (e.clientX - (rect.left + offsetX)) / actualWidth;
+        y = (e.clientY - (rect.top + offsetY)) / actualHeight;
+        
+        // Diagnostic: Log mapping for user if it feels 'off'
+        if ((e as any).button !== undefined && type === 'mousedown') {
+           console.log(`[Diagnostic] Tap Mapping: (${e.clientX}, ${e.clientY}) -> (${x.toFixed(4)}, ${y.toFixed(4)}) | Video: ${videoWidth}x${videoHeight}`);
+        }
+      } else {
+        x = (e.clientX - rect.left) / rect.width;
+        y = (e.clientY - rect.top) / rect.height;
+      }
+
+      // Clamp to 0.0–1.0
+      x = Math.max(0, Math.min(1, x));
+      y = Math.max(0, Math.min(1, y));
+
+      if (type === 'mousemove') {
+        setLocalMouse({ x: e.clientX, y: e.clientY });
+        const now = Date.now();
+        if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
+        lastMouseMoveRef.current = now;
+      }
+
       onControlEvent({ type, button: (e as any).button, x, y });
     }
   };
 
-  const renderContent = () => (
-    <div className="w-full h-full flex items-center justify-center relative bg-[#0A0A0A]">
-      {remoteStream ? (
-        <video 
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          onLoadedMetadata={(e) => e.currentTarget.play().catch(console.error)}
-          className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none cursor-move'}`}
-          style={{ minHeight: '100px', minWidth: '100px', backgroundColor: '#0A0A0A' }}
-          onMouseMove={(e) => handleMouseEvent(e, 'mousemove')}
-          onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
-          onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
-          onContextMenu={(e) => e.preventDefault()}
-        />
-      ) : (
-        <div className="relative w-full h-full flex items-center justify-center bg-[#0A0A0A]">
-          {!hasReceivedKeyframe && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0A0A0A]/90 backdrop-blur-md animate-pulse">
-              <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-white/80 animate-spin mb-6 shadow-[0_0_30px_rgba(255,255,255,0.1)]" />
-              <span className="text-[11px] font-bold text-white/90 uppercase tracking-[0.4em]">Synclink Standby</span>
-              <span className="text-[9px] text-white/40 mt-3 uppercase tracking-widest font-semibold">Requesting Secure Frame...</span>
+  const handleWheelEvent = (e: React.WheelEvent) => {
+    // Handled by manual listener above to avoid passive event error
+  };
+
+  const isMobileDevice = deviceType?.toLowerCase() === 'mobile' || deviceType?.toLowerCase() === 'android' || deviceType?.toLowerCase() === 'ios';
+
+  const renderContent = () => {
+    const videoProps = {
+      className: `transition-all duration-300 select-none ${zoomMode === 'fit' ? (isMobileDevice ? 'w-full h-full object-fill' : 'w-full h-full object-contain') : 'w-auto h-auto object-none'} ${!hasReceivedKeyframe ? 'opacity-0' : 'opacity-100'}`,
+      style: { backgroundColor: '#000', outline: 'none' },
+      onMouseMove: (e: React.MouseEvent) => handleMouseEvent(e, 'mousemove'),
+      onMouseDown: (e: React.MouseEvent) => handleMouseEvent(e, 'mousedown'),
+      onMouseUp: (e: React.MouseEvent) => handleMouseEvent(e, 'mouseup'),
+      onWheel: handleWheelEvent,
+      onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+    };
+
+    const contentNode = remoteStream ? (
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        onLoadedMetadata={(e) => {
+           e.currentTarget.play().catch(console.error);
+           setHasReceivedKeyframe(true);
+        }}
+        onMouseEnter={() => {}}
+        onMouseLeave={() => setLocalMouse(null)}
+        {...videoProps}
+      />
+    ) : (
+      <div className="relative w-full h-full flex items-center justify-center bg-black">
+        {!hasReceivedKeyframe && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#060608] animate-in fade-in duration-500">
+            {/* Ambient glow */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/5 blur-[160px] rounded-full" />
             </div>
-          )}
-          <canvas
-            ref={canvasRef}
-            width={1920}
-            height={1080}
-            className={`transition-all duration-300 ${zoomMode === 'fit' ? 'w-full h-full object-contain' : 'w-auto h-auto object-none cursor-move'} ${!hasReceivedKeyframe ? 'opacity-0' : 'opacity-100'}`}
-            onMouseMove={(e) => handleMouseEvent(e, 'mousemove')}
-            onMouseDown={(e) => handleMouseEvent(e, 'mousedown')}
-            onMouseUp={(e) => handleMouseEvent(e, 'mouseup')}
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        </div>
-      )}
-    </div>
-  );
+
+            {/* Logo mark */}
+            <div className="relative mb-8 z-10">
+              <div className="w-20 h-20 rounded-[28px] bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-2xl overflow-hidden">
+                <img src={logo} alt="SyncLink" className="w-12 h-12 object-contain opacity-70" />
+              </div>
+              {/* Orbiting ring */}
+              <div className="absolute inset-0 rounded-[28px] border border-blue-500/20 animate-ping" style={{ animationDuration: '2s' }} />
+            </div>
+
+            <span className="text-[13px] font-bold text-white/60 tracking-[0.35em] uppercase z-10 mb-2">Establishing Link</span>
+            <span className="text-[10px] text-white/20 font-medium z-10 mb-8">Negotiating secure P2P channel...</span>
+
+            {/* Step indicators */}
+            <div className="flex items-center gap-3 z-10 mb-10">
+              {['ICE', 'DTLS', 'STREAM'].map((step, i) => {
+                const active = (packetsReceived > 0 && i === 2) || (i < 2);
+                return (
+                  <React.Fragment key={step}>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${active ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                        {active ? <CheckCircle2 size={12} /> : <div className="w-1.5 h-1.5 rounded-full bg-white/20" />}
+                      </div>
+                      <span className={`text-[8px] font-bold uppercase tracking-widest ${active ? 'text-blue-400/60' : 'text-white/15'}`}>{step}</span>
+                    </div>
+                    {i < 2 && <div className={`w-8 h-px mb-4 ${active ? 'bg-blue-500/30' : 'bg-white/10'}`} />}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* Telemetry pill */}
+            <div className="flex items-center gap-5 px-5 py-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl z-10">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Packets</span>
+                <span className="text-sm font-mono text-blue-400/80 font-bold tabular-nums">{packetsReceived}</span>
+              </div>
+              <div className="w-px h-8 bg-white/[0.06]" />
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Errors</span>
+                <span className="text-sm font-mono text-red-400/80 font-bold tabular-nums">{decodeErrors}</span>
+              </div>
+              <div className="w-px h-8 bg-white/[0.06]" />
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Signal</span>
+                <span className={`text-sm font-bold uppercase ${lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'text-emerald-400/80' : 'text-white/20'}`}>
+                  {lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'HOT' : '—'}
+                </span>
+              </div>
+            </div>
+
+            {lastPacketTime && (
+              <span className="text-[8px] text-white/15 font-bold uppercase tracking-[0.2em] mt-4 z-10">
+                Last signal: {Math.round((Date.now() - lastPacketTime) / 1000)}s ago
+              </span>
+            )}
+          </div>
+        )}
+        <canvas
+          ref={canvasRef}
+          width={1920}
+          height={1080}
+          {...videoProps}
+        />
+      </div>
+    );
+    return (
+      <div className="w-full h-full flex items-center justify-center relative bg-[#060608]">
+        {isMobileDevice && zoomMode === 'fit' ? (
+          <div className="relative flex items-center justify-center py-12 px-4 w-full h-full max-h-screen">
+            {/* Phone Frame wrapper */}
+            <div className="relative rounded-[48px] p-3 bg-[#1C1C1C] border border-white/[0.08] shadow-[0_30px_100px_rgba(0,0,0,0.8)] h-[95%] aspect-[9/19.5] flex-shrink-0 flex items-center justify-center max-h-[900px]">
+              {/* Bezel inner */}
+              <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-black isolation-auto pointer-events-auto shadow-[inset_0_0_2px_rgba(255,255,255,0.2)] flex items-center justify-center">
+                {contentNode}
+              </div>
+              {/* Dynamic Island / Camera Notch */}
+              <div className="absolute top-5 left-1/2 -translate-x-1/2 w-[120px] h-[30px] bg-black rounded-full pointer-events-none z-50 flex items-center justify-center border border-white/[0.04] shadow-sm">
+                <div className="w-3 h-3 rounded-full bg-blue-900/30 ml-auto mr-4 flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#1A1A1A] shadow-[inset_0.5px_0.5px_1px_rgba(255,255,255,0.3)]">
+                    <div className="w-0.5 h-0.5 rounded-full bg-blue-500/50 mt-[1px] ml-[1px]" />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Hardware Buttons */}
+              <div className="absolute top-32 -left-1 w-1 h-12 bg-[#2A2A2A] rounded-l-md" />
+              <div className="absolute top-48 -left-1 w-1 h-20 bg-[#2A2A2A] rounded-l-md" />
+              <div className="absolute top-48 -right-1 w-1 h-24 bg-[#2A2A2A] rounded-r-md" />
+            </div>
+          </div>
+        ) : (
+          contentNode
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="w-full h-full flex flex-col animate-in fade-in duration-700 relative bg-white">
-      {/* SnowUI Premium Header */}
-      <div className="h-20 flex items-center justify-between px-4 sm:px-8 bg-white border-b border-[rgba(28,28,28,0.06)] shadow-sm z-50 overflow-x-auto custom-scrollbar">
-        <div className="flex items-center gap-4 sm:gap-6 shrink-0">
-          <button 
-            onClick={onDisconnect}
-            className="p-3 bg-[#F8F9FA] hover:bg-[#EAEAEA] text-[#1C1C1C] transition-all rounded-[14px] border border-[rgba(28,28,28,0.04)] active:scale-95"
-            title="Terminate Link"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          
-          <div className="flex items-center gap-4 border-l border-[rgba(28,28,28,0.06)] pl-4 sm:pl-6">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#1C1C1C] rounded-[16px] flex items-center justify-center shadow-lg shadow-black/10">
-              <Smartphone className="text-white w-5 h-5 sm:w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-sm font-black text-[#1C1C1C] uppercase tracking-tighter truncate max-w-[100px] sm:max-w-[200px]">{deviceName || 'Remote Node'}</h2>
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-[10px] text-[rgba(28,28,28,0.3)] font-black tracking-[0.2em]">{sessionCode}</p>
-                <div className="w-1 h-1 rounded-full bg-[rgba(28,28,28,0.1)]" />
-                <span className="text-[9px] font-black text-blue-600 uppercase tracking-widest">{viewerStatus}</span>
-              </div>
+    <div 
+      ref={viewerContainerRef}
+      tabIndex={0}
+      data-ui-hidden="false"
+      className="w-full h-full flex flex-col animate-in fade-in duration-700 relative bg-[#060608] outline-none"
+    >
+      {/* Floating Glassmorphism Toolbar */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 rounded-2xl bg-[#0a0a0ade] border border-white/[0.08] backdrop-blur-2xl shadow-2xl shadow-black/40 transition-all duration-500 opacity-100 pointer-events-auto [[data-ui-hidden='true']_&]:opacity-0 [[data-ui-hidden='true']_&]:-translate-y-4 [[data-ui-hidden='true']_&]:pointer-events-none hover:!opacity-100 hover:!translate-y-0 hover:!pointer-events-auto">
+        {/* Back */}
+        <button
+          onClick={onDisconnect}
+          title="Disconnect"
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-400 transition-all active:scale-95 border border-white/5"
+        >
+          <ArrowLeft size={14} />
+        </button>
+
+        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+
+        {/* Device identity */}
+        <div className="flex items-center gap-2.5 px-1">
+          <div className="w-7 h-7 rounded-xl bg-white/10 flex items-center justify-center">
+            {isMobileDevice ? <Smartphone size={13} className="text-white/70" /> : <Monitor size={13} className="text-white/70" />}
+          </div>
+          <div className="flex flex-col leading-none">
+            <span className="text-[11px] font-bold text-white/90 tracking-tight max-w-[120px] truncate">{deviceName || 'Remote Node'}</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[9px] font-bold text-emerald-400/80 uppercase tracking-widest">{latency > 0 ? `${latency}ms` : 'LIVE'}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            {transferProgress && (
-              <div className="hidden sm:flex flex-col items-end gap-1.5 px-6 border-r border-[rgba(28,28,28,0.06)]">
-                <span className="text-[9px] font-black text-[#1C1C1C] uppercase tracking-[0.2em]">Deploying Payload...</span>
-                <div className="w-32 h-1 bg-[#F8F9FA] rounded-full overflow-hidden border border-[rgba(28,28,28,0.04)]">
-                  <div className="h-full bg-[#1C1C1C] transition-all duration-300" style={{ width: `${transferProgress.p}%` }} />
-                </div>
-              </div>
-            )}
-            
-            <div className="flex bg-[#F8F9FA] p-1 sm:p-1.5 border border-[rgba(28,28,28,0.06)] rounded-none gap-1 shrink-0">
-               <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} className={`p-2 sm:p-2.5 transition-all rounded-none ${zoomMode === 'original' ? 'bg-[#1C1C1C] text-white' : 'text-[#1C1C1C]/40 hover:text-[#1C1C1C] hover:bg-white'}`} title="Scale Toggle">
-                 <Search className="w-3 h-3 sm:w-4 sm:h-4" />
-               </button>
-               <button onClick={() => {
-                 if (!document.fullscreenElement) {
-                   containerRef.current?.requestFullscreen();
-                   setIsFullScreen(true);
-                 } else {
-                   document.exitFullscreen();
-                   setIsFullScreen(false);
-                 }
-               }} className="p-2 sm:p-2.5 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" title="Full Screen">
-                 <Monitor className="w-3 h-3 sm:w-4 sm:h-4" />
-               </button>
-               <div className="w-px h-5 bg-[rgba(28,28,28,0.06)] mx-1 self-center" />
-               <button 
-                 onMouseDown={() => {
-                   onControlEvent({ type: 'action', action: 'volume_down' });
-                   const interval = setInterval(() => {
-                     onControlEvent({ type: 'action', action: 'task_manager' });
-                   }, 100);
-                   const cleanup = () => { clearInterval(interval); window.removeEventListener('mouseup', cleanup); };
-                   window.addEventListener('mouseup', cleanup);
-                 }} 
-                 className="p-2 sm:p-2.5 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" 
-                 title="Vol -"
-               >
-                 <Activity size={16} className="w-3 h-3 sm:w-4 sm:h-4" />
-               </button>
-               <button 
-                 onMouseDown={() => {
-                   onControlEvent({ type: 'action', action: 'volume_up' });
-                   const interval = setInterval(() => {
-                     onControlEvent({ type: 'action', action: 'browser' });
-                   }, 100);
-                   const cleanup = () => { clearInterval(interval); window.removeEventListener('mouseup', cleanup); };
-                   window.addEventListener('mouseup', cleanup);
-                 }} 
-                 className="p-2 sm:p-2.5 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" 
-                 title="Vol +"
-               >
-                 <Globe size={16} className="w-3 h-3 sm:w-4 sm:h-4" />
-               </button>
-               <button onClick={() => onControlEvent({ type: 'action', action: 'explorer' })} className="p-2 sm:p-2.5 hover:bg-white text-[#1C1C1C]/40 hover:text-[#1C1C1C] transition-all rounded-none" title="File Explorer"><Folder size={16} className="w-3 h-3 sm:w-4 sm:h-4" /></button>
-               <div className="w-px h-5 bg-[rgba(28,28,28,0.06)] mx-1 self-center" />
-               <button onClick={() => onControlEvent({ type: 'request-keyframe' })} className="p-2 sm:p-2.5 hover:bg-emerald-50 text-emerald-500/60 hover:text-emerald-600 transition-all rounded-none" title="Refresh Stream"><RefreshCw size={16} className="w-3 h-3 sm:w-4 sm:h-4" /></button>
-               <div className="w-px h-5 bg-[rgba(28,28,28,0.06)] mx-1 self-center" />
-               <button onClick={() => onControlEvent({ type: 'action', action: 'lock' })} className="p-2 sm:p-2.5 hover:bg-blue-50 text-blue-500/60 hover:text-blue-600 transition-all rounded-none hidden sm:block" title="Lock Screen"><Lock size={16} className="w-4 h-4" /></button>
-               <button onClick={() => onControlEvent({ type: 'action', action: 'shutdown' })} className="p-2 sm:p-2.5 hover:bg-red-50 text-red-500/60 hover:text-red-600 transition-all rounded-none hidden sm:block" title="Emergency Shutdown"><Power size={16} className="w-4 h-4" /></button>
-            </div>
-            
-            <div className="hidden md:flex items-center gap-3 ml-2 sm:ml-4 shrink-0">
-              <span className="badge-online">CONNECTED</span>
-              <div className="flex flex-col items-end">
-                <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest leading-none">Signal Stable</span>
-                <span className="text-[10px] font-mono text-[rgba(28,28,28,0.2)] mt-0.5">{latency}ms</span>
-              </div>
-            </div>
+        <div className="w-px h-5 bg-white/[0.06] mx-1" />
 
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                
-                const CHUNK_SIZE = 16 * 1024; // 16KB
-                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-                setTransferProgress({ name: file.name, p: 0 });
-
-                for (let i = 0; i < totalChunks; i++) {
-                  const start = i * CHUNK_SIZE;
-                  const end = Math.min(start + CHUNK_SIZE, file.size);
-                  const chunk = file.slice(start, end);
-                  const arrayBuffer = await chunk.arrayBuffer();
-                  
-                  const header = JSON.stringify({
-                    type: 'file-chunk',
-                    name: file.name,
-                    totalSize: file.size,
-                    offset: start,
-                    chunkIndex: i,
-                    totalChunks: totalChunks
-                  });
-                  
-                  const headerBuffer = new TextEncoder().encode(header);
-                  const fullBuffer = new Uint8Array(4 + headerBuffer.length + arrayBuffer.byteLength);
-                  const view = new DataView(fullBuffer.buffer);
-                  view.setUint32(0, headerBuffer.length, true);
-                  fullBuffer.set(headerBuffer, 4);
-                  fullBuffer.set(new Uint8Array(arrayBuffer), 4 + headerBuffer.length);
-                  
-                  onControlEvent(fullBuffer);
-                  setTransferProgress({ name: file.name, p: Math.round(((i + 1) / totalChunks) * 100) });
-                  
-                  if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
-                }
-                
-                setTimeout(() => setTransferProgress(null), 2000);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-              }}
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 text-blue-400 transition hidden sm:block shrink-0"
-              title="Transfer File"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <div className="flex sm:hidden items-center gap-2 px-2 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 shrink-0">
-              <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
-              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">
-                {latency <= 0 ? 'STABLE' : `${latency}ms`}
-              </span>
-            </div>
+        {/* Controls */}
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10'}`}>
+            <Search size={13} />
+          </button>
+          <button onClick={() => { if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullScreen(true); } else { document.exitFullscreen(); setIsFullScreen(false); } }} title="Fullscreen" className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all">
+            <Maximize size={13} />
+          </button>
         </div>
+
+        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-0.5">
+          {[
+            { icon: Activity, action: 'task_manager', title: 'Task Manager', color: '' },
+            { icon: Globe, action: 'browser', title: 'Browser', color: '' },
+            { icon: Folder, action: 'explorer', title: 'Explorer', color: '' },
+            { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
+            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-blue-500/10' },
+            { icon: Power, action: 'shutdown', title: 'Shutdown', color: 'hover:text-red-400 hover:bg-red-500/10' },
+          ].map(({ icon: Icon, action, title, color }) => (
+            <button key={action} onClick={() => onControlEvent({ type: 'action', action })} title={title}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
+              <Icon size={13} />
+            </button>
+          ))}
+          <button onClick={() => onControlEvent({ type: 'request-keyframe' })} title="Refresh Stream"
+            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-emerald-400/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
+            <RefreshCw size={13} />
+          </button>
+        </div>
+
+        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+
+        {/* File transfer */}
+        <input type="file" ref={fileInputRef} className="hidden" onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+
+          const channel = controlChannelRef.current;
+          if (!channel) {
+             console.error('[FileTransfer] No active control channel.');
+             return;
+          }
+
+          // Ensure threshold is set for onbufferedamountlow
+          channel.bufferedAmountLowThreshold = 65536; // 64KB
+
+          const waitForBuffer = () => {
+            if (channel.bufferedAmount < 262144) return Promise.resolve(); // 256KB target
+            return new Promise<void>((resolve) => {
+              const handler = () => {
+                channel.removeEventListener('bufferedamountlow', handler);
+                resolve();
+              };
+              channel.addEventListener('bufferedamountlow', handler);
+            });
+          };
+
+          const CHUNK_SIZE = 16 * 1024;
+          const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+          setTransferProgress({ name: file.name, p: 0 });
+
+          try {
+            for (let i = 0; i < totalChunks; i++) {
+              // FLOW CONTROL: Wait if network buffer is saturated
+              await waitForBuffer();
+
+              const start = i * CHUNK_SIZE;
+              const end = Math.min(start + CHUNK_SIZE, file.size);
+              const chunk = file.slice(start, end);
+              const arrayBuffer = await chunk.arrayBuffer();
+              const header = JSON.stringify({ type: 'file-chunk', name: file.name, totalSize: file.size, offset: start, chunkIndex: i, totalChunks });
+              const headerBuffer = new TextEncoder().encode(header);
+              const fullBuffer = new Uint8Array(4 + headerBuffer.length + arrayBuffer.byteLength);
+              const view = new DataView(fullBuffer.buffer);
+              view.setUint32(0, headerBuffer.length, true);
+              fullBuffer.set(headerBuffer, 4);
+              fullBuffer.set(new Uint8Array(arrayBuffer), 4 + headerBuffer.length);
+              
+              onControlEvent(fullBuffer);
+              
+              if (i % 20 === 0) {
+                 console.log(`[Diagnostic] File Upload: Sent chunk ${i+1}/${totalChunks} (${Math.round((i+1)/totalChunks*100)}%)`);
+                 setTransferProgress({ name: file.name, p: Math.round(((i + 1) / totalChunks) * 100) });
+              }
+            }
+            setTransferProgress({ name: file.name, p: 100 });
+          } catch (err: any) {
+            console.error('[FileTransfer] FAILED:', err);
+          }
+
+          setTimeout(() => setTransferProgress(null), 2000);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }} />
+        <button onClick={() => fileInputRef.current?.click()} title="Transfer File"
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all">
+          <Plus size={13} />
+        </button>
+
+        {/* Transfer progress */}
+        {transferProgress && (
+          <>
+            <div className="w-px h-5 bg-white/[0.06] mx-1" />
+            <div className="flex items-center gap-2 px-2">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider max-w-[80px] truncate">{transferProgress.name}</span>
+              <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-400 transition-all duration-300 rounded-full" style={{ width: `${transferProgress.p}%` }} />
+              </div>
+              <span className="text-[9px] font-mono text-blue-400">{transferProgress.p}%</span>
+            </div>
+          </>
+        )}
       </div>
-      
-      <div 
+
+      {/* Main Video Area */}
+      <div
         ref={containerRef}
-        className={`flex-grow flex items-center justify-center relative overflow-hidden bg-[#0A0A0A] ${zoomMode === 'original' ? 'cursor-grab active:cursor-grabbing overflow-auto custom-scrollbar' : ''}`}
-        style={{ minHeight: '50vh' }}
+        className={`flex-grow flex items-center justify-center relative overflow-hidden bg-[#060608] ${zoomMode === 'original' ? 'cursor-grab active:cursor-grabbing overflow-auto' : ''}`}
       >
-        <div className="w-full h-full relative group">
+        <div className="w-full h-full relative">
           {renderContent()}
-          {/* Subtle vignette effect for premium look */}
-          <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
+          {/* Deep edge vignette */}
+          <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 120px rgba(0,0,0,0.7)' }} />
         </div>
       </div>
     </div>
@@ -481,8 +817,10 @@ export default function App() {
   const isAuthenticated = !!accessToken;
 
   const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support'>('dashboard');
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [signupName, setSignupName] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [sessionCode, setSessionCode] = useState('');
   const [accessPassword, setAccessPassword] = useState('');
@@ -521,8 +859,12 @@ export default function App() {
   const [devicePassword, setDevicePassword] = useState(localStorage.getItem('device_password') || '');
   const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(localStorage.getItem('is_auto_host_enabled') === 'true');
   const [showHostPassword, setShowHostPassword] = useState(false);
+  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
+  const [setupPassword, setSetupPassword] = useState('');
+  const [setupPasswordConfirm, setSetupPasswordConfirm] = useState('');
+  const [setupPasswordError, setSetupPasswordError] = useState('');
 
-  const [serverIP, setServerIP] = useState(localStorage.getItem('remote_link_server_ip') || '159.65.84.190');
+  const [serverIP, setServerIP] = useState('159.65.84.190'); // HARDCODED
   const [localIP, setLocalIP] = useState('127.0.0.1');
   const [showSettings, setShowSettings] = useState(false);
   const [isPackaged, setIsPackaged] = useState(false);
@@ -533,15 +875,6 @@ export default function App() {
     }
   }, []);
 
-  const getApiUrl = (port: number, path: string) => {
-    if (isPackaged) {
-      // In production, everything goes through the proxy on 443
-      // Billing is mounted at /billing in production (see Caddyfile)
-      // Signal is /api/signal, etc. But if the path is /billing/current, we don't prepend /api
-      return `https://${serverIP}${path}`;
-    }
-    return `http://${serverIP}:${port}${path}`;
-  };
 
   const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'error' | 'connected' | 'streaming' | 'connection_lost'>('idle');
   const [viewerError, setViewerError] = useState('');
@@ -554,15 +887,45 @@ export default function App() {
 
   // Throttled mouse movement
   const lastMouseMoveRef = useRef<number>(0);
+  const lastBufferWarningRef = useRef<number>(0);
   const MOUSE_THROTTLE_MS = 16; // ~60fps mouse updates
+
+  const onControlEvent = (event: any) => {
+    const channel = controlChannelRef.current;
+    if (channel?.readyState === 'open') {
+        try {
+          if (event instanceof Uint8Array) {
+            // Binary packets (files) are critical, never drop them here.
+            // Flow control is handled by the caller.
+            channel.send(event as any); 
+          } else {
+            // Congestion Guard: Drop mousemove if buffer is saturating
+            if (channel.bufferedAmount > 65536) { // 64KB threshold
+               if (event.type === 'mousemove') return; // Drop travel
+               
+               // Extreme congestion: Drop almost everything except clicks/keys
+               if (channel.bufferedAmount > 1048576 && event.type !== 'mousedown' && event.type !== 'keydown') {
+                  const now = Date.now();
+                  if (now - lastBufferWarningRef.current > 5000) {
+                     console.warn(`[Diagnostic] DataChannel Saturated: ${Math.round(channel.bufferedAmount / 1024)}KB queued. Dropping sync...`);
+                     lastBufferWarningRef.current = now;
+                  }
+                  return;
+               }
+            }
+            channel.send(JSON.stringify(event)); // JSON (input)
+          }
+        } catch (err: any) {
+          console.error(`[Diagnostic] Failed to send control event: ${err.message}`);
+        }
+    }
+  };
 
   const throttledMouseMove = (event: any) => {
     const now = Date.now();
     if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
     lastMouseMoveRef.current = now;
-    if (controlChannelRef.current?.readyState === 'open') {
-        controlChannelRef.current.send(JSON.stringify(event));
-    }
+    onControlEvent(event);
   };
 
   const handleLogout = async () => {
@@ -627,7 +990,7 @@ export default function App() {
   // Sync actionValue when modal opens
   useEffect(() => {
     if (actionModal) {
-      if (actionModal.type === 'rename') setActionValue(actionModal.device.device_name || '');
+      if (actionModal.type === 'rename') setActionValue(actionModal.device?.device_name || '');
       else if (actionModal.type === 'password') setActionValue('');
       else setActionValue('');
     }
@@ -732,9 +1095,9 @@ export default function App() {
       // Establish long-lived presence monitor
       const getWsUrl = () => {
         if (isPackaged) {
-           return `wss://${serverIP}/api/signal`;
+           return `ws://${serverIP}/api/signal`;
         }
-        return `ws://${serverIP}:3002`;
+        return `ws://${serverIP}/api/signal`;
       };
       const wsUrl = getWsUrl();
       const monitor = new WebSocket(wsUrl);
@@ -908,6 +1271,36 @@ export default function App() {
 
   const [deviceId, setDeviceId] = useState('');
   const [viewerStep, setViewerStep] = useState<1 | 2>(1);
+  const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number }>({ bandwidth: '0.00', activeUsers: 0 });
+  const [lastPingTime, setLastPingTime] = useState<number>(Date.now());
+
+  // 1. Viewer-side Clipboard Polling (500ms)
+  useEffect(() => {
+    if (viewerStatus !== 'streaming' || !isElectron) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const text = await (window as any).electronAPI.clipboard.readText();
+        if (text && text !== lastClipboardRef.current) {
+          lastClipboardRef.current = text;
+          if (controlChannelRef.current?.readyState === 'open') {
+             console.log(`[Diagnostic] Local clipboard changed. Syncing to host... (${text.substring(0, 20)}...)`);
+             controlChannelRef.current.send(JSON.stringify({ type: 'clipboard', text }));
+          }
+        }
+      } catch (e) {}
+    }, 500);
+    
+    return () => clearInterval(interval);
+  }, [viewerStatus, isElectron]);
+
+  useEffect(() => {
+    if (!isElectron) return;
+    const unsub = (window as any).electronAPI.onHostStats((stats: any) => {
+      setHostStats(stats);
+    });
+    return () => unsub();
+  }, [isElectron]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -948,7 +1341,7 @@ export default function App() {
   const [currentPlan, setCurrentPlan] = useState<any>(null);
   const [billingLoading, setBillingLoading] = useState(false);
 
-  const [fileReceivedModal, setFileReceivedModal] = useState<{name: string, path: string} | null>(null);
+  const [fileReceivedModal, setFileReceivedModal] = useState<{name: string, path: string, isRemote: boolean} | null>(null);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -968,8 +1361,8 @@ export default function App() {
       if (!creds?.token) return;
 
       const [plansRes, currentRes] = await Promise.all([
-        fetch(getApiUrl(3003, '/billing/plans')),
-        fetch(getApiUrl(3003, '/billing/current'), {
+        fetch(`http://${serverIP}/billing/plans`),
+        fetch(`http://${serverIP}/billing/current`, {
           headers: { 'Authorization': `Bearer ${creds.token}` }
         })
       ]);
@@ -989,7 +1382,7 @@ export default function App() {
     try {
       setBillingLoading(true);
       const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
-      const res = await fetch(getApiUrl(3003, '/billing/subscribe'), {
+      const res = await fetch(`http://${serverIP}/billing/subscribe`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${creds.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan: planName, paymentMethodId: 'pm_card_visa' })
@@ -1053,6 +1446,24 @@ export default function App() {
   useEffect(() => {
     if (isAuthenticated) loadDeviceInfo();
   }, [isAuthenticated, serverIP]);
+
+  // Fetch real billing data when billing view is opened
+  useEffect(() => {
+    if (currentView === 'billing' && isAuthenticated && !currentPlan) {
+      (async () => {
+        try {
+          const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
+          if (!creds?.token) return;
+          const res = await fetch(`http://${serverIP}/billing/current`, {
+            headers: { 'Authorization': `Bearer ${creds.token}` }
+          });
+          if (res.ok) setCurrentPlan(await res.json());
+        } catch (err) {
+          console.error('[Billing] Failed to fetch current plan:', err);
+        }
+      })();
+    }
+  }, [currentView, isAuthenticated]);
  
   // --- Persistent Hosting Auto-Start ---
   useEffect(() => {
@@ -1072,10 +1483,10 @@ export default function App() {
     // Listen for Google OAuth deep link success
     const unsubDeepLink = (window as any).electronAPI.onAuthDeepLinkSuccess?.(async (tokens: any) => {
        console.log('[Auth] Deep link success received in renderer');
-       // We need user info too, but for now we can just mark as authenticated
-       // and let checkAuth or a /me call fix the rest
-       await setAuth({ id: '', email: '', name: 'Google User', plan: 'Free', avatar: null }, tokens.accessToken, tokens.refreshToken);
-       checkAuth(); 
+       // Store tokens first so the API interceptor can use them
+       await setAuth({ id: '', email: '', name: '', plan: 'FREE', avatar: null }, tokens.accessToken, tokens.refreshToken);
+       // Then fetch real user data from /me
+       checkAuth();
     });
 
     if (isElectron) {
@@ -1094,7 +1505,6 @@ export default function App() {
     }
 
     const removeHostListener = isElectron ? (window as any).electronAPI.onHostStatus((status: string) => {
-      setHostStatus(status as any);
       setHostMessage(status);
     }) : () => {};
     
@@ -1194,25 +1604,81 @@ export default function App() {
               }
             }, 1000);
 
+            let viewerFileTransfers = new Map<string, { chunks: (Uint8Array | null)[], received: number, total: number }>();
+
             channel.onmessage = (e) => {
               try {
+                // 1. Handle Binary File Chunks
+                if (e.data instanceof ArrayBuffer || e.data instanceof Blob) {
+                  const blob = e.data instanceof Blob ? e.data : new Blob([e.data]);
+                  blob.arrayBuffer().then(buf => {
+                    const view = new DataView(buf, 0, 4);
+                    const headerLen = view.getUint32(0, true);
+                    const headerStr = new TextDecoder().decode(new Uint8Array(buf, 4, headerLen));
+                    const header = JSON.parse(headerStr);
+                    const chunk = new Uint8Array(buf, 4 + headerLen);
+
+                    if (header.type === 'file-chunk') {
+                      console.log(`[Diagnostic] File Download: Received chunk ${header.chunkIndex+1}/${header.totalChunks} from host`);
+                      let transfer = viewerFileTransfers.get(header.name);
+                      if (!transfer) {
+                        transfer = { chunks: new Array(header.totalChunks).fill(null), received: 0, total: header.totalChunks };
+                        viewerFileTransfers.set(header.name, transfer);
+                      }
+                      
+                      if (!transfer.chunks[header.chunkIndex]) {
+                        transfer.chunks[header.chunkIndex] = chunk;
+                        transfer.received++;
+                      }
+
+                      if (transfer.received === transfer.total) {
+                        const totalSize = (transfer.chunks as Uint8Array[]).reduce((acc, c) => acc + c.length, 0);
+                        const finalBuffer = new Uint8Array(totalSize);
+                        let offset = 0;
+                        for (const c of (transfer.chunks as Uint8Array[])) {
+                          finalBuffer.set(c, offset);
+                          offset += c.length;
+                        }
+                        
+                        // Save locally on viewer machine
+                        if (isElectron) {
+                          (window as any).electronAPI.saveFileLocally(header.name, finalBuffer).then((path: string) => {
+                            setFileReceivedModal({ name: header.name, path, isRemote: false });
+                            addNotification(`Received ${header.name} from host.`, 'system');
+                          });
+                        }
+                        viewerFileTransfers.delete(header.name);
+                      }
+                    }
+                  });
+                  return;
+                }
+
+                // 2. Handle JSON Commands
                 const data = JSON.parse(e.data);
+                console.log(`[Diagnostic] Received DataChannel JSON:`, data);
                 if (data.type === 'clipboard' && data.text) {
                   lastClipboardRef.current = data.text;
                   if (isElectron) {
                     (window as any).electronAPI.clipboard.writeText(data.text);
                   }
                 } else if (data.type === 'file-sent') {
-                  setFileReceivedModal(data);
+                  // This is a confirmation of a file WE sent to the remote host
+                  setFileReceivedModal({ ...data, isRemote: true });
+                } else if (data.type === 'ping') {
+                  setLastPingTime(Date.now());
                 }
               } catch (err) {}
             };
 
-            channel.onclose = () => {
-              console.log('[Renderer] Control Channel closed.');
-              clearInterval(clipboardInterval);
-            };
-            console.log('[Renderer] Control DataChannel ready.');
+            channel.onopen = () => {
+               console.log('[Renderer] Control DataChannel ready. Requesting initial keyframe...');
+               channel.send(JSON.stringify({ type: 'request-keyframe' }));
+             };
+             channel.onclose = () => {
+               console.log('[Renderer] Control Channel closed.');
+               clearInterval(clipboardInterval);
+             };
           }
         };
 
@@ -1287,18 +1753,29 @@ export default function App() {
     }
   };
 
-  const simulateGoogleLogin = () => {
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signupName.trim()) { showError('Registration Failed', 'Display name is required.'); return; }
     setLoading(true);
-    setTimeout(async () => {
-      await setAuth(
-        { id: 'g1', email: 'guest@google.com', name: 'Google User', plan: 'Free', avatar: null }, 
-        'mock-google-token', 
-        'mock-google-refresh'
-      );
+    try {
+      await storeRegister(signupName.trim(), email, password);
       setShowSplash(true);
       setTimeout(() => setShowSplash(false), 2000);
+      localStorage.setItem('remote_link_server_ip', serverIP);
+    } catch (err: any) {
+      showError('Registration Failed', err.response?.data?.error || 'Could not create account. Please try again.');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    const oauthUrl = `http://${serverIP}/api/auth/oauth/google?platform=desktop`;
+    if (isElectron && (window as any).electronAPI?.openExternal) {
+      (window as any).electronAPI.openExternal(oauthUrl);
+    } else {
+      window.location.href = oauthUrl;
+    }
   };
 
   const copyAccessKey = () => {
@@ -1323,7 +1800,9 @@ export default function App() {
       }
 
       if (!devicePassword) {
-        throw new Error('Please set an access password before hosting.');
+        setShowSetPasswordModal(true);
+        setHostStatus('idle');
+        return;
       }
       if (!deviceId) {
         throw new Error('Please wait for your device identity to load or restart the app.');
@@ -1449,7 +1928,7 @@ export default function App() {
   // --- V8 ABSOLUTE PRIORITY ROUTING: Bypass EVERYTHING for Viewer Windows ---
   if (isViewerWindow || viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connection_lost') {
     return (
-      <div className="min-h-screen bg-white flex flex-col relative overflow-hidden">
+      <div className="h-screen bg-white flex flex-col relative overflow-hidden">
           {isViewerWindow && (
              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[9999] px-6 py-2 bg-white rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-6 duration-700">
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
@@ -1491,19 +1970,20 @@ export default function App() {
                deviceType={isViewerWindow ? 'desktop' : selectedDevice?.device_type}
                deviceName={isViewerWindow ? windowDeviceName : (selectedDevice?.device_name || 'Remote Node')}
                onControlEvent={(event: any) => {
-                 if (controlChannelRef.current?.readyState !== 'open') {
-                   console.warn('[Viewer] Control channel not open yet. Event ignored.');
-                   return;
-                 }
-                 
-                 if (event instanceof Uint8Array) {
-                   (controlChannelRef.current as any).send(event);
-                 } else if (event.type === 'mousemove') {
-                   throttledMouseMove(event);
-                 } else {
-                   controlChannelRef.current.send(JSON.stringify(event));
-                 }
-               }}
+                  if (controlChannelRef.current?.readyState !== 'open') {
+                    console.warn('[Viewer] Control channel not open yet. Event ignored.');
+                    return;
+                  }
+                  
+                  if (event instanceof Uint8Array) {
+                    (controlChannelRef.current as any).send(event);
+                  } else if (event.type === 'mousemove') {
+                    throttledMouseMove(event);
+                  } else {
+                    controlChannelRef.current.send(JSON.stringify(event));
+                  }
+                }}
+                controlChannelRef={controlChannelRef}
              />
           </div>
       </div>
@@ -1515,12 +1995,12 @@ export default function App() {
       <div className="h-screen w-full flex overflow-hidden bg-white font-inter select-none">
         <SnowSplashScreen isReady={!loading} />
         {/* LEFT — Branded Input Panel */}
-        <div className="flex-1 flex flex-col items-center justify-center px-20 py-12 animate-in fade-in slide-in-from-left-8 duration-700">
+        <div className="flex-1 flex flex-col items-center justify-center px-12 lg:px-20 py-12 animate-in fade-in slide-in-from-left-8 duration-700 overflow-y-auto">
           <div className="w-full max-w-sm">
-            {/* Minimal Logo Mark */}
-            <div className="flex items-center gap-3 mb-16 group cursor-default">
-              <div className="w-12 h-12 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 group-hover:scale-105 transition-transform duration-300">
-                <Link size={24} className="text-white" />
+            {/* Logo */}
+            <div className="flex items-center gap-3 mb-10 group cursor-default">
+              <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 group-hover:scale-105 transition-transform duration-300 overflow-hidden border border-white/5">
+                <img src={logo} alt="SyncLink" className="w-10 h-10 object-contain" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">SyncLink</span>
@@ -1528,57 +2008,113 @@ export default function App() {
               </div>
             </div>
 
-            <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Welcome Back</h1>
-            <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-10 leading-relaxed">Enter your node credentials to access your secure network.</p>
+            {/* Auth Mode Tabs */}
+            <div className="flex bg-[#F8F9FA] rounded-2xl p-1 mb-8 border border-[rgba(28,28,28,0.04)]">
+              {(['login', 'signup'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => { setAuthMode(mode); setEmail(''); setPassword(''); setSignupName(''); }}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[rgba(28,28,28,0.3)] hover:text-[rgba(28,28,28,0.6)]'}`}
+                >
+                  {mode === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
+              ))}
+            </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Work Email</label>
+            <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
+              {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
+            </h1>
+            <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+              {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the SyncLink mesh.'}
+            </p>
+
+            {/* Google Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-3 bg-white border border-[rgba(28,28,28,0.08)] text-[#1C1C1C] hover:bg-[#F8F9FA] hover:border-[rgba(28,28,28,0.2)] transition-all py-3.5 rounded-2xl text-sm font-semibold group shadow-sm active:scale-[0.99] mb-6"
+            >
+              <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              {authMode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+            </button>
+
+            <div className="relative flex items-center justify-center mb-6">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.06)]" /></div>
+              <span className="relative z-10 bg-white px-4 text-[10px] text-[rgba(28,28,28,0.2)] uppercase tracking-widest font-bold">or with email</span>
+            </div>
+
+            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
+              {authMode === 'signup' && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Display Name</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                      <User size={16} />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                      value={signupName}
+                      placeholder="Your name"
+                      onChange={(e) => setSignupName(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Email Address</label>
                 <div className="relative group">
-                   <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                     <Mail size={16} />
-                   </div>
-                   <input
-                     type="email"
-                     required
-                     className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                     value={email}
-                     placeholder="name@company.com"
-                     onChange={(e) => setEmail(e.target.value)}
-                   />
+                  <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                    <Mail size={16} />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                    value={email}
+                    placeholder="name@company.com"
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between ml-1">
-                   <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Access Token</label>
-                   <button type="button" className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>
+                  <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
+                  {authMode === 'login' && <button type="button" className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
                 </div>
                 <div className="relative group">
-                   <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                     <Lock size={16} />
-                   </div>
-                   <input
-                     type={showLoginPassword ? "text" : "password"}
-                     required
-                     className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                     value={password}
-                     placeholder="••••••••"
-                     onChange={(e) => setPassword(e.target.value)}
-                   />
-                   <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
-                     {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                   </button>
+                  <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                    <Lock size={16} />
+                  </div>
+                  <input
+                    type={showLoginPassword ? "text" : "password"}
+                    required
+                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                    value={password}
+                    placeholder="••••••••"
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
+                    {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
 
-              {/* Errors handled by global modal */}
-
-              <button type="submit" className="w-full py-4 bg-[#1C1C1C] text-white rounded-none font-semibold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4">
-                AUTHENTICATE <ArrowRight size={18} />
+              <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
+                {loading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                {authMode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT'}
               </button>
-              
-              <div className="pt-4 flex flex-col items-center gap-6">
+
+              <div className="pt-2 flex flex-col items-center gap-4">
                 <button
                   type="button"
                   onClick={() => setShowSettings(!showSettings)}
@@ -1590,13 +2126,13 @@ export default function App() {
                 {showSettings && (
                   <div className="w-full p-5 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)] space-y-4 animate-in slide-in-from-top-4 duration-300">
                     <div className="space-y-2">
-                       <span className="text-[9px] font-black text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] ml-1">Current Node IP</span>
-                       <input
-                         type="text"
-                         className="w-full bg-white border border-[rgba(28,28,28,0.06)] rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-[#1C1C1C] outline-none"
-                         value={serverIP}
-                         onChange={(e) => setServerIP(e.target.value)}
-                       />
+                      <span className="text-[9px] font-black text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] ml-1">Current Node IP</span>
+                      <input
+                        type="text"
+                        className="w-full bg-white border border-[rgba(28,28,28,0.06)] rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-[#1C1C1C] outline-none"
+                        value={serverIP}
+                        onChange={(e) => setServerIP(e.target.value)}
+                      />
                     </div>
                     <div className="flex items-center justify-between px-1">
                       <span className="text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase">Interface Detect</span>
@@ -1607,28 +2143,9 @@ export default function App() {
               </div>
             </form>
 
-            <div className="mt-8 relative flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.06)]" /></div>
-              <span className="relative z-10 bg-white px-4 text-[10px] text-[rgba(28,28,28,0.2)] uppercase tracking-widest font-bold">Or continue with</span>
-            </div>
-
-            <button 
-              type="button" 
-              onClick={simulateGoogleLogin}
-              className="mt-6 w-full flex items-center justify-center gap-3 bg-white border border-[rgba(28,28,28,0.08)] text-[#1C1C1C] hover:bg-[#F8F9FA] hover:border-[rgba(28,28,28,0.2)] transition-all py-3.5 rounded-none text-sm font-semibold group shadow-sm active:scale-[0.99]"
-            >
-              <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              Sign in with Google
-            </button>
-
           </div>
-          
-          <div className="mt-16 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.3em]">
+
+          <div className="mt-8 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.3em]">
             Team Zain • SyncLink Engine v1.0
           </div>
         </div>
@@ -1677,6 +2194,27 @@ export default function App() {
   return (
     <div className="h-screen w-full bg-[#F8F9FA] text-[#1C1C1C] flex overflow-hidden font-inter selection:bg-blue-500/20 select-none">
       <SnowSplashScreen isReady={!loading} />
+      
+      {/* THEATER MODE VIEWER (Standard or Dedicated Window) */}
+      {isViewerWindow && (
+        <div className="fixed inset-0 z-[500] bg-black">
+          <VideoPlayer 
+            ref={videoPlayerRef}
+            viewerStatus={viewerStatus} 
+            setViewerStatus={setViewerStatus}
+            sessionCode={sessionCode}
+            onDisconnect={() => {
+              handleDisconnect();
+              if (isViewerWindow) window.close();
+            }}
+            onControlEvent={onControlEvent}
+            remoteStream={remoteStream}
+            deviceType={windowDeviceName.includes('iPhone') || windowDeviceName.includes('Android') ? 'mobile' : 'desktop'}
+            deviceName={windowDeviceName}
+            controlChannelRef={controlChannelRef}
+          />
+        </div>
+      )}
       
       {globalError && (
         <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-3 text-xs font-bold z-[50] flex justify-between px-6 items-center shadow-lg">
@@ -1765,7 +2303,7 @@ export default function App() {
           <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8">
             {selectedDevice ? (
                /* --- INDIVIDUAL DEVICE PREVIEW VIEW --- */
-               <div className="max-w-4xl mx-auto h-full flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-500 font-inter">
+               <div className="max-w-4xl mx-auto min-h-full py-12 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-500 font-inter">
                  <div className="relative mb-6">
                     <div className="w-32 h-32 rounded-[32px] flex items-center justify-center shadow-lg bg-[#1C1C1C]">
                        {selectedDevice.device_type?.toLowerCase() === 'ios' || selectedDevice.device_type?.toLowerCase() === 'android' ? 
@@ -1819,17 +2357,19 @@ export default function App() {
                     handleStopHosting={handleStopHosting}
                     copyAccessKey={copyAccessKey}
                     openPasswordModal={() => setActionModal({ type: 'password', device: null })}
+                    bandwidth={hostStats.bandwidth}
+                    activeUsers={hostStats.activeUsers}
                  />
               </div>
             ) : currentView === 'billing' ? (
               /* --- BILLING VIEW --- */
               <div className="w-full pt-4 animate-in fade-in duration-700">
-                 <SnowBilling user={user} />
+                 <SnowBilling user={user} currentPlan={currentPlan} onUpgrade={fetchBillingInfo} invoices={[]} />
               </div>
             ) : currentView === 'documentation' ? (
               /* --- SNOW UI DOCUMENTATION VIEW --- */
               <div className="w-full h-full animate-in fade-in duration-700">
-                 <SnowDocumentation />
+                 <SnowDocumentation onNavigateToSupport={() => setCurrentView('support')} />
               </div>
             ) : currentView === 'profile' ? (
               /* --- SNOW UI PROFILE VIEW --- */
@@ -1857,46 +2397,16 @@ export default function App() {
               </div>
             ) : currentView === 'settings' ? (
               /* --- SETTINGS VIEW --- */
-              <div className="max-w-4xl mx-auto space-y-6 pt-2 animate-in fade-in duration-500 font-inter">
-                 <section className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
-                    <h3 className="text-lg font-bold text-[#1C1C1C] mb-6 tracking-tight">System Preferences</h3>
-                    
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-                         <div className="flex flex-col">
-                            <span className="font-bold text-sm text-[#1C1C1C]">Relay Server Address</span>
-                            <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1 tracking-tight">The signaling endpoint for P2P connection establishment</span>
-                         </div>
-                         <div className="flex items-center bg-white px-3 py-1.5 rounded-xl border border-[rgba(28,28,28,0.08)]">
-                            <span className="text-xs font-mono text-[#1C1C1C]">{serverIP}</span>
-                         </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-                         <div className="flex flex-col">
-                            <span className="font-bold text-sm text-[#1C1C1C]">Auto-Start Hosting</span>
-                            <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1 tracking-tight">Automatically broadcast this machine upon app launch</span>
-                         </div>
-                         <label className="relative inline-flex items-center cursor-pointer">
-                           <input type="checkbox" className="sr-only peer" checked={isAutoHostEnabled} onChange={(e) => {
-                               setIsAutoHostEnabled(e.target.checked);
-                               localStorage.setItem('is_auto_host_enabled', String(e.target.checked));
-                           }} />
-                           <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]"></div>
-                         </label>
-                      </div>
-
-                      <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-                         <div className="flex flex-col">
-                            <span className="font-bold text-sm text-[#1C1C1C]">Node Identifier</span>
-                            <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1 tracking-tight">This name helps identify this specific node on your device map.</span>
-                         </div>
-                         <button onClick={() => setActionModal({ type: 'rename', device: null })} className="px-4 py-2 font-bold text-[11px] uppercase tracking-widest bg-white border border-[rgba(28,28,28,0.08)] hover:border-[rgba(28,28,28,0.3)] text-[#1C1C1C] rounded-xl transition-all shadow-sm">
-                            Modify Nickname
-                         </button>
-                      </div>
-                    </div>
-                 </section>
+              <div className="w-full pt-2 animate-in fade-in duration-500">
+                 <SnowSettings
+                   serverIP={serverIP}
+                   isAutoHostEnabled={isAutoHostEnabled}
+                   setIsAutoHostEnabled={(val) => {
+                     setIsAutoHostEnabled(val);
+                     localStorage.setItem('is_auto_host_enabled', String(val));
+                   }}
+                   onRenameNode={() => setActionModal({ type: 'rename', device: null })}
+                 />
               </div>
             ) : null}
           </div>
@@ -1913,7 +2423,64 @@ export default function App() {
       </div>
 
       {/* MODALS LAYER */}
-      
+
+      {/* Set Password Before Hosting Modal */}
+      {showSetPasswordModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-sm bg-white p-8 rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-50 rounded-2xl flex items-center justify-center"><Shield size={18} className="text-orange-500" /></div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#1C1C1C]">Set Access Password</h3>
+                  <p className="text-[10px] text-[rgba(28,28,28,0.4)]">Required before this device can host</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowSetPasswordModal(false); setSetupPassword(''); setSetupPasswordConfirm(''); setSetupPasswordError(''); }} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] rounded-xl hover:bg-[#F9F9FA] transition-colors"><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-xs text-[rgba(28,28,28,0.5)] mb-5 leading-relaxed">Viewers will need this password to connect to your device. Choose something secure.</p>
+            <div className="space-y-3 mb-5">
+              <input
+                type="password"
+                placeholder="Create password"
+                value={setupPassword}
+                onChange={e => { setSetupPassword(e.target.value); setSetupPasswordError(''); }}
+                className="w-full px-4 py-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.06)] text-sm text-[#1C1C1C] font-mono outline-none"
+                autoFocus
+              />
+              <input
+                type="password"
+                placeholder="Confirm password"
+                value={setupPasswordConfirm}
+                onChange={e => { setSetupPasswordConfirm(e.target.value); setSetupPasswordError(''); }}
+                className="w-full px-4 py-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.06)] text-sm text-[#1C1C1C] font-mono outline-none"
+              />
+              {setupPasswordError && (
+                <p className="text-[11px] text-red-500 font-medium px-1">{setupPasswordError}</p>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (!setupPassword) { setSetupPasswordError('Please enter a password.'); return; }
+                if (setupPassword.length < 4) { setSetupPasswordError('Password must be at least 4 characters.'); return; }
+                if (setupPassword !== setupPasswordConfirm) { setSetupPasswordError('Passwords do not match.'); return; }
+                setDevicePassword(setupPassword);
+                localStorage.setItem('device_password', setupPassword);
+                setShowSetPasswordModal(false);
+                setSetupPassword('');
+                setSetupPasswordConfirm('');
+                setSetupPasswordError('');
+                setTimeout(() => handleStartHosting(), 100);
+              }}
+              disabled={!setupPassword || !setupPasswordConfirm}
+              className="w-full py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-sm font-bold disabled:opacity-40 hover:opacity-90 transition-all"
+            >
+              Set Password & Start Hosting
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Password Prompt Modal */}
       {showPasswordPrompt && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
@@ -2076,15 +2643,32 @@ export default function App() {
                  ))}
                </div>
             )}
-          {/* File Received Modal */}
+          </div>
+        </div>
+      )}
+
+      {/* File Received Modal */}
       {fileReceivedModal && (
         <div className="fixed inset-0 z-[300] bg-[#1C1C1C]/20 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in duration-300">
-          <div className="bg-white border border-[rgba(28,28,28,0.06)] shadow-2xl rounded-[32px] p-10 w-[450px] max-w-full flex flex-col items-center text-center relative">
-            <div className="w-20 h-20 bg-[#F8F9FA] rounded-[24px] flex items-center justify-center text-[#1C1C1C] mb-8 shadow-sm border border-[rgba(28,28,28,0.04)]">
+          <div className="bg-white border border-[rgba(28,28,28,0.06)] shadow-2xl rounded-[32px] p-10 w-[500px] max-w-full flex flex-col items-center text-center relative">
+            <div className={`w-20 h-20 rounded-[24px] flex items-center justify-center mb-8 shadow-sm border ${fileReceivedModal.isRemote ? 'bg-blue-50 text-blue-500 border-blue-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'}`}>
               <DownloadCloud className="w-10 h-10" />
             </div>
-            <h3 className="text-2xl font-black text-[#1C1C1C] mb-2 uppercase tracking-tighter">Payload Delivered</h3>
-            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] mb-10 truncate w-full px-4 uppercase tracking-[0.2em]" title={fileReceivedModal.name}>{fileReceivedModal.name}</p>
+            <h3 className="text-2xl font-black text-[#1C1C1C] mb-1 uppercase tracking-tighter">
+              {fileReceivedModal.isRemote ? 'Payload Deployed' : 'Payload Received'}
+            </h3>
+            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] mb-8 uppercase tracking-[0.2em]">
+              Successfully stored in {fileReceivedModal.isRemote ? 'Host' : 'Viewer'} storage
+            </p>
+            
+            <div className="w-full bg-[#F8F9FA] rounded-2xl p-5 border border-[rgba(28,28,28,0.04)] mb-10 text-left overflow-hidden">
+               <div className="flex flex-col gap-1.5">
+                  <span className="text-[8px] font-black text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Absolute Destination Path</span>
+                  <p className="text-[11px] font-mono font-bold text-[#1C1C1C] break-all leading-relaxed" title={fileReceivedModal.path}>
+                    {fileReceivedModal.path}
+                  </p>
+               </div>
+            </div>
             
             <div className="flex gap-4 w-full">
               <button 
@@ -2093,23 +2677,23 @@ export default function App() {
               >
                 DISMISS
               </button>
-              <button 
-                onClick={() => {
-                  (window as any).electronAPI.openPath(fileReceivedModal.path);
-                  setFileReceivedModal(null);
-                }} 
-                className="snow-btn flex-1 uppercase text-[10px] font-black tracking-widest"
-              >
-                REVEAL FILE
-              </button>
+              {!fileReceivedModal.isRemote && (
+                <button 
+                  onClick={() => {
+                    (window as any).electronAPI.openPath(fileReceivedModal.path);
+                    setFileReceivedModal(null);
+                  }} 
+                  className="snow-btn flex-1 uppercase text-[10px] font-black tracking-widest"
+                >
+                  REVEAL FILE
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
-       </div>
-        </div>
-      )}
-        {/* Global Error Modal */}
+      
+      {/* Global Error Modal */}
       {errorModal && errorModal.show && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-[#1C1C1C]/40 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="w-full max-w-md bg-white p-10 rounded-[32px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300 text-center">

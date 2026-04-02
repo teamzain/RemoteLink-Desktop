@@ -82,20 +82,34 @@ server.post('/billing/subscribe', async (request, reply) => {
     if (!sub || !sub.stripeCustomerId) {
       const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
       if (!user) return reply.code(404).send({ error: 'User not found' });
-      
-      const customer = await stripe.customers.create({ email: user.email });
-      sub = await (prisma as any).subscription.upsert({
-        where: { userId: decoded.userId },
-        create: {
-          userId: decoded.userId,
-          stripeCustomerId: customer.id,
-          plan: 'FREE',
-          status: 'ACTIVE'
-        },
-        update: {
-          stripeCustomerId: customer.id
-        }
-      });
+
+      try {
+        const customer = await stripe.customers.create({ email: user.email });
+        sub = await (prisma as any).subscription.upsert({
+          where: { userId: decoded.userId },
+          create: {
+            userId: decoded.userId,
+            stripeCustomerId: customer.id,
+            plan: 'FREE',
+            status: 'ACTIVE'
+          },
+          update: {
+            stripeCustomerId: customer.id
+          }
+        });
+      } catch (stripeErr: any) {
+        server.log.warn(`[Billing] Stripe unavailable during subscribe: ${stripeErr.message}`);
+        sub = await (prisma as any).subscription.upsert({
+          where: { userId: decoded.userId },
+          create: {
+            userId: decoded.userId,
+            stripeCustomerId: `local_${decoded.userId}`,
+            plan: 'FREE',
+            status: 'ACTIVE'
+          },
+          update: { stripeCustomerId: `local_${decoded.userId}` }
+        });
+      }
     }
 
     if (plan === 'FREE') {
@@ -108,6 +122,21 @@ server.post('/billing/subscribe', async (request, reply) => {
 
     const priceId = process.env[`STRIPE_PRICE_ID_${plan.toUpperCase()}`];
     if (!priceId) return reply.code(400).send({ error: 'Invalid plan for subscription' });
+
+    // If we only have a local (non-Stripe) customer ID, skip Stripe and record locally
+    const isLocalCustomer = !sub.stripeCustomerId || sub.stripeCustomerId.startsWith('local_');
+    if (isLocalCustomer) {
+      server.log.warn(`[Billing] Local customer — recording plan ${plan} without Stripe.`);
+      await (prisma as any).subscription.update({
+        where: { userId: decoded.userId },
+        data: {
+          plan: plan.toUpperCase() as any,
+          status: 'ACTIVE',
+          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        }
+      });
+      return { success: true, local: true };
+    }
 
     const subscription = await stripe.subscriptions.create({
       customer: sub.stripeCustomerId,
@@ -183,17 +212,33 @@ server.get('/billing/current', async (request, reply) => {
     
     try {
       const customer = await stripe.customers.create({ email: user.email });
-      sub = await (prisma as any).subscription.create({
-        data: {
+      sub = await (prisma as any).subscription.upsert({
+        where: { userId: decoded.userId },
+        create: {
           userId: decoded.userId,
           stripeCustomerId: customer.id,
           plan: 'FREE',
           status: 'ACTIVE'
-        }
+        },
+        update: { stripeCustomerId: customer.id }
       });
     } catch (err: any) {
-      server.log.error(err);
-      return reply.code(500).send({ error: 'Failed to create missing subscription: ' + err.message });
+      server.log.warn(`[Billing] Stripe unavailable, creating local subscription: ${err.message}`);
+      try {
+        sub = await (prisma as any).subscription.upsert({
+          where: { userId: decoded.userId },
+          create: {
+            userId: decoded.userId,
+            stripeCustomerId: `local_${decoded.userId}`,
+            plan: 'FREE',
+            status: 'ACTIVE'
+          },
+          update: {}
+        });
+      } catch (dbErr: any) {
+        server.log.error(dbErr);
+        return reply.code(500).send({ error: 'Failed to create subscription record' });
+      }
     }
   }
 

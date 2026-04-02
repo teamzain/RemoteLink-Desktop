@@ -4,8 +4,8 @@ import jwt from 'jsonwebtoken';
 // The architecture specifies RS256 for JWTs. 
 // Fallback to HS256 for local development.
 const getSecrets = () => {
-  let rawPrivate = process.env.JWT_PRIVATE_KEY || 'dummy_private_key';
-  let rawPublic = process.env.JWT_PUBLIC_KEY || 'dummy_public_key';
+  let rawPrivate = process.env.JWT_PRIVATE_KEY || process.env.JWT_SECRET || 'dummy_private_key';
+  let rawPublic = process.env.JWT_PUBLIC_KEY || process.env.JWT_SECRET || 'dummy_public_key';
 
   rawPrivate = rawPrivate.replace(/\\n/g, '\n');
   rawPublic = rawPublic.replace(/\\n/g, '\n');

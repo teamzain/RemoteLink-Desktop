@@ -18,7 +18,7 @@ class DeviceModel {
   factory DeviceModel.fromJson(Map<String, dynamic> json) {
     return DeviceModel(
       id: json['id']?.toString() ?? '',
-      name: json['name'] ?? 'Unknown',
+      name: json['device_name'] ?? json['name'] ?? 'Unknown',
       accessKey: json['access_key'] ?? '',
       osType: json['os_type'],
       isOnline: json['is_online'] ?? false,

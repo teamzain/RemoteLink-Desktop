@@ -12,16 +12,23 @@ import {
 
 interface SnowBillingProps {
   user: any;
+  currentPlan?: any;
+  onUpgrade?: () => void;
+  invoices?: any[];
 }
 
-export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
-  const currentPlan = user?.plan || 'Free Tier';
-  
-  const history = [
-    { id: 'inv_102', date: 'Mar 01, 2026', amount: '$0.00', status: 'Completed' },
-    { id: 'inv_101', date: 'Feb 01, 2026', amount: '$0.00', status: 'Completed' },
-    { id: 'inv_100', date: 'Jan 01, 2026', amount: '$0.00', status: 'Completed' },
-  ];
+export const SnowBilling: React.FC<SnowBillingProps> = ({ user, currentPlan: billingPlan, onUpgrade, invoices = [] }) => {
+  const currentPlan = billingPlan?.plan || user?.plan || 'Free Tier';
+
+  const history = invoices.length > 0
+    ? invoices.map((inv: any) => ({
+        id: inv.id || `inv_${Date.now()}`,
+        date: inv.date ? new Date(inv.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '—',
+        amount: typeof inv.amount === 'number' ? `$${inv.amount.toFixed(2)}` : '$0.00',
+        status: inv.status ? (inv.status.charAt(0).toUpperCase() + inv.status.slice(1)) : 'Completed',
+        pdfUrl: inv.pdfUrl || null,
+      }))
+    : [];
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">
@@ -42,7 +49,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
             <p className="text-sm text-white/50 font-medium">Your subscription renews on <span className="text-white/80">April 01, 2026</span></p>
           </div>
 
-          <button className="h-11 px-8 bg-white text-[#1C1C1C] rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2">
+          <button onClick={onUpgrade} className="h-11 px-8 bg-white text-[#1C1C1C] rounded-xl font-bold text-sm hover:bg-white/90 transition-all flex items-center gap-2">
              Upgrade Plan <ArrowUpRight size={16} />
           </button>
         </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import logo from '../assets/logo.png';
 import { 
   Link,
   LayoutGrid, 
@@ -69,8 +70,8 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
       
       {/* Brand Logo Section */}
       <div className="flex items-center gap-3 px-5 pt-8 mb-10 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>
-        <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center shadow-lg shadow-black/10">
-          <Link size={18} className="text-white" />
+        <div className="w-10 h-10 rounded-xl bg-[#1C1C1C] flex items-center justify-center shadow-lg shadow-black/10 overflow-hidden border border-white/5">
+          <img src={logo} alt="Sync" className="w-8 h-8 object-contain" />
         </div>
         <div className="flex flex-col">
           <span className="text-lg font-bold text-[#1C1C1C] leading-none tracking-tighter">SyncLink</span>

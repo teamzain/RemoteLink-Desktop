@@ -42,8 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('viewer:signaling-disconnected', listener);
   },
   clipboard: {
-    readText: () => ipcRenderer.invoke('clipboard:readText'),
-    writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text)
+    writeText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+    readText: () => ipcRenderer.invoke('clipboard:readText')
   },
   isPackaged: () => ipcRenderer.invoke('system:isPackaged'),
   log: (msg: string, level: 'info' | 'warn' | 'error' = 'info') => ipcRenderer.invoke('system:log', msg, level),
@@ -51,5 +51,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_: any, tokens: { accessToken: string, refreshToken: string }) => callback(tokens);
     ipcRenderer.on('auth:deep-link-success', listener);
     return () => ipcRenderer.removeListener('auth:deep-link-success', listener);
-  }
+  },
+  onHostStats: (callback: (stats: { bandwidth: string, activeUsers: number }) => void) => {
+    const listener = (_: any, stats: any) => callback(stats);
+    ipcRenderer.on('host:stats', listener);
+    return () => ipcRenderer.removeListener('host:stats', listener);
+  },
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  saveFileLocally: (name: string, data: Uint8Array) => ipcRenderer.invoke('host:save-file-locally', name, data),
+  sendFileToViewer: () => ipcRenderer.send('host:send-file'),
 });

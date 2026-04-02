@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import logo from '../assets/logo.png';
 import { Link } from 'lucide-react';
 
 export const SnowSplashScreen: React.FC<{ isReady: boolean }> = ({ isReady }) => {
@@ -24,9 +25,9 @@ export const SnowSplashScreen: React.FC<{ isReady: boolean }> = ({ isReady }) =>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full" />
       
       <div className="relative flex flex-col items-center gap-6 animate-in zoom-in-95 duration-1000">
-         <div className="w-24 h-24 rounded-[32px] bg-white text-[#1C1C1C] flex items-center justify-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-            <Link size={48} className="relative z-10 animate-pulse" />
-            <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+         <div className="w-32 h-32 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+            <img src={logo} alt="SyncLink" className="w-24 h-24 object-contain relative z-10 animate-pulse drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+            <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
          </div>
 
          <div className="flex flex-col items-center">

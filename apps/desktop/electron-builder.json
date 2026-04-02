@@ -1,0 +1,64 @@
+{
+  "appId": "com.remotelink.desktop",
+  "productName": "SyncLink",
+  "electronVersion": "28.3.3",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json",
+    {
+      "from": "../../node_modules/@remotelink",
+      "to": "node_modules/@remotelink",
+      "filter": ["**/*.node", "**/*.dll"]
+    },
+    {
+      "from": "../../node_modules/node-datachannel",
+      "to": "node_modules/node-datachannel",
+      "filter": ["**/*.node", "**/*.dll"]
+    },
+    {
+      "from": "../../node_modules/ws",
+      "to": "node_modules/ws"
+    },
+    {
+      "from": "../../node_modules/bufferutil",
+      "to": "node_modules/bufferutil"
+    },
+    {
+      "from": "../../node_modules/utf-8-validate",
+      "to": "node_modules/utf-8-validate"
+    },
+    {
+      "from": "../../node_modules/node-gyp-build",
+      "to": "node_modules/node-gyp-build"
+    }
+  ],
+  "extraResources": [
+    {
+      "from": "../../node_modules/ffmpeg-static/ffmpeg.exe",
+      "to": "./ffmpeg.exe"
+    }
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "**/*.node",
+    "**/*.dll"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

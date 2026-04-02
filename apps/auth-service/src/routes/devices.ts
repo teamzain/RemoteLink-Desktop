@@ -100,10 +100,14 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const token = authHeader.split(' ')[1];
       const decodedUser = verifyToken(token);
       if (decodedUser && decodedUser.userId) {
-        const trustCheck = await prisma.trustedDevice.findUnique({
-          where: { viewerUserId_hostDeviceId: { viewerUserId: decodedUser.userId, hostDeviceId: device.id } }
-        });
-        if (trustCheck) isTrusted = true;
+        if (device.ownerId === decodedUser.userId) {
+          isTrusted = true; // Auto-trust owned devices
+        } else {
+          const trustCheck = await prisma.trustedDevice.findUnique({
+            where: { viewerUserId_hostDeviceId: { viewerUserId: decodedUser.userId, hostDeviceId: device.id } }
+          });
+          if (trustCheck) isTrusted = true;
+        }
       }
     }
 

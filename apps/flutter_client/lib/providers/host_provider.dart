@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'auth_provider.dart';
 
 class HostProvider extends ChangeNotifier {
@@ -12,8 +14,10 @@ class HostProvider extends ChangeNotifier {
   final _methodChannel = const MethodChannel(_controlChannelName);
 
   final AuthProvider _authProvider;
+  final _storage = const FlutterSecureStorage();
+  final _deviceInfo = DeviceInfoPlugin();
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://192.168.2.2:3001',
+    baseUrl: 'http://159.65.84.190',
     connectTimeout: const Duration(seconds: 5),
   ));
 
@@ -21,20 +25,27 @@ class HostProvider extends ChangeNotifier {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   RTCDataChannel? _controlChannel;
-  
+
   String? _deviceId;
   String? _sessionId;
-  bool _isHosting = false;
+  bool _isHosting = false;       // screen capture is active
+  bool _isSignaling = false;     // websocket is connected
   String? _error;
   bool _isRegistering = false;
   bool _isAccessibilityEnabled = false;
-  
+  Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+
+  // Pending viewer ID waiting for screen capture
+  String? _pendingViewerId;
+
   String? get sessionId => _sessionId;
   bool get isHosting => _isHosting;
+  bool get isSignaling => _isSignaling;
   String? get error => _error;
   bool get isRegistering => _isRegistering;
   bool get isAccessibilityEnabled => _isAccessibilityEnabled;
-  
+
   HostProvider(this._authProvider);
 
   Future<void> registerDevice() async {
@@ -44,18 +55,48 @@ class HostProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+
+    // Try to load cached identity first
+    final cachedId = await _storage.read(key: 'host_device_id');
+    final cachedKey = await _storage.read(key: 'host_access_key');
     
+    if (cachedId != null && cachedKey != null) {
+      _deviceId = cachedId;
+      _sessionId = cachedKey;
+      notifyListeners();
+      return;
+    }
+
     try {
       _isRegistering = true;
       _error = null;
       notifyListeners();
+
+      print('--- Registering Device to http://159.65.84.190 ---');
       
-      print('--- Registering Device to http://192.168.2.2:3001 ---');
+      // Get unique device identity
+      String deviceName = 'Android Device';
+      String? hardwareId;
+      try {
+        if (Platform.isAndroid) {
+          final androidInfo = await _deviceInfo.androidInfo;
+          deviceName = '${androidInfo.manufacturer} ${androidInfo.model}';
+          hardwareId = androidInfo.id; // Unique hardware ID
+        } else if (Platform.isIOS) {
+          final iosInfo = await _deviceInfo.iosInfo;
+          deviceName = '${iosInfo.name} (${iosInfo.model})';
+          hardwareId = iosInfo.identifierForVendor;
+        }
+      } catch (e) {
+        debugPrint('Failed to get device info: $e');
+      }
+
       final response = await _dio.post(
         '/api/devices/register',
         data: {
-          'name': 'Android Device',
-          'deviceType': 'ANDROID',
+          'name': deviceName,
+          'deviceType': Platform.isAndroid ? 'ANDROID' : 'IOS',
+          'hardwareId': hardwareId,
         },
         options: Options(headers: {
           'Authorization': 'Bearer $token',
@@ -67,6 +108,11 @@ class HostProvider extends ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         _deviceId = response.data['id'].toString();
         _sessionId = response.data['access_key'];
+        
+        // Persist identity
+        await _storage.write(key: 'host_device_id', value: _deviceId);
+        await _storage.write(key: 'host_access_key', value: _sessionId);
+        
         notifyListeners();
       }
     } catch (e) {
@@ -113,7 +159,8 @@ class HostProvider extends ChangeNotifier {
 
   Future<void> checkAccessibilityStatus() async {
     try {
-      _isAccessibilityEnabled = await _methodChannel.invokeMethod('isAccessibilityServiceEnabled') ?? false;
+      _isAccessibilityEnabled =
+          await _methodChannel.invokeMethod('isAccessibilityServiceEnabled') ?? false;
       notifyListeners();
     } catch (e) {
       print('Error checking accessibility: $e');
@@ -129,123 +176,219 @@ class HostProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Signaling (always-on) ────────────────────────────────────────────────
+
+  /// Connects the WebSocket and registers this device as a host so it
+  /// appears ONLINE to the desktop — without requiring screen capture.
+  Future<void> _connectSignaling() async {
+    if (_isSignaling) return;
+
+    final token = _authProvider.accessToken;
+    if (token == null) throw Exception('Not authenticated');
+
+    // Ensure device is registered
+    if (_sessionId == null) {
+      await registerDevice();
+      if (_sessionId == null) throw Exception('Failed to register host device');
+    }
+
+    const signalingURL = 'ws://159.65.84.190/api/signal';
+    print('[Host] Connecting to signaling: $signalingURL');
+    _socket = await WebSocket.connect(signalingURL);
+
+    _socket!.listen(
+      (message) => _handleSignalingMessage(json.decode(message)),
+      onError: (err) {
+        debugPrint('[Host] Signaling error: $err');
+        _isSignaling = false;
+        notifyListeners();
+        _scheduleReconnect();
+      },
+      onDone: () {
+        debugPrint('[Host] Signaling closed');
+        _isSignaling = false;
+        notifyListeners();
+        _scheduleReconnect();
+      },
+    );
+
+    // Register as host
+    _socket!.add(json.encode({
+      'type': 'register',
+      'token': token,
+      'role': 'host',
+      'accessKey': _sessionId,
+    }));
+
+    _isSignaling = true;
+    notifyListeners();
+  }
+
+  /// Called on app launch — keeps the device visible without touching camera/mic.
+  Future<void> ensureHosting() async {
+    if (_isSignaling) return;
+    try {
+      await _methodChannel.invokeMethod('requestNotificationPermission');
+      await _methodChannel.invokeMethod('startBackgroundService');
+      await checkAccessibilityStatus();
+      await _connectSignaling();
+    } catch (e) {
+      debugPrint('[Host] ensureHosting failed: $e');
+      _scheduleReconnect();
+    }
+  }
+
+  // ─── Screen capture (user-initiated) ─────────────────────────────────────
+
+  /// Starts screen capture. Signaling stays alive regardless of outcome.
   Future<void> startHosting() async {
     if (_isHosting) return;
-    
+
     _error = null;
     notifyListeners();
 
     try {
+      // Make sure signaling is up first
+      await _connectSignaling();
+
       await checkAccessibilityStatus();
-      
-      // Request notification permission for Android 13+
-      // This is critical for the Foreground Service requirement on Android 14
       await _methodChannel.invokeMethod('requestNotificationPermission');
+
+      // Android 14+ Security Fix:
+      // We start the background service IMMEDIATELY before requesting the 
+      // system permission popup. The service MUST be active for the system 
+      // to allow the MediaProjection intent.
+      print('[Host] Starting background capture service...');
+      await _methodChannel.invokeMethod('startProjectionService');
       
-      final token = _authProvider.accessToken;
-      if (token == null) throw Exception('Not authenticated');
+      // Short delay to ensure the system recognizes the FGS is up
+      await Future.delayed(const Duration(milliseconds: 200));
 
-      // Ensure device is registered to have a consistent sessionId (accessKey)
-      if (_sessionId == null) {
-        await registerDevice();
-        if (_sessionId == null) throw Exception('Failed to register host device');
-      }
-
-      // Connect to signaling server
-      _socket = await WebSocket.connect('ws://192.168.2.2:3002');
-      
-      _socket!.listen(
-        (message) => _handleSignalingMessage(json.decode(message)),
-        onError: (err) {
-          _error = 'Signaling error: $err';
-          stopHosting();
-        },
-        onDone: () {
-          if (_isHosting) {
-            _error = 'Signaling connection closed';
-            stopHosting();
-          }
-        },
-      );
-
-      // Register as host with our assigned sessionId
-      _socket!.add(json.encode({
-        'type': 'register',
-        'token': token,
-        'role': 'host',
-        'accessKey': _sessionId,
-      }));
-
-      // Capture screen up front
       final Map<String, dynamic> mediaConstraints = {
         'audio': false,
         'video': {
-          'width': 1280,
-          'height': 720,
-          'frameRate': 20,
+          'mandatory': {
+            'minWidth': '1280',
+            'minHeight': '720',
+            'minFrameRate': '20',
+          },
+          'facingMode': 'user',
+          'optional': [],
         }
       };
 
-      try {
-        print('DEBUG: Starting Projection Service...');
-        await _methodChannel.invokeMethod('startProjectionService');
-        
-        await Future.delayed(const Duration(seconds: 2));
-        
-        print('DEBUG: Calling getDisplayMedia...');
-        _localStream = await navigator.mediaDevices.getDisplayMedia(mediaConstraints);
-        print('DEBUG: Screen capture successful');
-      } catch (e) {
-        print('DEBUG: Screen capture failed: $e');
-        _error = 'Screen capture failed: $e';
-        stopHosting();
-        return;
-      }
+      print('[Host] Requesting permission popup...');
+      _localStream = await navigator.mediaDevices.getDisplayMedia(mediaConstraints);
+      print('[Host] Capture active');
 
       _isHosting = true;
       notifyListeners();
-      
+
+      // If a viewer was waiting for screen capture, serve them now
+      if (_pendingViewerId != null) {
+        final id = _pendingViewerId!;
+        _pendingViewerId = null;
+        _initiateWebRTC(id);
+      }
     } catch (e) {
-      _error = e.toString();
+      print('[Host] Screen capture failed: $e');
+      _error = 'Screen capture failed. Tap "Start Hosting" to try again.';
       _isHosting = false;
+      // ← Intentionally NOT calling stopHosting() — signaling stays alive
       notifyListeners();
-      rethrow;
     }
   }
 
+  /// Stops the WebRTC peer connection when the viewer disconnects, 
+  /// but explicitly keeps MediaProjection and _localStream alive.
+  void _disconnectViewer() {
+    _peerConnection?.dispose();
+    _peerConnection = null;
+    _pendingViewerId = null;
+    notifyListeners();
+  }
+
+  /// Stops screen capture entirely. Signaling (device visibility) stays alive.
   void stopHosting() {
     _isHosting = false;
-    _sessionId = null;
-    
-    _socket?.close();
-    _socket = null;
-    
-    // Stop the Foreground Service
+
     _methodChannel.invokeMethod('stopProjectionService');
-    
+
     _localStream?.getTracks().forEach((track) => track.stop());
     _localStream?.dispose();
     _localStream = null;
-    
-    _peerConnection?.dispose();
-    _peerConnection = null;
-    
+
+    _disconnectViewer();
+  }
+
+  /// Fully disconnects everything (called on logout / dispose).
+  void disconnect() {
+    stopHosting();
+
+    _methodChannel.invokeMethod('stopBackgroundService');
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _reconnectAttempts = 0;
+
+    _socket?.close();
+    _socket = null;
+    _isSignaling = false;
+
     notifyListeners();
+  }
+
+  void _scheduleReconnect() {
+    _reconnectTimer?.cancel();
+    final delay = Duration(
+        seconds: (3 * (1 << _reconnectAttempts.clamp(0, 4))).clamp(3, 60));
+    _reconnectAttempts++;
+    debugPrint('[Host] Reconnecting signaling in ${delay.inSeconds}s (attempt $_reconnectAttempts)');
+    _reconnectTimer = Timer(delay, () async {
+      if (!_isSignaling) {
+        try {
+          await _connectSignaling();
+          _reconnectAttempts = 0;
+        } catch (_) {
+          _scheduleReconnect();
+        }
+      }
+    });
   }
 
   void _handleSignalingMessage(Map<String, dynamic> data) async {
     debugPrint('[Host] Received signal: ${data['type']}');
-    
+
     switch (data['type']) {
+      case 'ping':
+        _socket?.add(json.encode({'type': 'pong'}));
+        break;
+
       case 'registered':
-        _sessionId = data['sessionId'];
-        notifyListeners();
+        print('[Host] Successfully registered session: ${data['sessionId']}');
         break;
-        
+
       case 'viewer-joined':
-        _initiateWebRTC(data['viewerId']);
+        final viewerId = data['viewerId'] as String;
+        if (_localStream != null) {
+          // Screen capture already running — connect immediately
+          _initiateWebRTC(viewerId);
+        } else {
+          // No stream yet — start capture now (user will see Android system prompt)
+          print('[Host] Viewer joined but no stream — attempting capture for $viewerId');
+          _pendingViewerId = viewerId;
+          try {
+            await startHosting();
+          } catch (_) {
+            _pendingViewerId = null;
+          }
+        }
         break;
-        
+      case 'viewer-left':
+        print('[Host] Viewer disconnected. Cleaning up WebRTC...');
+        _disconnectViewer();
+        break;
+
       case 'answer':
         if (_peerConnection != null) {
           await _peerConnection!.setRemoteDescription(
@@ -253,7 +396,7 @@ class HostProvider extends ChangeNotifier {
           );
         }
         break;
-        
+
       case 'ice-candidate':
         final dynamic rawCandidate = data['candidate'];
         if (_peerConnection != null && rawCandidate != null) {
@@ -264,8 +407,8 @@ class HostProvider extends ChangeNotifier {
           if (rawCandidate is Map) {
             candidateStr = rawCandidate['candidate']?.toString() ?? '';
             sdpMid = rawCandidate['sdpMid']?.toString() ?? '';
-            sdpMLineIndex = (rawCandidate['sdpMLineIndex'] is int) 
-                ? rawCandidate['sdpMLineIndex'] 
+            sdpMLineIndex = (rawCandidate['sdpMLineIndex'] is int)
+                ? rawCandidate['sdpMLineIndex']
                 : int.tryParse(rawCandidate['sdpMLineIndex']?.toString() ?? '0') ?? 0;
           } else {
             candidateStr = rawCandidate.toString();
@@ -273,14 +416,11 @@ class HostProvider extends ChangeNotifier {
             final dynamic rawIndex = data['sdpMLineIndex'] ?? 0;
             sdpMLineIndex = (rawIndex is int) ? rawIndex : int.tryParse(rawIndex.toString()) ?? 0;
           }
-          
-          print('DEBUG: Adding ICE candidate: mid=$sdpMid, index=$sdpMLineIndex');
-          
+
           if (candidateStr.isNotEmpty) {
             await _peerConnection!.addCandidate(
               RTCIceCandidate(candidateStr, sdpMid, sdpMLineIndex),
             );
-            print('DEBUG: Candidate added successfully');
           }
         }
         break;
@@ -288,23 +428,21 @@ class HostProvider extends ChangeNotifier {
   }
 
   Future<void> _initiateWebRTC(String viewerId) async {
-    print('DEBUG: Initiating WebRTC for viewer: $viewerId');
+    print('[Host] Initiating WebRTC for viewer: $viewerId');
     try {
-      // Clean up previous connection if any
       if (_peerConnection != null) {
-        print('DEBUG: Disposing old peer connection');
         await _peerConnection!.dispose();
         _peerConnection = null;
       }
-      
+
       final configuration = {
         'iceServers': [
           {'urls': 'stun:stun.l.google.com:19302'},
         ]
       };
-      
+
       _peerConnection = await createPeerConnection(configuration);
-      
+
       _peerConnection!.onIceCandidate = (candidate) {
         _socket?.add(json.encode({
           'type': 'ice-candidate',
@@ -315,94 +453,64 @@ class HostProvider extends ChangeNotifier {
         }));
       };
 
-      // Create 'control' DataChannel (host is the offerer)
-      RTCDataChannelInit dataChannelDict = RTCDataChannelInit();
-      dataChannelDict.id = 0;
-      dataChannelDict.negotiated = false;
-      
-      _controlChannel = await _peerConnection!.createDataChannel('control', dataChannelDict);
-      _controlChannel!.onDataChannelState = (state) {
-        print('DEBUG: Control Channel State: $state');
-      };
+      // Create control DataChannel
+      _controlChannel = await _peerConnection!
+          .createDataChannel('control', RTCDataChannelInit());
       _controlChannel!.onMessage = (data) {
-        try {
-          if (data.text.contains('"request-keyframe"')) {
-            print('DEBUG: Received keyframe request. Resetting video track...');
-            _forceKeyframe();
-          } else {
-            _handleRemoteInput(data.text);
-          }
-        } catch (e) {
-          print('DEBUG: DataChannel message error: $e');
+        if (data.text.contains('"request-keyframe"')) {
+          _forceKeyframe();
+        } else {
+          _handleRemoteInput(data.text);
         }
       };
 
-      // Support for receiving data channels if needed
-      _peerConnection!.onDataChannel = (channel) {
-        if (channel.label == 'control') {
-          print('DEBUG: Inbound control channel received');
-          _controlChannel = channel;
-          _controlChannel!.onMessage = (data) {
-             if (data.text.contains('"request-keyframe"')) _forceKeyframe();
-             else _handleRemoteInput(data.text);
-          };
-        }
-      };
-
-      // Ensure local stream is healthy
-      bool streamHealthy = _localStream != null;
-      if (streamHealthy) {
-        final tracks = _localStream!.getTracks();
-        if (tracks.isEmpty || tracks.any((t) => t.enabled == false)) {
-          streamHealthy = false;
-        }
-      }
-
-      if (!streamHealthy && _isHosting) {
-        print('DEBUG: Local stream unhealthy or missing. Re-capturing...');
-        await _refreshCapture();
-      }
-
-      // Use existing or refreshed local stream
+      // Add screen tracks
       if (_localStream != null) {
         for (var track in _localStream!.getTracks()) {
           _peerConnection!.addTrack(track, _localStream!);
         }
-      } else {
-        debugPrint('Local stream is null, cannot add tracks');
       }
 
-      // Create offer
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
-      
+
       _socket?.add(json.encode({
         'type': 'offer',
         'sdp': offer.sdp,
         'hostType': 'android',
         'targetId': viewerId,
       }));
-      
     } catch (e) {
-      debugPrint('WebRTC initialization failed: $e');
+      debugPrint('[Host] WebRTC initialization failed: $e');
     }
   }
-
-  double? _dragStartX;
-  double? _dragStartY;
-  DateTime? _dragStartTime;
 
   void _handleRemoteInput(String message) {
     try {
       final Map<String, dynamic> data = json.decode(message);
       final String? type = data['type'];
-      
+
       if (type == 'action') {
         final String? action = data['action'];
-        print('DEBUG: Received remote action: $action');
-        if (action == 'volume_up' || action == 'volume_down' || action == 'volume_mute' || action == 'reboot' || action == 'shutdown') {
-           _methodChannel.invokeMethod('performAction', {'action': action});
-        }
+        _methodChannel.invokeMethod('performAction', {'action': action});
+        return;
+      }
+
+      if (type == 'wheel') {
+        final double deltaY = (data['deltaY'] as num).toDouble();
+        // Positive deltaY (scroll down) = swipe UP.
+        final double startX = 0.5;
+        final double endX = 0.5;
+        final double startY = 0.5;
+        final double endY = deltaY > 0 ? 0.3 : 0.7;
+        
+        _methodChannel.invokeMethod('dispatchSwipe', {
+          'startX': startX,
+          'startY': startY,
+          'endX': endX,
+          'endY': endY,
+          'duration': 150,
+        });
         return;
       }
 
@@ -414,15 +522,13 @@ class HostProvider extends ChangeNotifier {
         _dragStartX = x;
         _dragStartY = y;
         _dragStartTime = DateTime.now();
-      } 
-      else if (type == 'mouseup') {
-        if (_dragStartX != null && _dragStartY != null && _dragStartTime != null) {
-          final duration = DateTime.now().difference(_dragStartTime!).inMilliseconds;
-          final dx = (x - _dragStartX!).abs();
-          final dy = (y - _dragStartY!).abs();
-
-          // If moved more than 2% of screen or held longer than 300ms, it's a swipe/drag
-          if (dx > 0.02 || dy > 0.02 || duration > 300) {
+      } else if (type == 'mouseup') {
+        if (_dragStartX != null && _dragStartTime != null) {
+          final duration =
+              DateTime.now().difference(_dragStartTime!).inMilliseconds;
+          if ((x - _dragStartX!).abs() > 0.05 ||
+              (y - _dragStartY!).abs() > 0.05 ||
+              duration > 300) {
             _methodChannel.invokeMethod('dispatchSwipe', {
               'startX': _dragStartX,
               'startY': _dragStartY,
@@ -431,61 +537,31 @@ class HostProvider extends ChangeNotifier {
               'duration': duration.clamp(200, 1000),
             });
           } else {
-            // It's a simple click
-            _methodChannel.invokeMethod('dispatchClick', {
-              'x': _dragStartX,
-              'y': _dragStartY,
-            });
+            _methodChannel.invokeMethod(
+                'dispatchClick', {'x': _dragStartX, 'y': _dragStartY});
           }
         }
         _dragStartX = null;
-        _dragStartY = null;
         _dragStartTime = null;
       }
-    } catch (e) {
-      debugPrint('[Host] Remote Input Error: $e');
-    }
+    } catch (e) {}
   }
 
-  Future<void> _refreshCapture() async {
-    print('DEBUG: Refreshing screen capture...');
-    _localStream?.getTracks().forEach((track) => track.stop());
-    _localStream?.dispose();
-    
-    final Map<String, dynamic> mediaConstraints = {
-      'audio': false,
-      'video': {
-        'width': 1280,
-        'height': 720,
-        'frameRate': 20,
-      }
-    };
-    
-    try {
-      _localStream = await navigator.mediaDevices.getDisplayMedia(mediaConstraints);
-      print('DEBUG: Screen re-capture successful');
-    } catch (e) {
-      print('DEBUG: Screen re-capture failed: $e');
-    }
-  }
+  double? _dragStartX, _dragStartY;
+  DateTime? _dragStartTime;
 
   void _forceKeyframe() {
     if (_localStream != null) {
       for (var track in _localStream!.getVideoTracks()) {
-        if (track.enabled) {
-          track.enabled = false;
-          Timer(const Duration(milliseconds: 50), () {
-            track.enabled = true;
-            print('DEBUG: Video track re-enabled to force keyframe');
-          });
-        }
+        track.enabled = false;
+        Timer(const Duration(milliseconds: 50), () => track.enabled = true);
       }
     }
   }
 
   @override
   void dispose() {
-    stopHosting();
+    disconnect();
     super.dispose();
   }
 }

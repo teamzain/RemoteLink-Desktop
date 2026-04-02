@@ -31,18 +31,31 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "startProjectionService" -> {
-                    // Letting flutter_webrtc handle its own ForegroundService to avoid SecurityException
-                    // val intent = Intent(this, MediaProjectionService::class.java)
-                    // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    //     startForegroundService(intent)
-                    // } else {
-                    //     startService(intent)
-                    // }
+                    val intent = Intent(this, MediaProjectionService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
                     result.success(true)
                 }
                 "stopProjectionService" -> {
-                    // val intent = Intent(this, MediaProjectionService::class.java)
-                    // stopService(intent)
+                    val intent = Intent(this, MediaProjectionService::class.java)
+                    stopService(intent)
+                    result.success(true)
+                }
+                "startBackgroundService" -> {
+                    val intent = Intent(this, BackgroundService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+                    result.success(true)
+                }
+                "stopBackgroundService" -> {
+                    val intent = Intent(this, BackgroundService::class.java)
+                    stopService(intent)
                     result.success(true)
                 }
                 "dispatchClick" -> {
@@ -71,9 +84,30 @@ class MainActivity : FlutterActivity() {
                             val audioManager = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
                             audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, android.media.AudioManager.FLAG_SHOW_UI)
                         }
+                        "lock" -> {
+                            RemoteLinkAccessibilityService.instance?.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+                        }
+                        "wakeup" -> {
+                            val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                            @Suppress("DEPRECATION")
+                            val wakeLock = powerManager.newWakeLock(
+                                android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                                "RemoteLink:WakeUp"
+                            )
+                            wakeLock.acquire(3000)
+                        }
                         "reboot", "shutdown" -> {
                             android.widget.Toast.makeText(this, "Remote $action request received. Power actions require system privileges.", android.widget.Toast.LENGTH_LONG).show()
                         }
+                    }
+                    result.success(true)
+                }
+                "setKeepScreenOn" -> {
+                    val keepOn = call.argument<Boolean>("keepOn") ?: false
+                    if (keepOn) {
+                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                     }
                     result.success(true)
                 }
@@ -105,5 +139,11 @@ class MainActivity : FlutterActivity() {
             }
         }
         return false
+    }
+
+    override fun onBackPressed() {
+        // PREVENT APP KILL: Move to background instead of finishing
+        // This keeps the Flutter engine and our hosting service alive.
+        moveTaskToBack(true)
     }
 }

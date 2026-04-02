@@ -9,7 +9,8 @@ import {
   Lock,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  FolderPlus
 } from 'lucide-react';
 
 interface SnowHostProps {
@@ -21,6 +22,8 @@ interface SnowHostProps {
   handleStopHosting: () => void;
   copyAccessKey: () => void;
   openPasswordModal: () => void;
+  bandwidth: string;
+  activeUsers: number;
 }
 
 export const SnowHost: React.FC<SnowHostProps> = ({ 
@@ -31,7 +34,9 @@ export const SnowHost: React.FC<SnowHostProps> = ({
   handleStartHosting,
   handleStopHosting,
   copyAccessKey,
-  openPasswordModal
+  openPasswordModal,
+  bandwidth,
+  activeUsers
 }) => {
   const isOnline = status === 'status' || status === 'connecting';
   const isConnecting = status === 'connecting';
@@ -67,7 +72,15 @@ export const SnowHost: React.FC<SnowHostProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+             {isOnline && (
+               <button 
+                 onClick={() => (window as any).electronAPI?.sendFileToViewer()}
+                 className="h-11 px-6 bg-blue-50 text-blue-600 rounded-xl font-bold text-sm hover:bg-blue-100 transition-all flex items-center gap-2 border border-blue-100"
+               >
+                 <FolderPlus size={16} /> Deploy Payload
+               </button>
+             )}
              {isOnline ? (
                <button 
                  onClick={handleStopHosting}
@@ -165,13 +178,13 @@ export const SnowHost: React.FC<SnowHostProps> = ({
         <h3 className="text-sm font-semibold text-[#1C1C1C] mb-4">Traffic Insights</h3>
         <div className="space-y-4">
            {[
-             { name: 'Bandwidth', val: '0.00 Mbps', icon: RefreshCw },
-             { name: 'Active Users', val: '0 Authorized', icon: Zap },
-             { name: 'Stability', val: isOnline ? '99.9% High' : 'Offline', icon: CheckCircle2, color: 'text-green-500' }
+             { name: 'Bandwidth', val: `${bandwidth || '0.00'} Mbps`, icon: RefreshCw },
+             { name: 'Active Users', val: `${activeUsers || 0} Authorized`, icon: Zap },
+             { name: 'Stability', val: isOnline ? '99.9% High' : 'Offline', icon: CheckCircle2, color: isOnline ? 'text-green-500' : 'text-[rgba(28,28,28,0.2)]' }
            ].map((stat, i) => (
              <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-[rgba(28,28,28,0.01)] transition-all">
                <div className="flex items-center gap-3">
-                 <stat.icon size={16} className="text-[rgba(28,28,28,0.2)]" />
+                 <stat.icon size={16} className={`text-[rgba(28,28,28,0.2)] ${stat.name === 'Bandwidth' && Number(bandwidth) > 0 ? 'animate-spin-slow' : ''}`} />
                  <span className="text-sm font-medium text-[#1C1C1C] opacity-80">{stat.name}</span>
                </div>
                <span className={`text-sm font-bold ${stat.color || 'text-[#1C1C1C]'}`}>{stat.val}</span>
