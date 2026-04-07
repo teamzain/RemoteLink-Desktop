@@ -15,10 +15,11 @@ async function mapDevice(device: any, userId: string): Promise<any> {
       id: device.id,
       device_name: device.name,
       device_type: (device.deviceType || 'DESKTOP').toLowerCase(),
-      access_key: device.accessKey, // keep formatted key for display if needed
+      access_key: device.accessKey,
       last_seen_at: device.lastSeenAt,
       is_online: presence === 'online',
-      is_owned: device.ownerId === userId
+      is_owned: device.ownerId === userId,
+      has_password: !!device.accessPasswordHash,
     };
 }
 

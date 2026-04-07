@@ -92,16 +92,16 @@ class RemoteLinkAccessibilityService : AccessibilityService() {
         instance = null
     }
 
-    fun dispatchClick(xRatio: Float, yRatio: Float) {
+    fun dispatchClick(xRatio: Float, yRatio: Float, duration: Long = 100L) {
         val displayMetrics = resources.displayMetrics
         val x = xRatio * displayMetrics.widthPixels
         val y = yRatio * displayMetrics.heightPixels
         
-        Log.d("RemoteLink", "Dispatching click at $x, $y (Ratio: $xRatio, $yRatio)")
+        Log.d("RemoteLink", "Dispatching click at $x, $y (Ratio: $xRatio, $yRatio, Duration: $duration)")
         
         val clickPath = Path()
         clickPath.moveTo(x, y)
-        val clickStroke = GestureDescription.StrokeDescription(clickPath, 0, 100)
+        val clickStroke = GestureDescription.StrokeDescription(clickPath, 0, duration)
         val clickBuilder = GestureDescription.Builder()
         clickBuilder.addStroke(clickStroke)
         dispatchGesture(clickBuilder.build(), null, null)

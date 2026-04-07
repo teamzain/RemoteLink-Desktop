@@ -171,6 +171,7 @@ async function startServer() {
           case 'offer':
           case 'answer':
           case 'ice-candidate':
+          case 'host-stopped':
             let targetId = data.targetId;
             if (targetId && /^\d{9}$/.test(targetId)) {
               const resolvedId = sessionRegistry.get(targetId);

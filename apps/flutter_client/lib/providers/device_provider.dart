@@ -7,7 +7,7 @@ import 'auth_provider.dart';
 import '../models/device_model.dart';
 
 class DeviceProvider extends ChangeNotifier {
-  final AuthProvider _authProvider;
+  AuthProvider _authProvider;
   final Dio _dio = Dio(BaseOptions(
     baseUrl: 'http://159.65.84.190',
     connectTimeout: const Duration(seconds: 5),
@@ -25,6 +25,21 @@ class DeviceProvider extends ChangeNotifier {
     if (_authProvider.isAuthenticated) {
       fetchDevices();
     }
+  }
+
+  bool _isDisposed = false;
+
+  void updateAuth(AuthProvider auth) {
+    _authProvider = auth;
+    if (_authProvider.isAuthenticated) {
+      fetchDevices();
+    }
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
   }
 
   Future<void> fetchDevices() async {
@@ -131,6 +146,7 @@ class DeviceProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _retryTimer?.cancel();
     _socket?.sink.close();
     super.dispose();

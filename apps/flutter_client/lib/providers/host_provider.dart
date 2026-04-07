@@ -13,13 +13,15 @@ class HostProvider extends ChangeNotifier {
   static const _controlChannelName = 'com.example.remotelink/control';
   final _methodChannel = const MethodChannel(_controlChannelName);
 
-  final AuthProvider _authProvider;
+  AuthProvider _authProvider;
   final _storage = const FlutterSecureStorage();
   final _deviceInfo = DeviceInfoPlugin();
   final Dio _dio = Dio(BaseOptions(
     baseUrl: 'http://159.65.84.190',
     connectTimeout: const Duration(seconds: 5),
   ));
+
+  bool _isDisposed = false;
 
   WebSocket? _socket;
   RTCPeerConnection? _peerConnection;
@@ -35,6 +37,7 @@ class HostProvider extends ChangeNotifier {
   bool _isAccessibilityEnabled = false;
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
+  Timer? _heartbeatTimer;
 
   // Pending viewer ID waiting for screen capture
   String? _pendingViewerId;
@@ -47,6 +50,19 @@ class HostProvider extends ChangeNotifier {
   bool get isAccessibilityEnabled => _isAccessibilityEnabled;
 
   HostProvider(this._authProvider);
+
+  void updateAuth(AuthProvider auth) {
+    _authProvider = auth;
+    if (_authProvider.isAuthenticated) {
+      ensureHosting();
+    }
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
 
   Future<void> registerDevice() async {
     final token = _authProvider.accessToken;
@@ -201,12 +217,16 @@ class HostProvider extends ChangeNotifier {
       onError: (err) {
         debugPrint('[Host] Signaling error: $err');
         _isSignaling = false;
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
         notifyListeners();
         _scheduleReconnect();
       },
       onDone: () {
         debugPrint('[Host] Signaling closed');
         _isSignaling = false;
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = null;
         notifyListeners();
         _scheduleReconnect();
       },
@@ -222,6 +242,14 @@ class HostProvider extends ChangeNotifier {
 
     _isSignaling = true;
     notifyListeners();
+
+    // Start heartbeat to keep Redis presence TTL alive (10s interval, 90s TTL)
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_socket != null && _isSignaling) {
+        _socket!.add(json.encode({'type': 'heartbeat'}));
+      }
+    });
   }
 
   /// Called on app launch — keeps the device visible without touching camera/mic.
@@ -331,6 +359,9 @@ class HostProvider extends ChangeNotifier {
     _reconnectTimer = null;
     _reconnectAttempts = 0;
 
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+
     _socket?.close();
     _socket = null;
     _isSignaling = false;
@@ -438,7 +469,12 @@ class HostProvider extends ChangeNotifier {
       final configuration = {
         'iceServers': [
           {'urls': 'stun:stun.l.google.com:19302'},
-        ]
+          {'urls': 'stun:stun1.l.google.com:19302'},
+          {'urls': 'stun:stun2.l.google.com:19302'},
+          {'urls': 'stun:stun3.l.google.com:19302'},
+        ],
+        'sdpSemantics': 'unified-plan',
+        'iceCandidatePoolSize': 10,
       };
 
       _peerConnection = await createPeerConnection(configuration);
@@ -526,9 +562,11 @@ class HostProvider extends ChangeNotifier {
         if (_dragStartX != null && _dragStartTime != null) {
           final duration =
               DateTime.now().difference(_dragStartTime!).inMilliseconds;
-          if ((x - _dragStartX!).abs() > 0.05 ||
-              (y - _dragStartY!).abs() > 0.05 ||
-              duration > 300) {
+          final dx = (x - _dragStartX!).abs();
+          final dy = (y - _dragStartY!).abs();
+
+          if (dx > 0.02 || dy > 0.02) {
+            // It's a swipe
             _methodChannel.invokeMethod('dispatchSwipe', {
               'startX': _dragStartX,
               'startY': _dragStartY,
@@ -536,9 +574,20 @@ class HostProvider extends ChangeNotifier {
               'endY': y,
               'duration': duration.clamp(200, 1000),
             });
+          } else if (duration > 600) {
+            // It's a long press
+            _methodChannel.invokeMethod('dispatchClick', {
+              'x': _dragStartX,
+              'y': _dragStartY,
+              'duration': 1000, // 1 second hold
+            });
           } else {
-            _methodChannel.invokeMethod(
-                'dispatchClick', {'x': _dragStartX, 'y': _dragStartY});
+            // It's a normal tap (fast)
+            _methodChannel.invokeMethod('dispatchClick', {
+              'x': _dragStartX,
+              'y': _dragStartY,
+              'duration': 50, // very short burst
+            });
           }
         }
         _dragStartX = null;
@@ -551,16 +600,19 @@ class HostProvider extends ChangeNotifier {
   DateTime? _dragStartTime;
 
   void _forceKeyframe() {
+    // Toggling enabled briefly forces the encoder to emit a fresh IDR frame.
+    // We keep the off-window to 1 frame (16ms at 60fps) to minimize visible glitch.
     if (_localStream != null) {
-      for (var track in _localStream!.getVideoTracks()) {
+      for (final track in _localStream!.getVideoTracks()) {
         track.enabled = false;
-        Timer(const Duration(milliseconds: 50), () => track.enabled = true);
+        Timer(const Duration(milliseconds: 16), () => track.enabled = true);
       }
     }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     disconnect();
     super.dispose();
   }

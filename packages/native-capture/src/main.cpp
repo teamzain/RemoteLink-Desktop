@@ -147,6 +147,54 @@ public:
     }
 
     context->Unmap(stagingTexture, 0);
+
+    // ── Mouse Cursor Compositing ───────────────────────────────────────────
+    // DXGI AcquireNextFrame does not include the hardware cursor by default.
+    // We use GDI to composite the current cursor onto our mapped buffer.
+    CURSORINFO ci = { sizeof(CURSORINFO) };
+    if (GetCursorInfo(&ci) && (ci.flags & CURSOR_SHOWING)) {
+      ICONINFO ii;
+      if (GetIconInfo(ci.hCursor, &ii)) {
+        HDC hdc = CreateCompatibleDC(NULL);
+        
+        // Create a DIB section that points directly to our 'dest' buffer
+        // so GDI draws directly into the memory we pass to Node.js.
+        BITMAPINFO bmi = {};
+        bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth = desc.Width;
+        bmi.bmiHeader.biHeight = -(int)desc.Height; // Top-down
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        void* pBits = nullptr;
+        HBITMAP hbm = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &pBits, NULL, 0);
+        if (hbm && pBits) {
+          // Copy the current captured frame into the DIB
+          memcpy(pBits, dest, bufferSize);
+          
+          HBITMAP oldBmp = (HBITMAP)SelectObject(hdc, hbm);
+          
+          // Get screen coordinates of the primary monitor to offset the cursor
+          POINT pt = ci.ptScreenPos;
+          // For simplicity, we assume primary monitor (0,0) as the capture source
+          // matched by enumOutputs(0) in Initialize().
+          DrawIconEx(hdc, pt.x - ii.xHotspot, pt.y - ii.yHotspot, ci.hCursor, 0, 0, 0, NULL, DI_NORMAL);
+          
+          SelectObject(hdc, oldBmp);
+          
+          // Copy back the composited result to our destination buffer
+          memcpy(dest, pBits, bufferSize);
+        }
+
+        if (hbm) DeleteObject(hbm);
+        DeleteDC(hdc);
+        if (ii.hbmMask) DeleteObject(ii.hbmMask);
+        if (ii.hbmColor) DeleteObject(ii.hbmColor);
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     result.Set("data", buffer);
     return result;
   }

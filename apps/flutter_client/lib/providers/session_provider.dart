@@ -6,7 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'auth_provider.dart';
 
 class SessionProvider extends ChangeNotifier {
-  final AuthProvider _authProvider;
+  AuthProvider _authProvider;
   
   WebSocket? _socket;
   RTCPeerConnection? _peerConnection;
@@ -32,6 +32,19 @@ class SessionProvider extends ChangeNotifier {
   List<dynamic> get activeSessions => _activeSessions;
   
   SessionProvider(this._authProvider);
+
+  bool _isDisposed = false;
+
+  void updateAuth(AuthProvider auth) {
+    _authProvider = auth;
+    // No specific auto-connect for sessions needed yet, but we update the token instance
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
 
   Future<void> connectToSession(String sessionId) async {
     if (_isConnecting) return;
@@ -183,9 +196,12 @@ class SessionProvider extends ChangeNotifier {
       final configuration = {
         'iceServers': [
           {'urls': 'stun:stun.l.google.com:19302'},
+          {'urls': 'stun:stun1.l.google.com:19302'},
           {'urls': 'stun:stun2.l.google.com:19302'},
+          {'urls': 'stun:stun3.l.google.com:19302'},
         ],
         'sdpSemantics': 'unified-plan',
+        'iceCandidatePoolSize': 10,
       };
       
       _peerConnection = await createPeerConnection(configuration);
@@ -206,15 +222,6 @@ class SessionProvider extends ChangeNotifier {
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
           _isConnected = true;
           _isConnecting = false;
-          
-          // Auto-request keyframe to force video to start immediately
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (_isConnected) {
-              sendInputEvent({'type': 'request-keyframe'});
-              debugPrint('[Viewer] Auto-requested keyframe on connection');
-            }
-          });
-          
           notifyListeners();
         } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed || 
                    state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
@@ -283,6 +290,7 @@ class SessionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     disconnect();
     super.dispose();
   }
@@ -290,21 +298,23 @@ class SessionProvider extends ChangeNotifier {
   void _startOfferRequests() {
     _offerTimer?.cancel();
     _offerRetries = 0;
-    
+
     _sendRequestOffer();
-    
-    _offerTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+
+    // Retry every 500ms (down from 2s) so we grab the first available host offer quickly.
+    // Allow up to 30 retries (15s total window) before giving up.
+    _offerTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (_isRemoteDescriptionSet || _peerConnection != null) {
         timer.cancel();
         return;
       }
-      
+
       _offerRetries++;
       debugPrint('[Viewer] retry request-offer ($_offerRetries)...');
       _sendRequestOffer();
-      
-      if (_offerRetries > 8) {
-        debugPrint('[Viewer] Host not responding to offer requests. Target offline?');
+
+      if (_offerRetries > 30) {
+        debugPrint('[Viewer] Host not responding after 30 retries. Target offline?');
         _error = 'Host not responding to signal';
         notifyListeners();
         timer.cancel();

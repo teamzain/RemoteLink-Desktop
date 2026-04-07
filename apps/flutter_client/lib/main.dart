@@ -5,8 +5,8 @@ import 'providers/auth_provider.dart';
 import 'providers/device_provider.dart';
 import 'providers/host_provider.dart';
 import 'providers/session_provider.dart';
-import 'screens/auth/login_screen.dart';
 import 'screens/auth/snow_splash.dart';
+import 'screens/auth/onboarding_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 
 void main() {
@@ -16,15 +16,15 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProxyProvider<AuthProvider, DeviceProvider>(
           create: (context) => DeviceProvider(context.read<AuthProvider>()),
-          update: (context, auth, previous) => DeviceProvider(auth),
+          update: (context, auth, previous) => previous!..updateAuth(auth),
         ),
         ChangeNotifierProxyProvider<AuthProvider, HostProvider>(
           create: (context) => HostProvider(context.read<AuthProvider>()),
-          update: (context, auth, previous) => HostProvider(auth),
+          update: (context, auth, previous) => previous!..updateAuth(auth),
         ),
         ChangeNotifierProxyProvider<AuthProvider, SessionProvider>(
           create: (context) => SessionProvider(context.read<AuthProvider>()),
-          update: (context, auth, previous) => SessionProvider(auth),
+          update: (context, auth, previous) => previous!..updateAuth(auth),
         ),
       ],
       child: const MyApp(),
@@ -44,9 +44,9 @@ class MyApp extends StatelessWidget {
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
           if (auth.isLoading) {
-            return const SnowSplash();
+            return SnowSplash();
           }
-          return auth.isAuthenticated ? const DashboardScreen() : const LoginScreen();
+          return auth.isAuthenticated ? const DashboardScreen() : const OnboardingScreen();
         },
       ),
     );

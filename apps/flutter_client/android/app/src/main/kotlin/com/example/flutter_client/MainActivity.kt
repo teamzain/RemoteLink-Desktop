@@ -61,7 +61,8 @@ class MainActivity : FlutterActivity() {
                 "dispatchClick" -> {
                     val x = call.argument<Double>("x")?.toFloat() ?: 0f
                     val y = call.argument<Double>("y")?.toFloat() ?: 0f
-                    RemoteLinkAccessibilityService.instance?.dispatchClick(x, y)
+                    val duration = call.argument<Int>("duration")?.toLong() ?: 100L
+                    RemoteLinkAccessibilityService.instance?.dispatchClick(x, y, duration)
                     result.success(true)
                 }
                 "dispatchSwipe" -> {

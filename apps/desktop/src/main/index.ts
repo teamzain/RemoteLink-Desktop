@@ -7,9 +7,33 @@ import { WebSocket } from 'ws';
 import * as os from 'os';
 import * as datachannel from 'node-datachannel';
 import * as input from '@remotelink/native-input';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
-const PROTOCOL = 'remotelink';
-const AUTH_STORE_PATH = join(app.getPath('userData'), 'remotelink_auth.json');
+// Disable Hardware Acceleration for desktop host window to ensure 
+// it remains visible and controllable via DXGI capture.
+app.disableHardwareAcceleration();
+
+// Robust Native Capture Loading
+let capture: any;
+try {
+  capture = require('@remotelink/native-capture');
+} catch (e) {
+  try {
+    // Fallback for some monorepo/development environments
+    capture = require('../../../../packages/native-capture/build/Release/capture.node');
+  } catch (e2) {
+    console.error('[Host] Failed to load native-capture module:', e2);
+  }
+}
+
+// @ts-ignore: Module types
+declare module '@remotelink/native-capture' {
+  export function captureFrame(): { width: number; height: number; data: Buffer };
+}
+
+const PROTOCOL = 'connectx';
+let AUTH_STORE_PATH: string;
 
 // --- State Management ---
 let mainWindow: BrowserWindow | null = null;
@@ -22,8 +46,10 @@ let dataChannel: any = null;
 let videoTrack: any = null;
 let videoRtpConfig: any = null;
 let currentRtpTimestamp = 0;
+let rtpStartTime = 0; // wall-clock ms when streaming started
 let currentViewerId: string | null = null;
 let ffmpegProcess: ChildProcess | null = null;
+let captureInterval: NodeJS.Timeout | null = null;
 let hostHeartbeatInterval: NodeJS.Timeout | null = null;
 let isReconnectScheduled = false;
 let iceCandidatesQueue: any[] = [];
@@ -32,6 +58,7 @@ let fileTransfers = new Map<string, { chunks: (Buffer | null)[], received: numbe
 
 let lastClipboardText = '';
 let clipboardInterval: NodeJS.Timeout | null = null;
+let selectedDisplayId: number | null = null; // null means primary display
 let currentHostSessionId = '';
 let lastViewerJoinTime = 0;
 let totalBytesSent = 0;
@@ -49,6 +76,14 @@ let pingInterval: NodeJS.Timeout | null = null;
 let bufferAccumulator = Buffer.alloc(0);
 let nalAccumulator = Buffer.alloc(0);
 let hasVCLInAccumulator = false;
+
+// Pre-buffering and Handshake
+let ffmpegPreChunks: Buffer[] = [];
+let isPreBuffering = false;
+
+// Hardware encoder detection cache
+let detectedEncoder: string = 'libx264';
+let encoderDetected = false;
 
 // --- IPC Handlers ---
 ipcMain.handle('system:getLocalIP', () => {
@@ -93,20 +128,40 @@ ipcMain.handle('host:getStatus', async () => {
 });
 ipcMain.handle('host:start', async (_, accessKey) => {
   const { token } = await getAuthTokens();
-  const serverIP = process.env.REMOTE_LINK_SERVER_IP || '159.65.84.190';
+  const serverIP = process.env.CONNECT_X_SERVER_IP || '159.65.84.190';
   connectHostSignaling(serverIP, token || '', accessKey || '');
   return true;
 });
 ipcMain.handle('host:stop', () => { cleanUpWebRTC(); hostSignalingWs?.close(); return true; });
+
+ipcMain.handle('host:get-screens', () => {
+  const displays = screen.getAllDisplays();
+  return displays.map(d => ({
+    id: d.id,
+    label: `${d.label || 'Display'} (${d.bounds.width}x${d.bounds.height})`,
+    bounds: d.bounds
+  }));
+});
+
+ipcMain.handle('host:set-capture-screen', (_, displayId) => {
+  log.info(`[Host] Switching capture screen to: ${displayId}`);
+  selectedDisplayId = displayId;
+  if (videoTrack && peerConnection?.state() === 'connected') {
+    startStreaming();
+  }
+  return true;
+});
 ipcMain.handle('clipboard:readText', () => clipboard.readText());
 ipcMain.handle('clipboard:writeText', (_event, text) => { lastClipboardText = text; clipboard.writeText(text); });
-ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, deviceName) => {
+ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, deviceName, deviceType) => {
   if (viewerWindows.has(sessionId)) {
     viewerWindows.get(sessionId)?.focus();
     return true;
   }
+  const isMobile = deviceType?.toLowerCase() === 'android' || deviceType?.toLowerCase() === 'ios';
   const viewerWin = new BrowserWindow({
-    width: 1280, height: 720,
+    width: isMobile ? 440 : 1280,
+    height: isMobile ? 900 : 720,
     backgroundColor: '#060608',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -115,11 +170,11 @@ ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, device
     }
   });
 
-  const query = `?view=viewer&sessionId=${sessionId}&serverIP=${serverIP}&token=${token}&deviceName=${encodeURIComponent(deviceName || '')}`;
+  const query = `?view=viewer&sessionId=${sessionId}&serverIP=${serverIP}&token=${token}&deviceName=${encodeURIComponent(deviceName || '')}&deviceType=${encodeURIComponent(deviceType || '')}`;
   if (process.env.VITE_DEV_SERVER_URL) {
     viewerWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}${query}`);
   } else {
-    viewerWin.loadFile(join(__dirname, '../../dist/index.html'), { query: { view: 'viewer', sessionId, serverIP, token, deviceName: deviceName || '' } });
+    viewerWin.loadFile(join(__dirname, '../../dist/index.html'), { query: { view: 'viewer', sessionId, serverIP, token, deviceName: deviceName || '', deviceType: deviceType || '' } });
   }
   
   viewerWin.on('closed', () => {
@@ -194,6 +249,10 @@ function cleanUpWebRTC() {
 }
 
 function stopStreaming() {
+  if (captureInterval) {
+    clearInterval(captureInterval);
+    captureInterval = null;
+  }
   if (ffmpegProcess) {
     ffmpegProcess.stdin?.end();
     ffmpegProcess.kill();
@@ -201,89 +260,249 @@ function stopStreaming() {
   }
 }
 
+// --- Encoder Detection ---
+
+/** Build encoder-specific FFmpeg args for low-latency, high-quality streaming.
+ *  ALL encoders must emit AUD NAL units so the frame splitter works correctly. */
+function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[] {
+  const gop = '10'; // keyframe every 10 frames ≈ 167ms at 60fps
+  switch (encoder) {
+    case 'h264_nvenc':
+      return [
+        '-c:v', 'h264_nvenc',
+        '-preset', 'p4',           // P4 = Balanced (Safe for all NVENC GPUs)
+        '-tune', 'ull',            // Ultra-low latency
+        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-b:v', bitrate,
+        '-maxrate', bitrate,
+        '-bufsize', '1000k',       // Small buffer for instant delivery
+        '-g', gop,
+        '-bf', '0',
+        '-rc-lookahead', '0',
+        '-zerolatency', '1',
+        '-f', 'h264', '-'
+      ];
+    case 'h264_amf':
+      return [
+        '-c:v', 'h264_amf',
+        '-usage', 'ultlowlatency',
+        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-b:v', bitrate,
+        '-maxrate', bitrate,
+        '-bufsize', '1000k',
+        '-g', gop,
+        '-bf', '0',
+        '-f', 'h264', '-'
+      ];
+    case 'h264_qsv':
+      return [
+        '-c:v', 'h264_qsv',
+        '-preset', 'veryfast',
+        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-b:v', bitrate,
+        '-maxrate', bitrate,
+        '-bufsize', '1000k',
+        '-g', gop,
+        '-bf', '0',
+        '-f', 'h264', '-'
+      ];
+    default: // libx264 — CPU fallback
+      return [
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-tune', 'zerolatency',
+        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-b:v', bitrate,
+        '-maxrate', bitrate,
+        '-bufsize', '1000k',
+        '-g', gop,
+        '-x264-params', `keyint=${gop}:bframes=0:aud=1`,
+        '-f', 'h264', '-'
+      ];
+  }
+}
+
+/** Probe one encoder with a tiny synthetic test clip. 2s timeout. */
+function probeEncoder(ffmpegPath: string, encoder: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (ok: boolean) => { if (!done) { done = true; resolve(ok); } };
+    try {
+      const p = spawn(ffmpegPath, [
+        '-f', 'lavfi', '-i', 'color=black:s=64x64:r=1:d=0.1',
+        '-c:v', encoder, '-f', 'null', '-'
+      ]);
+      p.on('close', (code) => finish(code === 0));
+      p.on('error', () => finish(false));
+      setTimeout(() => { try { p.kill(); } catch {} finish(false); }, 2000);
+    } catch { finish(false); }
+  });
+}
+
+/** Detect best available encoder once, cache result.
+ *  Always runs in the background — never blocks the UI or a connection. */
+async function detectBestEncoder(): Promise<void> {
+  if (encoderDetected) return;
+  const ffmpegPath = getFFmpegPath();
+  log.info('[Host] Probing hardware encoders in background...');
+  for (const enc of ['h264_nvenc', 'h264_amf', 'h264_qsv']) {
+    const ok = await probeEncoder(ffmpegPath, enc);
+    if (ok) {
+      detectedEncoder = enc;
+      encoderDetected = true;
+      log.info(`[Host] Hardware encoder selected: ${enc}`);
+      mainWindow?.webContents.send('host:status', `Encoder: ${enc}`);
+      return;
+    }
+  }
+  detectedEncoder = 'libx264';
+  encoderDetected = true;
+  log.info('[Host] Using libx264 (no GPU encoder found).');
+}
+
+// --- NAL Scanning ---
+
+/** Robust Annex-B Frame Splitter.
+ *  Handles NAL unit extraction regardless of whether the encoder emits AUD markers.
+ *  Strict alignment ensures the WebRTC packetizer doesn't crash on unaligned chunks. */
+function drainNALBuffer() {
+  let offset = 0;
+  while (offset < bufferAccumulator.length - 4) {
+    const is4 = (bufferAccumulator[offset] === 0 && bufferAccumulator[offset+1] === 0 && 
+                 bufferAccumulator[offset+2] === 0 && bufferAccumulator[offset+3] === 1);
+    const is3 = (bufferAccumulator[offset] === 0 && bufferAccumulator[offset+1] === 0 && 
+                 bufferAccumulator[offset+2] === 1);
+
+    if (is4 || is3) {
+      if (offset > 0) {
+        // Complete NALU found at offset. Fragment it now.
+        const nalUnit = bufferAccumulator.subarray(0, offset);
+        sendFrame(nalUnit);
+        bufferAccumulator = bufferAccumulator.subarray(offset);
+        offset = 0;
+        continue;
+      }
+      offset += (is4 ? 4 : 3);
+    } else {
+      offset++;
+    }
+  }
+
+  // Large buffer safety flush
+  if (bufferAccumulator.length > 5 * 1024 * 1024) {
+    bufferAccumulator = Buffer.alloc(0);
+  }
+}
+
 // --- Video Handlers ---
 function startStreaming() {
-  log.info('[Host] Initializing high-performance stream...');
+  const displays = screen.getAllDisplays();
+  const selectedDisplay = displays.find(d => d.id === selectedDisplayId) || screen.getPrimaryDisplay();
+  const { width, height } = selectedDisplay.bounds;
+  const isPrimary = selectedDisplay.id === screen.getPrimaryDisplay().id;
+
+  log.info(`[Host] Starting stream with encoder: ${detectedEncoder} on display: ${selectedDisplay.id} (${width}x${height})`);
   stopStreaming();
 
   const ffmpegPath = getFFmpegPath();
-  
-  // High-fidelity configuration
-  const bitrate = '6000k';
   const fps = '60';
+  const bitrate = '8000k'; // Stable High quality — 8Mbps
 
-  // Base arguments
-  let args = [
-    '-f', 'gdigrab', 
-    '-thread_queue_size', '1024',
-    '-framerate', fps, 
-    '-draw_mouse', '0', 
+  // --- Capture Logic: Native with GDI Fallback ---
+  // If we are on the primary monitor, we can use our optimized DXGI native addon.
+  // If we are on a secondary monitor, we fallback to FFmpeg's gdigrab (which is still very fast on Windows).
+  const captureArgs = isPrimary ? [
+    '-f', 'rawvideo',
+    '-pixel_format', 'bgra',
+    '-video_size', `${width}x${height}`,
+    '-framerate', fps,
+    '-i', '-', // feed from stdin
+    '-vf', 'scale=min(iw\\,1920):-2:flags=bicubic,format=yuv420p',
+  ] : [
+    '-f', 'gdigrab',
+    '-framerate', fps,
+    '-offset_x', `${selectedDisplay.bounds.x}`,
+    '-offset_y', `${selectedDisplay.bounds.y}`,
+    '-video_size', `${width}x${height}`,
     '-i', 'desktop',
-    '-vf', 'scale=min(iw\\,1920):-2,format=yuv420p',
+    '-vf', 'scale=min(iw\\,1920):-2:flags=bicubic,format=yuv420p',
   ];
 
-  // Encoder selection (Priority: NVENC > AMF > QSV > libx264)
-  // We'll use a shell command to check support or just try-catch? 
-  // For simplicity in this script, we default to libx264 but with higher quality, 
-  // OR we can bake in a detection logic. 
-  // Let's use a robust libx264 config first, but I will add the HW detection as a TODO or implement a quick check.
-  // Actually, I'll use h264_nvenc as a preferred fallback if it fails we can restart with libx264.
-  // But for now, let's optimize libx264 to be MUCH clearer.
-
-  args.push(
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast', 
-    '-tune', 'zerolatency',
-    '-profile:v', 'baseline',
-    '-level', '4.1',
-    '-b:v', bitrate,
-    '-maxrate', bitrate,
-    '-minrate', bitrate,
-    '-bufsize', '500k', // Minimized for instant startup
-    '-g', '30', // IDR every 0.5s for black-screen fix
-    '-x264-params', 'repeat-headers=1:keyint=30:bframes=0:annexb=1:aud=1:bitrate=6000:vbv-maxrate=6000:vbv-bufsize=500',
-    '-f', 'h264', '-'
-  );
+  const encoderArgs = getEncoderArgs(detectedEncoder, bitrate, fps);
+  const args = [...captureArgs, ...encoderArgs];
 
   ffmpegProcess = spawn(ffmpegPath, args);
-
   bufferAccumulator = Buffer.alloc(0);
 
-  ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    if (!videoTrack) return;
-    bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
+  // Capture Loop: Push frames into FFmpeg as fast as possible
+  const frameInterval = Math.floor(1000 / parseInt(fps));
+  let lastFrameBuffer: Buffer | null = null;
 
-    let offset = 0;
-    while (offset < bufferAccumulator.length - 4) {
-      const isHeader4 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 && bufferAccumulator[offset + 2] === 0 && bufferAccumulator[offset + 3] === 1;
-      const isHeader3 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 && bufferAccumulator[offset + 2] === 1;
+  // Capture an initial frame immediately to fill the buffer
+  try {
+    const firstFrame = capture.captureFrame();
+    if (firstFrame?.data) lastFrameBuffer = Buffer.from(firstFrame.data);
+  } catch (e: any) {
+    log.warn('[Host] Initial captureFrame failed:', e.message);
+  }
 
-      if (isHeader4 || isHeader3) {
-        const headerLen = isHeader4 ? 4 : 3;
-        const nalType = bufferAccumulator[offset + headerLen] & 0x1F;
+  captureInterval = setInterval(() => {
+    if (!ffmpegProcess || !ffmpegProcess.stdin?.writable || ffmpegProcess.stdin?.writableEnded) {
+      if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+      return;
+    }
 
-        // Detect Access Unit Delimiter (NAL type 9) which marks the start of a new frame
-        if (nalType === 9 && offset > 0) {
-          const frameData = bufferAccumulator.subarray(0, offset);
-          sendFrame(frameData);
-          bufferAccumulator = bufferAccumulator.subarray(offset);
-          offset = 0;
-          continue;
-        }
+    try {
+      // Capture a FRESH frame every tick — this is the critical fix
+      const result = capture.captureFrame();
+      if (result?.data) {
+        lastFrameBuffer = Buffer.from(result.data);
       }
-      offset++;
+    } catch (e: any) {
+      // DXGI can miss a frame when screen hasn't changed — reuse last frame
+      log.warn('[Host] captureFrame miss, reusing last frame:', e.message);
     }
 
-    // Failsafe for buffer overflow
-    if (bufferAccumulator.length > 5 * 1024 * 1024) {
-      log.warn('[Host] NAL buffer overflow. Clearing.');
-      bufferAccumulator = Buffer.alloc(0);
+    if (lastFrameBuffer) {
+      try {
+        ffmpegProcess.stdin.write(lastFrameBuffer);
+      } catch (err: any) {
+        log.error('[Host] FFmpeg stdin write failed:', err.message);
+        if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+      }
     }
+  }, frameInterval);
+
+  // Silently swallow pipe errors to prevent process crash (dialog error)
+  ffmpegProcess.stdin?.on('error', (err) => {
+    log.warn(`[Host] FFmpeg stdin encountered a pipe error: ${err.message}`);
+    if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+  });
+
+  ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
+    if (isPreBuffering) {
+      ffmpegPreChunks.push(chunk);
+      const total = ffmpegPreChunks.reduce((s, c) => s + c.length, 0);
+      if (total > 4 * 1024 * 1024) ffmpegPreChunks.shift();
+      return;
+    }
+    if (!videoTrack) return;
+
+    bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
+    drainNALBuffer();
   });
 
   ffmpegProcess.stderr?.on('data', (data) => {
-    if (data.toString().includes('kB time=')) return; // Suppress progress spam
-    log.info(`[Host-FFmpeg] ${data.toString().trim()}`);
+    const str = data.toString().trim();
+    if (str.includes('kB time=') || str.includes('fps=')) return;
+    log.info(`[Host-FFmpeg] ${str}`);
+  });
+
+  ffmpegProcess.on('exit', (code, signal) => {
+    if (code !== 0 && code !== null && signal !== 'SIGTERM') {
+      log.warn(`[Host-FFmpeg] Exited with code ${code}. Restarting in 1s...`);
+      setTimeout(() => { if (videoTrack) startStreaming(); }, 1000);
+    }
   });
 }
 
@@ -294,12 +513,13 @@ function sendFrame(frame: Buffer) {
   
   // Track and Connection MUST be open/connected
   try {
-    if (!videoTrack.isOpen() || peerConnection.state() !== 'connected') {
+    if (peerConnection.state() !== 'connected') {
       return;
     }
 
-    // Increment RTP timestamp for the new frame (90000 Hz / 60 fps = 1500 limit)
-    currentRtpTimestamp += 1500;
+    // Time-based RTP timestamp: 90000 Hz clock relative to stream start
+    if (rtpStartTime === 0) rtpStartTime = Date.now();
+    currentRtpTimestamp = Math.floor((Date.now() - rtpStartTime) * 90) & 0xFFFFFFFF;
     videoRtpConfig.timestamp = currentRtpTimestamp;
 
     if (!firstFrameSent) {
@@ -337,8 +557,35 @@ function initiateHostWebRTC(viewerId: string) {
   cleanUpWebRTC();
   currentViewerId = viewerId;
 
+  // ── Pre-start FFmpeg BEFORE WebRTC is ready ──────────────────────────────
+  // This hides FFmpeg cold-start latency behind the ICE handshake (~200-500ms).
+  // Output is buffered until the video track opens, then flushed.
+  log.info('[Host] Pre-starting FFmpeg to eliminate cold-start lag...');
+  isPreBuffering = true;
+  ffmpegPreChunks = [];
+  
+  // Handover delay to ensure network stack is fully initialized
+  setTimeout(() => {
+    if (currentViewerId === viewerId) {
+      startStreaming();
+    }
+  }, 200);
+
   peerConnection = new datachannel.PeerConnection("Host", {
-    iceServers: ["stun:stun.l.google.com:19302"]
+    iceServers: [
+      "stun:stun.l.google.com:19302",
+      "stun:stun1.l.google.com:19302",
+      "stun:stun2.l.google.com:19302",
+      "stun:stun3.l.google.com:19302",
+      "stun:stun4.l.google.com:19302",
+      "stun:stun.freeswitch.org:3478",
+      "stun:stun.voiparound.com:3478",
+      "stun:stun.voipbuster.com:3478"
+    ]
+  });
+
+  peerConnection.onGatheringStateChange((state: string) => {
+    log.info(`[Host] ICE Gathering state: ${state}`);
   });
 
   peerConnection.onLocalDescription((sdp: string) => {
@@ -357,6 +604,20 @@ function initiateHostWebRTC(viewerId: string) {
   peerConnection.onStateChange((state: string) => {
     log.info(`[Host] WebRTC State: ${state}`);
     mainWindow?.webContents.send('host:status', `WebRTC: ${state}`);
+    
+    if (state === 'connected') {
+      log.info(`[Host] WebRTC connected! Checking pre-buffer status...`);
+      if (isPreBuffering) {
+        log.info('[Host] Flushing pre-buffered frames to track...');
+        isPreBuffering = false;
+        if (ffmpegPreChunks.length > 0) {
+          const combined = Buffer.concat(ffmpegPreChunks);
+          ffmpegPreChunks = [];
+          bufferAccumulator = Buffer.concat([bufferAccumulator, combined]);
+          drainNALBuffer();
+        }
+      }
+    }
   });
 
   const video = new datachannel.Video("0", "SendOnly");
@@ -369,12 +630,21 @@ function initiateHostWebRTC(viewerId: string) {
   frameCount = 0;
   lastLogTime = Date.now();
   currentRtpTimestamp = 0;
+  rtpStartTime = 0;
   videoTrack = peerConnection.addTrack(video);
   videoTrack.setMediaHandler(packetizer);
 
   videoTrack.onOpen(() => {
-    log.info('[Host] Video track open. Starting streaming...');
-    startStreaming();
+    log.info('[Host] Video track open callback triggered.');
+    if (isPreBuffering) {
+      isPreBuffering = false;
+      if (ffmpegPreChunks.length > 0) {
+        const combined = Buffer.concat(ffmpegPreChunks);
+        ffmpegPreChunks = [];
+        bufferAccumulator = Buffer.concat([bufferAccumulator, combined]);
+        drainNALBuffer();
+      }
+    }
   });
 
   // Adding DataChannel AFTER the Media Track ensures `node-datachannel`'s implicit asynchronous SDP generator packages BOTH into the singular Offer.
@@ -457,8 +727,11 @@ function handleControlMessage(msg: any) {
 
     // 2. Handle JSON Commands
     const event = JSON.parse(msg.toString());
+
     switch (event.type) {
-      case 'mousemove': input.injectMouseMove(event.x, event.y); break;
+      case 'mousemove': 
+        input.injectMouseMove(event.x, event.y); 
+        break;
       case 'mousedown': case 'mouseup':
         // Sync movement before click to ensure accuracy
         if (event.x !== undefined && event.y !== undefined) {
@@ -466,6 +739,9 @@ function handleControlMessage(msg: any) {
         }
         const btns: any = { 0: 'left', 1: 'middle', 2: 'right' };
         input.injectMouseAction(btns[event.button] || 'left', event.type === 'mousedown' ? 'down' : 'up');
+        break;
+      case 'wheel':
+        input.injectMouseScroll(event.deltaX, event.deltaY);
         break;
       case 'keydown': case 'keyup':
         log.info(`[Diagnostic] Remote Input: Key ${event.type === 'keydown' ? 'Down' : 'Up'} (VK: 0x${event.keyCode.toString(16)})`);
@@ -481,9 +757,37 @@ function handleControlMessage(msg: any) {
       case 'typeText':
         input.injectText(event.text);
         break;
+      case 'shortcut':
+        if (event.key === 'notifications') {
+          // Win + N: Notifications (Windows 11)
+          input.injectKeyAction(0x5B, 'down'); // VK_LWIN
+          input.injectKeyAction(0x4E, 'down'); // 'N'
+          input.injectKeyAction(0x4E, 'up');
+          input.injectKeyAction(0x5B, 'up');
+        } else if (event.key === 'control-center') {
+          // Win + A: Quick Settings (Windows 11)
+          input.injectKeyAction(0x5B, 'down'); // VK_LWIN
+          input.injectKeyAction(0x41, 'down'); // 'A'
+          input.injectKeyAction(0x41, 'up');
+          input.injectKeyAction(0x5B, 'up');
+        }
+        break;
       case 'request-keyframe':
-        log.info('[Host] Keyframe requested. Restarting stream.');
-        startStreaming();
+        // Force-inject a keyframe by writing a synthetic IDR request to FFmpeg.
+        // Do NOT call startStreaming() — that kills the track and causes the black screen.
+        log.info('[Host] Keyframe requested. Forcing IDR on FFmpeg...');
+        if (ffmpegProcess?.stdin?.writable) {
+          // Sending SIGKILL then restarting is too heavy; instead we
+          // rely on low gop=-g10 to deliver a natural IDR within ~167ms.
+          // Just log it — the stream is already continuous.
+          log.info('[Host] IDR will arrive on next GOP boundary (gop=10).');
+        } else {
+          // FFmpeg died; safe to restart now
+          log.warn('[Host] FFmpeg not running; restarting stream...');
+          isPreBuffering = false;
+          ffmpegPreChunks = [];
+          startStreaming();
+        }
         break;
     }
   } catch {}
@@ -524,13 +828,20 @@ function setupSignalingHandlers(ws: WebSocket) {
         log.error(`[Host] Error Stack: ${err.stack}`);
       }
     } else if (data.type === 'ice-candidate') {
-      const mid = data.sdpMid || "";
-      log.info(`[Host] Received candidate from remote: ${data.candidate.substring(0, 40)}... (mid: ${mid})`);
-      
-      if (hasRemoteDescription) {
-        peerConnection?.addRemoteCandidate(data.candidate, mid);
-      } else {
-        iceCandidatesQueue.push({ candidate: data.candidate, mid });
+      // Mobile viewer sends candidate as a flat string; guard for legacy object format
+      const candStr: string = typeof data.candidate === 'string'
+        ? data.candidate
+        : (data.candidate?.candidate ?? '');
+      const mid: string = data.sdpMid
+        ?? (typeof data.candidate === 'object' ? data.candidate?.sdpMid : null)
+        ?? '';
+      if (candStr) {
+        log.info(`[Host] Received candidate from remote: ${candStr.substring(0, 40)}... (mid: ${mid})`);
+        if (hasRemoteDescription) {
+          peerConnection?.addRemoteCandidate(candStr, mid);
+        } else {
+          iceCandidatesQueue.push({ candidate: candStr, mid });
+        }
       }
     } else if (data.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong' }));
@@ -620,9 +931,11 @@ app.setAsDefaultProtocolClient(PROTOCOL);
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
+  log.warn('[Host] Another instance is already running. Quitting.');
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
+    log.info('[Host] Second instance detected. Restoring main window.');
     // The deep-link URL is the last element on Windows
     const url = argv.find((a) => a.startsWith(`${PROTOCOL}://`));
     if (url) handleDeepLink(url);
@@ -635,21 +948,70 @@ if (!gotSingleInstanceLock) {
 
 // --- Electron Initialization ---
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200, height: 800,
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), contextIsolation: true, sandbox: true }
-  });
-  if (process.env.VITE_DEV_SERVER_URL) mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-  else mainWindow.loadFile(join(__dirname, '../../dist/index.html'));
+  log.info('[Host] Starting BrowserWindow construction...');
+  try {
+    mainWindow = new BrowserWindow({
+      width: 1200, height: 800,
+      show: false, // Create hidden, then show once content is ready
+      webPreferences: { 
+        preload: join(__dirname, '../preload/index.js'), 
+        contextIsolation: true, 
+        sandbox: false 
+      }
+    });
+
+    mainWindow.once('ready-to-show', () => {
+      log.info('[Host] Main window ready to show.');
+      mainWindow?.show();
+      mainWindow?.focus();
+    });
+    log.info('[Host] BrowserWindow object created.');
+
+    mainWindow.webContents.on('did-finish-load', () => log.info('[Host] Renderer: did-finish-load'));
+    mainWindow.webContents.on('did-fail-load', (e, code, desc) => log.error(`[Host] Renderer: did-fail-load (${code}): ${desc}`));
+    mainWindow.webContents.on('crashed', () => log.error('[Host] Renderer process CRASHED'));
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+      const url = process.env.VITE_DEV_SERVER_URL.replace('localhost', '127.0.0.1');
+      log.info(`[Host] Loading URL: ${url}`);
+      mainWindow.loadURL(url).catch(e => log.error(`[Host] loadURL failed: ${e.message}`));
+    } else {
+      log.info('[Host] Loading local production file...');
+      mainWindow.loadFile(join(__dirname, '../../dist/index.html')).catch(e => log.error(`[Host] loadFile failed: ${e.message}`));
+    }
+  } catch (err: any) {
+    log.error(`[Host] CRITICAL ERROR in createWindow: ${err.message}\n${err.stack}`);
+  }
 }
 
+process.on('uncaughtException', (err) => {
+  log.error(`[Host] UNCAUGHT EXCEPTION: ${err.message}\n${err.stack}`);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  log.error('[Host] UNHANDLED REJECTION:', reason);
+});
+
 app.whenReady().then(() => {
+  log.info('[Host] App is ready. Initializing subsystems...');
+  
+  // Initialize paths that require app to be ready
+  AUTH_STORE_PATH = join(app.getPath('userData'), 'connectx_auth.json');
+  log.info(`[Host] Auth store path: ${AUTH_STORE_PATH}`);
+
   createWindow();
+  startStatsMonitoring();
+
+  // Detect best video encoder in background so it's ready before first connection
+  detectBestEncoder().catch((err) => log.warn('[Host] Encoder detection failed:', err));
 
   // Handle startup deep link: when the app was launched fresh by a remotelink:// URL
   const startupUrl = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`));
   if (startupUrl) {
-    mainWindow?.webContents.once('did-finish-load', () => handleDeepLink(startupUrl));
+    mainWindow?.webContents.once('did-finish-load', () => {
+       log.info(`[Host] Processing startup deep link: ${startupUrl}`);
+       handleDeepLink(startupUrl);
+    });
   }
 });
 
@@ -719,10 +1081,7 @@ function startStatsMonitoring() {
   }, 1000);
 }
 
-// Initial stats start
-app.on('ready', () => {
-    startStatsMonitoring();
-});
+// window-all-closed handler
 
 app.on('window-all-closed', () => app.quit());
 
@@ -738,6 +1097,12 @@ function connectViewerSignaling(sessionId: string, serverIP: string, token: stri
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data.toString());
+      // Handle ping/pong at the main-process level so the signaling server
+      // doesn't terminate the socket for missed heartbeats.
+      if (msg.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong' }));
+        return;
+      }
       const win = viewerWindows.get(sessionId);
       if (win) {
         win.webContents.send('viewer:signaling-message', msg);

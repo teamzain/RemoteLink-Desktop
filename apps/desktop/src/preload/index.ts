@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLocalIP: () => ipcRenderer.invoke('system:getLocalIP'),
   getDeterministicKey: () => ipcRenderer.invoke('system:getDeterministicKey'),
   getMachineName: () => ipcRenderer.invoke('system:getMachineName'),
-  openViewerWindow: (sessionId: string, serverIP: string, token: string, deviceName?: string) => ipcRenderer.invoke('viewer:open-window', sessionId, serverIP, token, deviceName),
+  openViewerWindow: (sessionId: string, serverIP: string, token: string, deviceName?: string, deviceType?: string) => ipcRenderer.invoke('viewer:open-window', sessionId, serverIP, token, deviceName, deviceType),
   onHostStatus: (callback: (status: string) => void) => {
     const listener = (_: any, status: string) => callback(status);
     ipcRenderer.on('host:status', listener);
@@ -60,4 +60,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
   saveFileLocally: (name: string, data: Uint8Array) => ipcRenderer.invoke('host:save-file-locally', name, data),
   sendFileToViewer: () => ipcRenderer.send('host:send-file'),
+  getScreens: () => ipcRenderer.invoke('host:get-screens'),
+  setCaptureScreen: (displayId: number) => ipcRenderer.invoke('host:set-capture-screen', displayId),
 });

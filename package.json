@@ -10,11 +10,19 @@
     "dev": "npx concurrently -n auth,signal,session,billing -c blue,green,yellow,magenta \"npm run dev -w @remotelink/auth-service\" \"npm run dev -w @remotelink/signaling-service\" \"npm run dev -w @remotelink/session-service\" \"npm run dev -w @remotelink/billing-service\"",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "rebuild:native": "npm run install --workspaces --if-present"
+    "rebuild:native": "npm run install --workspaces --if-present",
+    "mobile": "npm run start -w mobile",
+    "mobile:android": "npm run android -w mobile",
+    "desktop": "npm run dev -w @connect-x/desktop"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "concurrently": "^8.2.2",
-    "typescript": "^5.7.2",
-    "@types/node": "^22.10.2"
+    "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5"
   }
 }

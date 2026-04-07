@@ -14,35 +14,46 @@ import androidx.core.app.NotificationCompat
 class BackgroundService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
+    companion object {
+        private const val NOTIFICATION_ID = 3
+        private const val CHANNEL_ID = "BackgroundServiceChannel"
+    }
+
     override fun onCreate() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel("BackgroundServiceChannel", "Background Service", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(CHANNEL_ID, "Background Service", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = NotificationCompat.Builder(this, "BackgroundServiceChannel")
+        // Android 14 Requirement: startForeground() MUST be called as early as possible.
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("RemoteLink Active")
             .setContentText("Connected to mesh network")
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
             .build()
             
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
-                startForeground(3, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             } catch (e: Exception) {
-                startForeground(3, notification)
+                // Fallback for older APIs or missing permissions
+                startForeground(NOTIFICATION_ID, notification)
             }
         } else {
-            startForeground(3, notification)
+            startForeground(NOTIFICATION_ID, notification)
         }
         
-        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RemoteLink::BackgroundSyncPwr")
-        wakeLock?.acquire()
+        // Post-foreground logic
+        if (wakeLock == null) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RemoteLink::BackgroundSyncPwr")
+            wakeLock?.acquire()
+        }
 
         return START_STICKY
     }
@@ -52,6 +63,7 @@ class BackgroundService : Service() {
         wakeLock?.let {
             if (it.isHeld) it.release()
         }
+        wakeLock = null
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

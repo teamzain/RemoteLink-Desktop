@@ -1,6 +1,6 @@
 {
-  "appId": "com.remotelink.desktop",
-  "productName": "SyncLink",
+  "appId": "com.connectx.desktop",
+  "productName": "Connect-X",
   "electronVersion": "28.3.3",
   "directories": {
     "output": "release"

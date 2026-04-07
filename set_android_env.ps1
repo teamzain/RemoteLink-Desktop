@@ -27,3 +27,9 @@ $env:PUB_CACHE = "F:\.pub-cache"
 
 Write-Host "ANDROID_HOME set to $env:LOCALAPPDATA\Android\Sdk"
 Write-Host "PUB_CACHE set to F:\.pub-cache (Drive F: consistency)"
+
+# Set ANDROID_NDK_HOME
+$ndkPath = "C:\Users\PC\scoop\apps\android-clt\14742923\ndk\27.0.12077973"
+[System.Environment]::SetEnvironmentVariable("ANDROID_NDK_HOME", $ndkPath, "User")
+$env:ANDROID_NDK_HOME = $ndkPath
+Write-Host "ANDROID_NDK_HOME set to $ndkPath"
