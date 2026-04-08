@@ -10,9 +10,12 @@ import * as input from '@remotelink/native-input';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-// Disable Hardware Acceleration for desktop host window to ensure 
+// Disable Hardware Acceleration for desktop host window to ensure
 // it remains visible and controllable via DXGI capture.
 app.disableHardwareAcceleration();
+
+// Allow video autoplay in viewer windows opened programmatically (no prior user gesture).
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 // Robust Native Capture Loading
 let capture: any;
@@ -50,6 +53,7 @@ let rtpStartTime = 0; // wall-clock ms when streaming started
 let currentViewerId: string | null = null;
 let ffmpegProcess: ChildProcess | null = null;
 let captureInterval: NodeJS.Timeout | null = null;
+let cursorInterval: NodeJS.Timeout | null = null;
 let hostHeartbeatInterval: NodeJS.Timeout | null = null;
 let isReconnectScheduled = false;
 let iceCandidatesQueue: any[] = [];
@@ -72,10 +76,10 @@ let lastViewerJoinId = '';
 let lastLogBytes = 0;
 let pingInterval: NodeJS.Timeout | null = null;
 
-// Streaming Accumulators
+// Streaming Accumulators (Annex-B Aggregator)
 let bufferAccumulator = Buffer.alloc(0);
-let nalAccumulator = Buffer.alloc(0);
-let hasVCLInAccumulator = false;
+let accessUnitBuffer = Buffer.alloc(0);
+let hasVcl = false;
 
 // Pre-buffering and Handshake
 let ffmpegPreChunks: Buffer[] = [];
@@ -253,6 +257,10 @@ function stopStreaming() {
     clearInterval(captureInterval);
     captureInterval = null;
   }
+  if (cursorInterval) {
+    clearInterval(cursorInterval);
+    cursorInterval = null;
+  }
   if (ffmpegProcess) {
     ffmpegProcess.stdin?.end();
     ffmpegProcess.kill();
@@ -362,22 +370,38 @@ async function detectBestEncoder(): Promise<void> {
 
 // --- NAL Scanning ---
 
-/** Robust Annex-B Frame Splitter.
- *  Handles NAL unit extraction regardless of whether the encoder emits AUD markers.
- *  Strict alignment ensures the WebRTC packetizer doesn't crash on unaligned chunks. */
+/** Simple Annex-B Scanner (Round 4).
+ *  Finds 00 00 01 boundaries and returns complete NAL units. */
 function drainNALBuffer() {
   let offset = 0;
   while (offset < bufferAccumulator.length - 4) {
-    const is4 = (bufferAccumulator[offset] === 0 && bufferAccumulator[offset+1] === 0 && 
-                 bufferAccumulator[offset+2] === 0 && bufferAccumulator[offset+3] === 1);
-    const is3 = (bufferAccumulator[offset] === 0 && bufferAccumulator[offset+1] === 0 && 
-                 bufferAccumulator[offset+2] === 1);
+    // Check for 3-byte or 4-byte start codes
+    const is4 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 &&
+                bufferAccumulator[offset + 2] === 0 && bufferAccumulator[offset + 3] === 1;
+    const is3 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 &&
+                bufferAccumulator[offset + 2] === 1;
 
     if (is4 || is3) {
       if (offset > 0) {
-        // Complete NALU found at offset. Fragment it now.
         const nalUnit = bufferAccumulator.subarray(0, offset);
-        sendFrame(nalUnit);
+        
+        // Group SPS/PPS with next IDR for frame atomicity
+        let headerIdx = 0;
+        while (headerIdx < nalUnit.length && nalUnit[headerIdx] === 0) headerIdx++;
+        if (headerIdx < nalUnit.length && nalUnit[headerIdx] === 1) headerIdx++;
+        const nalType = (headerIdx < nalUnit.length) ? (nalUnit[headerIdx] & 0x1F) : 0;
+        
+        const isHeader = (nalType === 7 || nalType === 8 || nalType === 9);
+        const isSlice = (nalType === 1 || nalType === 5);
+
+        if ((isHeader || isSlice) && accessUnitBuffer.length > 0 && hasVcl) {
+          sendFrame(accessUnitBuffer);
+          accessUnitBuffer = Buffer.alloc(0);
+          hasVcl = false;
+        }
+
+        if (isSlice) hasVcl = true;
+        accessUnitBuffer = Buffer.concat([accessUnitBuffer, nalUnit]);
         bufferAccumulator = bufferAccumulator.subarray(offset);
         offset = 0;
         continue;
@@ -386,11 +410,6 @@ function drainNALBuffer() {
     } else {
       offset++;
     }
-  }
-
-  // Large buffer safety flush
-  if (bufferAccumulator.length > 5 * 1024 * 1024) {
-    bufferAccumulator = Buffer.alloc(0);
   }
 }
 
@@ -473,6 +492,28 @@ function startStreaming() {
     }
   }, frameInterval);
 
+  // --- Remote Cursor Metadata Loop ---
+  // Broadcasts cursor position independently of the video track for lower latency.
+  cursorInterval = setInterval(() => {
+    if (!dataChannel || !dataChannel.isOpen()) return;
+
+    try {
+      const { x, y } = screen.getCursorScreenPoint();
+      // Transform absolute screen coordinates to monitor-relative (0.0 - 1.0)
+      const nx = Math.max(0, Math.min(1, (x - selectedDisplay.bounds.x) / selectedDisplay.bounds.width));
+      const ny = Math.max(0, Math.min(1, (y - selectedDisplay.bounds.y) / selectedDisplay.bounds.height));
+      
+      dataChannel.sendMessage(JSON.stringify({ 
+        type: 'cursor', 
+        x: nx, 
+        y: ny, 
+        visible: true // We can add more logic here if needed (icon type, etc)
+      }));
+    } catch (err) {
+      // Ignore cursor errors
+    }
+  }, 33); // ~30fps for metadata is sufficient
+
   // Silently swallow pipe errors to prevent process crash (dialog error)
   ffmpegProcess.stdin?.on('error', (err) => {
     log.warn(`[Host] FFmpeg stdin encountered a pipe error: ${err.message}`);
@@ -482,12 +523,10 @@ function startStreaming() {
   ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
     if (isPreBuffering) {
       ffmpegPreChunks.push(chunk);
-      const total = ffmpegPreChunks.reduce((s, c) => s + c.length, 0);
-      if (total > 4 * 1024 * 1024) ffmpegPreChunks.shift();
       return;
     }
     if (!videoTrack) return;
-
+    
     bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
     drainNALBuffer();
   });
@@ -580,9 +619,16 @@ function initiateHostWebRTC(viewerId: string) {
       "stun:stun4.l.google.com:19302",
       "stun:stun.freeswitch.org:3478",
       "stun:stun.voiparound.com:3478",
-      "stun:stun.voipbuster.com:3478"
-    ]
+      "stun:stun.voipbuster.com:3478",
+      "turn:159.65.84.190:3478?transport=udp",
+      "turn:159.65.84.190:3478?transport=tcp"
+    ],
+    iceTransportPolicy: "all"
   });
+
+  // Set TURN credentials if present
+  peerConnection.setToken("admin");
+  peerConnection.setSecret("B07qfTNwSC2yZvcs");
 
   peerConnection.onGatheringStateChange((state: string) => {
     log.info(`[Host] ICE Gathering state: ${state}`);
@@ -621,7 +667,8 @@ function initiateHostWebRTC(viewerId: string) {
   });
 
   const video = new datachannel.Video("0", "SendOnly");
-  video.addH264Codec(96);
+  // 42e01f = Baseline profile, which is most compatible with browsers
+  video.addH264Codec(96, "profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1");
   // node-datachannel: (ssrc, cname, payloadType, clockRate)
   videoRtpConfig = new datachannel.RtpPacketizationConfig(1, "video", 96, 90000);
   const packetizer = new datachannel.H264RtpPacketizer("StartSequence", videoRtpConfig);
@@ -995,6 +1042,15 @@ process.on('unhandledRejection', (reason, promise) => {
 app.whenReady().then(() => {
   log.info('[Host] App is ready. Initializing subsystems...');
   
+  // Force auto-launch for seamless reconnects on restart
+  if (app.isPackaged) {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: false, // Could be true if we wanted it silent
+      path: app.getPath('exe')
+    });
+  }
+  
   // Initialize paths that require app to be ready
   AUTH_STORE_PATH = join(app.getPath('userData'), 'connectx_auth.json');
   log.info(`[Host] Auth store path: ${AUTH_STORE_PATH}`);
@@ -1020,6 +1076,26 @@ ipcMain.handle('host:save-file-locally', async (_event, name: string, data: Uint
   const filePath = join(downloadsPath, name);
   await fs.writeFile(filePath, Buffer.from(data));
   return filePath;
+});
+
+ipcMain.handle('system:getHistory', async () => {
+    try {
+        const path = join(app.getPath('userData'), 'connectx_history.json');
+        const data = await fs.readFile(path, 'utf-8');
+        return JSON.parse(data);
+    } catch {
+        return [];
+    }
+});
+
+ipcMain.handle('system:saveHistory', async (_event, history: any[]) => {
+    try {
+        const path = join(app.getPath('userData'), 'connectx_history.json');
+        await fs.writeFile(path, JSON.stringify(history));
+        return true;
+    } catch {
+        return false;
+    }
 });
 
 ipcMain.on('host:send-file', async () => {

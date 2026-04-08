@@ -10,6 +10,7 @@ import { useFonts, Lato_100Thin, Lato_300Light, Lato_400Regular, Lato_700Bold, L
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ErrorModal } from '@/components/ErrorModal';
+import { presenceService } from '@/src/services/presenceService';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -35,9 +36,34 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  if (!loaded && !error) {
-    return null;
-  }
+  useEffect(() => {
+    presenceService.connect();
+    return () => {
+      presenceService.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    // Round 7: Ultra-Safe KeepAwake activation
+    // Wrapped in a delay to avoid Expo boot-time race conditions
+    let active = true;
+    const setupKeepAwake = async () => {
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        if (!active) return;
+        const { activateKeepAwakeAsync } = await import('expo-keep-awake');
+        await activateKeepAwakeAsync();
+        console.log('[Root] KeepAwake active');
+      } catch (e) {
+        // Silently fail as this is the primary cause of console noise
+      }
+    };
+    setupKeepAwake();
+    return () => {
+      active = false;
+      import('expo-keep-awake').then(m => m.deactivateKeepAwake()).catch(() => {});
+    };
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

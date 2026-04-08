@@ -26,7 +26,6 @@ import { Text } from "@/components/Text";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SessionViewerScreen() {
-  useKeepAwake();
   const router = useRouter();
   const { deviceId, deviceName, deviceType } = useLocalSearchParams<{ 
     deviceId: string, 
@@ -35,6 +34,7 @@ export default function SessionViewerScreen() {
   }>();
   const { 
     remoteStream, 
+    remoteCursor,
     isConnected, 
     isConnecting, 
     error, 
@@ -54,9 +54,11 @@ export default function SessionViewerScreen() {
   const controlsOpacity = useSharedValue(1);
   const controlsY = useSharedValue(0);
 
-  // Throttling mouse move
+  // Throttling: separate refs for pan (16ms = 60fps) and scroll (32ms prevents overlapping swipes)
   const lastMoveTime = useRef(0);
+  const lastScrollTime = useRef(0);
   const THROTTLE_MS = 16;
+  const SCROLL_THROTTLE_MS = 32;
 
   useEffect(() => {
     // Adaptive Orientation
@@ -127,10 +129,9 @@ export default function SessionViewerScreen() {
     .onEnd((event) => {
       const coords = normalizeCoordinates(event.x, event.y);
       if (coords) {
+        // Send both together — host uses dispatchClick(80ms) so we don't need an artificial delay
         sendInput({ type: 'mousedown', button: 0, x: coords.x, y: coords.y });
-        setTimeout(() => {
-          sendInput({ type: 'mouseup', button: 0, x: coords.x, y: coords.y });
-        }, 50);
+        sendInput({ type: 'mouseup', button: 0, x: coords.x, y: coords.y });
       }
       // Toggle controls on tap
       showControlsNow();
@@ -142,9 +143,7 @@ export default function SessionViewerScreen() {
       const coords = normalizeCoordinates(event.x, event.y);
       if (coords) {
         sendInput({ type: 'mousedown', button: 2, x: coords.x, y: coords.y });
-        setTimeout(() => {
-          sendInput({ type: 'mouseup', button: 2, x: coords.x, y: coords.y });
-        }, 50);
+        sendInput({ type: 'mouseup', button: 2, x: coords.x, y: coords.y });
       }
     });
 
@@ -199,22 +198,30 @@ export default function SessionViewerScreen() {
     })
     .onUpdate((event) => {
       const now = Date.now();
-      if (now - lastMoveTime.current < THROTTLE_MS) return;
-      lastMoveTime.current = now;
+      if (now - lastScrollTime.current < SCROLL_THROTTLE_MS) return;
+      lastScrollTime.current = now;
 
       // Calculate incremental delta
       const dy = event.translationY - lastScrollY.current;
       const dx = event.translationX - lastScrollX.current;
-      
+
       lastScrollY.current = event.translationY;
       lastScrollX.current = event.translationX;
 
+      // Skip micro-movements (< 2px) to avoid flooding tiny swipes
+      if (Math.abs(dy) < 2 && Math.abs(dx) < 2) return;
+
+      // Pass actual touch position so host scrolls under the fingers
+      const coords = normalizeCoordinates(event.x, event.y);
+      const px = coords?.x ?? 0.5;
+      const py = coords?.y ?? 0.5;
+
       // Send wheel events (inverted for natural scrolling)
-      sendInput({ 
-        type: 'wheel', 
-        deltaX: -dx, 
-        deltaY: -dy, 
-        x: 0, y: 0 
+      sendInput({
+        type: 'wheel',
+        deltaX: -dx,
+        deltaY: -dy,
+        x: px, y: py
       });
     });
 
@@ -277,6 +284,22 @@ export default function SessionViewerScreen() {
                 style={styles.rtcView}
                 objectFit="contain"
               />
+
+              {/* Remote Native Cursor Overlay */}
+              {remoteCursor && remoteCursor.visible && (
+                <View 
+                  pointerEvents="none"
+                  style={[
+                    styles.remoteCursor,
+                    {
+                      left: (remoteCursor.x * videoLayout.value.width) + videoLayout.value.x,
+                      top: (remoteCursor.y * videoLayout.value.height) + videoLayout.value.y,
+                    }
+                  ]}
+                >
+                  <View style={styles.cursorPointer} />
+                </View>
+              )}
             </View>
           </GestureDetector>
 
@@ -413,6 +436,25 @@ const styles = StyleSheet.create({
   },
   rtcView: {
     flex: 1,
+  },
+  remoteCursor: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    zIndex: 10,
+  },
+  cursorPointer: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#000000',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
+    elevation: 3,
   },
   topBar: {
     position: 'absolute',

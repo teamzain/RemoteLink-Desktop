@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>F:\TechVision\RemoteLink\packages\native-input\build\Release\input_injection.node</FullPath>
+      <FullPath>D:\Work\RemoteLink-Desktop\packages\native-input\build\Release\input_injection.node</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

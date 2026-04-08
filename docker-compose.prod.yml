@@ -36,6 +36,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3001
       BILLING_SERVICE_URL: http://billing-service:3004
+      TURN_USER: ${TURN_USER}
+      TURN_PASSWORD: ${TURN_PASSWORD}
+      SERVER_IP: ${SERVER_IP}
     depends_on:
       postgres:
         condition: service_healthy

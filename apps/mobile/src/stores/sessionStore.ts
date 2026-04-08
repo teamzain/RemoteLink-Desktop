@@ -11,6 +11,7 @@ interface SessionState {
   isConnected: boolean;
   isConnecting: boolean;
   remoteStream: MediaStream | null;
+  remoteCursor: { x: number, y: number, visible: boolean } | null;
   error: string | null;
   currentDeviceId: string | null;
   
@@ -52,6 +53,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
       isConnected: false, 
       isConnecting: false, 
       remoteStream: null, 
+      remoteCursor: null,
       currentDeviceId: null 
     });
   };
@@ -163,6 +165,14 @@ export const useSessionStore = create<SessionState>((set, get) => {
         controlChannel.onopen = () => {
           controlChannel?.send(JSON.stringify({ type: 'request-keyframe' }));
         };
+        controlChannel.onmessage = (e: any) => {
+          try {
+            const msg = JSON.parse(e.data);
+            if (msg.type === 'cursor') {
+              set({ remoteCursor: { x: msg.x, y: msg.y, visible: msg.visible } });
+            }
+          } catch (err) {}
+        };
       });
 
       await pc.setRemoteDescription(new RTCSessionDescription({ sdp, type: 'offer' }));
@@ -194,6 +204,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
     isConnected: false,
     isConnecting: false,
     remoteStream: null,
+    remoteCursor: null,
     error: null,
     currentDeviceId: null,
 

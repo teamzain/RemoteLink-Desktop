@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import { Platform, NativeModules, Alert } from 'react-native';
+const ConnectX = NativeModules.ConnectXModule;
 import api from '../api';
 import { useAuthStore } from './authStore';
 import { mediaDevices, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } from 'react-native-webrtc';
@@ -43,6 +44,10 @@ let _reconnectAttempts = 0;
 let _pendingViewerId: string | null = null;
 let _currentViewerId: string | null = null;
 let _lastTouchDown: { x: number, y: number, time: number } | null = null;
+let _isTogglingTrack = false;
+
+// Removed old forceKeyframe hack - handled by fresh session lifecycle now
+
 
 const SIGNALING_URL = 'ws://159.65.84.190/api/signal';
 
@@ -58,6 +63,11 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
+      { 
+        urls: 'turn:159.65.84.190:3478',
+        username: 'admin',
+        credential: 'B07qfTNwSC2yZvcs'
+      }
     ],
   });
 
@@ -77,24 +87,16 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     const state = _peerConnection?.connectionState;
     console.log('[Host] Connection state:', state);
     if (state === 'connected') {
-      // Smooth Bitrate Ramp-up: Start at 750kbps and ramp to 2.5Mbps 
-      // over 3 seconds to avoid slamming the hardware encoder.
       try {
-        const setBitrate = (kbps: number) => {
-          _peerConnection?.getSenders?.()?.forEach?.((sender: any) => {
-            if (sender.track?.kind !== 'video') return;
-            const params = sender.getParameters?.();
-            if (!params?.encodings?.length) return;
-            params.encodings[0].maxBitrate = kbps * 1000;
-            params.encodings[0].degradationPreference = 'maintain-resolution';
-            sender.setParameters?.(params)?.catch?.(() => { });
-          });
-        };
-
-        setBitrate(750);
-        setTimeout(() => setBitrate(1500), 1500);
-        setTimeout(() => setBitrate(2500), 3000);
+        _peerConnection?.getSenders?.()?.forEach?.((sender: any) => {
+          if (sender.track?.kind !== 'video') return;
+          const params = sender.getParameters?.();
+          if (!params?.encodings?.length) return;
+          params.encodings[0].maxBitrate = 4000 * 1000; // 4 Mbps
+          sender.setParameters?.(params)?.catch?.(() => { });
+        });
       } catch { }
+      // Session is fresh, codec was just initialized. No 'kick' needed.
     }
   };
 
@@ -127,10 +129,9 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           break;
 
         case 'mouseup':
-          if (_lastTouchDown && (Date.now() - _lastTouchDown.time) < 200) {
+          if (_lastTouchDown && (Date.now() - _lastTouchDown.time) < 300) {
             // Tap detected! Use atomic click for better OS recognition
-            console.log('[Host] Short tap detected, injecting atomic click');
-            ConnectXModule.dispatchClick(event.x, event.y, 50);
+            ConnectXModule.dispatchClick(event.x, event.y, 80);
             _lastTouchDown = null;
           } else {
             ConnectXModule.endContinuousGesture(event.x, event.y);
@@ -139,12 +140,19 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           break;
 
         case 'wheel': {
-          // Map scroll wheel to a vertical swipe gesture
-          const SCROLL_SCALE = 0.15; // fraction of screen per scroll tick
-          const swipeDelta = Math.max(-SCROLL_SCALE, Math.min(SCROLL_SCALE, -event.deltaY / 300));
+          // Map scroll wheel delta to a swipe gesture.
+          // Scale: deltaY=150 (one fast wheel tick) → 30% screen swipe for natural feel.
+          const SCROLL_SCALE = 0.35;
+          const swipeDeltaY = Math.max(-SCROLL_SCALE, Math.min(SCROLL_SCALE, -event.deltaY / 150));
+          const swipeDeltaX = Math.max(-SCROLL_SCALE, Math.min(SCROLL_SCALE, -event.deltaX / 150));
           const cx = event.x ?? 0.5;
           const cy = event.y ?? 0.5;
-          ConnectXModule.dispatchSwipe(cx, cy, cx, cy + swipeDelta, 150);
+          // Route to the dominant axis; skip micro-movements
+          if (Math.abs(swipeDeltaY) >= Math.abs(swipeDeltaX) && Math.abs(swipeDeltaY) > 0.01) {
+            ConnectXModule.dispatchSwipe(cx, cy, cx, cy + swipeDeltaY, 80);
+          } else if (Math.abs(swipeDeltaX) > 0.01) {
+            ConnectXModule.dispatchSwipe(cx, cy, cx + swipeDeltaX, cy, 80);
+          }
           break;
         }
 
@@ -157,25 +165,7 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           break;
 
         case 'request-keyframe': {
-          console.log('[Host] Viewer requested keyframe recovery. Toggling track to force IDR...');
-          const videoTrack = _localStream?.getVideoTracks?.()[0];
-          if (videoTrack) {
-            console.log('[Host] Track Settings:', videoTrack.getSettings?.() ?? 'Unavailable');
-            // Longer toggle to ensure the Android OS/Encoder detects the state change
-            videoTrack.enabled = false;
-            setTimeout(() => {
-              if (videoTrack) videoTrack.enabled = true;
-              console.log('[Host] Track recovered. Keyframe emitted.');
-              
-              // Second pass: Some Android versions need a short blip to truly reset the encoder GOP
-              setTimeout(() => {
-                if (videoTrack) {
-                   videoTrack.enabled = false;
-                   setTimeout(() => { if (videoTrack) videoTrack.enabled = true; }, 50);
-                }
-              }, 500);
-            }, 500);
-          }
+          // No-op in Elite Mode: encoder is already fresh
           break;
         }
 
@@ -215,8 +205,18 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
   // Optimize and Normalize H264
   sdpLines = sdpLines.map((line: string) => {
     if (line.includes('a=fmtp:') && h264PayloadTypes.some(pt => line.includes(`a=fmtp:${pt}`))) {
-      // Force profile-level-id=42e01f (Constrained Baseline, Level 3.1)
-      return line.replace(/profile-level-id=[0-9a-fA-F]+/, 'profile-level-id=42e01f');
+      // Round 7: Force profile-level-id=42e028 (Baseline, Level 4.0)
+      // This is the most compatible profile for modern Chromium and Mobile GPUs
+      let updatedLine = line;
+      if (!updatedLine.includes('profile-level-id=')) {
+          updatedLine += ';profile-level-id=42e01f';
+      } else {
+          updatedLine = updatedLine.replace(/profile-level-id=[0-9a-fA-F]+/, 'profile-level-id=42e01f');
+      }
+      if (!updatedLine.includes('packetization-mode=')) {
+          updatedLine += ';packetization-mode=1';
+      }
+      return updatedLine;
     }
     return line;
   });
@@ -253,6 +253,13 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     if (_peerConnection) {
       _peerConnection.close();
       _peerConnection = null;
+    }
+    // Elite Mode: Stop all capture tracks to release hardware encoder
+    if (_localStream) {
+      _localStream.getTracks().forEach((t: any) => {
+        try { t.stop(); } catch {}
+      });
+      _localStream = null;
     }
     _pendingViewerId = null;
     _currentViewerId = null;
@@ -452,14 +459,19 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           _socket.send(JSON.stringify({ type: 'host-stopped', targetId: _currentViewerId }));
         } catch { }
       }
-      // Only tear down WebRTC — keep _localStream alive so the next
-      // startHosting() call skips the screen-capture consent dialog.
+      // Fully shutdown WebRTC and Capture to ensure fresh state for next session
       set({ isHosting: false });
       if (_peerConnection) {
         _peerConnection.close();
         _peerConnection = null;
         _pendingViewerId = null;
         _currentViewerId = null;
+      }
+      if (_localStream) {
+        _localStream.getTracks().forEach((t: any) => {
+          try { t.stop(); } catch {}
+        });
+        _localStream = null;
       }
     },
 
@@ -541,35 +553,24 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
 
   // Separate helper to avoid zustand issues
   const proceedWithHostingActual = async (set: any, get: any) => {
-    if (!_localStream) {
-      // Note: Android 14+ requires a foreground service of type 'mediaProjection'.
-      // Standard react-native-webrtc getDisplayMedia() handles this naturally.
-      // Explicitly calling startProjectionService() caused a double-dialog bug.
+    // Always request a fresh stream in Elite Mode (Accessibility auto-approves)
+    if (Platform.OS === 'android') {
+      try { ConnectX.startProjectionService(); } catch (e) {}
+      console.log('[Host] Delaying capture for token stability...');
+      await new Promise(r => setTimeout(r, 800));
+    }
+    
+    _localStream = await (mediaDevices as any).getDisplayMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
+      },
+    });
 
-      // Capture screen via WebRTC
-      _localStream = await (mediaDevices as any).getDisplayMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 },
-        },
-      });
-
-      // 'detail' mode: tell the encoder this is screen content
-      const videoTrack = _localStream?.getVideoTracks?.()[0];
-      if (videoTrack) {
-        (videoTrack as any).contentHint = 'detail';
-
-        // Self-Healing Track Monitor
-        videoTrack.onmute = () => {
-          console.warn('[Host] Video track MUTED by OS! Attempting recovery...');
-          videoTrack.enabled = false;
-          videoTrack.enabled = true;
-        };
-        videoTrack.onunmute = () => {
-          console.log('[Host] Video track UNMUTED. Stream should resume.');
-        };
-      }
+    const videoTrack = _localStream?.getVideoTracks?.()[0];
+    if (videoTrack) {
+      (videoTrack as any).contentHint = 'detail';
     }
 
     // ── Accessibility Service Runtime Guard ──────────────────────────────────

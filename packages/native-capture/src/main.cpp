@@ -49,6 +49,9 @@ public:
       return false;
 
     hr = dxgiOutput1->DuplicateOutput(device, &duplication);
+    if (SUCCEEDED(hr)) {
+        dxgiOutput1->GetDesc(&outputDesc);
+    }
     dxgiOutput1->Release();
     if (FAILED(hr))
       return false;
@@ -175,11 +178,12 @@ public:
           
           HBITMAP oldBmp = (HBITMAP)SelectObject(hdc, hbm);
           
-          // Get screen coordinates of the primary monitor to offset the cursor
+          // Calculate cursor position relative to the captured monitor
           POINT pt = ci.ptScreenPos;
-          // For simplicity, we assume primary monitor (0,0) as the capture source
-          // matched by enumOutputs(0) in Initialize().
-          DrawIconEx(hdc, pt.x - ii.xHotspot, pt.y - ii.yHotspot, ci.hCursor, 0, 0, 0, NULL, DI_NORMAL);
+          int relativeX = pt.x - outputDesc.DesktopCoordinates.left;
+          int relativeY = pt.y - outputDesc.DesktopCoordinates.top;
+          
+          DrawIconEx(hdc, relativeX - ii.xHotspot, relativeY - ii.yHotspot, ci.hCursor, 0, 0, 0, NULL, DI_NORMAL);
           
           SelectObject(hdc, oldBmp);
           
@@ -223,6 +227,7 @@ private:
   ID3D11DeviceContext *context;
   IDXGIOutputDuplication *duplication;
   ID3D11Texture2D *stagingTexture;
+  DXGI_OUTPUT_DESC outputDesc;
 };
 
 DXGICapture g_capture;

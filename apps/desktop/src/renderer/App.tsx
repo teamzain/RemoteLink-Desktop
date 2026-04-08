@@ -4,7 +4,7 @@ import logo from './assets/logo.png';
 import {
     Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
     RefreshCw, Eye, EyeOff, CreditCard, Power, Lock, Mail, Link, Sun, Moon, Edit2, Trash2, ShieldOff, LayoutGrid, PlusCircle, Radio, ShieldCheck, ArrowRightCircle, Check, DownloadCloud, MonitorOff, User,
-    Globe, Folder, Maximize
+    Globe, Folder, Maximize, Info, Home, ChevronLeft, Layers, BellDot, Command
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
@@ -44,6 +44,9 @@ interface VideoPlayerProps {
     deviceType?: string;
     deviceName?: string;
     controlChannelRef: React.RefObject<RTCDataChannel | null>;
+    remoteCursor: { x: number, y: number, visible: boolean } | null;
+    showDiagnostics: boolean;
+    setShowDiagnostics: (val: boolean) => void;
 }
 const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     viewerStatus,
@@ -54,7 +57,10 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     remoteStream,
     deviceType,
     deviceName,
-    controlChannelRef
+    controlChannelRef,
+    remoteCursor,
+    showDiagnostics,
+    setShowDiagnostics
 }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -71,6 +77,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [decodeErrors, setDecodeErrors] = useState(0);
     const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
     const [localMouse, setLocalMouse] = useState<{ x: number, y: number } | null>(null);
+    const [isAutoPlayBlocked, setIsAutoPlayBlocked] = useState(false);
+    const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
 
     // --- Black Screen Watchdog ---
     // If we have a stream but videoWidth is 0, request a recovery keyframe every 3s
@@ -287,7 +295,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         }
 
         // Watchdog should start if we are "connecting" or "connected" but no data has flowed for 5 seconds
-        if ((viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') && !hasReceivedKeyframe && !remoteStream) {
+        if ((viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connecting') && !hasReceivedKeyframe) {
             timer = setTimeout(() => {
                 console.log('[VideoPlayer] Screen timeout (black) - Requesting keyframe recovery...');
                 onControlEvent({ type: 'request-keyframe' });
@@ -303,6 +311,32 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         console.warn(`[DIAGNOSTIC] REMOTE CAPTURE ACTIVE. Monitoring all keystrokes in ${viewerStatus} mode.`);
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            // -- Round 9: System Shortcuts (Android Global Actions) --
+            // Escape -> Back (1)
+            // Alt + H -> Home (2)
+            // Alt + R -> Recents (3)
+            // Alt + N -> Notifications (4)
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onControlEvent({ type: 'globalAction', action: 1 });
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'h') {
+                e.preventDefault();
+                onControlEvent({ type: 'globalAction', action: 2 });
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'r') {
+                e.preventDefault();
+                onControlEvent({ type: 'globalAction', action: 3 });
+                return;
+            }
+            if (e.altKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault();
+                onControlEvent({ type: 'globalAction', action: 4 });
+                return;
+            }
+
             // Prevent browser shortcuts when in the viewer (except basic ones if needed)
             if (['Tab', 'Backspace', 'Enter', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 e.preventDefault();
@@ -318,7 +352,6 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             };
 
             const vk = vkMap[e.key] || e.keyCode; // Fallback for letters/numbers
-            console.log(`[Diagnostic] Capture: Key ${e.key} -> VK ${vk.toString(16)}`);
             onControlEvent({ type: 'keydown', keyCode: vk });
         };
 
@@ -380,7 +413,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         });
 
         decoder.configure({
-            codec: 'avc1.42E029',
+            codec: 'avc1.42E01F', // Baseline 3.1 - Most universal H264 profile
             optimizeForLatency: true,
         });
 
@@ -398,13 +431,37 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
     // Assign stream to video element whenever it changes
     useEffect(() => {
-        if (videoRef.current && remoteStream) {
-            videoRef.current.srcObject = remoteStream;
-            videoRef.current.play().catch(err => {
+        if (!videoRef.current || !remoteStream) return;
+        
+        console.log('[VideoPlayer] Stream received. Initializing decoder...');
+        const video = videoRef.current;
+        video.srcObject = remoteStream;
+        
+        const tryPlay = async () => {
+            try {
+                await video.play();
+                setIsAutoPlayBlocked(false);
+            } catch (err: any) {
                 console.warn('[VideoPlayer] Auto-play blocked:', err);
-            });
-        }
-    }, [remoteStream]);
+                if (err.name !== 'AbortError') {
+                    setIsAutoPlayBlocked(true);
+                }
+            }
+        };
+        tryPlay();
+
+        // Round 10: Elite Mode Guard
+        // Browser sometimes "freezes" the video tag if the tab was inactive. 
+        // We just ensure play() is active without destructive srcObject resets.
+        const recoveryId = setInterval(() => {
+            if (sessionCode && video.videoWidth === 0) {
+                console.log('[VideoPlayer] Resolution 0x0. Ensuring play() active...');
+                tryPlay();
+            }
+        }, 5000);
+
+        return () => clearInterval(recoveryId);
+    }, [remoteStream, sessionCode]);
 
     // --- Manual Wheel Listener (Fixes Passive event error) ---
     useEffect(() => {
@@ -414,7 +471,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         const onWheel = (e: Event) => {
             const we = e as WheelEvent;
             we.preventDefault();
-            onControlEvent({ type: 'wheel', deltaX: we.deltaX, deltaY: we.deltaY });
+            const { x, y } = normalizedMouseRef.current;
+            onControlEvent({ type: 'wheel', deltaX: we.deltaX, deltaY: we.deltaY, x, y });
         };
 
         target.addEventListener('wheel', onWheel, { passive: false });
@@ -423,6 +481,9 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
     const lastMouseMoveRef = useRef<number>(0);
     const MOUSE_THROTTLE_MS = 16; // ~60fps
+    // Track the last normalized mouse position so wheel events can include it
+    const normalizedMouseRef = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
+    const isDraggingRef = useRef<boolean>(false);
 
     const uiTimeoutRef = useRef<any>(null);
 
@@ -466,7 +527,20 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 x = Math.max(0, Math.min(1, x));
                 y = Math.max(0, Math.min(1, y));
 
-                if (type === 'mousemove') {
+                normalizedMouseRef.current = { x, y };
+
+                if (type === 'mousedown') {
+                    isDraggingRef.current = true;
+                } else if (type === 'mouseup') {
+                    isDraggingRef.current = false;
+                } else if (type === 'mousemove') {
+                    if (e.buttons === 0) {
+                        if (isDraggingRef.current) {
+                            onControlEvent({ type: 'mouseup', button: 0, x, y });
+                            isDraggingRef.current = false;
+                        }
+                        if (zoomMode === 'fit') return; // Don't spam layout with hover moves on mobile
+                    }
                     setLocalMouse({ x: e.clientX, y: e.clientY });
                     const now = Date.now();
                     if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
@@ -478,48 +552,72 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             }
 
             let x: number, y: number;
-            if (zoomMode === 'fit') {
-                const containerWidth = rect.width;
-                const containerHeight = rect.height;
-                const containerRatio = containerWidth / containerHeight;
-                const videoRatio = videoWidth / videoHeight;
+            
+            // Standard proportional containment math
+            const containerWidth = rect.width;
+            const containerHeight = rect.height;
+            const containerRatio = containerWidth / containerHeight;
+            const videoRatio = videoWidth / videoHeight;
 
-                let actualWidth, actualHeight, offsetX, offsetY;
-                if (containerRatio > videoRatio) {
-                    // Pillarboxed: black bars on left/right
-                    actualHeight = containerHeight;
-                    actualWidth = containerHeight * videoRatio;
-                    offsetX = (containerWidth - actualWidth) / 2;
-                    offsetY = 0;
-                } else {
-                    // Letterboxed: black bars on top/bottom
-                    actualWidth = containerWidth;
-                    actualHeight = containerWidth / videoRatio;
-                    offsetX = 0;
-                    offsetY = (containerHeight - actualHeight) / 2;
-                }
-
-                x = (e.clientX - (rect.left + offsetX)) / actualWidth;
-                y = (e.clientY - (rect.top + offsetY)) / actualHeight;
-
-                // Diagnostic: Log mapping for user if it feels 'off'
-                if ((e as any).button !== undefined && type === 'mousedown') {
-                    console.log(`[Diagnostic] Tap Mapping: (${e.clientX}, ${e.clientY}) -> (${x.toFixed(4)}, ${y.toFixed(4)}) | Video: ${videoWidth}x${videoHeight}`);
-                }
+            let actualWidth, actualHeight, offsetX, offsetY;
+            if (containerRatio > videoRatio) {
+                // Pillarboxed (bars on sides)
+                actualHeight = containerHeight;
+                actualWidth = containerHeight * videoRatio;
+                offsetX = (containerWidth - actualWidth) / 2;
+                offsetY = 0;
             } else {
-                x = (e.clientX - rect.left) / rect.width;
-                y = (e.clientY - rect.top) / rect.height;
+                // Letterboxed (bars on top/bottom)
+                actualWidth = containerWidth;
+                actualHeight = containerWidth / videoRatio;
+                offsetX = 0;
+                offsetY = (containerHeight - actualHeight) / 2;
             }
+
+            // Avoid division by zero if video dimensions are not yet available
+            x = actualWidth > 0 ? (e.clientX - (rect.left + offsetX)) / actualWidth : 0.5;
+            y = actualHeight > 0 ? (e.clientY - (rect.top + offsetY)) / actualHeight : 0.5;
+
+            // -- Round 9: Edge-to-Edge Calibration --
+            // If we are at the very top (y < 0.01), ensure mathematical 0.0 to trigger notifications easily
+            if (y < 0.01) y = 0;
+            if (y > 0.99) y = 1;
+            if (x < 0.01) x = 0;
+            if (x > 0.99) x = 1;
 
             // Clamp to 0.0–1.0
             x = Math.max(0, Math.min(1, x));
             y = Math.max(0, Math.min(1, y));
 
-            if (type === 'mousemove') {
+            // Always keep the latest normalized position for wheel events
+            normalizedMouseRef.current = { x, y };
+
+            if (type === 'mousedown') {
+                isDraggingRef.current = true;
+            } else if (type === 'mouseup') {
+                isDraggingRef.current = false;
+            } else if (type === 'mousemove') {
+                if (e.buttons === 0) {
+                    // Mouse released without us catching onMouseUp (dragged outside the window or iframe)
+                    if (isDraggingRef.current) {
+                        onControlEvent({ type: 'mouseup', button: 0, x, y });
+                        isDraggingRef.current = false;
+                    }
+                    // For mobile, hover is irrelevant. Keep it purely to valid drags.
+                    // For Desktop PC, we might still want hover tracking. 
+                    // But if zoomMode === 'fit', it's mobile viewing.
+                    // Let's filter it generally if no button is pushed for mobile.
+                }
+
                 setLocalMouse({ x: e.clientX, y: e.clientY });
                 const now = Date.now();
                 if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
                 lastMouseMoveRef.current = now;
+                
+                // Early exit for Mobile specifically
+                if (e.buttons === 0 && (!deviceType || deviceType.toLowerCase() === 'mobile' || deviceType.toLowerCase() === 'android' || deviceType.toLowerCase() === 'ios')) {
+                    return;
+                }
             }
 
             onControlEvent({ type, button: (e as any).button, x, y });
@@ -533,8 +631,13 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const isMobileDevice = deviceType?.toLowerCase() === 'mobile' || deviceType?.toLowerCase() === 'android' || deviceType?.toLowerCase() === 'ios';
 
     const renderContent = () => {
+        // When inside the phone mockup frame, the video must fill the bezel directly.
+        // Wrapping with p-8 or a nested aspect-ratio div causes getBoundingClientRect()
+        // to return wrong geometry, making taps land ~32-44px above the intended target.
+        const isInMockup = isMobileDevice && zoomMode === 'fit';
+
         const videoProps = {
-            className: `transition-all duration-300 select-none ${zoomMode === 'fit' ? (isMobileDevice ? 'w-full h-full object-fill' : 'w-full h-full object-contain') : 'w-auto h-auto object-none'} ${!hasReceivedKeyframe ? 'opacity-0' : 'opacity-100'}`,
+            className: `transition-opacity duration-300 select-none w-full h-full object-contain ${(!hasReceivedKeyframe && !remoteStream) ? 'opacity-0' : 'opacity-100'}`,
             style: { backgroundColor: '#000', outline: 'none' },
             onMouseMove: (e: React.MouseEvent) => handleMouseEvent(e, 'mousemove'),
             onMouseDown: (e: React.MouseEvent) => handleMouseEvent(e, 'mousedown'),
@@ -544,19 +647,125 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         };
 
         const contentNode = remoteStream ? (
-            <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                onLoadedMetadata={(e) => {
-                    e.currentTarget.play().catch(console.error);
-                    setHasReceivedKeyframe(true);
-                }}
-                onMouseEnter={() => { }}
-                onMouseLeave={() => setLocalMouse(null)}
-                {...videoProps}
-            />
+            <div className="relative w-full h-full group flex items-center justify-center bg-[#0a0a0c] overflow-hidden">
+                <div className={`relative transition-all duration-700 ease-out shadow-[0_40px_100px_rgba(0,0,0,0.8)] ${!isInMockup && isMobileDevice ? 'h-full aspect-[9/19.5] rounded-[3rem] border-[12px] border-[#1a1a1c] bg-black overflow-hidden' : 'w-full h-full'}`}>
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        onLoadedMetadata={(e) => {
+                            e.currentTarget.play().then(() => {
+                                setIsAutoPlayBlocked(false);
+                            }).catch((err: any) => {
+                                console.warn('[VideoPlayer] Play failed on metatada:', err);
+                                if (err.name !== 'AbortError') {
+                                    setIsAutoPlayBlocked(true);
+                                }
+                            });
+                            setHasReceivedKeyframe(true);
+                        }}
+                        onMouseEnter={() => { }}
+                        onMouseLeave={() => setLocalMouse(null)}
+                        {...videoProps}
+                    />
+                </div>
+                
+                {/* Auto-play recovery overlay */}
+                {isAutoPlayBlocked && (
+                    <div 
+                        className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm cursor-pointer"
+                        onClick={() => {
+                            videoRef.current?.play().then(() => setIsAutoPlayBlocked(false)).catch(console.error);
+                        }}
+                    >
+                        <div className="w-16 h-16 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4 animate-pulse">
+                            <Play size={32} className="text-blue-400 fill-blue-400" />
+                        </div>
+                        <span className="text-white/80 font-bold text-sm tracking-widest uppercase">Click to Resume Stream</span>
+                    </div>
+                )}
+
+                {/* --- Side-Notches have been removed for mobile view to prevent UI overlap --- */}
+                {/* Shortcuts HUD */}
+                {showShortcutsHUD && (
+                    <div className="absolute inset-0 z-[130] bg-black/60 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300">
+                        <div className="bg-[#1C1C1C] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                                    <Command size={16} className="text-blue-400" /> System Shortcuts
+                                </h3>
+                                <button onClick={() => setShowShortcutsHUD(false)} className="text-white/20 hover:text-white"><X size={20} /></button>
+                            </div>
+                            <div className="space-y-4">
+                                {[
+                                    { k: 'Esc', v: 'Back' },
+                                    { k: 'Alt + H', v: 'Home' },
+                                    { k: 'Alt + R', v: 'Recents' },
+                                    { k: 'Alt + N', v: 'Notifications' },
+                                    { k: 'Mouse Top', v: 'Hold top for 1s to view Status' }
+                                ].map((s, i) => (
+                                    <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{s.v}</span>
+                                        <span className="px-2 py-1 bg-white/10 rounded-md text-[10px] font-mono text-blue-400 font-bold">{s.k}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Remote Cursor Overlay */}
+                {remoteCursor && remoteCursor.visible && (
+                    <div 
+                        className="absolute pointer-events-none z-50 transition-all duration-75"
+                        style={{ 
+                            left: `${remoteCursor.x * 100}%`, 
+                            top: `${remoteCursor.y * 100}%`,
+                            transform: 'translate(-3px, -3px)'
+                        }}
+                    >
+                        <div className="w-1.5 h-1.5 rounded-full bg-white border border-black shadow-sm" />
+                    </div>
+                )}
+
+                {/* Stream Diagnostics HUD */}
+                <div className="absolute top-4 right-4 z-[110] flex flex-col gap-2">
+                     <button 
+                        onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
+                        className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+                     >
+                        <Info size={14} />
+                     </button>
+
+                     {showDiagnostics && (
+                        <div className="p-4 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Resolution</span>
+                                    <span className="text-xs font-mono text-blue-400 font-bold">
+                                        {videoRef.current?.videoWidth || 0} x {videoRef.current?.videoHeight || 0}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Track Status</span>
+                                    <span className={`text-[10px] font-bold uppercase ${remoteStream?.getVideoTracks()[0]?.enabled ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {remoteStream?.getVideoTracks()[0]?.enabled ? 'Active' : 'Muted'}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Decoder</span>
+                                    <span className="text-[10px] font-bold text-white/80">Hardware/NVENC</span>
+                                </div>
+                                <div className="h-px bg-white/5 w-full" />
+                                <div className="text-[9px] text-white/30 italic text-center">
+                                    NAL units are aggregated for sync.
+                                </div>
+                            </div>
+                        </div>
+                     )}
+                </div>
+            </div>
         ) : (
             <div className="relative w-full h-full flex items-center justify-center bg-black">
                 {!hasReceivedKeyframe && (
@@ -634,19 +843,18 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         return (
             <div className="w-full h-full flex items-center justify-center relative bg-[#060608]">
                 {isMobileDevice && zoomMode === 'fit' ? (
-                    <div className="relative flex items-center justify-center py-12 px-4 w-full h-full max-h-screen">
+                    // pt-20 at top gives 80px clearance so the top toolbar NEVER covers the phone screen.
+                    <div className="relative flex items-center justify-center pt-24 pb-4 px-4 w-full h-full max-h-screen">
                         {/* Phone Frame wrapper */}
-                        <div className="relative rounded-[48px] p-3 bg-[#1C1C1C] border border-white/[0.08] shadow-[0_30px_100px_rgba(0,0,0,0.8)] h-[95%] aspect-[9/19.5] flex-shrink-0 flex items-center justify-center max-h-[900px]">
-                            {/* Bezel inner */}
-                            <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-black isolation-auto pointer-events-auto shadow-[inset_0_0_2px_rgba(255,255,255,0.2)] flex items-center justify-center">
+                        <div className="relative rounded-[48px] p-3 bg-[#1C1C1C] border border-white/[0.08] shadow-[0_30px_100px_rgba(0,0,0,0.8)] h-full aspect-[9/19.5] flex-shrink-0 flex items-center justify-center max-h-[920px]">
+                            {/* Bezel inner — video fills this directly for accurate tap coordinates */}
+                            <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-black pointer-events-auto">
                                 {contentNode}
                             </div>
-                            {/* Dynamic Island / Camera Notch */}
-                            <div className="absolute top-5 left-1/2 -translate-x-1/2 w-[120px] h-[30px] bg-black rounded-full pointer-events-none z-50 flex items-center justify-center border border-white/[0.04] shadow-sm">
-                                <div className="w-3 h-3 rounded-full bg-blue-900/30 ml-auto mr-4 flex items-center justify-center">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-[#1A1A1A] shadow-[inset_0.5px_0.5px_1px_rgba(255,255,255,0.3)]">
-                                        <div className="w-0.5 h-0.5 rounded-full bg-blue-500/50 mt-[1px] ml-[1px]" />
-                                    </div>
+                            {/* Camera Notch */}
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[100px] h-[26px] bg-black rounded-full pointer-events-none z-50 flex items-center justify-center border border-white/[0.04]">
+                                <div className="w-2.5 h-2.5 rounded-full bg-blue-900/30 ml-auto mr-3 flex items-center justify-center">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#1A1A1A]" />
                                 </div>
                             </div>
 
@@ -670,8 +878,13 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             data-ui-hidden="false"
             className="w-full h-full flex flex-col animate-in fade-in duration-700 relative bg-[#060608] outline-none"
         >
-            {/* Floating Glassmorphism Toolbar */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 rounded-2xl bg-[#0a0a0ade] border border-white/[0.08] backdrop-blur-2xl shadow-2xl shadow-black/40 transition-all duration-500 opacity-100 pointer-events-auto [[data-ui-hidden='true']_&]:opacity-0 [[data-ui-hidden='true']_&]:-translate-y-4 [[data-ui-hidden='true']_&]:pointer-events-none hover:!opacity-100 hover:!translate-y-0 hover:!pointer-events-auto">
+            {/* Floating Glassmorphism Toolbar 
+                  Always Top -> 16px to stay out of the way.
+                  Auto-hides (opacity) on mouse idle; re-appears on hover.
+            */}
+            <div
+                className="absolute left-1/2 -translate-x-1/2 top-4 z-50 flex items-center gap-2 px-3 py-2 rounded-2xl bg-[#0a0a0ade] border border-white/[0.08] backdrop-blur-2xl shadow-2xl shadow-black/40 transition-all duration-500 opacity-100 pointer-events-auto [[data-ui-hidden='true']_&]:opacity-0 [[data-ui-hidden='true']_&]:pointer-events-none hover:!opacity-100 hover:!pointer-events-auto"
+            >
                 {/* Back */}
                 <button
                     onClick={onDisconnect}
@@ -713,19 +926,41 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 {/* Action buttons */}
                 <div className="flex items-center gap-0.5">
-                    {[
-                        { icon: Activity, action: 'task_manager', title: 'Task Manager', color: '' },
-                        { icon: Globe, action: 'browser', title: 'Browser', color: '' },
-                        { icon: Folder, action: 'explorer', title: 'Explorer', color: '' },
-                        { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
-                        { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-blue-500/10' },
-                        { icon: Power, action: 'shutdown', title: 'Shutdown', color: 'hover:text-red-400 hover:bg-red-500/10' },
-                    ].map(({ icon: Icon, action, title, color }) => (
-                        <button key={action} onClick={() => onControlEvent({ type: 'action', action })} title={title}
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
-                            <Icon size={13} />
-                        </button>
-                    ))}
+                    {isMobileDevice ? (
+                        [
+                            { icon: ChevronLeft, action: 1, title: 'Back (Esc)', color: '' },
+                            { icon: Home, action: 2, title: 'Home (Alt+H)', color: 'hover:text-blue-400 hover:bg-blue-500/10' },
+                            { icon: Layers, action: 3, title: 'Recents (Alt+R)', color: '' },
+                            { icon: BellDot, action: 4, title: 'Notifications (Alt+N)', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
+                            { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
+                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-blue-500/10' }
+                        ].map(({ icon: Icon, action, title, color }) => (
+                            <button key={action} onClick={() => {
+                                if (typeof action === 'number') {
+                                    onControlEvent({ type: 'globalAction', action });
+                                } else {
+                                    onControlEvent({ type: 'action', action });
+                                }
+                            }} title={title}
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
+                                <Icon size={13} />
+                            </button>
+                        ))
+                    ) : (
+                        [
+                            { icon: Activity, action: 'task_manager', title: 'Task Manager', color: '' },
+                            { icon: Globe, action: 'browser', title: 'Browser', color: '' },
+                            { icon: Folder, action: 'explorer', title: 'Explorer', color: '' },
+                            { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
+                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-blue-500/10' },
+                            { icon: Power, action: 'shutdown', title: 'Shutdown', color: 'hover:text-red-400 hover:bg-red-500/10' },
+                        ].map(({ icon: Icon, action, title, color }) => (
+                            <button key={action} onClick={() => onControlEvent({ type: 'action', action })} title={title}
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
+                                <Icon size={13} />
+                            </button>
+                        ))
+                    )}
                     <button onClick={() => onControlEvent({ type: 'request-keyframe' })} title="Refresh Stream"
                         className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-emerald-400/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
                         <RefreshCw size={13} />
@@ -856,6 +1091,8 @@ export default function App() {
     // Initialize as viewer window early if URL points to it
     const isViewer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'viewer';
     const [isViewerWindow, setIsViewerWindow] = useState(isViewer);
+    const [remoteCursor, setRemoteCursor] = useState<{ x: number, y: number, visible: boolean } | null>(null);
+    const [showDiagnostics, setShowDiagnostics] = useState(false);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isRightBarOpen, setIsRightBarOpen] = useState(false);
@@ -873,6 +1110,7 @@ export default function App() {
     });
 
     const [windowDeviceName, setWindowDeviceName] = useState('');
+    const [windowDeviceType, setWindowDeviceType] = useState('');
     const [errorModal, setErrorModal] = useState<{ show: boolean, title: string, message: string } | null>(null);
 
     const showError = (title: string, message: string) => {
@@ -1051,11 +1289,13 @@ export default function App() {
             const sip = params.get('serverIP') || '';
             const tok = params.get('token') || '';
             const dname = params.get('deviceName') || '';
+            const dtype = params.get('deviceType') || '';
 
             setSessionCode(sid);
             setServerIP(sip);
             setAuth({ email: 'node.viewer@synclink.io' } as any, tok, '', false);
             setWindowDeviceName(dname);
+            setWindowDeviceType(dtype);
 
             console.log(`[Window] Launched in Viewer Mode for Node: ${sid}`);
             console.log(`[Window] Joining with Persistent ID: ${viewerClientId}`);
@@ -1684,7 +1924,9 @@ export default function App() {
                                 // 2. Handle JSON Commands
                                 const data = JSON.parse(e.data);
                                 console.log(`[Diagnostic] Received DataChannel JSON:`, data);
-                                if (data.type === 'clipboard' && data.text) {
+                                if (data.type === 'cursor') {
+                                    setRemoteCursor({ x: data.x, y: data.y, visible: data.visible });
+                                } else if (data.type === 'clipboard' && data.text) {
                                     lastClipboardRef.current = data.text;
                                     if (isElectron) {
                                         (window as any).electronAPI.clipboard.writeText(data.text);
@@ -1956,12 +2198,6 @@ export default function App() {
     if (isViewerWindow || viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connection_lost') {
         return (
             <div className="h-screen bg-white flex flex-col relative overflow-hidden">
-                {isViewerWindow && (
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[9999] px-6 py-2 bg-white rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-6 duration-700">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                        <span className="text-[10px] font-black text-[#1C1C1C] uppercase tracking-[0.2em]">{windowDeviceName || 'SECURE LINK'}</span>
-                    </div>
-                )}
                 {viewerStatus === 'connection_lost' && (
                     <div className="absolute inset-0 z-[100] bg-white/95 backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-700">
                         <div className="w-24 h-24 bg-red-50 rounded-[32px] flex items-center justify-center mb-8 border border-red-100 shadow-2xl">
@@ -1994,8 +2230,11 @@ export default function App() {
                         sessionCode={sessionCode}
                         onDisconnect={isViewerWindow ? () => window.close() : handleDisconnect}
                         remoteStream={remoteStream}
-                        deviceType={isViewerWindow ? 'desktop' : selectedDevice?.device_type}
+                        deviceType={isViewerWindow ? (windowDeviceType || 'desktop') : selectedDevice?.device_type}
                         deviceName={isViewerWindow ? windowDeviceName : (selectedDevice?.device_name || 'Remote Node')}
+                        remoteCursor={remoteCursor}
+                        showDiagnostics={showDiagnostics}
+                        setShowDiagnostics={setShowDiagnostics}
                         onControlEvent={(event: any) => {
                             if (controlChannelRef.current?.readyState !== 'open') {
                                 console.warn('[Viewer] Control channel not open yet. Event ignored.');
@@ -2236,9 +2475,12 @@ export default function App() {
                         }}
                         onControlEvent={onControlEvent}
                         remoteStream={remoteStream}
-                        deviceType={windowDeviceName.includes('iPhone') || windowDeviceName.includes('Android') ? 'mobile' : 'desktop'}
+                        deviceType={windowDeviceType || (windowDeviceName.includes('iPhone') || windowDeviceName.includes('Android') ? 'mobile' : 'desktop')}
                         deviceName={windowDeviceName}
                         controlChannelRef={controlChannelRef}
+                        remoteCursor={remoteCursor}
+                        showDiagnostics={showDiagnostics}
+                        setShowDiagnostics={setShowDiagnostics}
                     />
                 </div>
             )}

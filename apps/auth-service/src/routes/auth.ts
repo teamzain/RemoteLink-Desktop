@@ -203,4 +203,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
     });
   });
+
+  // 7. Get ICE Servers (STUN/TURN) for WebRTC
+  fastify.get('/ice-servers', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const serverIP = process.env.SERVER_IP || '159.65.84.190';
+    const turnUser = process.env.TURN_USER || 'admin';
+    const turnPass = process.env.TURN_PASSWORD || 'password';
+
+    return reply.send({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { 
+          urls: `turn:${serverIP}:3478`,
+          username: turnUser,
+          credential: turnPass
+        }
+      ]
+    });
+  });
 }
