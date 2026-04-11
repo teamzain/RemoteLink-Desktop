@@ -28,8 +28,10 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
 
   bool _showControls = true;
   bool _showKeyboard = false;
+  RTCVideoViewObjectFit _zoomMode = RTCVideoViewObjectFit.RTCVideoViewObjectFitContain;
   Timer? _hideTimer;
   Offset? _cursorPos; // Remote cursor position
+  Offset _lastPanPos = Offset.zero; // Track last finger pos for swipe
 
   final TextEditingController _keyboardController = TextEditingController();
   final FocusNode _keyboardFocus = FocusNode();
@@ -38,17 +40,36 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
   DateTime _lastMoveTime = DateTime.now();
   static const _throttleMs = 16;
 
+  StreamSubscription<bool>? _keyboardSub;
+
   @override
   void initState() {
     super.initState();
+    super.initState();
     SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _initRenderer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SessionProvider>().connectToSession(widget.deviceId);
+      final session = context.read<SessionProvider>();
+      session.connectToSession(widget.deviceId);
+      
+      _keyboardSub = session.keyboardFocusStream.listen((visible) {
+        if (mounted) {
+          setState(() {
+            _showKeyboard = visible;
+            if (visible) {
+              _showControls = true;
+              _keyboardFocus.requestFocus();
+            } else {
+              _keyboardFocus.unfocus();
+            }
+          });
+        }
+      });
     });
     _scheduleHideControls();
   }
@@ -71,8 +92,11 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
 
   @override
   void dispose() {
+    _keyboardSub?.cancel();
     _hideTimer?.cancel();
-    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _remoteRenderer.dispose();
     _keyboardController.dispose();
@@ -99,14 +123,31 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
     if (videoW > 0 && videoH > 0) {
       final cRatio = containerW / containerH;
       final vRatio = videoW / videoH;
-      if (cRatio > vRatio) {
-        actualH = containerH;
-        actualW = containerH * vRatio;
-        offsetX = (containerW - actualW) / 2;
+
+      if (_zoomMode == RTCVideoViewObjectFit.RTCVideoViewObjectFitContain) {
+        // --- CONTAIN (Letterbox) ---
+        if (cRatio > vRatio) {
+          actualH = containerH;
+          actualW = containerH * vRatio;
+          offsetX = (containerW - actualW) / 2;
+        } else {
+          actualW = containerW;
+          actualH = containerW / vRatio;
+          offsetY = (containerH - actualH) / 2;
+        }
       } else {
-        actualW = containerW;
-        actualH = containerW / vRatio;
-        offsetY = (containerH - actualH) / 2;
+        // --- COVER (Zoom/Crop) ---
+        if (cRatio > vRatio) {
+          // Wider than video: width fills container, height is cropped
+          actualW = containerW;
+          actualH = containerW / vRatio;
+          offsetY = (containerH - actualH) / 2;
+        } else {
+          // Taller than video: height fills container, width is cropped
+          actualH = containerH;
+          actualW = containerH * vRatio;
+          offsetX = (containerW - actualW) / 2;
+        }
       }
     }
 
@@ -144,17 +185,48 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SessionProvider>(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        
+        final session = context.read<SessionProvider>();
+        debugPrint('[Viewer] System back detected - cleaning up session');
+        
+        // Restore orientations
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        
+        // Clean up connection
+        session.disconnect();
+        
+        // Explicitly go back to Dashboard
+        Navigator.of(context).pop();
+      },
+      child: Consumer<SessionProvider>(
       builder: (context, session, _) {
         if (session.remoteStream != null && 
             _remoteRenderer.srcObject != session.remoteStream) {
-          debugPrint('[Viewer] Attaching remote stream to renderer (ID: ${session.remoteStream!.id})');
+          debugPrint('[Viewer] Attaching remote stream (ID: ${session.remoteStream!.id})');
+          final videoTracks = session.remoteStream!.getVideoTracks();
+          if (videoTracks.isNotEmpty) {
+            final track = videoTracks.first;
+            debugPrint('[Viewer] Video Track - Kind: ${track.kind}, Enabled: ${track.enabled}, ID: ${track.id}');
+          }
           _remoteRenderer.srcObject = session.remoteStream;
         }
 
-        return Scaffold(
-          resizeToAvoidBottomInset: false,
-          backgroundColor: Colors.black,
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            scaffoldBackgroundColor: Colors.black,
+            colorScheme: const ColorScheme.dark(
+              surface: Color(0xFF121212),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: Scaffold(
+            resizeToAvoidBottomInset: false,
+            backgroundColor: Colors.black,
           body: Stack(
             children: [
               // ── Video layer ──
@@ -192,6 +264,19 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
                   ),
                 ),
               ),
+              // ── BOTTOM SHORTCUT BAR ──
+              Positioned(
+                bottom: _showKeyboard ? -100 : 20,
+                left: 16, right: 16,
+                child: AnimatedOpacity(
+                  opacity: _showControls ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: IgnorePointer(
+                    ignoring: !_showControls,
+                    child: _buildShortcutBar(session),
+                  ),
+                ),
+              ),
               // ── Virtual keyboard ──
               if (_showKeyboard) _buildKeyboardPanel(session),
               // ── Status pill (visible when controls hidden) ──
@@ -199,8 +284,10 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
                 _buildStatusPill(session),
             ],
           ),
+          ),
         );
       },
+      ),
     );
   }
 
@@ -211,17 +298,11 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
       return _buildConnecting(session);
     }
     return Positioned.fill(
-      child: InteractiveViewer(
-        maxScale: 5.0,
-        minScale: 1.0,
-        panEnabled: true,
-        scaleEnabled: true,
-        child: RTCVideoView(
-          key: _videoKey,
-          _remoteRenderer,
-          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-          placeholderBuilder: (_) => const ColoredBox(color: Colors.black),
-        ),
+      child: RTCVideoView(
+        key: _videoKey,
+        _remoteRenderer,
+        objectFit: _zoomMode,
+        placeholderBuilder: (_) => const ColoredBox(color: Colors.black),
       ),
     );
   }
@@ -243,7 +324,7 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
                   border: Border.all(color: Colors.red.withOpacity(0.1)),
                 ),
                 child: Column(children: [
-                   Container(
+                    Container(
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
@@ -317,24 +398,42 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
           _toggleControls();
           _sendClick(session, d.localPosition, 0);
         },
+        // double tap → toggle Zoom
+        onDoubleTapDown: (d) {
+          setState(() {
+            _zoomMode = _zoomMode == RTCVideoViewObjectFit.RTCVideoViewObjectFitContain 
+                ? RTCVideoViewObjectFit.RTCVideoViewObjectFitCover 
+                : RTCVideoViewObjectFit.RTCVideoViewObjectFitContain;
+          });
+          HapticFeedback.mediumImpact();
+        },
         // long press → right click
         onLongPressStart: (d) {
           HapticFeedback.mediumImpact();
           _sendClick(session, d.localPosition, 2);
         },
-        // scale handles both 1-finger drag and 2-finger scroll
+        // --- CONSOLIDATED SCALE/PAN/SCROLL ---
+        onScaleStart: (d) {
+          _lastPanPos = d.localFocalPoint;
+          if (d.pointerCount == 1) {
+            _sendButton(session, d.localFocalPoint, 'mousedown', 0);
+          }
+        },
         onScaleUpdate: (d) {
-          if (d.pointerCount >= 2) {
-            // 2-finger → vertical scroll
+          _lastPanPos = d.localFocalPoint;
+          if (d.pointerCount == 1) {
+            // 1-finger Move
+            _sendMove(session, d.localFocalPoint);
+          } else if (d.pointerCount >= 2) {
+            // 2-finger Scroll
             final dy = -d.focalPointDelta.dy * 3.0;
             if (dy.abs() > 0.3) {
-              session.sendInputEvent(
-                  {'type': 'wheel', 'deltaX': 0.0, 'deltaY': dy});
+              session.sendInputEvent({'type': 'wheel', 'deltaX': 0.0, 'deltaY': dy});
             }
-          } else {
-            // 1-finger → mouse move
-            _sendMove(session, d.localFocalPoint);
           }
+        },
+        onScaleEnd: (d) {
+          _sendButton(session, _lastPanPos, 'mouseup', 0);
         },
       ),
     );
@@ -343,27 +442,35 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
   // ------- top bar -------
 
   Widget _buildTopBar(BuildContext context, SessionProvider session) {
-    return Positioned(
-      top: 12, left: 16, right: 16,
-      child: SafeArea(
-        bottom: false,
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // Minimal back button
-            _iconBtn(LucideIcons.chevronLeft, () {
-              session.disconnect();
-              Navigator.pop(context);
-            }),
             const Spacer(),
+            // Refresh Button
+            _iconBtn(LucideIcons.refreshCw, () {
+              session.sendInputEvent({'type': 'request-keyframe'});
+              // Force re-attach stream
+              if (session.remoteStream != null) {
+                _remoteRenderer.srcObject = null;
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  _remoteRenderer.srcObject = session.remoteStream;
+                  debugPrint('[Viewer] Manual Re-attach triggered');
+                });
+              }
+            }),
+            const SizedBox(width: 12),
             // Glass Capsule
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: AppTheme.surface.withOpacity(0.8),
+                color: const Color(0xFF1E1E1E).withOpacity(0.9),
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: Colors.white.withOpacity(0.05)),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 8))
+                  BoxShadow(color: Colors.black.withOpacity(0.6), blurRadius: 25)
                 ],
               ),
               child: Row(
@@ -397,6 +504,15 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
                     }
                   }), active: _showKeyboard),
                   const SizedBox(width: 12),
+                  _iconBtnInner(
+                    _zoomMode == RTCVideoViewObjectFit.RTCVideoViewObjectFitContain ? LucideIcons.maximize : LucideIcons.minimize, 
+                    () => setState(() {
+                      _zoomMode = _zoomMode == RTCVideoViewObjectFit.RTCVideoViewObjectFitContain 
+                        ? RTCVideoViewObjectFit.RTCVideoViewObjectFitCover 
+                        : RTCVideoViewObjectFit.RTCVideoViewObjectFitContain;
+                    })
+                  ),
+                  const SizedBox(width: 12),
                   _iconBtnInner(LucideIcons.refreshCw, () => session.sendInputEvent({'type': 'request-keyframe'})),
                 ],
               ),
@@ -404,6 +520,64 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
             const Spacer(),
             // Tools
             _iconBtn(LucideIcons.ellipsis, () {}),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShortcutBar(SessionProvider session) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E).withOpacity(0.95),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.15)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.7), blurRadius: 25, offset: const Offset(0, 10))
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _shortcutActionBtn(LucideIcons.house, () => session.sendInputEvent({'type': 'globalAction', 'action': 2}), 'Home'),
+          const SizedBox(width: 8),
+          _shortcutActionBtn(LucideIcons.layers, () => session.sendInputEvent({'type': 'globalAction', 'action': 3}), 'Recents'),
+          const SizedBox(width: 8),
+          _shortcutActionBtn(LucideIcons.bellDot, () => session.sendInputEvent({'type': 'globalAction', 'action': 4}), 'Pull'),
+          const SizedBox(width: 16),
+          // Vertical divider
+          Container(width: 1, height: 24, color: Colors.white.withOpacity(0.1)),
+          const SizedBox(width: 16),
+          _shortcutActionBtn(LucideIcons.sun, () => session.sendInputEvent({'type': 'action', 'action': 'wakeup'}), 'Wake'),
+          const SizedBox(width: 8),
+          _shortcutActionBtn(LucideIcons.lock, () => session.sendInputEvent({'type': 'action', 'action': 'lock'}), 'Lock'),
+        ],
+      ),
+    );
+  }
+
+  Widget _shortcutActionBtn(IconData icon, VoidCallback onTap, String label) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+        _scheduleHideControls();
+      },
+      child: Container(
+        width: 48,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: Colors.white.withOpacity(0.8)),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 7, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -425,15 +599,15 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
       child: Container(
         width: 44, height: 44,
         decoration: BoxDecoration(
-          color: AppTheme.surface.withOpacity(0.6),
+          color: const Color(0xFF1E1E1E).withOpacity(0.7),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: active ? AppTheme.accent.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+            color: active ? AppTheme.accent.withOpacity(0.5) : Colors.white.withOpacity(0.1),
           ),
         ),
         child: Icon(icon,
             size: 18,
-            color: active ? AppTheme.accent : Colors.white.withOpacity(0.5)),
+            color: active ? AppTheme.accent : Colors.white.withOpacity(0.7)),
       ),
     );
   }
@@ -548,9 +722,9 @@ class _SessionViewerScreenState extends State<SessionViewerScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Container(

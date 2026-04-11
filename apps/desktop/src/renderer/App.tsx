@@ -81,7 +81,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
 
     // --- Black Screen Watchdog ---
-    // If we have a stream but videoWidth is 0, request a recovery keyframe every 3s
+    // If we have a stream but videoWidth is 0, request a recovery keyframe every 2s
     useEffect(() => {
         if (viewerStatus !== 'streaming' || !remoteStream) return;
 
@@ -97,7 +97,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     console.error('[Watchdog] Failed to send keyframe request:', err);
                 }
             }
-        }, 3000);
+        }, 5000); // Check every 5s instead of 2s
 
         // Immediate check on mount/stream change
         if (controlChannelRef?.current?.readyState === 'open') {
@@ -299,7 +299,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             timer = setTimeout(() => {
                 console.log('[VideoPlayer] Screen timeout (black) - Requesting keyframe recovery...');
                 onControlEvent({ type: 'request-keyframe' });
-            }, 5000); // 5s timeout
+            }, 10000); // 10s timeout for initial handshake recovery
         }
         return () => clearTimeout(timer);
     }, [viewerStatus, hasReceivedKeyframe, remoteStream, onControlEvent]);
@@ -1150,11 +1150,12 @@ export default function App() {
     const controlChannelRef = useRef<RTCDataChannel | null>(null);
     const volumeIntervalRef = useRef<any>(null);
     const reassemblyMap = useRef<Map<bigint, any>>(new Map());
+    const monitorWsRef = useRef<WebSocket | null>(null);
 
     // Throttled mouse movement
     const lastMouseMoveRef = useRef<number>(0);
     const lastBufferWarningRef = useRef<number>(0);
-    const MOUSE_THROTTLE_MS = 16; // ~60fps mouse updates
+    const MOUSE_THROTTLE_MS = 33; // Optimized: 33ms (~30fps) significantly reduces DataChannel congestion
 
     const onControlEvent = (event: any) => {
         const channel = controlChannelRef.current;
@@ -1166,11 +1167,11 @@ export default function App() {
                     channel.send(event as any);
                 } else {
                     // Congestion Guard: Drop mousemove if buffer is saturating
-                    if (channel.bufferedAmount > 65536) { // 64KB threshold
+                    if (channel.bufferedAmount > 32768) { // Optimized: 32KB threshold (more sensitive)
                         if (event.type === 'mousemove') return; // Drop travel
 
                         // Extreme congestion: Drop almost everything except clicks/keys
-                        if (channel.bufferedAmount > 1048576 && event.type !== 'mousedown' && event.type !== 'keydown') {
+                        if (channel.bufferedAmount > 524288 && event.type !== 'mousedown' && event.type !== 'keydown') {
                             const now = Date.now();
                             if (now - lastBufferWarningRef.current > 5000) {
                                 console.warn(`[Diagnostic] DataChannel Saturated: ${Math.round(channel.bufferedAmount / 1024)}KB queued. Dropping sync...`);
@@ -1354,66 +1355,65 @@ export default function App() {
     };
 
     useEffect(() => {
-        if (isAuthenticated && (accessToken || isViewerWindow)) {
-            // If we are a viewer window and don't have a token yet, wait for it
-            if (isViewerWindow && !accessToken) return;
+        if (!isAuthenticated || (!accessToken && !isViewerWindow)) return;
 
+        const wsUrl = `ws://${serverIP}/api/signal`;
+        const monitor = new WebSocket(wsUrl);
+        monitorWsRef.current = monitor;
+
+        monitor.onopen = () => {
+            console.log('[Monitor] Presence WebSocket connected.');
+            // Initial sync
             pollDevices();
+        };
 
-            // Establish long-lived presence monitor
-            const getWsUrl = () => {
-                if (isPackaged) {
-                    return `ws://${serverIP}/api/signal`;
-                }
-                return `ws://${serverIP}/api/signal`;
-            };
-            const wsUrl = getWsUrl();
-            const monitor = new WebSocket(wsUrl);
-
-            monitor.onopen = () => {
-                api.get('/api/devices/mine').then(({ data }) => {
-                    setDevices(data);
-                    // Standardize keys before subscription to signaling service (V5 Sync)
-                    const keys = data.map((d: any) => String(d.access_key || '').toLowerCase().replace(/\s/g, ''));
-                    monitor.send(JSON.stringify({
-                        type: 'subscribe-presence',
-                        accessKeys: keys
-                    }));
-                }).catch(err => {
-                    console.error('[Monitor] Initial fetch failed:', err);
-                });
-            };
-
-            monitor.onmessage = (e) => {
-                try {
-                    const data = JSON.parse(e.data);
-                    if (data.type === 'presence-update') {
-                        const incomingId = String(data.sessionId || '').toLowerCase().replace(/\s/g, '');
-                        const deviceMatch = devices.find(d => String(d.access_key || '').toLowerCase().replace(/\s/g, '') === incomingId);
+        monitor.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'presence-update') {
+                    const incomingId = String(data.sessionId || '').toLowerCase().replace(/\s/g, '');
+                    
+                    // Use functional update to ensure we always have the latest devices state
+                    setDevices(prev => {
+                        const deviceMatch = prev.find(d => String(d.access_key || '').toLowerCase().replace(/\s/g, '') === incomingId);
                         if (deviceMatch && deviceMatch.is_online !== (data.status === 'online')) {
+                            // Only notify if status actually changed
                             addNotification(`${deviceMatch.device_name} is now ${data.status}`, 'host');
                         }
-                        setDevices(prev => prev.map(d => {
+                        return prev.map(d => {
                             const localId = String(d.access_key || '').toLowerCase().replace(/\s/g, '');
                             return localId === incomingId ? { ...d, is_online: data.status === 'online' } : d;
-                        }));
-                    } else if (data.type === 'global-stats') {
-                        setActiveSessionCount(data.activeSessions || 0);
-                    }
-                } catch (err) {
-                    console.error('[Monitor] Message parse error:', err);
+                        });
+                    });
+                } else if (data.type === 'global-stats') {
+                    setActiveSessionCount(data.activeSessions || 0);
                 }
-            };
+            } catch (err) {
+                console.error('[Monitor] Message parse error:', err);
+            }
+        };
 
-            const handleFocus = () => pollDevices();
-            window.addEventListener('focus', handleFocus);
+        const handleFocus = () => pollDevices();
+        window.addEventListener('focus', handleFocus);
 
-            return () => {
-                monitor.close();
-                window.removeEventListener('focus', handleFocus);
-            };
-        }
+        return () => {
+            monitor.close();
+            monitorWsRef.current = null;
+            window.removeEventListener('focus', handleFocus);
+        };
     }, [isAuthenticated, accessToken, serverIP, isViewerWindow]);
+
+    // Reactive subscription update: Whenever 'devices' list changes, refresh the monitor's watch list
+    useEffect(() => {
+        const monitor = monitorWsRef.current;
+        if (monitor && monitor.readyState === WebSocket.OPEN && devices.length > 0) {
+            const keys = devices.map((d: any) => String(d.access_key || '').toLowerCase().replace(/\s/g, ''));
+            monitor.send(JSON.stringify({
+                type: 'subscribe-presence',
+                accessKeys: keys
+            }));
+        }
+    }, [devices.length]); // Only re-subscribe if device list count changes (optimization)
 
     // Handlers for the UI
     const handleDeviceClick = async (device: any) => {
@@ -1541,26 +1541,6 @@ export default function App() {
     const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number }>({ bandwidth: '0.00', activeUsers: 0 });
     const [lastPingTime, setLastPingTime] = useState<number>(Date.now());
 
-    // 1. Viewer-side Clipboard Polling (500ms)
-    useEffect(() => {
-        if (viewerStatus !== 'streaming' || !isElectron) return;
-
-        const interval = setInterval(async () => {
-            try {
-                const text = await (window as any).electronAPI.clipboard.readText();
-                if (text && text !== lastClipboardRef.current) {
-                    lastClipboardRef.current = text;
-                    if (controlChannelRef.current?.readyState === 'open') {
-                        console.log(`[Diagnostic] Local clipboard changed. Syncing to host... (${text.substring(0, 20)}...)`);
-                        controlChannelRef.current.send(JSON.stringify({ type: 'clipboard', text }));
-                    }
-                }
-            } catch (e) { }
-        }, 500);
-
-        return () => clearInterval(interval);
-    }, [viewerStatus, isElectron]);
-
     useEffect(() => {
         if (!isElectron) return;
         const unsub = (window as any).electronAPI.onHostStats((stats: any) => {
@@ -1568,40 +1548,6 @@ export default function App() {
         });
         return () => unsub();
     }, [isElectron]);
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (viewerStatus === 'streaming' && controlChannelRef.current?.readyState === 'open') {
-                controlChannelRef.current.send(JSON.stringify({ type: 'keydown', keyCode: e.keyCode }));
-            }
-        };
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (viewerStatus === 'streaming' && controlChannelRef.current?.readyState === 'open') {
-                controlChannelRef.current.send(JSON.stringify({ type: 'keyup', keyCode: e.keyCode }));
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-        };
-    }, [viewerStatus]);
-
-    useEffect(() => {
-        if (viewerStatus !== 'streaming' || !isElectron) return;
-        const interval = setInterval(async () => {
-            const text = await (window as any).electronAPI.clipboard.readText();
-            if (text && text !== lastClipboardRef.current) {
-                lastClipboardRef.current = text;
-                if (controlChannelRef.current?.readyState === 'open') {
-                    controlChannelRef.current.send(JSON.stringify({ type: 'clipboard', text }));
-                }
-            }
-        }, 500);
-        return () => clearInterval(interval);
-    }, [viewerStatus]);
 
     const [showBillingModal, setShowBillingModal] = useState(false);
     const [billingPlans, setBillingPlans] = useState<any[]>([]);
@@ -1776,25 +1722,35 @@ export default function App() {
         }) : () => { };
 
         const removeSignalingListener = isElectron ? (window as any).electronAPI.onSignalingMessage(async (data: any) => {
-            console.log(`[Renderer] Received signaling FROM MAIN: ${data.type}`);
+            if (isElectron) {
+                (window as any).electronAPI.log(`[Renderer] Received signaling FROM MAIN: ${data.type}`);
+            }
             if (data.type === 'offer') {
-                console.log('[Renderer] Handling OFFER from host...');
+                if (isElectron) (window as any).electronAPI.log('[Renderer] Handling OFFER from host...');
                 const pc = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        {
+                            urls: 'turn:159.65.84.190:3478',
+                            username: 'admin',
+                            credential: 'B07qfTNwSC2yZvcs'
+                        }
+                    ]
                 });
+
                 pcRef.current = pc;
 
                 pc.onicegatheringstatechange = () => {
-                    console.log(`[Renderer] ICE Gathering State: ${pc.iceGatheringState}`);
+                    if (isElectron) (window as any).electronAPI.log(`[Renderer] ICE Gathering State: ${pc.iceGatheringState}`);
                 };
 
                 pc.onconnectionstatechange = () => {
-                    console.log(`[Renderer] Connection State: ${pc.connectionState}`);
+                    if (isElectron) (window as any).electronAPI.log(`[Renderer] Connection State: ${pc.connectionState}`);
                     if (pc.connectionState === 'connected') {
                         setViewerStatus('connected');
                         clearTimeout(connectionTimeout);
                     } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-                        console.log('[Renderer] WebRTC connection dropped.');
+                        if (isElectron) (window as any).electronAPI.log('[Renderer] WebRTC connection dropped or failed.');
                         setViewerStatus('connection_lost');
                         clearTimeout(connectionTimeout);
                     } else if (pc.connectionState === 'closed') {
@@ -1804,21 +1760,20 @@ export default function App() {
 
                 const connectionTimeout = setTimeout(() => {
                     if (pc.connectionState !== 'connected' && pc.connectionState !== 'closed') {
-                        console.warn('[Renderer] WebRTC Connection timeout (Viewer). Status:', pc.connectionState);
+                        if (isElectron) (window as any).electronAPI.log(`[Renderer] WebRTC Connection timeout (Viewer). Status: ${pc.connectionState}`, 'warn');
                         setViewerStatus('connection_lost');
                         pc.close();
                     }
                 }, 30000); // 30s timeout for ICE/handshake to be safer
 
                 pc.ontrack = (event) => {
-                    console.log('[Renderer] Standard Video Track received!');
+                    if (isElectron) (window as any).electronAPI.log('[Renderer] Standard Video Track received!');
                     setRemoteStream(event.streams[0]);
                     if (viewerStatus !== 'streaming') setViewerStatus('streaming');
                 };
 
                 pc.onicecandidate = (event) => {
                     if (event.candidate) {
-                        console.log(`[Renderer] Generated local ICE candidate: ${event.candidate.candidate.substring(0, 30)}...`);
                         if (isElectron) {
                             (window as any).electronAPI.sendSignalingMessage({
                                 type: 'ice-candidate',
@@ -1830,6 +1785,7 @@ export default function App() {
                         }
                     }
                 };
+
 
                 pc.ondatachannel = (event) => {
                     const channel = event.channel;

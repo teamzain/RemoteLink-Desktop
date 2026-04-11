@@ -53,6 +53,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
       PORT: 3002
     depends_on:
       - postgres
@@ -66,6 +67,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
       PORT: 3003
     depends_on:
       - postgres

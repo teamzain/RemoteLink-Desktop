@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../providers/device_provider.dart';
@@ -260,7 +261,7 @@ class _AllDevicesScreenState extends State<AllDevicesScreen> {
                 label: 'Connect',
                 onPressed: () => Navigator.push(
                   context,
-                  MaterialPageRoute(
+                  CupertinoPageRoute(
                     builder: (_) => SessionViewerScreen(
                       deviceId: device.accessKey,
                       deviceName: device.name,
@@ -286,3 +287,4 @@ class _AllDevicesScreenState extends State<AllDevicesScreen> {
     return LucideIcons.monitor;
   }
 }
+

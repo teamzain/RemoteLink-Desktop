@@ -13,6 +13,9 @@ class SessionProvider extends ChangeNotifier {
   MediaStream? _remoteStream;
   RTCDataChannel? _controlChannel;
   
+  final _onKeyboardEventController = StreamController<bool>.broadcast();
+  Stream<bool> get keyboardFocusStream => _onKeyboardEventController.stream;
+
   bool _isConnected = false;
   bool _isConnecting = false;
   bool _isJoined = false;
@@ -255,6 +258,15 @@ class SessionProvider extends ChangeNotifier {
                _controlChannel!.send(RTCDataChannelMessage(json.encode({'type': 'request-keyframe'})));
             }
           };
+
+          _controlChannel!.onMessage = (message) {
+            final data = json.decode(message.text);
+            if (data['type'] == 'keyboard_event') {
+              final bool visible = data['visible'] ?? false;
+              debugPrint('[Viewer] Received remote keyboard event: $visible');
+              _onKeyboardEventController.add(visible);
+            }
+          };
         }
       };
 
@@ -291,6 +303,7 @@ class SessionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    _onKeyboardEventController.close();
     disconnect();
     super.dispose();
   }

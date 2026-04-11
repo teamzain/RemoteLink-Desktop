@@ -124,8 +124,14 @@ export const useSessionStore = create<SessionState>((set, get) => {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun2.l.google.com:19302' },
+          {
+            urls: 'turn:159.65.84.190:3478',
+            username: 'admin',
+            credential: 'B07qfTNwSC2yZvcs'
+          }
         ]
       };
+
 
       pc = new RTCPeerConnection(configuration);
 

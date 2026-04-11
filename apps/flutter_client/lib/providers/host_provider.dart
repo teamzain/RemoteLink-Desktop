@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:dio/dio.dart';
@@ -9,7 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'auth_provider.dart';
 
-class HostProvider extends ChangeNotifier {
+class HostProvider extends ChangeNotifier with WidgetsBindingObserver {
   static const _controlChannelName = 'com.example.remotelink/control';
   final _methodChannel = const MethodChannel(_controlChannelName);
 
@@ -30,26 +30,64 @@ class HostProvider extends ChangeNotifier {
 
   String? _deviceId;
   String? _sessionId;
+  bool _isPasswordSet = false;
   bool _isHosting = false;       // screen capture is active
   bool _isSignaling = false;     // websocket is connected
   String? _error;
+  bool _isConnecting = false;
   bool _isRegistering = false;
   bool _isAccessibilityEnabled = false;
+  bool _hasIgnoreBatteryOptimization = false;
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   Timer? _heartbeatTimer;
 
   // Pending viewer ID waiting for screen capture
   String? _pendingViewerId;
+  bool _isHandlingJoin = false;
+  bool _intentionalDisconnect = false;
 
   String? get sessionId => _sessionId;
+  bool get isPasswordSet => _isPasswordSet;
   bool get isHosting => _isHosting;
   bool get isSignaling => _isSignaling;
   String? get error => _error;
   bool get isRegistering => _isRegistering;
   bool get isAccessibilityEnabled => _isAccessibilityEnabled;
+  bool get hasIgnoreBatteryOptimization => _hasIgnoreBatteryOptimization;
 
-  HostProvider(this._authProvider);
+  HostProvider(this._authProvider) {
+    WidgetsBinding.instance.addObserver(this);
+    _setupMethodChannel();
+  }
+
+  void _setupMethodChannel() {
+    _methodChannel.setMethodCallHandler((call) async {
+      print('[Host] Native call: ${call.method}');
+      if (call.method == 'onInputFocusChanged') {
+        final bool isFocused = call.arguments as bool;
+        _sendFocusToViewer(isFocused);
+      }
+    });
+  }
+
+  void _sendFocusToViewer(bool isFocused) {
+    if (_controlChannel != null && _controlChannel!.state == RTCDataChannelState.RTCDataChannelOpen) {
+      debugPrint('[Host] Sending keyboard focus event: $isFocused');
+      _controlChannel!.send(RTCDataChannelMessage(json.encode({
+        'type': 'keyboard_event',
+        'visible': isFocused,
+      })));
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      checkAccessibilityStatus();
+      checkBatteryOptimization();
+    }
+  }
 
   void updateAuth(AuthProvider auth) {
     _authProvider = auth;
@@ -71,14 +109,33 @@ class HostProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-
     // Try to load cached identity first
     final cachedId = await _storage.read(key: 'host_device_id');
     final cachedKey = await _storage.read(key: 'host_access_key');
-    
+
     if (cachedId != null && cachedKey != null) {
       _deviceId = cachedId;
       _sessionId = cachedKey;
+      
+      // Sync PIN status from server for cached device
+      try {
+        final resp = await _dio.get(
+          '/api/devices/mine',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        if (resp.statusCode == 200) {
+          final List mine = resp.data;
+          final self = mine.firstWhere((d) => d['id'].toString() == _deviceId, orElse: () => null);
+          if (self != null) {
+            _isPasswordSet = self['has_password'] ?? false;
+            print('[Host] Cached identity verified. PIN Set: $_isPasswordSet');
+          }
+        }
+      } catch (e) {
+        print('[Host] Failed to sync cached identity status: $e');
+        // We keep the cached ID/Key but isPasswordSet remains false until we can verify or user re-sets.
+      }
+      
       notifyListeners();
       return;
     }
@@ -124,6 +181,7 @@ class HostProvider extends ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         _deviceId = response.data['id'].toString();
         _sessionId = response.data['access_key'];
+        _isPasswordSet = response.data['has_password'] ?? false;
         
         // Persist identity
         await _storage.write(key: 'host_device_id', value: _deviceId);
@@ -166,6 +224,9 @@ class HostProvider extends ChangeNotifier {
       if (response.statusCode != 200) {
         throw Exception('Failed to set password');
       }
+      
+      _isPasswordSet = true;
+      notifyListeners();
     } catch (e) {
       _error = 'Failed to set password: $e';
       notifyListeners();
@@ -192,56 +253,102 @@ class HostProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> openAppSettings() async {
+    try {
+      await _methodChannel.invokeMethod('openAppSettings');
+    } catch (e) {
+      _error = 'Failed to open app settings: $e';
+      notifyListeners();
+    }
+  }
+
+  Future<void> checkBatteryOptimization() async {
+    try {
+      _hasIgnoreBatteryOptimization =
+          await _methodChannel.invokeMethod('checkBatteryOptimization') ?? false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error checking battery opt: $e');
+    }
+  }
+
+  Future<void> requestBatteryOptimizationExemption() async {
+    try {
+      await _methodChannel.invokeMethod('requestBatteryOptimizationExemption');
+    } catch (e) {
+      _error = 'Failed to open battery settings: $e';
+      notifyListeners();
+    }
+  }
+
   // ─── Signaling (always-on) ────────────────────────────────────────────────
 
   /// Connects the WebSocket and registers this device as a host so it
   /// appears ONLINE to the desktop — without requiring screen capture.
   Future<void> _connectSignaling() async {
-    if (_isSignaling) return;
+    if (_isSignaling || _isConnecting) return;
+    _isConnecting = true;
+    _intentionalDisconnect = false;
 
     final token = _authProvider.accessToken;
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) {
+      _isConnecting = false;
+      throw Exception('Not authenticated');
+    }
 
     // Ensure device is registered
     if (_sessionId == null) {
       await registerDevice();
-      if (_sessionId == null) throw Exception('Failed to register host device');
+      if (_sessionId == null) {
+        _isConnecting = false;
+        throw Exception('Failed to register host device');
+      }
     }
 
-    const signalingURL = 'ws://159.65.84.190/api/signal';
-    print('[Host] Connecting to signaling: $signalingURL');
-    _socket = await WebSocket.connect(signalingURL);
+    try {
+      const signalingURL = 'ws://159.65.84.190/api/signal';
+      print('[Host] Connecting to signaling: $signalingURL');
+      _socket = await WebSocket.connect(signalingURL);
 
-    _socket!.listen(
-      (message) => _handleSignalingMessage(json.decode(message)),
-      onError: (err) {
-        debugPrint('[Host] Signaling error: $err');
-        _isSignaling = false;
-        _heartbeatTimer?.cancel();
-        _heartbeatTimer = null;
-        notifyListeners();
-        _scheduleReconnect();
-      },
-      onDone: () {
-        debugPrint('[Host] Signaling closed');
-        _isSignaling = false;
-        _heartbeatTimer?.cancel();
-        _heartbeatTimer = null;
-        notifyListeners();
-        _scheduleReconnect();
-      },
-    );
+      _socket!.listen(
+        (message) => _handleSignalingMessage(json.decode(message)),
+        onError: (err) {
+          debugPrint('[Host] Signaling error: $err');
+          _isSignaling = false;
+          _heartbeatTimer?.cancel();
+          _heartbeatTimer = null;
+          final s = _socket;
+          if (s != null) {
+            s.close().catchError((_) {});
+          }
+          _socket = null;
+          notifyListeners();
+          if (!_intentionalDisconnect) _scheduleReconnect();
+        },
+        onDone: () {
+          debugPrint('[Host] Signaling closed');
+          _isSignaling = false;
+          _heartbeatTimer?.cancel();
+          _heartbeatTimer = null;
+          _socket = null;
+          notifyListeners();
+          if (!_intentionalDisconnect) _scheduleReconnect();
+        },
+      );
 
-    // Register as host
-    _socket!.add(json.encode({
-      'type': 'register',
-      'token': token,
-      'role': 'host',
-      'accessKey': _sessionId,
-    }));
+      // Register as host
+      _socket!.add(json.encode({
+        'type': 'register',
+        'token': token,
+        'role': 'host',
+        'accessKey': _sessionId,
+      }));
 
-    _isSignaling = true;
-    notifyListeners();
+      _isSignaling = true;
+    } finally {
+      _isConnecting = false;
+      notifyListeners();
+    }
 
     // Start heartbeat to keep Redis presence TTL alive (10s interval, 90s TTL)
     _heartbeatTimer?.cancel();
@@ -259,6 +366,7 @@ class HostProvider extends ChangeNotifier {
       await _methodChannel.invokeMethod('requestNotificationPermission');
       await _methodChannel.invokeMethod('startBackgroundService');
       await checkAccessibilityStatus();
+      await checkBatteryOptimization();
       await _connectSignaling();
     } catch (e) {
       debugPrint('[Host] ensureHosting failed: $e');
@@ -287,42 +395,61 @@ class HostProvider extends ChangeNotifier {
       // system permission popup. The service MUST be active for the system 
       // to allow the MediaProjection intent.
       print('[Host] Starting background capture service...');
-      await _methodChannel.invokeMethod('startProjectionService');
+      try {
+        await _methodChannel.invokeMethod('startProjectionService');
+      } catch (e) {
+        print('[Host] Failed to start projection service: $e');
+        _error = 'Background service failed to start. Please check permissions.';
+        _isHosting = false;
+        notifyListeners();
+        return;
+      }
       
-      // Short delay to ensure the system recognizes the FGS is up
-      await Future.delayed(const Duration(milliseconds: 200));
+      // Android 14+ requires a very generous delay (1.0s+) for the FGS to be fully 
+      // ready before the system allows a MediaProjection intent.
+      await Future.delayed(const Duration(milliseconds: 1000));
 
       final Map<String, dynamic> mediaConstraints = {
         'audio': false,
         'video': {
           'mandatory': {
-            'minWidth': '1280',
-            'minHeight': '720',
-            'minFrameRate': '20',
+            'minWidth': '720',
+            'minHeight': '1280',
+            'minFrameRate': '30',
           },
           'facingMode': 'user',
           'optional': [],
         }
       };
 
-      print('[Host] Requesting permission popup...');
-      _localStream = await navigator.mediaDevices.getDisplayMedia(mediaConstraints);
-      print('[Host] Capture active');
+      try {
+        // Adding a small delay for FGS registration on Android 14+
+        await Future.delayed(const Duration(milliseconds: 1000));
+        _localStream = await navigator.mediaDevices.getDisplayMedia(mediaConstraints);
+        print('[Host] Capture active');
 
-      _isHosting = true;
-      notifyListeners();
+        _isHosting = true;
+        notifyListeners();
 
-      // If a viewer was waiting for screen capture, serve them now
-      if (_pendingViewerId != null) {
-        final id = _pendingViewerId!;
-        _pendingViewerId = null;
-        _initiateWebRTC(id);
+        // If a viewer was waiting for screen capture, serve them now
+        final pendingId = _pendingViewerId;
+        if (pendingId != null) {
+          _pendingViewerId = null;
+          _initiateWebRTC(pendingId);
+        }
+      } catch (e) {
+        print('[Host] Screen capture failed: $e');
+        if (e.toString().contains('SecurityException')) {
+          _error = 'Permission denied. Android requires the "Screen Sharing" notification to be active.';
+        } else {
+          _error = 'Screen capture failed. Tap "Start Hosting" to try again.';
+        }
+        _isHosting = false;
+        notifyListeners();
       }
     } catch (e) {
       print('[Host] Screen capture failed: $e');
-      _error = 'Screen capture failed. Tap "Start Hosting" to try again.';
       _isHosting = false;
-      // ← Intentionally NOT calling stopHosting() — signaling stays alive
       notifyListeners();
     }
   }
@@ -351,6 +478,7 @@ class HostProvider extends ChangeNotifier {
 
   /// Fully disconnects everything (called on logout / dispose).
   void disconnect() {
+    _intentionalDisconnect = true;
     stopHosting();
 
     _methodChannel.invokeMethod('stopBackgroundService');
@@ -362,6 +490,7 @@ class HostProvider extends ChangeNotifier {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
 
+    _socket?.add(json.encode({'type': 'unregister'}));
     _socket?.close();
     _socket = null;
     _isSignaling = false;
@@ -401,18 +530,45 @@ class HostProvider extends ChangeNotifier {
 
       case 'viewer-joined':
         final viewerId = data['viewerId'] as String;
-        if (_localStream != null) {
-          // Screen capture already running — connect immediately
-          _initiateWebRTC(viewerId);
-        } else {
-          // No stream yet — start capture now (user will see Android system prompt)
-          print('[Host] Viewer joined but no stream — attempting capture for $viewerId');
-          _pendingViewerId = viewerId;
-          try {
-            await startHosting();
-          } catch (_) {
-            _pendingViewerId = null;
+        if (_isHandlingJoin) {
+          debugPrint('[Host] Busy handling another join, skipping...');
+          return;
+        }
+
+        _isHandlingJoin = true;
+        // SAFETY WATCHDOG: Release lock after 15s if everything hangs
+        final joinTimeout = Timer(const Duration(seconds: 15), () {
+          if (_isHandlingJoin) {
+            debugPrint('[Host] Join watchdog triggered! Releasing lock...');
+            _isHandlingJoin = false;
           }
+        });
+
+        try {
+          if (_localStream != null) {
+            // Screen capture already running — connect immediately
+            print('[Host] Reusing existing stream for reconnection ✓');
+            
+            // Force-trigger a frame refresh on the system by doing a 1px nudge
+            _methodChannel.invokeMethod('dispatchSwipe', {
+              'startX': 0.5,
+              'startY': 0.5,
+              'endX': 0.505,
+              'endY': 0.505,
+              'duration': 100,
+            });
+
+            await Future.delayed(const Duration(milliseconds: 1000));
+            await _initiateWebRTC(viewerId);
+          } else {
+            // No stream yet — start capture now (user will see Android system prompt)
+            print('[Host] Viewer joined but no stream — attempting capture for $viewerId');
+            _pendingViewerId = viewerId;
+            await startHosting();
+          }
+        } finally {
+          _isHandlingJoin = false;
+          joinTimeout.cancel();
         }
         break;
       case 'viewer-left':
@@ -421,8 +577,9 @@ class HostProvider extends ChangeNotifier {
         break;
 
       case 'answer':
-        if (_peerConnection != null) {
-          await _peerConnection!.setRemoteDescription(
+        final pc = _peerConnection;
+        if (pc != null) {
+          await pc.setRemoteDescription(
             RTCSessionDescription(data['sdp'], 'answer'),
           );
         }
@@ -510,16 +667,26 @@ class HostProvider extends ChangeNotifier {
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
 
-      _socket?.add(json.encode({
-        'type': 'offer',
-        'sdp': offer.sdp,
-        'hostType': 'android',
-        'targetId': viewerId,
-      }));
-    } catch (e) {
-      debugPrint('[Host] WebRTC initialization failed: $e');
-    }
-  }
+       _socket?.add(json.encode({
+         'type': 'offer',
+         'sdp': offer.sdp,
+         'hostType': 'android',
+         'targetId': viewerId,
+       }));
+
+       // Force a "Nudge Storm" immediately upon connection to clear any black screen
+       // 3 small nudges ensure the encoder wakes up even if the first is missed.
+       for (int i = 0; i < 3; i++) {
+         Timer(Duration(milliseconds: 500 + (i * 800)), () {
+           print('[Host] ICE Connected. Nudge Storm ${i + 1}/3...');
+           _forceKeyframe(intensity: 0.505 + (i * 0.001));
+         });
+       }
+       debugPrint('[Host] WebRTC stage: complete ✓');
+     } catch (e) {
+       debugPrint('[Host] WebRTC initialization failed: $e');
+     }
+   }
 
   void _handleRemoteInput(String message) {
     try {
@@ -529,6 +696,14 @@ class HostProvider extends ChangeNotifier {
       if (type == 'action') {
         final String? action = data['action'];
         _methodChannel.invokeMethod('performAction', {'action': action});
+        return;
+      }
+
+      if (type == 'globalAction') {
+        final int? action = data['action'];
+        if (action != null) {
+          _methodChannel.invokeMethod('performGlobalAction', {'action': action});
+        }
         return;
       }
 
@@ -550,68 +725,78 @@ class HostProvider extends ChangeNotifier {
         return;
       }
 
+      final String inputType = data['type'] ?? '';
+      print('[Host] Received Control: $inputType');
+
       if (data['x'] == null || data['y'] == null) return;
       final double x = (data['x'] as num).toDouble();
       final double y = (data['y'] as num).toDouble();
+
+      debugPrint('[Host] Input Event: $type at ($x, $y)');
 
       if (type == 'mousedown') {
         _dragStartX = x;
         _dragStartY = y;
         _dragStartTime = DateTime.now();
+      } else if (type == 'mousemove') {
+        // Optional: Implement real-time drag if needed, but current Swipe on mouseup is standard
       } else if (type == 'mouseup') {
         if (_dragStartX != null && _dragStartTime != null) {
-          final duration =
-              DateTime.now().difference(_dragStartTime!).inMilliseconds;
+          final duration = DateTime.now().difference(_dragStartTime!).inMilliseconds;
           final dx = (x - _dragStartX!).abs();
           final dy = (y - _dragStartY!).abs();
 
+          // REDUCED THRESHOLD: 2% of screen is now a swipe (Ideal for scrolling lists)
           if (dx > 0.02 || dy > 0.02) {
-            // It's a swipe
+            print('[Host] Dispatching Swipe: ($_dragStartX, $_dragStartY) -> ($x, $y) [Duration: ${duration}ms]');
             _methodChannel.invokeMethod('dispatchSwipe', {
               'startX': _dragStartX,
               'startY': _dragStartY,
               'endX': x,
               'endY': y,
-              'duration': duration.clamp(200, 1000),
-            });
-          } else if (duration > 600) {
-            // It's a long press
-            _methodChannel.invokeMethod('dispatchClick', {
-              'x': _dragStartX,
-              'y': _dragStartY,
-              'duration': 1000, // 1 second hold
+              'duration': duration.clamp(150, 1000).toInt(),
             });
           } else {
-            // It's a normal tap (fast)
+            // It's a Tap
+            print('[Host] Dispatching Tap at ($x, $y)');
             _methodChannel.invokeMethod('dispatchClick', {
-              'x': _dragStartX,
-              'y': _dragStartY,
-              'duration': 50, // very short burst
+              'x': x,
+              'y': y,
+              'duration': duration.clamp(20, 200).toInt(),
             });
           }
         }
         _dragStartX = null;
         _dragStartTime = null;
       }
-    } catch (e) {}
+    } catch (e) {
+      print('[Host] Control handling error: $e');
+    }
   }
 
   double? _dragStartX, _dragStartY;
   DateTime? _dragStartTime;
 
-  void _forceKeyframe() {
-    // Toggling enabled briefly forces the encoder to emit a fresh IDR frame.
-    // We keep the off-window to 1 frame (16ms at 60fps) to minimize visible glitch.
-    if (_localStream != null) {
-      for (final track in _localStream!.getVideoTracks()) {
-        track.enabled = false;
-        Timer(const Duration(milliseconds: 16), () => track.enabled = true);
-      }
+  void _forceKeyframe({double intensity = 0.505}) {
+    // The Track Toggle hack caused video corruption in React Native.
+    // We now rely on a microscopic nudge via MethodChannel to trigger an encoder refresh safely.
+    print('[Host] Force-triggering IDR keyframe via system nudge ($intensity)...');
+    try {
+      _methodChannel.invokeMethod('dispatchSwipe', {
+        'startX': 0.5,
+        'startY': 0.5,
+        'endX': intensity,
+        'endY': intensity,
+        'duration': 50, // Faster nudge for better encoder wake-up
+      });
+    } catch (e) {
+      debugPrint('[Host] Micro-nudge failed: $e');
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _isDisposed = true;
     disconnect();
     super.dispose();

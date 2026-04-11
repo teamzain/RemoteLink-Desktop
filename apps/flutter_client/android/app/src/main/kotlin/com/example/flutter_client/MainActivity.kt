@@ -11,16 +11,31 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.remotelink/control"
+    private var methodChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        
+        RemoteLinkAccessibilityService.setFocusListener { isFocused ->
+            runOnUiThread {
+                methodChannel?.invokeMethod("onInputFocusChanged", isFocused)
+            }
+        }
+
+        methodChannel!!.setMethodCallHandler { call, result ->
             when (call.method) {
                 "isAccessibilityServiceEnabled" -> {
                     result.success(isAccessibilityServiceEnabled(this))
                 }
                 "openAccessibilitySettings" -> {
                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    startActivity(intent)
+                    result.success(true)
+                }
+                "openAppSettings" -> {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    intent.data = android.net.Uri.parse("package:$packageName")
                     startActivity(intent)
                     result.success(true)
                 }
@@ -31,13 +46,18 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "startProjectionService" -> {
-                    val intent = Intent(this, MediaProjectionService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
+                    try {
+                        val intent = Intent(this, MediaProjectionService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        result.error("SERVICE_ERROR", e.message, null)
                     }
-                    result.success(true)
                 }
                 "stopProjectionService" -> {
                     val intent = Intent(this, MediaProjectionService::class.java)
@@ -45,17 +65,33 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "startBackgroundService" -> {
-                    val intent = Intent(this, BackgroundService::class.java)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
+                    try {
+                        val intent = Intent(this, BackgroundService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        result.error("SERVICE_ERROR", e.message, null)
                     }
-                    result.success(true)
                 }
                 "stopBackgroundService" -> {
                     val intent = Intent(this, BackgroundService::class.java)
                     stopService(intent)
+                    result.success(true)
+                }
+                "checkBatteryOptimization" -> {
+                    val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    val isIgnoring = pm.isIgnoringBatteryOptimizations(packageName)
+                    result.success(isIgnoring)
+                }
+                "requestBatteryOptimizationExemption" -> {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    intent.data = android.net.Uri.parse("package:$packageName")
+                    startActivity(intent)
                     result.success(true)
                 }
                 "dispatchClick" -> {
@@ -72,6 +108,13 @@ class MainActivity : FlutterActivity() {
                     val endY = call.argument<Double>("endY")?.toFloat() ?: 0f
                     val duration = call.argument<Int>("duration")?.toLong() ?: 300L
                     RemoteLinkAccessibilityService.instance?.dispatchSwipe(startX, startY, endX, endY, duration)
+                    result.success(true)
+                }
+                "performGlobalAction" -> {
+                    val action = call.argument<Int>("action") ?: 0
+                    if (action > 0) {
+                        RemoteLinkAccessibilityService.instance?.performGlobalAction(action)
+                    }
                     result.success(true)
                 }
                 "performAction" -> {
@@ -143,8 +186,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onBackPressed() {
-        // PREVENT APP KILL: Move to background instead of finishing
-        // This keeps the Flutter engine and our hosting service alive.
-        moveTaskToBack(true)
+        // Now using default behavior so Flutter Navigator can handle back events (popping Viewer to Dashboard)
+        super.onBackPressed()
     }
 }

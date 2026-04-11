@@ -107,6 +107,27 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateUser(String name, String email) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      if (_user != null) {
+        _user!['name'] = name;
+        _user!['email'] = email;
+        await _storage.write(key: 'user', value: json.encode(_user));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('updateUser error: $e');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> logout() async {
     _accessToken  = null;
     _refreshToken = null;

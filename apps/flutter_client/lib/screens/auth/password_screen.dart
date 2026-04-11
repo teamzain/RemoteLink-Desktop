@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../widgets/bubbles_background.dart';
 import '../../providers/auth_provider.dart';
-import 'ready_screen.dart';
+import '../dashboard/dashboard_screen.dart';
 
 class PasswordScreen extends StatefulWidget {
   final String email;
@@ -165,7 +166,7 @@ class _PasswordScreenState extends State<PasswordScreen> {
     if (success && mounted) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const ReadyScreen()),
+        CupertinoPageRoute(builder: (_) => const DashboardScreen()),
         (route) => false,
       );
     } else if (!success && mounted) {

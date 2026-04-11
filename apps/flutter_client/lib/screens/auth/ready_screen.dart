@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -149,7 +150,7 @@ class _ReadyScreenState extends State<ReadyScreen> {
                               if (mounted && host.isHosting) {
                                 Navigator.pushAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                                  CupertinoPageRoute(builder: (_) => const DashboardScreen()),
                                   (route) => false,
                                 );
                               }
@@ -233,3 +234,4 @@ class _ReadyScreenState extends State<ReadyScreen> {
     );
   }
 }
+

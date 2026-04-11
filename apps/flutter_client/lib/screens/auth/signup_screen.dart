@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'login_screen.dart';
@@ -125,7 +126,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 child: GestureDetector(
                   onTap: () => Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    CupertinoPageRoute(builder: (_) => const LoginScreen()),
                   ),
                   child: RichText(
                     text: TextSpan(
@@ -249,3 +250,4 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 }
+

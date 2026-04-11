@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -129,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (_emailController.text.isNotEmpty) {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
+                      CupertinoPageRoute(
                         builder: (_) => PasswordScreen(email: _emailController.text),
                       ),
                     );
@@ -164,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: GestureDetector(
                   onTap: () => Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (_) => const SignupScreen()),
+                    CupertinoPageRoute(builder: (_) => const SignupScreen()),
                   ),
                   child: RichText(
                     text: TextSpan(
@@ -188,49 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-              // Social Divider
-              Divider(color: const Color(0xFFC2C3CB).withOpacity(0.3), thickness: 1),
-              const SizedBox(height: 30),
-              // Social Login
-              Center(
-                child: Text(
-                  'Continue With Accounts',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
-                    color: const Color(0xFFACADB9),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: _buildSocialButton(
-                      label: 'GOOGLE',
-                      color: const Color(0xFFD44638).withOpacity(0.25),
-                      textColor: const Color(0xFFD44638),
-                      onTap: () async {
-                        final url = Uri.parse('http://159.65.84.190/api/auth/oauth/google?platform=mobile');
-                        if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-                          _showError('Could not launch browser');
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _buildSocialButton(
-                      label: 'FACEBOOK',
-                      color: const Color(0xFF4267B2).withOpacity(0.25),
-                      textColor: const Color(0xFF4267B2),
-                      onTap: () {},
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 60),
             ],
           ),
         ),
@@ -314,3 +273,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

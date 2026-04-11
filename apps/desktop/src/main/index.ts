@@ -133,8 +133,13 @@ ipcMain.handle('host:getStatus', async () => {
 ipcMain.handle('host:start', async (_, accessKey) => {
   const { token } = await getAuthTokens();
   const serverIP = process.env.CONNECT_X_SERVER_IP || '159.65.84.190';
+  
+  // Ensure encoder is detected before starting host signaling
+  if (!encoderDetected) await detectBestEncoder();
+  
   connectHostSignaling(serverIP, token || '', accessKey || '');
   return true;
+
 });
 ipcMain.handle('host:stop', () => { cleanUpWebRTC(); hostSignalingWs?.close(); return true; });
 
@@ -173,6 +178,9 @@ ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, device
       sandbox: true
     }
   });
+
+  // Exclude viewer windows from capture to avoid recursion and flickering
+  viewerWin.setContentProtection(true);
 
   const query = `?view=viewer&sessionId=${sessionId}&serverIP=${serverIP}&token=${token}&deviceName=${encodeURIComponent(deviceName || '')}&deviceType=${encodeURIComponent(deviceType || '')}`;
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -242,15 +250,42 @@ async function setAuthTokens(token: string, refresh: string) {
 function cleanUpWebRTC() {
   log.info('[Host] Cleaning up WebRTC resources...');
   stopStreaming();
-  if (dataChannel) { try { dataChannel.close(); } catch {} dataChannel = null; }
-  if (videoTrack) { try { videoTrack.close(); } catch {} videoTrack = null; }
-  if (peerConnection) { try { peerConnection.close(); } catch {} peerConnection = null; }
+  
+  if (dataChannel) { 
+    try { 
+      // Ensure we only close if still open to avoid native crashes
+      if (typeof dataChannel.close === 'function') dataChannel.close(); 
+    } catch (err) { 
+      log.warn('[Host] Error closing dataChannel:', err);
+    } 
+    dataChannel = null; 
+  }
+  
+  if (videoTrack) { 
+    try { 
+      if (typeof videoTrack.close === 'function') videoTrack.close(); 
+    } catch (err) {
+      log.warn('[Host] Error closing videoTrack:', err);
+    }
+    videoTrack = null; 
+  }
+  
+  if (peerConnection) { 
+    try { 
+      if (typeof peerConnection.close === 'function') peerConnection.close(); 
+    } catch (err) {
+      log.warn('[Host] Error closing peerConnection:', err);
+    }
+    peerConnection = null; 
+  }
+  
   iceCandidatesQueue = [];
   hasRemoteDescription = false;
   currentViewerId = null;
   if (clipboardInterval) { clearInterval(clipboardInterval); clipboardInterval = null; }
   if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
 }
+
 
 function stopStreaming() {
   if (captureInterval) {
@@ -425,7 +460,7 @@ function startStreaming() {
 
   const ffmpegPath = getFFmpegPath();
   const fps = '60';
-  const bitrate = '8000k'; // Stable High quality — 8Mbps
+  const bitrate = '5000k'; // Adaptive High quality — 5Mbps (Optimized for low latency)
 
   // --- Capture Logic: Native with GDI Fallback ---
   // If we are on the primary monitor, we can use our optimized DXGI native addon.
@@ -610,25 +645,22 @@ function initiateHostWebRTC(viewerId: string) {
     }
   }, 200);
 
+  // Simplified ICE Servers for stability. 
+  // Custom RelayType objects in libdatachannel can cause 0xC0000005 if types mismatch.
+  const iceServers: datachannel.IceServer[] = [
+      { hostname: "stun.l.google.com", port: 19302 },
+      { hostname: "stun1.l.google.com", port: 19302 },
+      { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnUdp" },
+      { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnTcp" }
+  ];
+
   peerConnection = new datachannel.PeerConnection("Host", {
-    iceServers: [
-      "stun:stun.l.google.com:19302",
-      "stun:stun1.l.google.com:19302",
-      "stun:stun2.l.google.com:19302",
-      "stun:stun3.l.google.com:19302",
-      "stun:stun4.l.google.com:19302",
-      "stun:stun.freeswitch.org:3478",
-      "stun:stun.voiparound.com:3478",
-      "stun:stun.voipbuster.com:3478",
-      "turn:159.65.84.190:3478?transport=udp",
-      "turn:159.65.84.190:3478?transport=tcp"
-    ],
+    iceServers: iceServers,
     iceTransportPolicy: "all"
   });
 
-  // Set TURN credentials if present
-  peerConnection.setToken("admin");
-  peerConnection.setSecret("B07qfTNwSC2yZvcs");
+
+
 
   peerConnection.onGatheringStateChange((state: string) => {
     log.info(`[Host] ICE Gathering state: ${state}`);
@@ -1008,7 +1040,8 @@ function createWindow() {
     });
 
     mainWindow.once('ready-to-show', () => {
-      log.info('[Host] Main window ready to show.');
+      log.info('[Host] Main window ready to show. Enabling content protection.');
+      mainWindow?.setContentProtection(true);
       mainWindow?.show();
       mainWindow?.focus();
     });
@@ -1058,8 +1091,10 @@ app.whenReady().then(() => {
   createWindow();
   startStatsMonitoring();
 
-  // Detect best video encoder in background so it's ready before first connection
-  detectBestEncoder().catch((err) => log.warn('[Host] Encoder detection failed:', err));
+  // Lazy detection: Probing HW encoders is now deferred until a host session is actually requested
+  // to avoid cold startup crashes or unnecessary resource usage.
+  // detectBestEncoder().catch((err) => log.warn('[Host] Encoder detection failed:', err));
+
 
   // Handle startup deep link: when the app was launched fresh by a remotelink:// URL
   const startupUrl = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`));

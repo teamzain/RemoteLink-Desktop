@@ -45,19 +45,33 @@ let _pendingViewerId: string | null = null;
 let _currentViewerId: string | null = null;
 let _lastTouchDown: { x: number, y: number, time: number } | null = null;
 let _isTogglingTrack = false;
+let _isHandlingJoin = false;
+let _isStartingHosting = false;
+let _isProceeding = false;
 
 // Removed old forceKeyframe hack - handled by fresh session lifecycle now
 
 
 const SIGNALING_URL = 'ws://159.65.84.190/api/signal';
 
+const _triggerKeyframe = (intensity = 0.505) => {
+  if (!_localStream || _isTogglingTrack) return;
+  console.log(`[Host] Force-triggering IDR keyframe via system nudge (${intensity})...`);
+  if (ConnectX) {
+    ConnectX.dispatchSwipe(0.5, 0.5, intensity, intensity, 100);
+  }
+};
+
 const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
   console.log('[Host] Initiating WebRTC for viewer:', viewerId);
   _currentViewerId = viewerId;
-  if (_peerConnection) {
-    _peerConnection.close();
-    _peerConnection = null;
-  }
+   console.log('[Host] stage: cleanup-old-pc');
+   if (_peerConnection) {
+     _peerConnection.close();
+     _peerConnection = null;
+   }
+ 
+   console.log('[Host] stage: create-new-pc');
 
   _peerConnection = new RTCPeerConnection({
     iceServers: [
@@ -92,7 +106,7 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           if (sender.track?.kind !== 'video') return;
           const params = sender.getParameters?.();
           if (!params?.encodings?.length) return;
-          params.encodings[0].maxBitrate = 4000 * 1000; // 4 Mbps
+          params.encodings[0].maxBitrate = 3000 * 1000; // Optimized: 3 Mbps for smoother mobile-to-desktop perf
           sender.setParameters?.(params)?.catch?.(() => { });
         });
       } catch { }
@@ -100,8 +114,26 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     }
   };
 
-  // Control DataChannel
-  _controlChannel = _peerConnection.createDataChannel("control");
+   _peerConnection.oniceconnectionstatechange = () => {
+     const state = _peerConnection?.iceConnectionState;
+     console.log('[Host] ICE connection state:', state);
+     
+     if (state === 'connected' || state === 'completed') {
+       // Force a "Nudge Storm" immediately upon connection to clear any black screen
+       // 3 small nudges with 500ms gaps ensure the encoder wakes up even if the first is missed.
+       for (let i = 0; i < 3; i++) {
+         setTimeout(() => {
+           console.log(`[Host] ICE Connected. Nudge Storm ${i + 1}/3...`);
+           _triggerKeyframe(0.505 + (i * 0.001));
+         }, 500 + (i * 800));
+       }
+     }
+   };
+
+
+   console.log('[Host] stage: datachannel-setup');
+   // Control DataChannel
+   _controlChannel = _peerConnection.createDataChannel("control");
   _controlChannel.onopen = () => console.log('[Host] Control DataChannel OPEN');
   _controlChannel.onclose = () => console.log('[Host] Control DataChannel CLOSED');
   _controlChannel.onerror = (err: any) => console.error('[Host] Control DataChannel ERROR:', err);
@@ -165,7 +197,7 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           break;
 
         case 'request-keyframe': {
-          // No-op in Elite Mode: encoder is already fresh
+          _triggerKeyframe();
           break;
         }
 
@@ -177,13 +209,15 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     }
   };
 
-  if (_localStream) {
-    _localStream.getTracks().forEach((track: any) => {
-      _peerConnection?.addTrack(track, _localStream);
-    });
-  }
-
-  const offer = await _peerConnection.createOffer({});
+   console.log('[Host] stage: adding-tracks');
+   if (_localStream) {
+     _localStream.getTracks().forEach((track: any) => {
+       _peerConnection?.addTrack(track, _localStream);
+     });
+   }
+ 
+   console.log('[Host] stage: creating-offer');
+   const offer = await _peerConnection.createOffer({});
 
   // --- SDP Normalization (Force Constrained Baseline for Desktop Compatibility) ---
   let sdpLines = (offer.sdp ?? '').split('\r\n');
@@ -241,6 +275,8 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     sdp: offer.sdp,
   }));
 
+  await new Promise(r => setTimeout(r, 400)); // Small delay to ensure viewer is ready
+
   socket?.send(JSON.stringify({
     type: 'offer',
     sdp: offer.sdp,
@@ -249,21 +285,22 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
   }));
 };
 
-  const _disconnectViewer = () => {
+
+  const _disconnectViewer = async () => {
+    console.log('[Host] Disconnecting viewer (PeerConnection cleanup only)...');
     if (_peerConnection) {
-      _peerConnection.close();
+      try { _peerConnection.close(); } catch {}
       _peerConnection = null;
     }
-    // Elite Mode: Stop all capture tracks to release hardware encoder
-    if (_localStream) {
-      _localStream.getTracks().forEach((t: any) => {
-        try { t.stop(); } catch {}
-      });
-      _localStream = null;
-    }
+    // We intentionally do NOT stop or null _localStream here.
+    // This keeps the hardware encoder active and the MediaProjection token valid,
+    // allowing the next viewer to connect instantly without a "Start now" prompt.
+    
     _pendingViewerId = null;
     _currentViewerId = null;
   };
+
+
 
   export const useHostStore = create<HostState>((set, get) => ({
     isHosting: false,
@@ -377,13 +414,63 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
             switch (data.type) {
               case 'ping': _socket?.send(JSON.stringify({ type: 'pong' })); break;
               case 'viewer-joined':
-                if (_localStream) _initiateWebRTC(data.viewerId, _socket);
-                else {
-                  _pendingViewerId = data.viewerId;
-                  await get().startHosting();
+                console.log(`[Host] Viewer joined: ${data.viewerId}`);
+                if (_isHandlingJoin) {
+                  console.log('[Host] Busy handling another join, skipping...');
+                  return;
+                }
+                
+                 try {
+                   _isHandlingJoin = true;
+                   
+                   // SAFETY WATCHDOG: If join doesn't complete in 15s, release lock anyway.
+                   const joinTimeout = setTimeout(() => {
+                     if (_isHandlingJoin) {
+                       console.warn('[Host] Join watchdog triggered! Releasing lock after 15s hang...');
+                       _isHandlingJoin = false;
+                     }
+                   }, 15000);
+
+                   // Check if we can reuse the existing stream track
+                   const hasActiveStream = _localStream && _localStream.getTracks().some((t: any) => t.readyState === 'live');
+                   
+                   if (hasActiveStream) {
+                     console.log('[Host] Reusing existing stream for reconnection ✓');
+                     // Force-trigger a frame refresh on the system by doing a 1px nudge
+                     if (ConnectX) {
+                       console.log('[Host] Persistence: Nudging stream active...');
+                       ConnectX.dispatchSwipe(0.5, 0.5, 0.505, 0.505, 100);
+                     }
+                     set({ isHosting: true, error: null }); // Ensure UI stays in LIVE state
+                     console.log('[Host] Waiting for signaling cooldown (1000ms)...');
+                     await new Promise(r => setTimeout(r, 1000)); 
+                     await _initiateWebRTC(data.viewerId, _socket);
+                   } else {
+                     console.log('[Host] No active stream or fresh join. Initializing new capture...');
+                     // If there's a stale stream or a new viewer, full reset first
+                     if (_localStream || _peerConnection) {
+                       await _disconnectViewer();
+                       await new Promise(r => setTimeout(r, 1000)); // Increased reset cooldown
+                     }
+                     _pendingViewerId = data.viewerId;
+                     await get().startHosting();
+                   }
+                   clearTimeout(joinTimeout);
+                 } finally {
+                   _isHandlingJoin = false;
+                 }
+
+                break;
+
+
+              case 'viewer-left': 
+                if (data.viewerId === _currentViewerId) {
+                  console.log(`[Host] Active viewer left: ${data.viewerId}. Cleaning up...`);
+                  _disconnectViewer();
+                } else {
+                  console.log(`[Host] Stale viewer left: ${data.viewerId}. Ignoring.`);
                 }
                 break;
-              case 'viewer-left': _disconnectViewer(); break;
               case 'answer':
                 if (_peerConnection) await _peerConnection.setRemoteDescription(new RTCSessionDescription({ sdp: data.sdp, type: 'answer' }));
                 break;
@@ -414,7 +501,12 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
     },
 
     startHosting: async () => {
-      if (get().isHosting) return;
+      if (get().isHosting || _isStartingHosting) {
+        console.log('[Host] Hosting already active or starting. Ignoring request.');
+        return;
+      }
+      
+      _isStartingHosting = true;
       set({ error: null });
 
       try {
@@ -423,6 +515,7 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
 
         // Check Accessibility
         if (!get().isAccessibilityEnabled) {
+          _isStartingHosting = false; // Release lock before showing alert
           return new Promise((resolve) => {
             Alert.alert(
               'Remote Control Required',
@@ -449,31 +542,38 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
       } catch (e) {
         console.error('[Host] startHosting failed', e);
         set({ error: 'Failed to start hosting.', isHosting: false });
+      } finally {
+        _isStartingHosting = false;
       }
     },
 
+
     stopHosting: async () => {
+      console.log('[Host] Stopping host session...');
       // Notify the current viewer so the desktop updates immediately
       if (_socket && _socket.readyState === WebSocket.OPEN && _currentViewerId) {
         try {
           _socket.send(JSON.stringify({ type: 'host-stopped', targetId: _currentViewerId }));
         } catch { }
       }
-      // Fully shutdown WebRTC and Capture to ensure fresh state for next session
+      
       set({ isHosting: false });
-      if (_peerConnection) {
-        _peerConnection.close();
-        _peerConnection = null;
-        _pendingViewerId = null;
-        _currentViewerId = null;
-      }
+      await _disconnectViewer();
+      
+      // Stop the stream since we are stopping the host entirely
       if (_localStream) {
         _localStream.getTracks().forEach((t: any) => {
-          try { t.stop(); } catch {}
+           try { t.stop(); } catch {}
         });
         _localStream = null;
       }
+      const { ConnectXModule } = NativeModules;
+      if (ConnectXModule) {
+         try { ConnectXModule.stopProjectionService(); } catch {}
+      }
     },
+
+
 
     disconnect: () => {
       // Full shutdown: stop stream, signaling, and WebRTC.
@@ -553,34 +653,111 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
 
   // Separate helper to avoid zustand issues
   const proceedWithHostingActual = async (set: any, get: any) => {
-    // Always request a fresh stream in Elite Mode (Accessibility auto-approves)
-    if (Platform.OS === 'android') {
-      try { ConnectX.startProjectionService(); } catch (e) {}
-      console.log('[Host] Delaying capture for token stability...');
-      await new Promise(r => setTimeout(r, 800));
+    if (_isProceeding) {
+      console.warn('[Host] already proceeding with capture. Ignoring.');
+      return;
     }
+    _isProceeding = true;
     
-    _localStream = await (mediaDevices as any).getDisplayMedia({
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 },
-      },
-    });
+    try {
+      // Always request a fresh service start in Elite Mode
+      if (Platform.OS === 'android') {
+        const ConnectX = NativeModules.ConnectXModule;
+        if (ConnectX) {
+          console.log('[Host] Resetting Projection Service...');
+          await ConnectX.startProjectionService();
+          
+          // Wait for service to be confirmed as RUNNING (with defensive check for stale builds)
+          let running = false;
+          if (typeof ConnectX.isProjectionServiceRunning === 'function') {
+            for (let i = 0; i < 10; i++) {
+              running = await ConnectX.isProjectionServiceRunning();
+              if (running) break;
+              await new Promise(r => setTimeout(r, 200));
+            }
+          } else {
+            console.warn('[Host] Native method isProjectionServiceRunning missing. Stale build? Falling back.');
+            await new Promise(r => setTimeout(r, 800));
+            running = true; 
+          }
+          if (!running) console.warn('[Host] Service failed to report RUNNING state after 2s');
 
-    const videoTrack = _localStream?.getVideoTracks?.()[0];
-    if (videoTrack) {
+          
+          console.log('[Host] Delaying capture for token stability...');
+          await new Promise(r => setTimeout(r, 1200)); // Increased for stability
+        }
+      }
+      
+      // Safety check: stop any existing tracks to avoid "operation pending" errors
+      if (_localStream) {
+        console.log('[Host] Cleaning up stale stream tracks...');
+        _localStream.getTracks().forEach((track: any) => {
+          try { track.stop(); } catch {}
+        });
+        _localStream = null;
+      }
+
+      console.log('[Host] Launching getDisplayMedia...');
+      _localStream = await (mediaDevices as any).getDisplayMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+      });
+
+      if (!_localStream) throw new Error('Local stream not acquired');
+
+      _localStream.getTracks().forEach((track: any) => {
+        console.log(`[Host] Track [${track.kind}] state: ${track.readyState}`);
+        track.onended = () => {
+          console.warn(`[Host] CRITICAL: Track [${track.kind}] ended unexpectedly! (Android cleanup or user revoked)`);
+          // Notify the UI if we were active
+          if (get().isHosting) {
+            get().stopHosting();
+          }
+        };
+      });
+
+      const videoTrack = _localStream?.getVideoTracks?.()[0];
+      if (!videoTrack) throw new Error('No video track found in stream');
       (videoTrack as any).contentHint = 'detail';
+
+      // If we had a viewer waiting, initiate connection
+      if (_pendingViewerId) {
+        console.log('[Host] Triggering delayed WebRTC for pending viewer:', _pendingViewerId);
+        await new Promise(r => setTimeout(r, 500));
+        await _initiateWebRTC(_pendingViewerId, _socket);
+        _pendingViewerId = null;
+      }
+
+      set({ isHosting: true, error: null });
+      console.log('[Host] Hosting lifecycle established ✓');
+
+      // --- Auto-Initialize Stream (The "Nudge") ---
+      // Force a microscopic UI change via Accessibility Service to ensure MediaProjection 
+      // emits the first frame without requiring physical user interaction on the phone.
+      if (ConnectX) {
+        setTimeout(() => {
+          console.log('[Host] Performing microscopic nudge to auto-start stream...');
+          ConnectX.dispatchSwipe(0.5, 0.5, 0.505, 0.505, 100);
+        }, 800);
+      }
+    } catch (e: any) {
+      console.error('[Host] proceedWithHosting failed:', e.message);
+      _isProceeding = false;
+      throw e;
+    } finally {
+      _isProceeding = false;
     }
 
     // ── Accessibility Service Runtime Guard ──────────────────────────────────
     // Android reconnects the Accessibility Service asynchronously after app
     // restart. Poll for up to 5s before warning the user.
-    const { ConnectXModule } = NativeModules;
-    if (ConnectXModule?.isAccessibilityServiceConnected) {
+    if (ConnectX?.isAccessibilityServiceConnected) {
       let svcConnected = false;
       for (let attempt = 0; attempt < 10; attempt++) {
-        svcConnected = await ConnectXModule.isAccessibilityServiceConnected();
+        svcConnected = await ConnectX.isAccessibilityServiceConnected();
         if (svcConnected) break;
         console.warn(`[Host] Accessibility Service instance not ready yet (attempt ${attempt + 1}/10). Retrying...`);
         await new Promise(r => setTimeout(r, 500));
@@ -592,7 +769,7 @@ const _initiateWebRTC = async (viewerId: string, socket: WebSocket | null) => {
           'Remote Control Unavailable',
           'The Accessibility Service is not active. Please go to Settings → Accessibility → Connect-X and toggle it OFF then ON again.',
           [
-            { text: 'Open Settings', onPress: () => ConnectXModule.openAccessibilitySettings() },
+            { text: 'Open Settings', onPress: () => ConnectX.openAccessibilitySettings() },
             { text: 'Continue Anyway', style: 'cancel' },
           ]
         );
