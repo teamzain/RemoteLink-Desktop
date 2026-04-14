@@ -1141,6 +1141,28 @@ export default function App() {
         if ((window as any).electronAPI?.isPackaged) {
             (window as any).electronAPI.isPackaged().then(setIsPackaged);
         }
+
+        // Listen for Google OAuth callback tokens from main process
+        if ((window as any).electronAPI?.onAuthDeepLinkSuccess) {
+            const cleanup = (window as any).electronAPI.onAuthDeepLinkSuccess(async (data: { accessToken: string, refreshToken: string }) => {
+                console.log('[Auth] Received tokens via deep link, finalizing login...');
+                
+                // Fetch user data manually to sync with tokens
+                try {
+                    // Temporarily set tokens in store so api.get('/me') works
+                    await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', avatar: null }, data.accessToken, data.refreshToken);
+                    
+                    // The checkAuth() call inside useAuthStore will refresh the user profile properly
+                    await checkAuth();
+                    
+                    setShowSplash(true);
+                    setTimeout(() => setShowSplash(false), 2000);
+                } catch (err) {
+                    console.error('[Auth] Failed to sync user after deep link:', err);
+                }
+            });
+            return () => { if (cleanup) cleanup(); };
+        }
     }, []);
 
 

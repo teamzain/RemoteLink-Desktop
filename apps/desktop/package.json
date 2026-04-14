@@ -1,5 +1,6 @@
 {
-  "name": "@connect-x/desktop",
+  "name": "connect-x",
+  "productName": "Connect-X",
   "version": "1.0.0",
   "private": true,
   "main": "dist-electron/main/index.js",

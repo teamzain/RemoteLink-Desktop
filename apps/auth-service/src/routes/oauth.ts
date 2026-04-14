@@ -139,7 +139,90 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       // Redirect back to the client
       if (platform === 'desktop' || platform === 'mobile') {
         const deepLink = `remotelink://auth/callback?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`;
-        return reply.redirect(deepLink);
+        
+        // Return a professional landing page instead of a raw redirect
+        return reply.type('text/html').send(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Login Successful | Connect-X</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <style>
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                  background-color: #060608;
+                  color: #fff;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  height: 100vh;
+                  margin: 0;
+                  text-align: center;
+                }
+                .container {
+                  max-width: 400px;
+                  padding: 40px;
+                  background: rgba(255,255,255,0.03);
+                  border-radius: 24px;
+                  border: 1px solid rgba(255,255,255,0.1);
+                  backdrop-filter: blur(10px);
+                }
+                .icon {
+                  width: 64px;
+                  height: 64px;
+                  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                  border-radius: 20px;
+                  margin-bottom: 24px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
+                }
+                h1 { margin: 0 0 12px 0; font-size: 24px; font-weight: 600; }
+                p { color: rgba(255,255,255,0.6); margin: 0 0 32px 0; line-height: 1.5; }
+                .button {
+                  display: inline-block;
+                  padding: 14px 28px;
+                  background-color: #fff;
+                  color: #000;
+                  text-decoration: none;
+                  border-radius: 12px;
+                  font-weight: 600;
+                  transition: transform 0.2s, opacity 0.2s;
+                }
+                .button:active { transform: scale(0.95); }
+                .loader {
+                  margin-top: 24px;
+                  width: 20px;
+                  height: 20px;
+                  border: 2px solid rgba(255,255,255,0.1);
+                  border-top-color: #fff;
+                  border-radius: 50%;
+                  animation: spin 1s linear infinite;
+                }
+                @keyframes spin { to { transform: rotate(360deg); } }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <center><div class="icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                </div></center>
+                <h1>Authentication Successful</h1>
+                <p>Welcome back! We're redirecting you to the Connect-X app now.</p>
+                <a href="${deepLink}" class="button">Open Connect-X</a>
+                <center><div class="loader"></div></center>
+              </div>
+              <script>
+                // Auto-trigger deep link after a small delay
+                setTimeout(() => {
+                  window.location.href = "${deepLink}";
+                }, 1000);
+              </script>
+            </body>
+          </html>
+        `);
       }
 
       // Web fallback

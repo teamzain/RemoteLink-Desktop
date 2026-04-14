@@ -1,6 +1,6 @@
 import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
 import log from 'electron-log';
-import { join, basename } from 'path';
+import { join, basename, resolve } from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import { WebSocket } from 'ws';
@@ -129,6 +129,7 @@ ipcMain.handle('system:log', (_event, msg, level) => {
 ipcMain.handle('auth:getToken', () => getAuthTokens());
 ipcMain.handle('auth:setToken', (_event, t, r) => setAuthTokens(t, r));
 ipcMain.handle('auth:deleteToken', () => fs.unlink(AUTH_STORE_PATH).then(() => true).catch(() => false));
+ipcMain.handle('shell:openExternal', (_event, url) => shell.openExternal(url));
 ipcMain.handle('host:getStatus', async () => {
   if (hostSignalingWs && hostSignalingWs.readyState === 1) return { status: 'status', sessionId: currentHostSessionId };
   return { status: 'idle' };
@@ -215,10 +216,6 @@ ipcMain.on('viewer:send-signaling', (_event, msg) => {
     ws.send(JSON.stringify(msg));
   }
 });
-
-ipcMain.handle('shell:openExternal', (_event, url) => shell.openExternal(url));
-
-
 // --- Utility Functions ---
 const getFFmpegPath = () => {
     if (app.isPackaged) return join(process.resourcesPath, 'ffmpeg.exe');
@@ -1023,7 +1020,13 @@ app.on('open-url', (event, url) => {
 });
 
 // Register custom protocol & single-instance lock (Windows / Linux deep links)
-app.setAsDefaultProtocolClient(PROTOCOL);
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
