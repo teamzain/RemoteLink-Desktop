@@ -403,7 +403,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
 
     if (!invitation || invitation.expiresAt < new Date()) {
-      return reply.type('text/html').send(`
+      return reply.type('text/html; charset=utf-8').send(`
         <!DOCTYPE html>
         <html>
           <head><title>Invalid Invitation | Connect-X</title><style>body{background:#060608;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}</style></head>
@@ -412,9 +412,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       `);
     }
 
-    const deepLink = `remotelink://onboard?token=${token}`;
-
-    return reply.type('text/html').send(`
+    return reply.type('text/html; charset=utf-8').send(`
       <!DOCTYPE html>
       <html>
         <head>
