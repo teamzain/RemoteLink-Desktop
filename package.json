@@ -13,7 +13,8 @@
     "rebuild:native": "npm run install --workspaces --if-present",
     "mobile": "npm run start -w mobile",
     "mobile:android": "npm run android -w mobile",
-    "desktop": "npm run dev -w connect-x"
+    "desktop": "npm run dev -w connect-x",
+    "db:generate": "npm run db:generate -w @remotelink/shared"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
