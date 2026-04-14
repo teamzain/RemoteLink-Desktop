@@ -107,30 +107,65 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: 'Could not retrieve email from Google account' });
       }
 
-      // Upsert user in our database
+      // Search for user or create one
       let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
 
       if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email: googleUser.email,
-            name:  googleUser.name || googleUser.email.split('@')[0],
-            // No password — social auth user
-          },
+        // SaaS ONBOARDING: Create Org + User as SUB_ADMIN
+        const result = await prisma.$transaction(async (tx: any) => {
+          const orgSlug = googleUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 5);
+          const org = await tx.organization.create({
+            data: {
+              name: googleUser.name ? `${googleUser.name}'s Workspace` : `${googleUser.email.split('@')[0]}'s Workspace`,
+              slug: orgSlug
+            }
+          });
+
+          return await tx.user.create({
+            data: {
+              email: googleUser.email,
+              name: googleUser.name || googleUser.email.split('@')[0],
+              role: 'SUB_ADMIN',
+              organizationId: org.id
+            }
+          });
         });
 
-        // Create free subscription for new user
+        user = result;
+
+        // Create initial subscription
         try {
           await prisma.subscription.create({
-            data: { userId: user.id, plan: 'FREE' },
+            data: { userId: user!.id, plan: 'FREE' },
           });
         } catch {}
-      } else if (!user.name && googleUser.name) {
-        // Backfill name if missing
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data:  { name: googleUser.name },
-        });
+      } else {
+        // If user already exists but doesn't have an Org (legacy fix), promote them
+        if (!user.organizationId) {
+          user = await prisma.$transaction(async (tx: any) => {
+            const orgSlug = user!.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 5);
+            const org = await tx.organization.create({
+              data: {
+                name: user!.name ? `${user!.name}'s Workspace` : `${user!.email.split('@')[0]}'s Workspace`,
+                slug: orgSlug
+              }
+            });
+
+            return await tx.user.update({
+              where: { id: user!.id },
+              data: { 
+                role: 'SUB_ADMIN',
+                organizationId: org.id
+              }
+            });
+          });
+        } else if (!user.name && googleUser.name) {
+          // Normal name backfill
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data:  { name: googleUser.name },
+          });
+        }
       }
 
       // Issue our own JWT tokens
