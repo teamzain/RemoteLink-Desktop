@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 REPO_URL="https://github.com/teamzain/RemoteLink-Desktop.git"
-INSTALL_DIR="~/RemoteLink-Desktop"
+INSTALL_DIR="$HOME/RemoteLink-Desktop"
 
 echo "🚀 Starting Deployment for RemoteLink Backend..."
 
@@ -23,7 +23,12 @@ cd "$INSTALL_DIR"
 
 # 3. Apply environment variables
 echo "⚙️ Setting up environment variables..."
-mv ~/.env.production .env
+if [ -f "$HOME/.env.production" ]; then
+    cp "$HOME/.env.production" .env
+else
+    echo "❌ Error: $HOME/.env.production not found! Please create it first."
+    exit 1
+fi
 
 # 4. Check for Docker/Docker Compose
 if ! command -v docker &> /dev/null; then
