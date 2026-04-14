@@ -39,6 +39,9 @@ services:
       TURN_USER: ${TURN_USER}
       TURN_PASSWORD: ${TURN_PASSWORD}
       SERVER_IP: ${SERVER_IP}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL}
     depends_on:
       postgres:
         condition: service_healthy
