@@ -74,7 +74,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
           <img src={logo} alt="Sync" className="w-8 h-8 object-contain" />
         </div>
         <div className="flex flex-col">
-          <span className="text-lg font-bold text-[#1C1C1C] leading-none tracking-tighter">SyncLink</span>
+          <span className="text-lg font-bold text-[#1C1C1C] leading-none tracking-tighter">Connect-X</span>
         </div>
       </div>
 

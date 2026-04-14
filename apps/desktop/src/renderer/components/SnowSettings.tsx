@@ -19,7 +19,7 @@ interface SnowSettingsProps {
   serverIP: string;
   isAutoHostEnabled: boolean;
   setIsAutoHostEnabled: (val: boolean) => void;
-  onRenameNode: () => void;
+  onRenameDevice: () => void;
 }
 
 type Quality = 'auto' | 'high' | 'medium' | 'low';
@@ -28,7 +28,7 @@ export const SnowSettings: React.FC<SnowSettingsProps> = ({
   serverIP,
   isAutoHostEnabled,
   setIsAutoHostEnabled,
-  onRenameNode
+  onRenameDevice
 }) => {
   const [quality, setQuality] = useState<Quality>(
     (localStorage.getItem('stream_quality') as Quality) || 'auto'
@@ -98,11 +98,11 @@ export const SnowSettings: React.FC<SnowSettingsProps> = ({
 
           <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
             <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">Node Identifier</span>
+              <span className="font-bold text-sm text-[#1C1C1C]">Device Identifier</span>
               <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Custom display name for this machine on your device map</span>
             </div>
             <button
-              onClick={onRenameNode}
+              onClick={onRenameDevice}
               className="flex items-center gap-2 px-4 py-2 font-bold text-[11px] uppercase tracking-widest bg-white border border-[rgba(28,28,28,0.08)] hover:border-[rgba(28,28,28,0.3)] text-[#1C1C1C] rounded-xl transition-all shadow-sm"
             >
               <Tag size={12} /> Modify
@@ -152,7 +152,7 @@ export const SnowSettings: React.FC<SnowSettingsProps> = ({
           <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
             <div className="flex flex-col">
               <span className="font-bold text-sm text-[#1C1C1C]">New Session Alert</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Notify when a viewer connects to this node</span>
+              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Notify when a viewer connects to this device</span>
             </div>
             <Toggle checked={notifyNewSession} onChange={setNotifyNewSession} />
           </div>

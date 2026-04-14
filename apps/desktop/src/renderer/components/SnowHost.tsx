@@ -24,6 +24,8 @@ interface SnowHostProps {
   openPasswordModal: () => void;
   bandwidth: string;
   activeUsers: number;
+  isRegistered?: boolean;
+  onRegister?: () => void;
 }
 
 export const SnowHost: React.FC<SnowHostProps> = ({ 
@@ -36,10 +38,50 @@ export const SnowHost: React.FC<SnowHostProps> = ({
   copyAccessKey,
   openPasswordModal,
   bandwidth,
-  activeUsers
+  activeUsers,
+  isRegistered = true,
+  onRegister
 }) => {
   const isOnline = status === 'status' || status === 'connecting';
   const isConnecting = status === 'connecting';
+
+  if (!isRegistered) {
+    return (
+      <div className="max-w-4xl mx-auto min-h-[60vh] flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-700 font-inter">
+        <div className="w-24 h-24 rounded-[32px] bg-[rgba(28,28,28,0.04)] border border-[rgba(28,28,28,0.06)] flex items-center justify-center mb-8 relative group">
+          <Globe size={40} className="text-[rgba(28,28,28,0.2)] group-hover:text-[#1C1C1C] transition-colors duration-500" />
+          <div className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full border border-[rgba(28,28,28,0.06)] flex items-center justify-center shadow-sm">
+             <Shield size={12} className="text-orange-400" />
+          </div>
+        </div>
+
+        <h2 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-4 uppercase text-center">Identity Not Initialized</h2>
+        <p className="text-sm text-[rgba(28,28,28,0.4)] font-medium text-center max-w-md mb-12 leading-relaxed">
+          This device is currently used solely for viewing. To allow other devices to control or view this machine, you must initialize its secure network identity.
+        </p>
+
+        <div className="flex flex-col items-center gap-6 w-full max-w-sm">
+           <button 
+             onClick={onRegister}
+             className="w-full h-14 bg-[#1C1C1C] text-white rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:opacity-90 transition-all shadow-xl shadow-black/10 flex items-center justify-center gap-3 group"
+           >
+             <Zap size={16} className="group-hover:scale-110 transition-transform" fill="currentColor" />
+             Initialize This Node
+           </button>
+           
+           <div className="flex items-center gap-6 pt-4 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
+              <div className="flex items-center gap-2">
+                 <Lock size={12} /> Encrypted
+              </div>
+              <div className="w-1 h-1 rounded-full bg-[rgba(28,28,28,0.1)]" />
+              <div className="flex items-center gap-2">
+                 <Shield size={12} /> Secure Link
+              </div>
+           </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">

@@ -58,6 +58,7 @@ let captureInterval: NodeJS.Timeout | null = null;
 let cursorInterval: NodeJS.Timeout | null = null;
 let hostHeartbeatInterval: NodeJS.Timeout | null = null;
 let isReconnectScheduled = false;
+let isManualHostStop = false;
 let iceCandidatesQueue: any[] = [];
 let hasRemoteDescription = false;
 let fileTransfers = new Map<string, { chunks: (Buffer | null)[], received: number, total: number }>();
@@ -141,11 +142,17 @@ ipcMain.handle('host:start', async (_, accessKey) => {
   // Ensure encoder is detected before starting host signaling
   if (!encoderDetected) await detectBestEncoder();
   
+  isManualHostStop = false;
   connectHostSignaling(serverIP, token || '', accessKey || '');
   return true;
 
 });
-ipcMain.handle('host:stop', () => { cleanUpWebRTC(); hostSignalingWs?.close(); return true; });
+ipcMain.handle('host:stop', () => { 
+  isManualHostStop = true;
+  cleanUpWebRTC(); 
+  hostSignalingWs?.close(); 
+  return true; 
+});
 
 ipcMain.handle('host:get-screens', () => {
   const displays = screen.getAllDisplays();
@@ -973,12 +980,12 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
     if (hostHeartbeatInterval) { clearInterval(hostHeartbeatInterval); hostHeartbeatInterval = null; }
     
     // Automatic reconnection logic
-    if (!isReconnectScheduled) {
+    if (!isReconnectScheduled && !isManualHostStop) {
       isReconnectScheduled = true;
       log.info('[Host] Scheduling reconnection in 5 seconds...');
       setTimeout(() => {
         isReconnectScheduled = false; // Allow new schedules if this one fails
-        if (!hostSignalingWs || hostSignalingWs.readyState !== WebSocket.OPEN) {
+        if (!isManualHostStop && (!hostSignalingWs || hostSignalingWs.readyState !== WebSocket.OPEN)) {
           log.info('[Host] Retrying connection...');
           connectHostSignaling(serverIP, token, accessKey);
         }
@@ -1229,6 +1236,7 @@ ipcMain.on('host:send-file', async () => {
 });
 
 // Stats emitter
+let lastCpuStats = os.cpus();
 function startStatsMonitoring() {
   if (statsInterval) clearInterval(statsInterval);
   let prevBytes = 0;
@@ -1240,13 +1248,32 @@ function startStatsMonitoring() {
     const bps = currentBytes - prevBytes;
     prevBytes = currentBytes;
     
-    // Mbps calculation
     const mbps = (bps * 8) / (1024 * 1024);
     const activePeers = (peerConnection && peerConnection.state() === 'connected') ? 1 : 0;
     
+    // CPU Load
+    const currentCpuStats = os.cpus();
+    let totalDelta = 0;
+    let idleDelta = 0;
+    for (let i = 0; i < currentCpuStats.length; i++) {
+        const prev = lastCpuStats[i].times;
+        const curr = currentCpuStats[i].times;
+        totalDelta += (curr.user + curr.nice + curr.sys + curr.idle + curr.irq) - (prev.user + prev.nice + prev.sys + prev.idle + prev.irq);
+        idleDelta += curr.idle - prev.idle;
+    }
+    const cpuLoad = totalDelta === 0 ? 0 : (1 - idleDelta / totalDelta) * 100;
+    lastCpuStats = currentCpuStats;
+
+    // Memory usage
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const memUsage = ((totalMem - freeMem) / totalMem) * 100;
+
     mainWindow.webContents.send('host:stats', { 
       bandwidth: mbps.toFixed(2), 
-      activeUsers: activePeers 
+      activeUsers: activePeers,
+      cpu: cpuLoad.toFixed(1),
+      memory: memUsage.toFixed(1)
     });
   }, 1000);
 }

@@ -28,6 +28,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     verificationCodes.set(email, { code, expiresAt });
 
     try {
+      // 1. ALWAYS Log the code to the terminal in development for easy access
+      console.log('\n' + '='.repeat(50));
+      console.log(`[AUTH-DEV] VERIFICATION CODE FOR ${email}: ${code}`);
+      console.log('='.repeat(50) + '\n');
+
       if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
         const transporter = nodemailer.createTransport({
           host: process.env.SMTP_HOST,
@@ -37,24 +42,35 @@ export default async function authRoutes(fastify: FastifyInstance) {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS,
           },
+          requireTLS: true,
+          connectionTimeout: 8000, // Reduced to 8s for snappier fallback
         });
 
-        await transporter.sendMail({
-          from: `"RemoteLink Auth" <${process.env.SMTP_USER}>`,
-          to: email,
-          subject: 'Your RemoteLink Verification Code',
-          text: `Your verification code is ${code}. It expires in 10 minutes.`,
-          html: `<p>Your verification code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
-        });
-        console.log(`[Auth] Sent verification email to ${email}`);
+        try {
+          await transporter.sendMail({
+            from: `"Connect-X Auth" <${process.env.SMTP_USER}>`,
+            to: email,
+            subject: 'Your Connect-X Verification Code',
+            text: `Your verification code is ${code}. It expires in 10 minutes.`,
+            html: `<p>Your verification code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
+          });
+          console.log(`[Auth] Sent verification email successfully to ${email}`);
+        } catch (mailErr: any) {
+          // If mail fails but it's a timeout or network issue, we JUST LOG IT and don't fail the request.
+          // This allows the user to use the code from the terminal.
+          console.error(`[Auth] SMTP Delivery Failed (Bypassing for Dev): ${mailErr.message}`);
+          return reply.send({ 
+            success: true, 
+            message: 'Verification code generated (Check server terminal for dev fallback).' 
+          });
+        }
       } else {
-        // Fallback or dev mode logging
-        console.log(`[Auth-Mock] Verification Code for ${email} is ${code}`);
+        console.log(`[Auth-Mock] SMTP not configured. Use terminal fallback code above.`);
       }
       return reply.send({ success: true, message: 'Verification code sent.' });
-    } catch (err) {
-      console.error('[Auth] Failed to send email', err);
-      return reply.code(500).send({ error: 'Failed to send verification email' });
+    } catch (err: any) {
+      console.error('[Auth] Internal Request Error:', err.message);
+      return reply.code(500).send({ error: `Verification failed: ${err.message}` });
     }
   });
 

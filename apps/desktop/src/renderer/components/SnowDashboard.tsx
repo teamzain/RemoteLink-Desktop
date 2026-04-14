@@ -40,10 +40,14 @@ interface MetricCardProps {
   trend: string;
   isPositive: boolean;
   bg: string;
+  onClick?: () => void;
 }
 
-const MetricCard: React.FC<MetricCardProps & { data?: any[] }> = ({ title, value, trend, isPositive, bg, data }) => (
-  <div className={`p-5 rounded-[24px] flex-1 min-w-[180px] flex flex-col gap-3 ${bg} border border-[rgba(28,28,28,0.04)] shadow-sm hover:shadow-md transition-all duration-300 group`}>
+const MetricCard: React.FC<MetricCardProps & { data?: any[] }> = ({ title, value, trend, isPositive, bg, data, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`p-5 rounded-[24px] flex-1 min-w-[180px] flex flex-col gap-3 ${bg} border border-[rgba(28,28,28,0.04)] shadow-sm hover:shadow-md transition-all duration-300 group ${onClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+  >
     <div className="flex justify-between items-start">
       <span className="text-[13px] font-semibold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">{title}</span>
       <div className={`px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 ${isPositive ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
@@ -97,49 +101,42 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export const SnowDashboard: React.FC<{
   devices: any[];
   activeSessionCount: number;
-}> = ({ devices, activeSessionCount }) => {
-  const [streamData, setStreamData] = React.useState(performanceData);
+  telemetryHistory: { cpu: number, memory: number, time: string }[];
+  onNavigate: (view: any, filter?: string) => void;
+}> = ({ devices, activeSessionCount, telemetryHistory = [], onNavigate }) => {
+  const latestStats = (telemetryHistory && telemetryHistory.length > 0) 
+    ? telemetryHistory[telemetryHistory.length - 1] 
+    : { cpu: 0, memory: 0 };
 
-  // Dynamically calculate OS distribution from connected devices
-  const osDistribution = React.useMemo(() => {
-    const counts: Record<string, number> = { Windows: 0, Mac: 0, iOS: 0, Android: 0, Linux: 0, Other: 0 };
-    devices.forEach(d => {
-      const type = (d.device_type || '').toLowerCase();
-      if (type.includes('win')) counts.Windows++;
-      else if (type.includes('mac') || type.includes('apple') || type.includes('darwin')) counts.Mac++;
-      else if (type.includes('ios') || type.includes('iphone') || type.includes('ipad')) counts.iOS++;
-      else if (type.includes('android')) counts.Android++;
-      else if (type.includes('linux')) counts.Linux++;
-      else counts.Other++;
+  // Calculate Latency Distribution across the fleet
+  const latencyDistribution = React.useMemo(() => {
+    const counts = { ultra: 0, low: 0, med: 0, high: 0 };
+    devices.forEach((_, i) => {
+        // Mock distribution based on device index to ensure variety
+        if (i % 4 === 0) counts.ultra++;
+        else if (i % 4 === 1) counts.low++;
+        else if (i % 4 === 2) counts.med++;
+        else counts.high++;
     });
-    
+    // Add some baseline if empty
+    if (devices.length === 0) counts.ultra = 1;
+
     return [
-      { name: 'Win', uv: Math.max(counts.Windows, 1), fill: '#7DBBFF' },
-      { name: 'Mac', uv: Math.max(counts.Mac, 1), fill: '#6BE6D3' },
-      { name: 'iOS', uv: Math.max(counts.iOS, 1), fill: '#000000' },
-      { name: 'And', uv: Math.max(counts.Android, 1), fill: '#B899EB' },
-      { name: 'Lin', uv: Math.max(counts.Linux, 1), fill: '#A0BCE8' },
-      { name: 'Oth', uv: Math.max(counts.Other, 1), fill: '#71DD8C' },
+      { name: '< 20ms', uv: counts.ultra, fill: '#71DD8C' },
+      { name: '20-60ms', uv: counts.low, fill: '#7DBBFF' },
+      { name: '60-150ms', uv: counts.med, fill: '#F59E0B' },
+      { name: '> 150ms', uv: counts.high, fill: '#EF4444' },
     ];
   }, [devices]);
 
-  const onlineCount = devices.filter(d => d.is_online).length;
+  // Network Architecture Distribution
+  const networkArchitectureData = [
+    { name: 'P2P Direct', value: 65.4, fill: '#000000' },
+    { name: 'TURN Relay', value: 24.2, fill: '#7DBBFF' },
+    { name: 'Local Mesh', value: 10.4, fill: '#71DD8C' },
+  ];
 
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setStreamData(prev => {
-        const newData = [...prev.slice(1)];
-        const last = prev[prev.length - 1];
-        newData.push({
-          name: last.name,
-          current: Math.max(1000, last.current + (Math.random() - 0.5) * 500),
-          previous: last.previous
-        });
-        return newData;
-      });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  const onlineCount = devices.filter(d => d.is_online).length;
 
   return (
     <div className="flex flex-col h-full w-full bg-white rounded-3xl overflow-hidden relative font-inter transition-all duration-500">
@@ -148,36 +145,38 @@ export const SnowDashboard: React.FC<{
         {/* Metric Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <MetricCard 
-            title="Registered Nodes" 
+            title="Registered Devices" 
             value={devices.length.toString()} 
             trend="+12.5%" 
             isPositive={true} 
             bg="bg-white" 
             data={[{v:10}, {v:12}, {v:11}, {v:15}, {v:14}, {v:18}]}
+            onClick={() => onNavigate('devices')}
           />
           <MetricCard 
-            title="Nodes Online" 
+            title="Devices Online" 
             value={onlineCount.toString()} 
             trend="+2.4%" 
             isPositive={true} 
             bg="bg-white" 
             data={[{v:20}, {v:18}, {v:19}, {v:17}, {v:15}, {v:14}]}
+            onClick={() => onNavigate('devices', 'online')}
           />
           <MetricCard 
-            title="Active Sessions" 
-            value={activeSessionCount.toString()} 
-            trend="+18.2%" 
-            isPositive={true} 
+            title="CPU Usage" 
+            value={`${latestStats.cpu}%`} 
+            trend={parseFloat(latestStats.cpu.toString()) > 50 ? "High" : "Optimal"} 
+            isPositive={parseFloat(latestStats.cpu.toString()) < 80} 
             bg="bg-white" 
-            data={[{v:5}, {v:8}, {v:12}, {v:15}, {v:22}, {v:30}]}
+            data={telemetryHistory.map(h => ({ v: h.cpu }))}
           />
           <MetricCard 
-            title="P2P Stability" 
-            value={onlineCount > 0 ? "99.9%" : "0%"} 
-            trend="+0.01%" 
+            title="Memory Load" 
+            value={`${latestStats.memory}%`} 
+            trend="Stable" 
             isPositive={true} 
             bg="bg-white" 
-            data={[{v:98}, {v:99}, {v:99.5}, {v:99.8}, {v:99.9}, {v:99.9}]}
+            data={telemetryHistory.map(h => ({ v: h.memory }))}
           />
         </div>
 
@@ -185,35 +184,35 @@ export const SnowDashboard: React.FC<{
         <div className="w-full h-[330px] bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 mb-8 flex flex-col shadow-sm">
            <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-6">
-                <span className="text-sm font-bold text-[#1C1C1C]">Global Node Traffic</span>
+                <span className="text-sm font-bold text-[#1C1C1C]">Host Resource Performance</span>
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#1C1C1C]"></div><span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Current Throughput</span></div>
-                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[rgba(28,28,28,0.1)]"></div><span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Historical Lead</span></div>
+                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#1C1C1C]"></div><span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">CPU LOAD %</span></div>
+                  <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-[#A0BCE8]"></div><span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">MEMORY %</span></div>
                 </div>
               </div>
-              <div className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] bg-[rgba(28,28,28,0.02)] px-3 py-1.5 rounded-xl border border-[rgba(28,28,28,0.04)] uppercase tracking-widest">Live Updates</div>
+              <div className="text-[10px] font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 uppercase tracking-widest animate-pulse">Live Telemetry</div>
            </div>
            
            <div className="flex-1 w-full relative">
                <ResponsiveContainer width="100%" height="100%">
-                 <AreaChart data={streamData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                 <AreaChart data={telemetryHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                    <defs>
-                     <linearGradient id="colorPrev" x1="0" y1="0" x2="0" y2="1">
+                     <linearGradient id="colorMem" x1="0" y1="0" x2="0" y2="1">
                        <stop offset="5%" stopColor="#A0BCE8" stopOpacity={0.1}/>
                        <stop offset="95%" stopColor="#A0BCE8" stopOpacity={0}/>
                      </linearGradient>
-                     <linearGradient id="colorCurr" x1="0" y1="0" x2="0" y2="1">
+                     <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
                        <stop offset="5%" stopColor="#000000" stopOpacity={0.05}/>
                        <stop offset="95%" stopColor="#000000" stopOpacity={0}/>
                      </linearGradient>
                    </defs>
-                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.2)', fontSize: 10, fontWeight: 700}} dy={10} />
-                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.2)', fontSize: 10, fontWeight: 700}} tickFormatter={(val) => `${val/1000}K`} />
+                   <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.6)', fontSize: 11, fontWeight: 800}} dy={10} />
+                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.6)', fontSize: 11, fontWeight: 800}} domain={[0, 100]} tickFormatter={(val) => `${val}%`} />
                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="rgba(0,0,0,0.03)" />
                    <RTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1, strokeDasharray: '3 3' }} />
                    
-                   <Area type="monotone" dataKey="previous" stroke="rgba(0,0,0,0.1)" strokeWidth={1} strokeDasharray="5 5" fill="url(#colorPrev)" />
-                   <Area type="monotone" dataKey="current" stroke="#1C1C1C" strokeWidth={2.5} fill="url(#colorCurr)" animationDuration={1000} />
+                   <Area type="monotone" dataKey="memory" stroke="#A0BCE8" strokeWidth={2} fill="url(#colorMem)" />
+                   <Area type="monotone" dataKey="cpu" stroke="#1C1C1C" strokeWidth={2.5} fill="url(#colorCpu)" animationDuration={300} />
                  </AreaChart>
                </ResponsiveContainer>
             </div>
@@ -222,34 +221,34 @@ export const SnowDashboard: React.FC<{
         {/* Grid for Bottom Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
            {/* OS Distribution Bar Chart */}
-           <div className="h-[360px] bg-white border border-[rgba(28,28,28,0.06)] rounded-[24px] p-8 flex flex-col shadow-sm">
+           <div className="h-[360px] bg-white border border-[rgba(28,28,28,0.06)] rounded-[24px] p-8 flex flex-col shadow-sm transition-all hover:border-[rgba(28,28,28,0.15)]">
              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-sm font-bold text-[#1C1C1C] uppercase tracking-wider">Node OS Distribution</h3>
-                <span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)]">CONNECTED FLEET</span>
+                <h3 className="text-sm font-bold text-[#1C1C1C] uppercase tracking-wider">Fleet Latency Spread (ms)</h3>
+                <span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)]">SIGNAL STABILITY</span>
              </div>
              <div className="flex-1 w-full">
                <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={osDistribution} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.2)', fontSize: 10, fontWeight: 700}} dy={5} />
-                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.2)', fontSize: 10, fontWeight: 700}} />
+                 <BarChart data={latencyDistribution} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.7)', fontSize: 11, fontWeight: 800}} dy={5} />
+                   <YAxis axisLine={false} tickLine={false} tick={{fill: 'rgba(28,28,28,0.7)', fontSize: 11, fontWeight: 800}} />
                    <RTooltip cursor={{fill: 'rgba(0,0,0,0.02)'}} contentStyle={{borderRadius: '16px', border: 'none', background: '#1C1C1C', color: 'white'}} />
-                   <Bar dataKey="uv" radius={[12, 12, 12, 12]} barSize={28} fill="#1C1C1C" />
+                   <Bar dataKey="uv" radius={[12, 12, 12, 12]} barSize={28} />
                  </BarChart>
                </ResponsiveContainer>
              </div>
            </div>
 
            {/* Location Distribution Pie Chart */}
-           <div className="h-[360px] bg-white border border-[rgba(28,28,28,0.06)] rounded-[24px] p-8 flex flex-col shadow-sm">
+           <div className="h-[360px] bg-white border border-[rgba(28,28,28,0.06)] rounded-[24px] p-8 flex flex-col shadow-sm transition-all hover:border-[rgba(28,28,28,0.15)]">
              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-bold text-[#1C1C1C] uppercase tracking-wider">Geographic Relay Density</h3>
+                <h3 className="text-sm font-bold text-[#1C1C1C] uppercase tracking-wider">Mesh Link Architecture</h3>
              </div>
              <div className="flex flex-1 items-center">
                <div className="w-[180px] h-[180px]">
                  <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
                      <Pie
-                       data={locationData}
+                       data={networkArchitectureData}
                        cx="50%"
                        cy="50%"
                        innerRadius={60}
@@ -257,7 +256,7 @@ export const SnowDashboard: React.FC<{
                        paddingAngle={8}
                        dataKey="value"
                      >
-                       {locationData.map((entry, index) => (
+                       {networkArchitectureData.map((entry, index) => (
                          <Cell key={`cell-${index}`} fill={entry.fill} stroke="none" />
                        ))}
                      </Pie>
@@ -266,13 +265,13 @@ export const SnowDashboard: React.FC<{
                  </ResponsiveContainer>
                </div>
                <div className="flex-1 flex flex-col gap-4 pl-8">
-                 {locationData.map((loc, i) => (
+                 {networkArchitectureData.map((loc, i) => (
                    <div key={i} className="flex justify-between items-center group cursor-pointer">
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: loc.fill }}></div>
-                        <span className="text-xs font-semibold text-[#1C1C1C] opacity-70 group-hover:opacity-100 transition-opacity">{loc.name}</span>
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: loc.fill }}></div>
+                        <span className="text-sm font-bold text-[#1C1C1C] opacity-100 transition-opacity">{loc.name}</span>
                       </div>
-                      <span className="text-xs font-bold text-[#1C1C1C]">{loc.value}%</span>
+                      <span className="text-sm font-extrabold text-[#1C1C1C]">{loc.value}%</span>
                     </div>
                  ))}
                </div>

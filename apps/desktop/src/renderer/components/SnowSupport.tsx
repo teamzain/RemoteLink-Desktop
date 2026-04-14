@@ -24,12 +24,12 @@ interface Ticket {
 }
 
 const INITIAL_TICKETS: Ticket[] = [
-  { id: 'TIC-9821', subject: 'Node Latency in SEA Region', status: 'In Review', date: '2 hours ago' },
+  { id: 'TIC-9821', subject: 'Device Latency in SEA Region', status: 'In Review', date: '2 hours ago' },
   { id: 'TIC-9745', subject: 'Billing Discrepancy (Enterprise)', status: 'Closed', date: 'Last week' }
 ];
 
 const commonTopics = [
-  { title: 'Global Node Optimization', icon: Globe, color: 'text-blue-500', bg: 'bg-blue-50/50', desc: 'Reduce latency and improve throughput across distributed nodes.' },
+  { title: 'Global Device Optimization', icon: Globe, color: 'text-blue-500', bg: 'bg-blue-50/50', desc: 'Reduce latency and improve throughput across distributed devices.' },
   { title: 'Identity & Access Keys', icon: ShieldCheck, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10', desc: 'Manage access keys, hardware passwords, and device permissions.' },
   { title: 'P2P Signaling Over Relays', icon: Zap, color: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', desc: 'Troubleshoot relay fallback, ICE failures, and NAT traversal.' },
 ];
@@ -101,7 +101,7 @@ export const SnowSupport: React.FC = () => {
         <div className="relative z-10 max-w-xl">
           <h1 className="text-4xl font-extrabold tracking-tight mb-4">How can we help?</h1>
           <p className="text-white/40 text-lg font-medium mb-8">
-            Our global support engineers are available 24/7 to solve your node connectivity and network scaling issues.
+            Our global support engineers are available 24/7 to solve your device connectivity and network scaling issues.
           </p>
 
           <div className="flex items-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 pl-5 pr-2 py-2 w-full focus-within:ring-2 focus-within:ring-white/20 transition-all">
@@ -109,7 +109,7 @@ export const SnowSupport: React.FC = () => {
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search help articles, tickets, nodes..."
+              placeholder="Search help articles, tickets, devices..."
               className="bg-transparent border-none outline-none text-sm text-white placeholder:text-white/20 w-full"
             />
             {query && (
@@ -164,7 +164,7 @@ export const SnowSupport: React.FC = () => {
                 className="w-full px-3 py-2.5 bg-white rounded-xl border border-[rgba(28,28,28,0.08)] text-xs text-[#1C1C1C] outline-none"
               >
                 <option value="">Select a category…</option>
-                <option>Node Connectivity</option>
+                <option>Device Connectivity</option>
                 <option>Billing & Subscription</option>
                 <option>Authentication / Access Keys</option>
                 <option>Performance / Latency</option>
@@ -173,7 +173,7 @@ export const SnowSupport: React.FC = () => {
               <input
                 value={newSubject}
                 onChange={e => setNewSubject(e.target.value)}
-                placeholder="Brief subject (e.g. Node drops after 5 min)"
+                placeholder="Brief subject (e.g. Device drops after 5 min)"
                 className="w-full px-3 py-2.5 bg-white rounded-xl border border-[rgba(28,28,28,0.08)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none"
               />
               <textarea
@@ -277,7 +277,7 @@ export const SnowSupport: React.FC = () => {
               <p className="text-xs text-blue-700 font-medium">3 engineers available · Avg wait: ~2 min</p>
             </div>
             <p className="text-xs text-[rgba(28,28,28,0.5)] mb-6 leading-relaxed">
-              You'll be connected to a support engineer via an encrypted P2P session. Have your Node ID ready for faster triage.
+              You'll be connected to a support engineer via an encrypted P2P session. Have your Device ID ready for faster triage.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setShowChatModal(false)} className="flex-1 py-3 bg-[#F9F9FA] text-[#1C1C1C] rounded-2xl text-xs font-bold border border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] transition-all">
@@ -321,7 +321,7 @@ export const SnowSupport: React.FC = () => {
                 <textarea
                   value={reportBody}
                   onChange={e => setReportBody(e.target.value)}
-                  placeholder="Describe the bug in detail. Include your Node ID, region, and steps to reproduce..."
+                  placeholder="Describe the bug in detail. Include your Device ID, region, and steps to reproduce..."
                   rows={5}
                   className="w-full px-3 py-2.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none resize-none"
                 />

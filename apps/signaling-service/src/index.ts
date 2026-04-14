@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+
+// Load .env BEFORE any other imports
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { WebSocketServer, WebSocket } from 'ws';

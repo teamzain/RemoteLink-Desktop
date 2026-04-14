@@ -11,8 +11,11 @@ const getBaseURL = async () => {
     if (isPackaged) {
       return `http://${serverIP}`; // Use HTTP because the raw IP lacks SSL
     }
+    // During development on desktop, use the local backend
+    return 'http://localhost:3001';
   }
-  // During development, we point to the production IP on port 80 (proxied by Caddy)
+  
+  // Web fallback
   return `http://${serverIP}`;
 };
 

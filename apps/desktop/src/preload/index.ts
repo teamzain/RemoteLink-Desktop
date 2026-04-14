@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:deep-link-success', listener);
     return () => ipcRenderer.removeListener('auth:deep-link-success', listener);
   },
-  onHostStats: (callback: (stats: { bandwidth: string, activeUsers: number }) => void) => {
+  onHostStats: (callback: (stats: { bandwidth: string, activeUsers: number, cpu: string, memory: string }) => void) => {
     const listener = (_: any, stats: any) => callback(stats);
     ipcRenderer.on('host:stats', listener);
     return () => ipcRenderer.removeListener('host:stats', listener);

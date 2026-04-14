@@ -1131,6 +1131,7 @@ export default function App() {
     const [setupPassword, setSetupPassword] = useState('');
     const [setupPasswordConfirm, setSetupPasswordConfirm] = useState('');
     const [setupPasswordError, setSetupPasswordError] = useState('');
+    const [isLocalHostRegistered, setIsLocalHostRegistered] = useState(false);
 
     const [serverIP, setServerIP] = useState('159.65.84.190'); // HARDCODED
     const [localIP, setLocalIP] = useState('127.0.0.1');
@@ -1305,6 +1306,8 @@ export default function App() {
 
     // Initialize Viewer Window from URL - runs only once on true mount
     const viewerConnectedRef = useRef(false);
+    const hasAutoStartedHost = useRef(false);
+    const manuallyStoppedHost = useRef(false);
     useEffect(() => {
         if (viewerConnectedRef.current) return; // Guard for React Strict Mode double-fire
         const params = new URLSearchParams(window.location.search);
@@ -1364,8 +1367,9 @@ export default function App() {
             setGlobalError('');
 
             // Auto-sync local host status if we find ourselves in the list as online
+            // BUT: Don't override if we just manually clicked 'Stop' and the server is lagging.
             const self = data.find((d: any) => d.access_key === hostAccessKey);
-            if (self && self.is_online) {
+            if (self && self.is_online && !manuallyStoppedHost.current) {
                 setHostStatus('status');
                 setHostSessionId(self.access_key);
             }
@@ -1590,13 +1594,30 @@ export default function App() {
 
     const [deviceId, setDeviceId] = useState('');
     const [viewerStep, setViewerStep] = useState<1 | 2>(1);
-    const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number }>({ bandwidth: '0.00', activeUsers: 0 });
+    const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number, cpu: string, memory: string }>({ 
+        bandwidth: '0.00', 
+        activeUsers: 0,
+        cpu: '0.0',
+        memory: '0.0'
+    });
+    const [telemetryHistory, setTelemetryHistory] = useState<{ cpu: number, memory: number, time: string }[]>([]);
     const [lastPingTime, setLastPingTime] = useState<number>(Date.now());
 
     useEffect(() => {
         if (!isElectron) return;
         const unsub = (window as any).electronAPI.onHostStats((stats: any) => {
             setHostStats(stats);
+            setTelemetryHistory(prev => {
+                const now = new Date();
+                const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+                const newSample = {
+                    cpu: parseFloat(stats.cpu),
+                    memory: parseFloat(stats.memory),
+                    time: timeStr
+                };
+                const combined = [...prev, newSample];
+                return combined.slice(-30); // Keep last 30 samples for the chart
+            });
         });
         return () => unsub();
     }, [isElectron]);
@@ -1679,32 +1700,51 @@ export default function App() {
             }
 
             if (!localKey || !existingInDb) {
-                // We have no key, or our key was deleted from the server. Register fresh!
-                console.log(`[Identity] No valid local key found${localKey ? ' (Stale)' : ''}. Registering...`);
-                const machineName = (isElectron && (window as any).electronAPI.getMachineName)
-                    ? await (window as any).electronAPI.getMachineName()
-                    : 'RemoteLink Web User';
-                const { data: newDevice } = await api.post('/api/devices/register', {
-                    name: machineName,
-                    accessKey: localKey || undefined
-                });
-
-                localKey = newDevice.access_key;
-                deviceUuid = newDevice.id;
-                console.log(`[Identity] Registered NEW Identity: ${localKey}`);
-                pollDevices(); // Update the list again
+                // We have no key, or our key was deleted from the server.
+                console.log(`[Identity] Current machine is not registered as a node.`);
+                setIsLocalHostRegistered(false);
+                setDeviceId('');
+                setHostAccessKey('');
             } else {
                 deviceUuid = existingInDb.id;
                 console.log(`[Identity] Verified existing identity: ${localKey}`);
+                setIsLocalHostRegistered(true);
             }
 
-            if (localKey) {
+            if (localKey && existingInDb) {
                 setDeviceId(deviceUuid);
                 setHostAccessKey(localKey);
                 setHostSessionId(localKey); // Update the visual registration code
             }
         } catch (e: any) {
             console.error('[Identity] Load failed:', e);
+        }
+    };
+
+    const handleRegisterLocalDevice = async () => {
+        try {
+            console.log(`[Identity] User-initiated registration started...`);
+            const machineName = (isElectron && (window as any).electronAPI.getMachineName)
+                ? await (window as any).electronAPI.getMachineName()
+                : 'RemoteLink Web User';
+            
+            let localKey = isElectron ? await (window as any).electronAPI.getDeterministicKey() : null;
+
+            const { data: newDevice } = await api.post('/api/devices/register', {
+                name: machineName,
+                accessKey: localKey || undefined
+            });
+
+            setDeviceId(newDevice.id);
+            setHostAccessKey(newDevice.access_key);
+            setHostSessionId(newDevice.access_key);
+            setIsLocalHostRegistered(true);
+            
+            addNotification('Device initialized successfully.', 'system');
+            pollDevices();
+        } catch (e: any) {
+            console.error('[Identity] Registration failed:', e);
+            showError('Registration Failed', e.message || 'Could not initialize device identity.');
         }
     };
 
@@ -1734,8 +1774,9 @@ export default function App() {
     useEffect(() => {
         // If all required identity info is loaded and auto-host is enabled, start hosting.
         // hostStatus "" or "idle" means it hasn't started yet.
-        if (isAuthenticated && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && (hostStatus === 'idle' || hostStatus === '')) {
+        if (isAuthenticated && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
             console.log('[Auto-Host] Identity ready, initiating automatic start...');
+            hasAutoStartedHost.current = true;
             handleStartHosting();
         }
     }, [isAuthenticated, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
@@ -2084,6 +2125,7 @@ export default function App() {
             console.log('[Host-Guard] Blocked handleStartHosting in Viewer Window.');
             return;
         }
+        manuallyStoppedHost.current = false;
         setHostStatus('connecting');
         setHostError('');
         try {
@@ -2135,10 +2177,6 @@ export default function App() {
             setTimeout(async () => {
                 await pollDevices();
             }, 1500);
-
-            // Persist hosting state
-            setIsAutoHostEnabled(true);
-            localStorage.setItem('is_auto_host_enabled', 'true');
         } catch (e: any) {
             console.error('[Host] Start failed:', e);
             setHostStatus('error');
@@ -2160,10 +2198,7 @@ export default function App() {
             ));
 
             addNotification('Broadcasting deactivated.', 'host');
-
-            // Persist state
-            setIsAutoHostEnabled(false);
-            localStorage.setItem('is_auto_host_enabled', 'false');
+            manuallyStoppedHost.current = true;
         } catch (e: any) {
             console.error('[Host] Stop failed:', e);
         }
@@ -2463,7 +2498,7 @@ export default function App() {
                     </div>
 
                     <div className="mt-8 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.3em]">
-                        Team Zain • SyncLink Engine v1.0
+                        Team Zain • Connect-X Engine v1.0
                     </div>
                 </div>
 
@@ -2482,7 +2517,7 @@ export default function App() {
                             Secure Mesh<br />Connectivity.
                         </h2>
                         <p className="text-white/40 text-lg font-medium max-w-sm leading-relaxed mb-12">
-                            Unifying cross-platform nodes with hardware-level security and ultra-low latency.
+                            Unifying cross-platform devices with hardware-level security and ultra-low latency.
                         </p>
 
                         <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
@@ -2490,7 +2525,7 @@ export default function App() {
                                 { label: 'E2EE Setup', icon: ShieldCheck },
                                 { label: 'P2P Relay', icon: Radio },
                                 { label: 'Zero Trust', icon: Shield },
-                                { label: 'Cross Node', icon: LayoutGrid }
+                                { label: 'Cross Device', icon: LayoutGrid }
                             ].map((feat, idx) => (
                                 <div key={idx} className="p-4 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm flex flex-col items-start gap-3 hover:bg-white/10 hover:border-white/10 transition-all cursor-default">
                                     <feat.icon size={18} className="text-white/80" />
@@ -2581,7 +2616,7 @@ export default function App() {
 
                             <div className="flex flex-col gap-0.5 md:gap-1.5">
                                 <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
-                                    <span className="hover:text-[rgba(28,28,28,0.4)] cursor-pointer transition-colors hidden sm:inline" onClick={() => setCurrentView('dashboard')}>SyncLink Nodes</span>
+                                    <span className="hover:text-[rgba(28,28,28,0.4)] cursor-pointer transition-colors hidden sm:inline" onClick={() => setCurrentView('dashboard')}>Connect-X Devices</span>
                                     <span className="opacity-50 hidden sm:inline">/</span>
                                     <span className="text-[rgba(28,28,28,0.6)]">{selectedDevice ? 'Terminal' : currentView === 'host' ? 'Host' : currentView}</span>
                                 </div>
@@ -2596,7 +2631,7 @@ export default function App() {
                                 <Search className="w-3.5 h-3.5 text-[rgba(28,28,28,0.2)] mr-2" />
                                 <input
                                     type="text"
-                                    placeholder="Search nodes..."
+                                    placeholder="Search devices..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[rgba(28,28,28,0.2)]"
@@ -2609,13 +2644,7 @@ export default function App() {
                                 </button>
                                 <div className="w-8 h-8 rounded-xl bg-[rgba(28,28,28,0.04)] border border-[rgba(0,0,0,0.04)] flex items-center justify-center text-[10px] font-bold text-[#1C1C1C]">ZB</div>
 
-                                {/* Right Bar Toggle for Tablet/Smaller */}
-                                <button
-                                    onClick={() => setIsRightBarOpen(!isRightBarOpen)}
-                                    className="p-2 xl:hidden hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
-                                >
-                                    <Activity size={20} className={isRightBarOpen ? 'text-blue-600' : 'text-[#1C1C1C]'} />
-                                </button>
+
                             </div>
                         </div>
                     </header>
@@ -2660,7 +2689,64 @@ export default function App() {
                         ) : currentView === 'dashboard' ? (
                             /* --- SNOW UI DASHBOARD VIEW --- */
                             <div className="w-full animate-in fade-in duration-700">
-                                <SnowDashboard devices={devices} activeSessionCount={activeSessionCount} />
+                                <SnowDashboard 
+                                    devices={devices} 
+                                    activeSessionCount={activeSessionCount} 
+                                    telemetryHistory={telemetryHistory}
+                                    onNavigate={(view, filter) => {
+                                        if (view === 'devices') {
+                                            if (filter === 'online') setSearchQuery(':online');
+                                            else setSearchQuery('');
+                                            setCurrentView('devices');
+                                        } else if (view === 'sessions') {
+                                            setCurrentView('sessions' as any);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        ) : (currentView as any) === 'sessions' ? (
+                            /* --- ACTIVE SESSIONS VIEW --- */
+                            <div className="w-full pt-8 animate-in fade-in duration-700">
+                                <div className="bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
+                                    <div className="flex items-center gap-4 mb-8">
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
+                                            <Activity className="text-blue-600" size={24} />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-bold text-[#1C1C1C]">Active Remote Sessions</h2>
+                                            <p className="text-sm text-[rgba(28,28,28,0.4)]">Real-time connections to your fleet</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {activeSessionCount === 0 ? (
+                                        <div className="py-20 flex flex-col items-center justify-center text-center">
+                                            <div className="w-20 h-20 bg-[#F8F9FA] rounded-[32px] flex items-center justify-center mb-6">
+                                                <Radio className="text-[rgba(28,28,28,0.1)] w-10 h-10" />
+                                            </div>
+                                            <h3 className="text-lg font-bold text-[#1C1C1C] mb-2">No Active Streams</h3>
+                                            <p className="text-sm text-[rgba(28,28,28,0.4)] max-w-xs">You don't have any active remote control sessions at the moment.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {/* We mock the session list here as we don't have a granular list in state yet */}
+                                            <div className="p-6 rounded-2xl bg-[#F8F9FA] border border-[rgba(28,28,28,0.02)] flex items-center justify-between">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                                                        <Monitor className="text-blue-500" size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-sm font-bold text-[#1C1C1C]">Encrypted P2P Link</span>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                                            <span className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase">Active Now</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => setCurrentView('dashboard')} className="snow-btn-secondary !py-2 !px-6 !text-[10px]">Back to Overview</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ) : currentView === 'host' ? (
                             /* --- HOST THIS DEVICE VIEW --- */
@@ -2679,6 +2765,8 @@ export default function App() {
                                     openPasswordModal={() => setActionModal({ type: 'password', device: null })}
                                     bandwidth={hostStats.bandwidth}
                                     activeUsers={hostStats.activeUsers}
+                                    isRegistered={isLocalHostRegistered}
+                                    onRegister={handleRegisterLocalDevice}
                                 />
                             </div>
                         ) : currentView === 'billing' ? (
@@ -2725,21 +2813,14 @@ export default function App() {
                                         setIsAutoHostEnabled(val);
                                         localStorage.setItem('is_auto_host_enabled', String(val));
                                     }}
-                                    onRenameNode={() => setActionModal({ type: 'rename', device: null })}
+                                    onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
                                 />
                             </div>
                         ) : null}
                     </div>
                 </main>
 
-                {/* --- SNOW UI RIGHT SIDEBAR --- */}
-                <SnowRightBar
-                    devices={devices}
-                    notifications={notifications}
-                    onDeviceClick={(dev) => { setSelectedDevice(dev); setCurrentView('devices'); setIsRightBarOpen(false); }}
-                    isOpen={isRightBarOpen}
-                    onClose={() => setIsRightBarOpen(false)}
-                />
+
             </div>
 
             {/* MODALS LAYER */}

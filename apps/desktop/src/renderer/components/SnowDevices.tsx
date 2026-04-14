@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Monitor, 
   Smartphone, 
@@ -47,11 +47,44 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   handleBulkDelete
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'online' | 'offline'>('all');
+  const [sortOrder, setSortOrder] = useState<'name' | 'status' | 'last_seen'>('name');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
-  const filteredDevices = devices.filter(d => 
-    !searchQuery || d.device_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    d.access_key?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Sync searchQuery ":online" with filterStatus
+  useEffect(() => {
+    if (searchQuery.toLowerCase() === ':online') {
+        setFilterStatus('online');
+    }
+  }, [searchQuery]);
+
+  const filteredDevices = useMemo(() => {
+    let result = devices.filter(d => {
+        // Status Filter
+        if (filterStatus === 'online' && !d.is_online) return false;
+        if (filterStatus === 'offline' && d.is_online) return false;
+
+        // Search Query
+        if (!searchQuery || searchQuery.toLowerCase() === ':online') return true;
+        return d.device_name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+               d.access_key?.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+    // Apply Sorting
+    return [...result].sort((a, b) => {
+        if (sortOrder === 'name') {
+            return (a.device_name || '').localeCompare(b.device_name || '');
+        } else if (sortOrder === 'status') {
+            return (b.is_online ? 1 : 0) - (a.is_online ? 1 : 0);
+        } else if (sortOrder === 'last_seen') {
+            const dateA = new Date(a.last_seen || 0).getTime();
+            const dateB = new Date(b.last_seen || 0).getTime();
+            return dateB - dateA;
+        }
+        return 0;
+    });
+  }, [devices, searchQuery, filterStatus, sortOrder]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredDevices.length) {
@@ -106,12 +139,51 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
           <button onClick={() => setShowAddModal(true)} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-[rgba(28,28,28,0.05)] transition-colors">
             <Plus size={16} className="text-[#1C1C1C]" />
           </button>
-          <button className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-[rgba(28,28,28,0.05)] transition-colors">
-            <Filter size={16} className="text-[#1C1C1C]" />
-          </button>
-          <button className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-[rgba(28,28,28,0.05)] transition-colors">
-            <ArrowUpDown size={16} className="text-[#1C1C1C]" />
-          </button>
+          <div className="relative">
+            <button 
+                onClick={() => { setShowFilterMenu(!showFilterMenu); setShowSortMenu(false); }}
+                className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors ${filterStatus !== 'all' ? 'bg-blue-50 text-blue-600' : 'hover:bg-[rgba(28,28,28,0.05)] text-[#1C1C1C]'}`}
+                title="Filter Status"
+            >
+                <Filter size={16} />
+            </button>
+            {showFilterMenu && (
+                <div className="absolute top-8 left-0 z-50 w-40 bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-xl p-1 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { setFilterStatus('all'); setShowFilterMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${filterStatus === 'all' ? 'bg-blue-50 text-blue-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
+                        Show All {filterStatus === 'all' && <Check size={12} />}
+                    </button>
+                    <button onClick={() => { setFilterStatus('online'); setShowFilterMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${filterStatus === 'online' ? 'bg-blue-50 text-blue-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
+                        Online Only {filterStatus === 'online' && <Check size={12} />}
+                    </button>
+                    <button onClick={() => { setFilterStatus('offline'); setShowFilterMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${filterStatus === 'offline' ? 'bg-blue-50 text-blue-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
+                        Offline Only {filterStatus === 'offline' && <Check size={12} />}
+                    </button>
+                </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button 
+                onClick={() => { setShowSortMenu(!showSortMenu); setShowFilterMenu(false); }}
+                className={`w-6 h-6 flex items-center justify-center rounded-full transition-colors ${sortOrder !== 'name' ? 'bg-purple-50 text-purple-600' : 'hover:bg-[rgba(28,28,28,0.05)] text-[#1C1C1C]'}`}
+                title="Sort Devices"
+            >
+                <ArrowUpDown size={16} />
+            </button>
+            {showSortMenu && (
+                <div className="absolute top-8 left-0 z-50 w-44 bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-xl p-1 animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => { setSortOrder('name'); setShowSortMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${sortOrder === 'name' ? 'bg-purple-50 text-purple-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
+                        Name (A-Z) {sortOrder === 'name' && <Check size={12} />}
+                    </button>
+                    <button onClick={() => { setSortOrder('status'); setShowSortMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${sortOrder === 'status' ? 'bg-purple-50 text-purple-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
+                        Status (Online First) {sortOrder === 'status' && <Check size={12} />}
+                    </button>
+                    <button onClick={() => { setSortOrder('last_seen'); setShowSortMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${sortOrder === 'last_seen' ? 'bg-purple-50 text-purple-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
+                        Last Seen {sortOrder === 'last_seen' && <Check size={12} />}
+                    </button>
+                </div>
+            )}
+          </div>
         </div>
 
         <div className="relative mr-1">
@@ -149,10 +221,9 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                   Host Name <Filter size={12} className="opacity-40" />
                 </div>
               </th>
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Platform</th>
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Address</th>
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Last Sync</th>
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Status</th>
+              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Platform</th>
+              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Last Sync</th>
+              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Status</th>
               <th className="w-10 px-3 py-3 text-center"></th>
             </tr>
           </thead>
@@ -182,7 +253,6 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     </div>
                   </td>
                   <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.device_type || 'Windows/x64'}</td>
-                  <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.local_ip || '127.0.0.1'}</td>
                   <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.last_seen ? new Date(device.last_seen).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now'}</td>
                   <td className="px-3 py-3">
                     <span className={device.is_online ? "badge-online" : "badge-offline"}>

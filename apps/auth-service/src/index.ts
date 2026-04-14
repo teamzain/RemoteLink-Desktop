@@ -1,7 +1,10 @@
-import Fastify from 'fastify';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+
+// Load .env BEFORE any other imports to ensure Prisma finds DATABASE_URL
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { prisma, redisPublisher, EventChannel } from '@remotelink/shared';
 import authRoutes from './routes/auth';
