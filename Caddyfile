@@ -42,7 +42,6 @@
     }
 
     handle /onboard* {
-        rewrite * /api/auth/onboard?{query}
         reverse_proxy auth-service:3001
     }
 
