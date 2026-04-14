@@ -93,6 +93,13 @@ class HostProvider extends ChangeNotifier with WidgetsBindingObserver {
     _authProvider = auth;
     if (_authProvider.isAuthenticated) {
       ensureHosting();
+    } else {
+      // Clear host state on logout to prevent ID mismatch on next login
+      _deviceId = null;
+      _sessionId = null;
+      _isPasswordSet = false;
+      _intentionalDisconnect = true;
+      disconnect();
     }
   }
 
@@ -665,11 +672,16 @@ class HostProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       final offer = await _peerConnection!.createOffer();
-      await _peerConnection!.setLocalDescription(offer);
+      // Fix: Munge SDP to prefer VP8. This resolves the 'pink/purple tint' 
+      // common with H264 hardware encoders on some Android devices.
+      final mungedSdp = _mungeSdpPreferCodec(offer.sdp ?? '', 'VP8');
+      final mungedOffer = RTCSessionDescription(mungedSdp, offer.type);
+      
+      await _peerConnection!.setLocalDescription(mungedOffer);
 
        _socket?.add(json.encode({
          'type': 'offer',
-         'sdp': offer.sdp,
+         'sdp': mungedOffer.sdp,
          'hostType': 'android',
          'targetId': viewerId,
        }));
@@ -800,5 +812,57 @@ class HostProvider extends ChangeNotifier with WidgetsBindingObserver {
     _isDisposed = true;
     disconnect();
     super.dispose();
+  }
+
+  String _mungeSdpPreferCodec(String sdp, String codec) {
+    // Robust splitting: Handles both \r\n and \n
+    final isCRLF = sdp.contains('\r\n');
+    List<String> lines = sdp.split(RegExp(r'\r?\n'));
+    
+    int videoIdx = lines.indexWhere((l) => l.startsWith('m=video'));
+    if (videoIdx == -1) {
+      debugPrint('[Host-SDP] No video section found in SDP');
+      return sdp;
+    }
+
+    // Identify payload types for VP8
+    String? preferredPt;
+
+    for (var line in lines) {
+      if (line.startsWith('a=rtpmap:')) {
+        final parts = line.split(':');
+        if (parts.length > 1) {
+          final ptAndCodec = parts[1].split(' ');
+          if (ptAndCodec.length > 1) {
+            final pt = ptAndCodec[0];
+            final name = ptAndCodec[1].toUpperCase();
+            if (name.contains(codec.toUpperCase())) {
+              preferredPt = pt;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (preferredPt != null) {
+      debugPrint('[Host-SDP] Prioritizing $codec (PT: $preferredPt) for natural colors.');
+      
+      List<String> mLineElements = lines[videoIdx].split(' ');
+      List<String> currentPayloadTypes = mLineElements.sublist(3);
+      
+      // Safe Reorder: Just move the preferred codec to the front. 
+      // Do NOT remove others, to maintain fallback compatibility.
+      if (currentPayloadTypes.contains(preferredPt)) {
+        currentPayloadTypes.remove(preferredPt);
+        currentPayloadTypes.insert(0, preferredPt);
+        
+        mLineElements = mLineElements.sublist(0, 3)..addAll(currentPayloadTypes);
+        lines[videoIdx] = mLineElements.join(' ');
+        debugPrint('[Host-SDP] Optimized configuration: ${lines[videoIdx]}');
+      }
+    }
+
+    return lines.join(isCRLF ? '\r\n' : '\n');
   }
 }

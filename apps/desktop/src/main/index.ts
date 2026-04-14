@@ -1,4 +1,4 @@
-import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu } from 'electron';
+import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
 import log from 'electron-log';
 import { join, basename } from 'path';
 import { spawn, ChildProcess } from 'child_process';
@@ -35,7 +35,7 @@ declare module '@remotelink/native-capture' {
   export function captureFrame(): { width: number; height: number; data: Buffer };
 }
 
-const PROTOCOL = 'connectx';
+const PROTOCOL = 'remotelink';
 let AUTH_STORE_PATH: string;
 
 // --- State Management ---
@@ -43,6 +43,8 @@ let mainWindow: BrowserWindow | null = null;
 let hostSignalingWs: WebSocket | null = null;
 const viewerWindows = new Map<string, BrowserWindow>();
 const viewerSignalingSockets = new Map<string, WebSocket>();
+let tray: Tray | null = null;
+let isQuitting = false;
 
 let peerConnection: any = null;
 let dataChannel: any = null;
@@ -75,6 +77,7 @@ let activeHostAccessKey = '';
 let lastViewerJoinId = '';
 let lastLogBytes = 0;
 let pingInterval: NodeJS.Timeout | null = null;
+let initPollInterval: NodeJS.Timeout | null = null;
 
 // Streaming Accumulators (Annex-B Aggregator)
 let bufferAccumulator = Buffer.alloc(0);
@@ -179,8 +182,7 @@ ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, device
     }
   });
 
-  // Exclude viewer windows from capture to avoid recursion and flickering
-  viewerWin.setContentProtection(true);
+  // Allow inception to be naturally prevented by auto-hiding the host window
 
   const query = `?view=viewer&sessionId=${sessionId}&serverIP=${serverIP}&token=${token}&deviceName=${encodeURIComponent(deviceName || '')}&deviceType=${encodeURIComponent(deviceType || '')}`;
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -300,6 +302,10 @@ function stopStreaming() {
     ffmpegProcess.stdin?.end();
     ffmpegProcess.kill();
     ffmpegProcess = null;
+  }
+  if (initPollInterval) {
+    clearInterval(initPollInterval);
+    initPollInterval = null;
   }
 }
 
@@ -460,124 +466,115 @@ function startStreaming() {
 
   const ffmpegPath = getFFmpegPath();
   const fps = '60';
-  const bitrate = '5000k'; // Adaptive High quality — 5Mbps (Optimized for low latency)
-
-  // --- Capture Logic: Native with GDI Fallback ---
-  // If we are on the primary monitor, we can use our optimized DXGI native addon.
-  // If we are on a secondary monitor, we fallback to FFmpeg's gdigrab (which is still very fast on Windows).
-  const captureArgs = isPrimary ? [
-    '-f', 'rawvideo',
-    '-pixel_format', 'bgra',
-    '-video_size', `${width}x${height}`,
-    '-framerate', fps,
-    '-i', '-', // feed from stdin
-    '-vf', 'scale=min(iw\\,1920):-2:flags=bicubic,format=yuv420p',
-  ] : [
-    '-f', 'gdigrab',
-    '-framerate', fps,
-    '-offset_x', `${selectedDisplay.bounds.x}`,
-    '-offset_y', `${selectedDisplay.bounds.y}`,
-    '-video_size', `${width}x${height}`,
-    '-i', 'desktop',
-    '-vf', 'scale=min(iw\\,1920):-2:flags=bicubic,format=yuv420p',
-  ];
-
-  const encoderArgs = getEncoderArgs(detectedEncoder, bitrate, fps);
-  const args = [...captureArgs, ...encoderArgs];
-
-  ffmpegProcess = spawn(ffmpegPath, args);
-  bufferAccumulator = Buffer.alloc(0);
-
-  // Capture Loop: Push frames into FFmpeg as fast as possible
+  const bitrate = '8000k'; // Adaptive High quality — 8Mbps (Optimized for clarity)
   const frameInterval = Math.floor(1000 / parseInt(fps));
-  let lastFrameBuffer: Buffer | null = null;
 
-  // Capture an initial frame immediately to fill the buffer
-  try {
-    const firstFrame = capture.captureFrame();
-    if (firstFrame?.data) lastFrameBuffer = Buffer.from(firstFrame.data);
-  } catch (e: any) {
-    log.warn('[Host] Initial captureFrame failed:', e.message);
-  }
+  initPollInterval = setInterval(() => {
+    let physWidth = Math.round(width * selectedDisplay.scaleFactor);
+    let physHeight = Math.round(height * selectedDisplay.scaleFactor);
+    let firstFrameBuffer: Buffer | null = null;
 
-  captureInterval = setInterval(() => {
-    if (!ffmpegProcess || !ffmpegProcess.stdin?.writable || ffmpegProcess.stdin?.writableEnded) {
-      if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
-      return;
-    }
-
-    try {
-      // Capture a FRESH frame every tick — this is the critical fix
-      const result = capture.captureFrame();
-      if (result?.data) {
-        lastFrameBuffer = Buffer.from(result.data);
-      }
-    } catch (e: any) {
-      // DXGI can miss a frame when screen hasn't changed — reuse last frame
-      log.warn('[Host] captureFrame miss, reusing last frame:', e.message);
-    }
-
-    if (lastFrameBuffer) {
+    if (isPrimary) {
       try {
-        ffmpegProcess.stdin.write(lastFrameBuffer);
-      } catch (err: any) {
-        log.error('[Host] FFmpeg stdin write failed:', err.message);
+        const probe = capture.captureFrame();
+        if (probe && probe.width && probe.height && probe.data) {
+          physWidth = probe.width;
+          physHeight = probe.height;
+          firstFrameBuffer = Buffer.from(probe.data);
+        } else {
+          return; // Screen hasn't composited yet, wait a tick!
+        }
+      } catch (e) { return; }
+    }
+
+    // Got a frame! Stop polling and start the encoder
+    if (initPollInterval) clearInterval(initPollInterval);
+
+    log.info(`[Host] Frame acquired. Locking bounds at: ${physWidth}x${physHeight} (Scale: ${selectedDisplay.scaleFactor})`);
+
+    const captureArgs = isPrimary ? [
+      '-f', 'rawvideo',
+      '-pixel_format', 'bgra',
+      '-video_size', `${physWidth}x${physHeight}`,
+      '-framerate', fps,
+      '-i', '-', // feed from stdin
+      // Fix: Use bitwise AND or explicit trunc for 16-pixel macroblock alignment without circular 'oh' references.
+      // This enforces width=multiple of 16 and height=multiple of 16 to satisfy complex HW encoders on laptops.
+      '-vf', 'scale=w=trunc(min(iw\\,1920)/16)*16:h=trunc(ih*min(1\\,1920/iw)/16)*16,format=yuv420p',
+    ] : [
+      '-f', 'gdigrab',
+      '-framerate', fps,
+      '-offset_x', `${Math.round(selectedDisplay.bounds.x * selectedDisplay.scaleFactor)}`,
+      '-offset_y', `${Math.round(selectedDisplay.bounds.y * selectedDisplay.scaleFactor)}`,
+      '-video_size', `${physWidth}x${physHeight}`,
+      '-i', 'desktop',
+      // High-performance scaling with 16-pixel macroblock alignment for both axes.
+      '-vf', 'scale=w=trunc(min(iw\\,1920)/16)*16:h=trunc(ih*min(1\\,1920/iw)/16)*16,format=yuv420p',
+    ];
+
+    const encoderArgs = getEncoderArgs(detectedEncoder, bitrate, fps);
+    const args = [...captureArgs, ...encoderArgs];
+
+    ffmpegProcess = spawn(ffmpegPath, args);
+    bufferAccumulator = Buffer.alloc(0);
+
+    // Capture Loop
+    let lastFrameBuffer: Buffer | null = firstFrameBuffer;
+
+    captureInterval = setInterval(() => {
+      if (!ffmpegProcess || !ffmpegProcess.stdin?.writable || ffmpegProcess.stdin?.writableEnded) {
         if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+        return;
       }
-    }
-  }, frameInterval);
 
-  // --- Remote Cursor Metadata Loop ---
-  // Broadcasts cursor position independently of the video track for lower latency.
-  cursorInterval = setInterval(() => {
-    if (!dataChannel || !dataChannel.isOpen()) return;
+      try {
+        const result = capture.captureFrame();
+        if (result?.data) lastFrameBuffer = Buffer.from(result.data);
+      } catch (e: any) {
+        // Reuse frame
+      }
 
-    try {
-      const { x, y } = screen.getCursorScreenPoint();
-      // Transform absolute screen coordinates to monitor-relative (0.0 - 1.0)
-      const nx = Math.max(0, Math.min(1, (x - selectedDisplay.bounds.x) / selectedDisplay.bounds.width));
-      const ny = Math.max(0, Math.min(1, (y - selectedDisplay.bounds.y) / selectedDisplay.bounds.height));
-      
-      dataChannel.sendMessage(JSON.stringify({ 
-        type: 'cursor', 
-        x: nx, 
-        y: ny, 
-        visible: true // We can add more logic here if needed (icon type, etc)
-      }));
-    } catch (err) {
-      // Ignore cursor errors
-    }
-  }, 33); // ~30fps for metadata is sufficient
+      if (lastFrameBuffer) {
+        try { ffmpegProcess.stdin.write(lastFrameBuffer); } 
+        catch (err: any) { if (captureInterval) { clearInterval(captureInterval); captureInterval = null; } }
+      }
+    }, frameInterval);
 
-  // Silently swallow pipe errors to prevent process crash (dialog error)
-  ffmpegProcess.stdin?.on('error', (err) => {
-    log.warn(`[Host] FFmpeg stdin encountered a pipe error: ${err.message}`);
-    if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
-  });
+    // --- Remote Cursor Metadata Loop ---
+    cursorInterval = setInterval(() => {
+      if (!dataChannel || !dataChannel.isOpen()) return;
+      try {
+        const { x, y } = screen.getCursorScreenPoint();
+        const nx = Math.max(0, Math.min(1, (x - selectedDisplay.bounds.x) / selectedDisplay.bounds.width));
+        const ny = Math.max(0, Math.min(1, (y - selectedDisplay.bounds.y) / selectedDisplay.bounds.height));
+        dataChannel.sendMessage(JSON.stringify({ type: 'cursor', x: nx, y: ny, visible: true }));
+      } catch (err) {}
+    }, 33);
 
-  ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-    if (isPreBuffering) {
-      ffmpegPreChunks.push(chunk);
-      return;
-    }
-    if (!videoTrack) return;
-    
-    bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
-    drainNALBuffer();
-  });
+    ffmpegProcess.stdin?.on('error', (err) => {
+      if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
+    });
 
-  ffmpegProcess.stderr?.on('data', (data) => {
-    const str = data.toString().trim();
-    if (str.includes('kB time=') || str.includes('fps=')) return;
-    log.info(`[Host-FFmpeg] ${str}`);
-  });
+    ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
+      if (isPreBuffering) { ffmpegPreChunks.push(chunk); return; }
+      if (!videoTrack) return;
+      bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
+      drainNALBuffer();
+    });
 
-  ffmpegProcess.on('exit', (code, signal) => {
-    if (code !== 0 && code !== null && signal !== 'SIGTERM') {
-      log.warn(`[Host-FFmpeg] Exited with code ${code}. Restarting in 1s...`);
-      setTimeout(() => { if (videoTrack) startStreaming(); }, 1000);
-    }
-  });
+    ffmpegProcess.stderr?.on('data', (data) => {
+      const str = data.toString().trim();
+      if (!str.includes('kB time=') && !str.includes('fps=')) log.info(`[Host-FFmpeg] ${str}`);
+    });
+
+    ffmpegProcess.on('exit', (code, signal) => {
+      if (code !== 0 && code !== null && signal !== 'SIGTERM') {
+        log.warn(`[Host-FFmpeg] Exited with code ${code}. Restarting in 1s...`);
+        setTimeout(() => { if (videoTrack) startStreaming(); }, 1000);
+      }
+    });
+
+  }, 10); // Check every 10ms until first frame is acquired
 }
 
 
@@ -684,7 +681,14 @@ function initiateHostWebRTC(viewerId: string) {
     mainWindow?.webContents.send('host:status', `WebRTC: ${state}`);
     
     if (state === 'connected') {
-      log.info(`[Host] WebRTC connected! Checking pre-buffer status...`);
+      log.info(`[Host] WebRTC connected! Session active.`);
+      
+      // Prevent "Inception" infinite recursion naturally by hiding the Host UI
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        log.info('[Host] Auto-minimizing Host window to prevent capture recursion.');
+        mainWindow.minimize();
+      }
+
       if (isPreBuffering) {
         log.info('[Host] Flushing pre-buffered frames to track...');
         isPreBuffering = false;
@@ -694,6 +698,16 @@ function initiateHostWebRTC(viewerId: string) {
           bufferAccumulator = Buffer.concat([bufferAccumulator, combined]);
           drainNALBuffer();
         }
+      }
+    } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+      log.warn(`[Host] Remote session ended (${state}). Triggering cleanup...`);
+      cleanUpWebRTC();
+      
+      // Restore the Dashboard UI naturally
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        log.info('[Host] Restoring Host window after session close.');
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
       }
     }
   });
@@ -884,7 +898,7 @@ function setupSignalingHandlers(ws: WebSocket) {
       const now = Date.now();
       
       // Debounce frequent join requests to prevent signaling loops
-      if (viewerId === lastViewerJoinId && (now - lastViewerJoinTime) < 2000) {
+      if (viewerId === lastViewerJoinId && (now - lastViewerJoinTime) < 500) {
         log.info(`[Host] Ignoring duplicate join request for: ${viewerId}`);
         return;
       }
@@ -922,6 +936,9 @@ function setupSignalingHandlers(ws: WebSocket) {
           iceCandidatesQueue.push({ candidate: candStr, mid });
         }
       }
+    } else if (data.type === 'viewer-left') {
+      log.info(`[Host] Viewer ${data.viewerId} left. Cleaning up...`);
+      cleanUpWebRTC();
     } else if (data.type === 'ping') {
       ws.send(JSON.stringify({ type: 'pong' }));
     }
@@ -1012,6 +1029,7 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   log.warn('[Host] Another instance is already running. Quitting.');
   app.quit();
+  process.exit(0);
 } else {
   app.on('second-instance', (_event, argv) => {
     log.info('[Host] Second instance detected. Restoring main window.');
@@ -1040,10 +1058,19 @@ function createWindow() {
     });
 
     mainWindow.once('ready-to-show', () => {
-      log.info('[Host] Main window ready to show. Enabling content protection.');
-      mainWindow?.setContentProtection(true);
-      mainWindow?.show();
-      mainWindow?.focus();
+      log.info('[Host] Main window ready to show.');
+      if (!app.isPackaged || !process.argv.includes('--hidden')) {
+        mainWindow?.show();
+        mainWindow?.focus();
+      }
+    });
+
+    mainWindow.on('close', (event) => {
+      if (!isQuitting) {
+        event.preventDefault();
+        mainWindow?.minimize();
+      }
+      return false;
     });
     log.info('[Host] BrowserWindow object created.');
 
@@ -1082,6 +1109,35 @@ app.whenReady().then(() => {
       openAsHidden: false, // Could be true if we wanted it silent
       path: app.getPath('exe')
     });
+  }
+  
+  // Tray Initialization
+  const iconPath = app.isPackaged 
+    ? join(process.resourcesPath, 'app.asar.unpacked/resources/logo.png') // Path in build
+    : join(__dirname, '../../src/renderer/assets/logo.png'); // Path in dev
+  
+  try {
+    tray = new Tray(iconPath);
+    const contextMenu = Menu.buildFromTemplate([
+      { label: 'Show RemoteLink', click: () => mainWindow?.show() },
+      { type: 'separator' },
+      { label: 'Restart App', click: () => {
+          isQuitting = true;
+          app.relaunch();
+          app.exit();
+        } 
+      },
+      { label: 'Quit RemoteLink', click: () => {
+          isQuitting = true;
+          app.quit();
+        } 
+      }
+    ]);
+    tray.setToolTip('RemoteLink Node');
+    tray.setContextMenu(contextMenu);
+    tray.on('double-click', () => mainWindow?.show());
+  } catch (e) {
+    log.error('[Host] Failed to initialize Tray:', e);
   }
   
   // Initialize paths that require app to be ready
@@ -1194,7 +1250,22 @@ function startStatsMonitoring() {
 
 // window-all-closed handler
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin' && !isQuitting) {
+    // On Windows/Linux we just stay in tray
+  } else if (isQuitting) {
+    app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
+// Ensure we don't quit when main window is closed
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
 
 function connectViewerSignaling(sessionId: string, serverIP: string, token: string, viewerClientId?: string) {
   const wsUrl = `ws://${serverIP}/api/signal`;

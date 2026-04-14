@@ -35,8 +35,10 @@ const presenceSubscriptions = new Map<string, Set<string>>();
 // Helper to broadcast status to all subscribers
 async function broadcastPresence(sessionId: string, status: 'online' | 'offline') {
   const update = JSON.stringify({ type: 'presence-update', sessionId, status });
+  const normalizedId = String(sessionId).toLowerCase();
   for (const [connId, keys] of presenceSubscriptions.entries()) {
-    if (keys.has(sessionId)) {
+    // Graceful match against both exact and normalized cases
+    if (keys.has(sessionId) || keys.has(normalizedId)) {
       const clientWs = localClients.get(connId);
       if (clientWs && clientWs.readyState === WebSocket.OPEN) {
         clientWs.send(update);
@@ -79,14 +81,17 @@ async function startServer() {
 
         switch (data.type) {
           case 'subscribe-presence':
-            const keysToWatch = Array.isArray(data.accessKeys) ? data.accessKeys : [];
+            const keysToWatch = Array.isArray(data.accessKeys) 
+              ? data.accessKeys.map((k: any) => String(k).toLowerCase()) 
+              : [];
             presenceSubscriptions.set(connectionId, new Set(keysToWatch));
             console.log(`[Signaling] Client ${connectionId} subscribed to ${keysToWatch.length} keys.`);
             break;
 
           case 'register':
             let sessionId = data.accessKey;
-            if (sessionId) sessionId = String(sessionId).replace(/\s/g, ''); // Standardize
+            // Standardize and ensure case-insensitivity at the perimeter
+            if (sessionId) sessionId = String(sessionId).replace(/\s/g, '').toLowerCase(); 
             
             if (!sessionId || sessionId.trim() === '') {
               sessionId = Math.floor(100000000 + Math.random() * 900000000).toString();
@@ -121,7 +126,7 @@ async function startServer() {
 
           case 'join':
             let targetSessionId = data.sessionId;
-            if (targetSessionId) targetSessionId = String(targetSessionId).replace(/\s/g, ''); // Standardize
+            if (targetSessionId) targetSessionId = String(targetSessionId).replace(/\s/g, '').toLowerCase(); 
             const token = data.token;
 
             console.log(`[Signaling] Join attempt for session: ${targetSessionId}`);

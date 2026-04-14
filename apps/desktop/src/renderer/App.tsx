@@ -1076,7 +1076,7 @@ export default function App() {
 
     const [loading, setLoading] = useState(true);
     const [showSplash, setShowSplash] = useState(false);
-    const { user, accessToken, login: storeLogin, register: storeRegister, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
+    const { user, accessToken, login: storeLogin, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
     const isAuthenticated = !!accessToken;
 
     const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support'>('dashboard');
@@ -1085,6 +1085,8 @@ export default function App() {
     const [password, setPassword] = useState('');
     const [signupName, setSignupName] = useState('');
     const [showLoginPassword, setShowLoginPassword] = useState(false);
+    const [verificationCode, setVerificationCode] = useState('');
+    const [isAwaitingVerification, setIsAwaitingVerification] = useState(false);
     const [sessionCode, setSessionCode] = useState('');
     const [accessPassword, setAccessPassword] = useState('');
     const [showManualPassword, setShowManualPassword] = useState(false);
@@ -1357,47 +1359,75 @@ export default function App() {
     useEffect(() => {
         if (!isAuthenticated || (!accessToken && !isViewerWindow)) return;
 
-        const wsUrl = `ws://${serverIP}/api/signal`;
-        const monitor = new WebSocket(wsUrl);
-        monitorWsRef.current = monitor;
+        let monitor: WebSocket | null = null;
+        let reconnectTimeout: any = null;
+        let retryCount = 0;
 
-        monitor.onopen = () => {
-            console.log('[Monitor] Presence WebSocket connected.');
-            // Initial sync
-            pollDevices();
-        };
+        const connect = () => {
+            const wsUrl = `ws://${serverIP}/api/signal`;
+            monitor = new WebSocket(wsUrl);
+            monitorWsRef.current = monitor;
 
-        monitor.onmessage = (e) => {
-            try {
-                const data = JSON.parse(e.data);
-                if (data.type === 'presence-update') {
-                    const incomingId = String(data.sessionId || '').toLowerCase().replace(/\s/g, '');
-                    
-                    // Use functional update to ensure we always have the latest devices state
-                    setDevices(prev => {
-                        const deviceMatch = prev.find(d => String(d.access_key || '').toLowerCase().replace(/\s/g, '') === incomingId);
-                        if (deviceMatch && deviceMatch.is_online !== (data.status === 'online')) {
-                            // Only notify if status actually changed
-                            addNotification(`${deviceMatch.device_name} is now ${data.status}`, 'host');
-                        }
-                        return prev.map(d => {
-                            const localId = String(d.access_key || '').toLowerCase().replace(/\s/g, '');
-                            return localId === incomingId ? { ...d, is_online: data.status === 'online' } : d;
-                        });
-                    });
-                } else if (data.type === 'global-stats') {
-                    setActiveSessionCount(data.activeSessions || 0);
+            monitor.onopen = () => {
+                console.log('[Monitor] Presence WebSocket connected.');
+                retryCount = 0; // Reset on success
+                pollDevices(); // Immediate sync on connect
+                
+                // Re-subscribe if we have devices loaded
+                if (devices.length > 0) {
+                    const keys = devices.map((d: any) => String(d.access_key || '').toLowerCase().replace(/\s/g, ''));
+                    monitor?.send(JSON.stringify({ type: 'subscribe-presence', accessKeys: keys }));
                 }
-            } catch (err) {
-                console.error('[Monitor] Message parse error:', err);
-            }
+            };
+
+            monitor.onmessage = (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'presence-update') {
+                        const incomingId = String(data.sessionId || '').toLowerCase().replace(/\s/g, '');
+                        setDevices(prev => {
+                            const deviceMatch = prev.find(d => String(d.access_key || '').toLowerCase().replace(/\s/g, '') === incomingId);
+                            if (deviceMatch && deviceMatch.is_online !== (data.status === 'online')) {
+                                addNotification(`${deviceMatch.device_name} is now ${data.status}`, 'host');
+                            }
+                            return prev.map(d => {
+                                const localId = String(d.access_key || '').toLowerCase().replace(/\s/g, '');
+                                return localId === incomingId ? { ...d, is_online: data.status === 'online' } : d;
+                            });
+                        });
+                    } else if (data.type === 'global-stats') {
+                        setActiveSessionCount(data.activeSessions || 0);
+                    }
+                } catch (err) {
+                    console.error('[Monitor] Message parse error:', err);
+                }
+            };
+
+            monitor.onclose = () => {
+                console.log('[Monitor] Presence WebSocket closed. Retrying...');
+                monitorWsRef.current = null;
+                // Exponential backoff: 2s, 4s, 8s... max 30s
+                const delay = Math.min(Math.pow(2, retryCount) * 1000, 30000);
+                reconnectTimeout = setTimeout(() => {
+                    retryCount++;
+                    connect();
+                }, delay);
+            };
+
+            monitor.onerror = (err) => {
+                console.error('[Monitor] Presence WebSocket error:', err);
+                monitor?.close();
+            };
         };
+
+        connect();
 
         const handleFocus = () => pollDevices();
         window.addEventListener('focus', handleFocus);
 
         return () => {
-            monitor.close();
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
+            if (monitor) monitor.close();
             monitorWsRef.current = null;
             window.removeEventListener('focus', handleFocus);
         };
@@ -1982,15 +2012,34 @@ export default function App() {
         e.preventDefault();
         if (!signupName.trim()) { showError('Registration Failed', 'Display name is required.'); return; }
         setLoading(true);
-        try {
-            await storeRegister(signupName.trim(), email, password);
-            setShowSplash(true);
-            setTimeout(() => setShowSplash(false), 2000);
-            localStorage.setItem('remote_link_server_ip', serverIP);
-        } catch (err: any) {
-            showError('Registration Failed', err.response?.data?.error || 'Could not create account. Please try again.');
-        } finally {
-            setLoading(false);
+
+        if (!isAwaitingVerification) {
+            try {
+                await storeRequestVerification(email);
+                setIsAwaitingVerification(true);
+            } catch (err: any) {
+                showError('Registration Failed', err.response?.data?.error || 'Could not send verification code.');
+            } finally {
+                setLoading(false);
+            }
+        } else {
+            if (!verificationCode || verificationCode.length !== 6) {
+                showError('Registration Failed', 'Please enter a valid 6-digit verification code.');
+                setLoading(false);
+                return;
+            }
+            try {
+                await storeRegister(signupName.trim(), email, password, verificationCode);
+                setShowSplash(true);
+                setTimeout(() => setShowSplash(false), 2000);
+                localStorage.setItem('remote_link_server_ip', serverIP);
+                setIsAwaitingVerification(false);
+                setVerificationCode('');
+            } catch (err: any) {
+                showError('Registration Failed', err.response?.data?.error || 'Could not create account. Please try again.');
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -2236,7 +2285,7 @@ export default function App() {
                                 <button
                                     key={mode}
                                     type="button"
-                                    onClick={() => { setAuthMode(mode); setEmail(''); setPassword(''); setSignupName(''); }}
+                                    onClick={() => { setAuthMode(mode); setEmail(''); setPassword(''); setSignupName(''); setIsAwaitingVerification(false); setVerificationCode(''); }}
                                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[rgba(28,28,28,0.3)] hover:text-[rgba(28,28,28,0.6)]'}`}
                                 >
                                     {mode === 'login' ? 'Sign In' : 'Create Account'}
@@ -2272,68 +2321,92 @@ export default function App() {
                         </div>
 
                         <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-                            {authMode === 'signup' && (
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Display Name</label>
+                            {authMode === 'signup' && isAwaitingVerification ? (
+                                <div className="space-y-1.5 animate-in fade-in">
+                                    <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Verification Code</label>
                                     <div className="relative group">
                                         <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                            <User size={16} />
+                                            <ShieldCheck size={16} />
                                         </div>
                                         <input
                                             type="text"
                                             required
                                             className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                            value={signupName}
-                                            placeholder="Your name"
-                                            onChange={(e) => setSignupName(e.target.value)}
+                                            value={verificationCode}
+                                            placeholder="123456"
+                                            onChange={(e) => setVerificationCode(e.target.value)}
                                         />
                                     </div>
+                                    <p className="text-[10px] text-center text-[rgba(28,28,28,0.4)] mt-2">
+                                        Code sent to <strong className="text-[#1C1C1C]">{email}</strong>
+                                    </p>
                                 </div>
+                            ) : (
+                                <>
+                                    {authMode === 'signup' && (
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Display Name</label>
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                    <User size={16} />
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    value={signupName}
+                                                    placeholder="Your name"
+                                                    onChange={(e) => setSignupName(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Email Address</label>
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                <Mail size={16} />
+                                            </div>
+                                            <input
+                                                type="email"
+                                                required
+                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                value={email}
+                                                placeholder="name@company.com"
+                                                onChange={(e) => setEmail(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between ml-1">
+                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
+                                            {authMode === 'login' && <button type="button" className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
+                                        </div>
+                                        <div className="relative group">
+                                            <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                <Lock size={16} />
+                                            </div>
+                                            <input
+                                                type={showLoginPassword ? "text" : "password"}
+                                                required
+                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                value={password}
+                                                placeholder="••••••••"
+                                                onChange={(e) => setPassword(e.target.value)}
+                                            />
+                                            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
+                                                {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
                             )}
-
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Email Address</label>
-                                <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                        <Mail size={16} />
-                                    </div>
-                                    <input
-                                        type="email"
-                                        required
-                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                        value={email}
-                                        placeholder="name@company.com"
-                                        onChange={(e) => setEmail(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between ml-1">
-                                    <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
-                                    {authMode === 'login' && <button type="button" className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
-                                </div>
-                                <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                        <Lock size={16} />
-                                    </div>
-                                    <input
-                                        type={showLoginPassword ? "text" : "password"}
-                                        required
-                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                        value={password}
-                                        placeholder="••••••••"
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
-                                    <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
-                                        {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                    </button>
-                                </div>
-                            </div>
 
                             <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
                                 {loading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                                {authMode === 'login' ? 'SIGN IN' : 'CREATE ACCOUNT'}
+                                {authMode === 'login' ? 'SIGN IN' : isAwaitingVerification ? 'VERIFY TO PROCEED' : 'CREATE ACCOUNT'}
                             </button>
 
                             <div className="pt-2 flex flex-col items-center gap-4">

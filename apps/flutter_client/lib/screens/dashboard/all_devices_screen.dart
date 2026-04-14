@@ -212,7 +212,7 @@ class _AllDevicesScreenState extends State<AllDevicesScreen> {
                       color: isOnline ? AppTheme.textPrimary : AppTheme.textSecondary,
                       letterSpacing: -0.2,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),

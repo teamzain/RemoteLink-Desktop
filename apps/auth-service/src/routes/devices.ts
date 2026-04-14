@@ -193,29 +193,35 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       }
 
       if (existing) {
-        let updateData: any = {};
-        
-        // Always sync the name if provided and different
-        if (deviceName && deviceName !== existing.name) {
-          updateData.name = deviceName;
-        }
+        // If the device is found by accessKey, strictly verify it belongs to the current user
+        if (existing.ownerId !== decoded.userId) {
+          console.warn(`[Device-Debug] Conflict: Access key ${accessKey} is already owned by another user (${existing.ownerId}). Generating a new one for user ${decoded.userId}.`);
+          existing = null; // Proceed as if not found to generate a new key
+        } else {
+          let updateData: any = {};
+          
+          // Always sync the name if provided and different
+          if (deviceName && deviceName !== existing.name) {
+            updateData.name = deviceName;
+          }
 
-        if (accessKey && accessKey !== existing.accessKey) {
-           // Ensure the new deterministic key doesn't clash
-           const clash = await prisma.device.findUnique({ where: { accessKey } });
-           if (!clash) updateData.accessKey = accessKey;
+          if (accessKey && accessKey !== existing.accessKey) {
+            // Ensure the new deterministic key doesn't clash
+            const clash = await prisma.device.findUnique({ where: { accessKey } });
+            if (!clash) updateData.accessKey = accessKey;
+          }
+          if (password) {
+            const bcrypt = require('bcrypt');
+            updateData.accessPasswordHash = await bcrypt.hash(password, 10);
+          }
+          
+          if (Object.keys(updateData).length > 0) {
+            existing = await prisma.device.update({ where: { id: existing.id }, data: updateData });
+          }
+          
+          const mapped = await mapDevice(existing, decoded.userId);
+          return reply.code(200).send(mapped);
         }
-        if (password) {
-           const bcrypt = require('bcrypt');
-           updateData.accessPasswordHash = await bcrypt.hash(password, 10);
-        }
-        
-        if (Object.keys(updateData).length > 0) {
-           existing = await prisma.device.update({ where: { id: existing.id }, data: updateData });
-        }
-        
-        const mapped = await mapDevice(existing, decoded.userId);
-        return reply.code(200).send(mapped);
       }
 
       if (!accessKey || (await prisma.device.findUnique({ where: { accessKey } }))) {

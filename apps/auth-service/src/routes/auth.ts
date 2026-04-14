@@ -1,24 +1,86 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
+import nodemailer from 'nodemailer';
 import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isTokenBlacklisted } from '@remotelink/shared';
 import { issueTokens } from '../utils/token-utils';
+
+const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
 
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/health', async () => {
     return { status: 'ok', service: 'auth-service' };
   });
 
-  fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { email, password, name } = request.body as any;
-    
-    if (!email || !password) {
-      return reply.code(400).send({ error: 'Email and password are required' });
+  fastify.post('/request-verification', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { email } = request.body as any;
+    if (!email) {
+      return reply.code(400).send({ error: 'Email is required' });
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return reply.code(400).send({ error: 'User already exists' });
     }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    verificationCodes.set(email, { code, expiresAt });
+
+    try {
+      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || '587', 10),
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+
+        await transporter.sendMail({
+          from: `"RemoteLink Auth" <${process.env.SMTP_USER}>`,
+          to: email,
+          subject: 'Your RemoteLink Verification Code',
+          text: `Your verification code is ${code}. It expires in 10 minutes.`,
+          html: `<p>Your verification code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
+        });
+        console.log(`[Auth] Sent verification email to ${email}`);
+      } else {
+        // Fallback or dev mode logging
+        console.log(`[Auth-Mock] Verification Code for ${email} is ${code}`);
+      }
+      return reply.send({ success: true, message: 'Verification code sent.' });
+    } catch (err) {
+      console.error('[Auth] Failed to send email', err);
+      return reply.code(500).send({ error: 'Failed to send verification email' });
+    }
+  });
+
+  fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { email, password, name, verificationCode } = request.body as any;
+    
+    if (!email || !password || !verificationCode) {
+      return reply.code(400).send({ error: 'Email, password, and verification code are required' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return reply.code(400).send({ error: 'User already exists' });
+    }
+
+    const record = verificationCodes.get(email);
+    if (!record || record.code !== verificationCode) {
+      return reply.code(400).send({ error: 'Invalid verification code' });
+    }
+    if (Date.now() > record.expiresAt) {
+      verificationCodes.delete(email);
+      return reply.code(400).send({ error: 'Verification code has expired' });
+    }
+
+    // Code is valid
+    verificationCodes.delete(email);
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
