@@ -1100,16 +1100,6 @@ export default function App() {
     const [showDiagnostics, setShowDiagnostics] = useState(false);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [onboardToken, setOnboardToken] = useState<string | null>(null);
-
-    // --- Onboarding Token Detection ---
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get('onboard_token');
-        if (token) {
-            setOnboardToken(token);
-        }
-    }, []);
     const [isRightBarOpen, setIsRightBarOpen] = useState(false);
 
     // Persistent Client ID for signaling stability (survives re-mounts/Strict Mode)
@@ -1176,14 +1166,8 @@ export default function App() {
                 }
             });
 
-            const cleanupOnboard = (window as any).electronAPI.onAuthOnboard((data: { token: string }) => {
-                console.log('[Auth] Received onboarding token via deep link:', data.token);
-                setOnboardToken(data.token);
-            });
-
             return () => { 
                 if (cleanup) cleanup(); 
-                if (cleanupOnboard) cleanupOnboard();
             };
         }
     }, []);
@@ -2340,17 +2324,6 @@ export default function App() {
         );
     }
 
-    if (onboardToken) {
-        return (
-            <SnowOnboard 
-                token={onboardToken} 
-                onComplete={() => {
-                    setOnboardToken(null);
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }} 
-            />
-        );
-    }
 
     if (!isAuthenticated) {
         return (

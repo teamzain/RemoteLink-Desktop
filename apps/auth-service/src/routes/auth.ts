@@ -418,30 +418,106 @@ export default async function authRoutes(fastify: FastifyInstance) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Join ${invitation.organization.name} | Connect-X</title>
+          <title>Complete Your Account | Connect-X</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
-            body { font-family: -apple-system, system-ui, sans-serif; background: #060608; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
-            .card { max-width: 440px; padding: 48px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 32px; backdrop-filter: blur(20px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+            body { font-family: -apple-system, system-ui, sans-serif; background: #060608; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+            .card { width: 100%; max-width: 440px; padding: 48px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 32px; backdrop-filter: blur(20px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center; }
             .icon { width: 64px; height: 64px; background: #fff; border-radius: 18px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; }
             h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
-            p { color: rgba(255,255,255,0.5); font-size: 15px; margin-bottom: 32px; list-style-type: none; }
-            .btn { display: inline-block; padding: 16px 32px; background: #fff; color: #000; text-decoration: none; border-radius: 14px; font-weight: 600; font-size: 15px; transition: transform 0.2s; }
-            .btn:active { transform: scale(0.96); }
-            .loader { margin-top: 24px; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; }
+            p { color: rgba(255,255,255,0.5); font-size: 15px; margin-bottom: 32px; }
+            .form-group { text-align: left; margin-bottom: 20px; }
+            label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.4); margin-bottom: 8px; margin-left: 4px; }
+            input { width: 100%; padding: 14px 18px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: #fff; font-size: 15px; box-sizing: border-box; outline: none; transition: border-color 0.2s, background 0.2s; }
+            input:focus { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.08); }
+            .btn { width: 100%; padding: 16px; background: #fff; color: #000; border: none; border-radius: 14px; font-weight: 600; font-size: 15px; cursor: pointer; transition: transform 0.2s, opacity 0.2s; margin-top: 12px; }
+            .btn:hover { opacity: 0.9; }
+            .btn:active { transform: scale(0.98); }
+            .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+            .error { color: #ff4d4d; font-size: 13px; margin-top: 16px; display: none; }
+            .loader { margin-top: 12px; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #fff; border-radius: 50%; display: none; animation: spin 1s linear infinite; margin-left: auto; margin-right: auto; }
             @keyframes spin { to { transform: rotate(360deg); } }
+            .success-view { display: none; }
           </style>
         </head>
         <body>
-          <div class="card">
+          <div class="card" id="form-card">
             <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m14 8 3 3-3 3"/></svg></div>
-            <h1>Join ${invitation.organization.name}</h1>
-            <p>You've been invited to join the team on Connect-X. We are redirecting you to the app to set up your account.</p>
-            <a href="${deepLink}" class="btn">Open Connect-X</a>
-            <br><div class="loader"></div>
+            <div id="setup-view">
+              <h1>Join ${invitation.organization.name}</h1>
+              <p>Set a password to complete your invitation and join the team.</p>
+              
+              <form id="onboard-form">
+                <div class="form-group">
+                  <label>Full Name</label>
+                  <input type="text" id="name" placeholder="Enter your name" required>
+                </div>
+                <div class="form-group">
+                  <label>Set Password</label>
+                  <input type="password" id="password" placeholder="••••••••" required minlength="8">
+                </div>
+                <button type="submit" class="btn" id="submit-btn">Complete Setup</button>
+              </form>
+              <div class="loader" id="loader"></div>
+              <div class="error" id="error-msg"></div>
+            </div>
+
+            <div id="success-view" class="success-view">
+              <h1>Welcome Aboard!</h1>
+              <p>Your account is ready. We are launching the Connect-X app for you now...</p>
+              <div class="loader" style="display:inline-block"></div>
+              <p style="margin-top: 24px;"><a href="#" id="manual-link" style="color:#fff; font-size: 13px; opacity: 0.6;">App didn't open? Click here to launch manually</a></p>
+            </div>
           </div>
+
           <script>
-            setTimeout(() => { window.location.href = "${deepLink}"; }, 1500);
+            const form = document.getElementById('onboard-form');
+            const setupView = document.getElementById('setup-view');
+            const successView = document.getElementById('success-view');
+            const errorMsg = document.getElementById('error-msg');
+            const submitBtn = document.getElementById('submit-btn');
+            const loader = document.getElementById('loader');
+
+            form.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              
+              errorMsg.style.display = 'none';
+              submitBtn.disabled = true;
+              loader.style.display = 'inline-block';
+
+              const name = document.getElementById('name').value;
+              const password = document.getElementById('password').value;
+              const token = new URLSearchParams(window.location.search).get('token');
+
+              try {
+                const response = await fetch('/api/auth/onboard', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token, password, name })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                  throw new Error(data.error || 'Failed to complete setup');
+                }
+
+                // Handoff to Desktop App
+                const deepLink = \`remotelink://auth/callback?accessToken=\${data.accessToken}&refreshToken=\${data.refreshToken}\`;
+                
+                setupView.style.display = 'none';
+                successView.style.display = 'block';
+                document.getElementById('manual-link').href = deepLink;
+
+                window.location.href = deepLink;
+                
+              } catch (err) {
+                errorMsg.textContent = err.message;
+                errorMsg.style.display = 'block';
+                submitBtn.disabled = false;
+                loader.style.display = 'none';
+              }
+            });
           </script>
         </body>
       </html>
