@@ -5,8 +5,17 @@ export const REFRESH_TOKEN_EXPIRY = '7d';
 export const EXPIRY_SECONDS = 86400;
 
 export async function issueTokens(user: any) {
-  const accessToken = generateToken({ userId: user.id, role: user.role }, ACCESS_TOKEN_EXPIRY);
-  const refreshToken = generateToken({ userId: user.id, role: user.role, type: 'refresh' } as any, REFRESH_TOKEN_EXPIRY);
+  const accessToken = generateToken({ 
+    userId: user.id, 
+    role: user.role, 
+    orgId: user.organizationId 
+  }, ACCESS_TOKEN_EXPIRY);
+  const refreshToken = generateToken({ 
+    userId: user.id, 
+    role: user.role, 
+    orgId: user.organizationId,
+    type: 'refresh' 
+  } as any, REFRESH_TOKEN_EXPIRY);
 
   return {
     accessToken,
@@ -17,6 +26,8 @@ export async function issueTokens(user: any) {
       email: user.email,
       name: user.name,
       plan: user.plan || 'FREE',
+      role: user.role,
+      organizationId: user.organizationId,
       avatar: user.avatar || null
     }
   };

@@ -9,6 +9,8 @@ interface User {
   email: string;
   name: string;
   plan: string;
+  role: 'SUPER_ADMIN' | 'SUB_ADMIN' | 'OPERATOR' | 'VIEWER' | 'USER';
+  organizationId: string | null;
   avatar: string | null;
 }
 

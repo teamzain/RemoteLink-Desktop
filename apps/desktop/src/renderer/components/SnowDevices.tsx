@@ -23,10 +23,12 @@ interface Device {
   is_online: boolean;
   last_seen?: string;
   local_ip?: string;
+  tags?: string[];
 }
 
 interface SnowDevicesProps {
   devices: Device[];
+  user: any;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   setSelectedDevice: (device: Device | null) => void;
@@ -38,6 +40,7 @@ interface SnowDevicesProps {
 
 export const SnowDevices: React.FC<SnowDevicesProps> = ({ 
   devices, 
+  user,
   searchQuery, 
   setSearchQuery, 
   setSelectedDevice, 
@@ -61,6 +64,15 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
   const filteredDevices = useMemo(() => {
     let result = devices.filter(d => {
+        // Role-based Tag Filtering for OPERATORS
+        if (user?.role === 'OPERATOR' && user?.allowedTags?.length > 0) {
+            const deviceTags = d.tags || [];
+            // If device has no tags but user has restrictions, they can't see it (Secure by default)
+            // Or if device tags don't intersect with user's allowed tags
+            const hasAccess = user.allowedTags.some((tag: string) => deviceTags.includes(tag));
+            if (!hasAccess) return false;
+        }
+
         // Status Filter
         if (filterStatus === 'online' && !d.is_online) return false;
         if (filterStatus === 'offline' && d.is_online) return false;
@@ -263,9 +275,15 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     <div className="flex items-center justify-center gap-1">
                       {device.is_online && (
                         <button 
-                          onClick={() => handleDeviceClick(device)}
-                          className="p-1 text-[rgba(28,28,28,0.2)] hover:text-blue-500 transition-colors"
-                          title="Connect"
+                          onClick={() => {
+                            if (user?.role === 'VIEWER') {
+                              alert('Your role is View-Only. You do not have permission to connect to devices.');
+                              return;
+                            }
+                            handleDeviceClick(device);
+                          }}
+                          className={`p-1 transition-colors ${user?.role === 'VIEWER' ? 'text-[rgba(28,28,28,0.1)] cursor-not-allowed' : 'text-[rgba(28,28,28,0.2)] hover:text-blue-500'}`}
+                          title={user?.role === 'VIEWER' ? "View-Only Access" : "Connect"}
                         >
                           <ExternalLink size={14} />
                         </button>

@@ -21,6 +21,9 @@ import { SnowProfile } from './components/SnowProfile';
 import { SnowSupport } from './components/SnowSupport';
 import { SnowSettings } from './components/SnowSettings';
 import { SnowSplashScreen } from './components/SnowSplashScreen';
+import { SnowMembers } from './components/SnowMembers';
+import { SnowOrgs } from './components/SnowOrgs';
+import { SnowOnboard } from './components/SnowOnboard';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -1079,7 +1082,7 @@ export default function App() {
     const { user, accessToken, login: storeLogin, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
     const isAuthenticated = !!accessToken;
 
-    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support'>('dashboard');
+    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations'>('dashboard');
     const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -1097,6 +1100,16 @@ export default function App() {
     const [showDiagnostics, setShowDiagnostics] = useState(false);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [onboardToken, setOnboardToken] = useState<string | null>(null);
+
+    // --- Onboarding Token Detection ---
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('onboard_token');
+        if (token) {
+            setOnboardToken(token);
+        }
+    }, []);
     const [isRightBarOpen, setIsRightBarOpen] = useState(false);
 
     // Persistent Client ID for signaling stability (survives re-mounts/Strict Mode)
@@ -1151,7 +1164,7 @@ export default function App() {
                 // Fetch user data manually to sync with tokens
                 try {
                     // Temporarily set tokens in store so api.get('/me') works
-                    await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', avatar: null }, data.accessToken, data.refreshToken);
+                    await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', role: 'USER', organizationId: null, avatar: null }, data.accessToken, data.refreshToken);
                     
                     // The checkAuth() call inside useAuthStore will refresh the user profile properly
                     await checkAuth();
@@ -1321,7 +1334,7 @@ export default function App() {
 
             setSessionCode(sid);
             setServerIP(sip);
-            setAuth({ email: 'node.viewer@synclink.io' } as any, tok, '', false);
+            setAuth({ id: 'viewer', email: 'node.viewer@synclink.io', name: 'Viewer', plan: 'FREE', role: 'VIEWER', organizationId: null, avatar: null }, tok, '', false);
             setWindowDeviceName(dname);
             setWindowDeviceType(dtype);
 
@@ -1790,7 +1803,7 @@ export default function App() {
         const unsubDeepLink = (window as any).electronAPI.onAuthDeepLinkSuccess?.(async (tokens: any) => {
             console.log('[Auth] Deep link success received in renderer');
             // Store tokens first so the API interceptor can use them
-            await setAuth({ id: '', email: '', name: '', plan: 'FREE', avatar: null }, tokens.accessToken, tokens.refreshToken);
+            await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', role: 'USER', organizationId: null, avatar: null }, tokens.accessToken, tokens.refreshToken);
             // Then fetch real user data from /me
             checkAuth();
         });
@@ -2318,6 +2331,18 @@ export default function App() {
         );
     }
 
+    if (onboardToken) {
+        return (
+            <SnowOnboard 
+                token={onboardToken} 
+                onComplete={() => {
+                    setOnboardToken(null);
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }} 
+            />
+        );
+    }
+
     if (!isAuthenticated) {
         return (
             <div className="h-screen w-full flex overflow-hidden bg-white font-inter select-none">
@@ -2582,7 +2607,7 @@ export default function App() {
             <SnowSidebar
                 currentView={currentView}
                 selectedDevice={selectedDevice}
-                setCurrentView={(v) => { setCurrentView(v); setIsSidebarOpen(false); }}
+                setCurrentView={(v: any) => { setCurrentView(v); setIsSidebarOpen(false); }}
                 setSelectedDevice={setSelectedDevice}
                 handleLogout={() => {
                     storeLogout();
@@ -2618,7 +2643,7 @@ export default function App() {
                                 <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
                                     <span className="hover:text-[rgba(28,28,28,0.4)] cursor-pointer transition-colors hidden sm:inline" onClick={() => setCurrentView('dashboard')}>Connect-X Devices</span>
                                     <span className="opacity-50 hidden sm:inline">/</span>
-                                    <span className="text-[rgba(28,28,28,0.6)]">{selectedDevice ? 'Terminal' : currentView === 'host' ? 'Host' : currentView}</span>
+                                    <span className="text-[rgba(28,28,28,0.6)]">{selectedDevice ? 'Terminal' : currentView === 'host' ? 'Host' : currentView.replace('members', 'Team').replace('organizations', 'Orgs')}</span>
                                 </div>
                                 <h1 className="text-lg md:text-2xl font-bold text-[#1C1C1C] tracking-tight capitalize truncate max-w-[120px] md:max-w-none">
                                     {selectedDevice ? selectedDevice.device_name : currentView === 'host' ? 'Host This Device' : currentView}
@@ -2678,9 +2703,15 @@ export default function App() {
                                         Go Back
                                     </button>
                                     <button
-                                        onClick={() => handleDeviceClick(selectedDevice)}
-                                        disabled={viewerStatus === 'connecting'}
-                                        className="flex-1 py-3.5 rounded-2xl font-bold text-[11px] uppercase tracking-widest text-white bg-[#1C1C1C] shadow-lg shadow-black/10 flex items-center justify-center gap-2 transition active:scale-[0.98]"
+                                        onClick={() => {
+                                            if (user?.role === 'VIEWER') {
+                                                showError('Access Denied', 'Your role is View-Only. You do not have permission to connect to devices.');
+                                                return;
+                                            }
+                                            handleDeviceClick(selectedDevice);
+                                        }}
+                                        disabled={viewerStatus === 'connecting' || user?.role === 'VIEWER'}
+                                        className={`flex-1 py-3.5 rounded-2xl font-bold text-[11px] uppercase tracking-widest text-white shadow-lg shadow-black/10 flex items-center justify-center gap-2 transition active:scale-[0.98] ${user?.role === 'VIEWER' ? 'bg-[rgba(28,28,28,0.1)] cursor-not-allowed' : 'bg-[#1C1C1C]'}`}
                                     >
                                         {viewerStatus === 'connecting' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <>Establish Link <Zap size={14} /></>}
                                     </button>
@@ -2693,7 +2724,7 @@ export default function App() {
                                     devices={devices} 
                                     activeSessionCount={activeSessionCount} 
                                     telemetryHistory={telemetryHistory}
-                                    onNavigate={(view, filter) => {
+                                    onNavigate={(view: any, filter: any) => {
                                         if (view === 'devices') {
                                             if (filter === 'online') setSearchQuery(':online');
                                             else setSearchQuery('');
@@ -2755,7 +2786,7 @@ export default function App() {
                                     status={hostStatus}
                                     accessKey={hostAccessKey}
                                     isAutoHost={isAutoHostEnabled}
-                                    setIsAutoHost={(val) => {
+                                    setIsAutoHost={(val: boolean) => {
                                         setIsAutoHostEnabled(val);
                                         localStorage.setItem('is_auto_host_enabled', String(val));
                                     }}
@@ -2794,6 +2825,7 @@ export default function App() {
                             <div className="w-full h-full animate-in fade-in duration-700 pt-2">
                                 <SnowDevices
                                     devices={devices}
+                                    user={user}
                                     searchQuery={searchQuery}
                                     setSearchQuery={setSearchQuery}
                                     setSelectedDevice={setSelectedDevice}
@@ -2802,6 +2834,14 @@ export default function App() {
                                     setShowAddModal={setShowAddModal}
                                     handleBulkDelete={handleBulkDelete}
                                 />
+                            </div>
+                        ) : (currentView as string) === 'members' ? (
+                            <div className="w-full h-full pt-8 animate-in fade-in duration-700">
+                                <SnowMembers />
+                            </div>
+                        ) : (currentView as string) === 'organizations' ? (
+                            <div className="w-full h-full pt-8 animate-in fade-in duration-700">
+                                <SnowOrgs />
                             </div>
                         ) : currentView === 'settings' ? (
                             /* --- SETTINGS VIEW --- */

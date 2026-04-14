@@ -33,3 +33,6 @@ C:\RemoteLinkViewer/
 .remote-link/
 .vscode/
 .antigravity/
+.env
+.env.*
+generated/

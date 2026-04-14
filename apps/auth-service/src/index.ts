@@ -12,6 +12,8 @@ import oauthRoutes from './routes/oauth';
 import mfaRoutes from './routes/2fa';
 import passwordRoutes from './routes/password';
 import deviceRoutes from './routes/devices';
+import organizationRoutes from './routes/organizations';
+import memberRoutes from './routes/members';
 
 const server = Fastify({ logger: true });
 
@@ -32,6 +34,8 @@ server.register(oauthRoutes, { prefix: '/api/auth/oauth' });
 server.register(mfaRoutes, { prefix: '/api/auth/2fa' });
 server.register(passwordRoutes, { prefix: '/api/auth/password' });
 server.register(deviceRoutes, { prefix: '/api/devices' });
+server.register(organizationRoutes, { prefix: '/api/organizations' });
+server.register(memberRoutes, { prefix: '/api/members' });
 
 server.setNotFoundHandler((request, reply) => {
   console.log(`[Auth-Service-Wildcard] 404: ${request.method} ${request.url}`);

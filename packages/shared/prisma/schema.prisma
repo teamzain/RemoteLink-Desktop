@@ -1,6 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  output        = "../src/generated/client"
 }
 
 datasource db {
@@ -13,7 +14,12 @@ model User {
   email          String          @unique
   password       String?
   name           String?
-  role           String          @default("USER")
+  role           UserRole        @default(USER)
+  organizationId String?
+  departmentId   String?
+  allowedTags    String[]        @default([]) // Tags this user is allowed to access
+  organization   Organization?   @relation(fields: [organizationId], references: [id])
+  department     Department?     @relation(fields: [departmentId], references: [id])
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   devices        Device[]
@@ -23,6 +29,56 @@ model User {
   trustedDevices   TrustedDevice[]
   twoFactorSecret  String?
   is2FAEnabled     Boolean         @default(false)
+}
+
+model Organization {
+  id               String          @id @default(uuid())
+  name             String
+  slug             String          @unique
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  users            User[]
+  devices          Device[]
+  departments      Department[]
+  invitations      Invitation[]
+  enrollmentTokens EnrollmentToken[]
+}
+
+model Department {
+  id             String       @id @default(uuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  users          User[]
+  devices        Device[]
+}
+
+model Invitation {
+  id             String       @id @default(uuid())
+  email          String
+  token          String       @unique
+  role           UserRole     @default(USER)
+  organizationId String
+  departmentId   String?
+  allowedTags    String[]     @default([])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  @@index([token])
+}
+
+model EnrollmentToken {
+  id             String       @id @default(uuid())
+  token          String       @unique
+  name           String?      // Optional name for the token e.g. "Primary Enrollment"
+  organizationId String
+  departmentId   String?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+
+  @@index([token])
 }
 
 model Subscription {
@@ -57,10 +113,15 @@ model Device {
   deviceType         DeviceType      @default(WINDOWS)
   status             String          @default("OFFLINE")
   ownerId            String
+  organizationId     String?
+  departmentId       String?
+  tags               String[]        @default([])
   lastSeenAt         DateTime        @default(now())
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   owner              User            @relation(fields: [ownerId], references: [id])
+  organization       Organization?   @relation(fields: [organizationId], references: [id])
+  department         Department?     @relation(fields: [departmentId], references: [id])
   savedByUsers       SavedDevice[]
   trustedByViewers   TrustedDevice[]
 }
@@ -93,6 +154,14 @@ model SavedDevice {
   user     User     @relation(fields: [userId], references: [id])
 
   @@id([userId, deviceId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SUB_ADMIN
+  OPERATOR
+  VIEWER
+  USER
 }
 
 enum Plan {

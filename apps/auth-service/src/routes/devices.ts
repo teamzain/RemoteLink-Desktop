@@ -20,7 +20,23 @@ async function mapDevice(device: any, userId: string): Promise<any> {
       is_online: presence === 'online',
       is_owned: device.ownerId === userId,
       has_password: !!device.accessPasswordHash,
+      tags: device.tags || []
     };
+}
+
+// Helper to check device access based on role/tags
+function hasDevicePermission(user: any, device: any): boolean {
+    if (user.role === 'SUPER_ADMIN') return true;
+    if (user.organizationId !== device.organizationId) return false;
+    if (user.role === 'SUB_ADMIN') return true;
+    
+    // OPERATOR/VIEWER check: intersection of tags
+    if (user.allowedTags && user.allowedTags.length > 0) {
+        return user.allowedTags.some((tag: string) => device.tags.includes(tag));
+    }
+    
+    // Default to true if no tags restriction is set on the user's profile but they belong to the org
+    return true;
 }
 
 export default async function deviceRoutes(fastify: FastifyInstance) {
@@ -89,6 +105,23 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Device has no access password set yet. Go to host settings and set one.' });
     }
 
+    // Role-based check
+    const authHeader = request.headers.authorization;
+    if (authHeader) {
+      const token = authHeader.split(' ')[1];
+      const decodedUser = verifyToken(token);
+      if (decodedUser) {
+          if (decodedUser.role === 'VIEWER') {
+              return reply.code(403).send({ error: 'Viewer accounts are not allowed to connect to devices' });
+          }
+          // Scoping check for Operators
+          const fullUser = await prisma.user.findUnique({ where: { id: decodedUser.userId } });
+          if (fullUser && !hasDevicePermission(fullUser, device)) {
+              return reply.code(403).send({ error: 'You do not have permission to connect to this device' });
+          }
+      }
+    }
+
     const presence = await redisPublisher.get(`presence:${accessKey}`);
     if (presence !== 'online') {
       return reply.code(409).send({ error: 'Device is offline' });
@@ -96,7 +129,6 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     // Check if user is trusted (Passwordless bypass)
     let isTrusted = false;
-    const authHeader = request.headers.authorization;
     if (authHeader) {
       const token = authHeader.split(' ')[1];
       const decodedUser = verifyToken(token);
@@ -132,7 +164,6 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       await redisPublisher.del(lockoutKey);
 
       // Persist trust for future passwordless connections
-      const authHeader = request.headers.authorization;
       if (authHeader) {
         const token = authHeader.split(' ')[1];
         const decodedUser = verifyToken(token);
@@ -160,7 +191,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted } });
   });
   
-  // 1. Register a new device for the current user
+  // 1. Register a new device for the current user or organization
   fastify.post('/register', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log(`[Device-Debug] Registration attempt received`);
     try {
@@ -170,11 +201,27 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const token = authHeader.split(' ')[1];
       const decoded = verifyToken(token);
       if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
-      console.log(`[Device-Debug] Registration for userId: ${decoded.userId}`);
+      
+      const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      if (!user) return reply.code(401).send({ error: 'User not found' });
 
-      const { name, deviceType } = request.body as any || {};
+      const { name, deviceType, enrollmentToken } = request.body as any || {};
       const deviceName = name || 'Remote PC';
       const validDeviceType = ['WINDOWS', 'MACOS', 'LINUX', 'IOS', 'ANDROID'].includes(deviceType?.toUpperCase()) ? deviceType.toUpperCase() : 'WINDOWS';
+
+      let organizationId = user.organizationId;
+      let departmentId = user.departmentId;
+
+      // Handle Enrollment Token
+      if (enrollmentToken) {
+        const et = await prisma.enrollmentToken.findUnique({ where: { token: enrollmentToken } });
+        if (!et) return reply.code(400).send({ error: 'Invalid enrollment token' });
+        if (et.expiresAt && et.expiresAt < new Date()) return reply.code(400).send({ error: 'Enrollment token expired' });
+        
+        organizationId = et.organizationId;
+        departmentId = et.departmentId || departmentId;
+        console.log(`[Device-Debug] Enrolling device into Org: ${organizationId}`);
+      }
 
       let accessKey = (request.body as any)?.accessKey;
       if (accessKey) accessKey = String(accessKey).replace(/\s/g, ''); // Standardize
@@ -235,6 +282,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         data: {
           accessKey,
           ownerId: decoded.userId,
+          organizationId,
+          departmentId,
           name: deviceName,
           deviceType: validDeviceType as any
         }
@@ -257,7 +306,22 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
-    // Fetch owned devices
+    // 1. Fetch devices owned by Organization (for Org Admins/Super Admins)
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) return reply.code(401).send({ error: 'User not found' });
+
+    let orgDevices: any[] = [];
+    if (user.role === 'SUPER_ADMIN') {
+        orgDevices = await prisma.device.findMany({});
+    } else if (user.organizationId) {
+        // Find devices in org that match user's permissions
+        const allOrgDevices = await prisma.device.findMany({
+            where: { organizationId: user.organizationId }
+        });
+        orgDevices = allOrgDevices.filter((d: any) => hasDevicePermission(user, d));
+    }
+
+    // 2. Fetch devices personally owned (legacy/personal fallback)
     const ownedDevices = await prisma.device.findMany({
       where: { ownerId: decoded.userId }
     });
@@ -271,7 +335,10 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     // Combine them
     const allDevicesMap = new Map();
-    [...ownedDevices].forEach(d => allDevicesMap.set(d.id, { ...d, _isOwned: true }));
+    [...orgDevices].forEach(d => allDevicesMap.set(d.id, { ...d, _isOwned: d.ownerId === decoded.userId }));
+    [...ownedDevices].forEach(d => {
+      if (!allDevicesMap.has(d.id)) allDevicesMap.set(d.id, { ...d, _isOwned: true });
+    });
     [...savedDevices].forEach(d => {
       if (!allDevicesMap.has(d.id)) allDevicesMap.set(d.id, { ...d, _isOwned: false });
     });

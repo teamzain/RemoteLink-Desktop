@@ -4,18 +4,9 @@ import axios from 'axios';
 const isElectron = !!(window as any).electronAPI;
 
 const getBaseURL = async () => {
-  const serverIP = '159.65.84.190'; // HARDCODED FOR PRODUCTION
-
-  if (isElectron) {
-    const isPackaged = await (window as any).electronAPI.isPackaged();
-    if (isPackaged) {
-      return `http://${serverIP}`; // Use HTTP because the raw IP lacks SSL
-    }
-    // During development on desktop, use the local backend
-    return 'http://localhost:3001';
-  }
+  const serverIP = '159.65.84.190';
   
-  // Web fallback
+  // Connect to production server at 159.65.84.190 for end-to-end testing
   return `http://${serverIP}`;
 };
 

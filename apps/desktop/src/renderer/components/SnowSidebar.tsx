@@ -17,13 +17,14 @@ import {
   Radio,
   BookOpen,
   LifeBuoy,
-  LogOut
+  LogOut,
+  Building2
 } from 'lucide-react';
 
 interface SnowSidebarProps {
-  currentView: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support';
+  currentView: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations';
   selectedDevice: any;
-  setCurrentView: (view: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support') => void;
+  setCurrentView: (view: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations') => void;
   setSelectedDevice: (device: any) => void;
   handleLogout: () => void;
   user: any;
@@ -49,6 +50,12 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   const isDocs = currentView === 'documentation' && !selectedDevice;
   const isProfile = currentView === 'profile' && !selectedDevice;
   const isSupport = currentView === 'support' && !selectedDevice;
+  const isMembers = currentView === 'members' && !selectedDevice;
+  const isOrgs = currentView === 'organizations' && !selectedDevice;
+
+  const userRole = user?.role || 'USER';
+  const canManageTeam = userRole === 'SUB_ADMIN' || userRole === 'SUPER_ADMIN';
+  const canManageOrgs = userRole === 'SUPER_ADMIN';
 
   const navItemClass = (isActive: boolean) => `
     relative flex items-center w-full h-8 px-3 rounded-lg transition-all duration-200 group
@@ -146,6 +153,32 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
                 <span className={textClass(isSettings)}>Settings</span>
               </div>
             </button>
+
+            {canManageTeam && (
+              <button 
+                onClick={() => { setCurrentView('members'); setSelectedDevice(null); }}
+                className={navItemClass(isMembers)}
+              >
+                <div className={indicatorClass(isMembers)} />
+                <div className="flex items-center gap-2.5">
+                  <Users size={16} className={isMembers ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                  <span className={textClass(isMembers)}>Team Management</span>
+                </div>
+              </button>
+            )}
+
+            {canManageOrgs && (
+              <button 
+                onClick={() => { setCurrentView('organizations'); setSelectedDevice(null); }}
+                className={navItemClass(isOrgs)}
+              >
+                <div className={indicatorClass(isOrgs)} />
+                <div className="flex items-center gap-2.5">
+                  <Building2 size={16} className={isOrgs ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                  <span className={textClass(isOrgs)}>Organizations</span>
+                </div>
+              </button>
+            )}
 
             <button 
               onClick={() => { setCurrentView('documentation'); setSelectedDevice(null); }}

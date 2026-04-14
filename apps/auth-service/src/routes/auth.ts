@@ -126,6 +126,64 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send(await issueTokens(user));
   });
 
+  // 1.5. Verify Invitation Token
+  fastify.get('/invitation/:token', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token } = request.params as { token: string };
+    const invitation = await prisma.invitation.findUnique({
+      where: { token },
+      include: { organization: { select: { name: true } } }
+    });
+
+    if (!invitation || invitation.expiresAt < new Date()) {
+      return reply.code(400).send({ error: 'Invalid or expired invitation' });
+    }
+
+    return reply.send({ email: invitation.email, role: invitation.role, orgName: invitation.organization.name });
+  });
+
+  // 1.6. Onboard invited member (Set Password)
+  fastify.post('/onboard', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token, password, name } = request.body as any;
+    if (!token || !password) return reply.code(400).send({ error: 'Token and Password required' });
+
+    const invitation = await prisma.invitation.findUnique({ where: { token } });
+    if (!invitation || invitation.expiresAt < new Date()) {
+      return reply.code(400).send({ error: 'Invalid or expired invitation' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create the user and link to ORG
+    const user = await prisma.user.create({
+      data: {
+        email: invitation.email,
+        password: hashedPassword,
+        name: name || invitation.email.split('@')[0],
+        role: invitation.role,
+        organizationId: invitation.organizationId,
+        departmentId: invitation.departmentId,
+        allowedTags: invitation.allowedTags
+      }
+    });
+
+    // Delete invitation
+    await prisma.invitation.delete({ where: { id: invitation.id } });
+
+    // Notify billing
+    try {
+      const billingUrl = process.env.BILLING_SERVICE_URL || 'http://localhost:3003';
+      await fetch(`${billingUrl}/billing/create-customer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, email: user.email })
+      });
+    } catch (err) {}
+
+    return reply.send(await issueTokens(user));
+  });
+
+
   fastify.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
     const { email, password } = request.body as any;
 
@@ -232,6 +290,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
       email: user.email,
       name: user.name,
       plan: user.subscription?.plan || 'FREE',
+      role: user.role,
+      organizationId: user.organizationId,
+      allowedTags: user.allowedTags,
       avatar: null,
       is_2fa_enabled: (user as any).is2FAEnabled ?? false,
     });
