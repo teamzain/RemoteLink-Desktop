@@ -82,21 +82,24 @@ export const SnowMembers: React.FC = () => {
     }
   };
 
+  // Update remove functions to use modal
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string, type: 'member' | 'invitation', email: string } | null>(null);
+
   const removeMember = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to remove this member?')) return;
     try {
       await api.delete(`/api/members/${userId}`);
       fetchTeamData();
+      setDeleteTarget(null);
     } catch (err) {
       alert('Failed to remove member');
     }
   };
 
   const removeInvitation = async (invitationId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this invitation?')) return;
     try {
       await api.delete(`/api/members/invitation/${invitationId}`);
       fetchTeamData();
+      setDeleteTarget(null);
     } catch (err) {
       alert('Failed to cancel invitation');
     }
@@ -196,7 +199,7 @@ export const SnowMembers: React.FC = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button 
-                    onClick={() => removeMember(member.id)}
+                    onClick={() => setDeleteTarget({ id: member.id, type: 'member', email: member.email })}
                     className="p-2 text-[rgba(28,28,28,0.2)] hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
                   >
                     <Trash2 size={16} />
@@ -228,7 +231,7 @@ export const SnowMembers: React.FC = () => {
                 <td className="px-6 py-4 text-xs text-[rgba(28,28,28,0.4)]">---</td>
                 <td className="px-6 py-4 text-right">
                   <button 
-                    onClick={() => removeInvitation(invite.id)}
+                    onClick={() => setDeleteTarget({ id: invite.id, type: 'invitation', email: invite.email })}
                     className="p-2 text-amber-600/40 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
                   >
                     <Trash2 size={16} />
@@ -246,6 +249,37 @@ export const SnowMembers: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 border border-white/20 animate-in zoom-in-95 duration-300 text-center">
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <Trash2 size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-[#1C1C1C] mb-2">
+              {deleteTarget.type === 'member' ? 'Remove Member?' : 'Cancel Invitation?'}
+            </h3>
+            <p className="text-sm text-[rgba(28,28,28,0.5)] mb-8 px-4 leading-relaxed">
+              Are you sure you want to remove <strong>{deleteTarget.email}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-3.5 bg-[#F9F9FA] text-[rgba(28,28,28,0.6)] rounded-xl font-bold text-sm hover:bg-[#F0F0F2] transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => deleteTarget.type === 'member' ? removeMember(deleteTarget.id) : removeInvitation(deleteTarget.id)}
+                className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all shadow-lg shadow-red-200"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invite Modal */}
       {showInviteModal && (

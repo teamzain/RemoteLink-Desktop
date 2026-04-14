@@ -469,6 +469,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           </div>
 
           <script>
+            console.log("[Onboard] Bridge page loaded.");
             const form = document.getElementById('onboard-form');
             const setupView = document.getElementById('setup-view');
             const successView = document.getElementById('success-view');
@@ -478,6 +479,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
             form.addEventListener('submit', async (e) => {
               e.preventDefault();
+              console.log("[Onboard] Form submitted.");
               
               errorMsg.style.display = 'none';
               submitBtn.disabled = true;
@@ -487,6 +489,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
               const password = document.getElementById('password').value;
               const token = new URLSearchParams(window.location.search).get('token');
 
+              console.log("[Onboard] Token from URL:", token);
+
               try {
                 const response = await fetch('/api/auth/onboard', {
                   method: 'POST',
@@ -495,13 +499,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 });
 
                 const data = await response.json();
+                console.log("[Onboard] Server response:", data);
 
                 if (!response.ok) {
                   throw new Error(data.error || 'Failed to complete setup');
                 }
 
                 // Handoff to Desktop App
-                const deepLink = \`remotelink://auth/callback?accessToken=\${data.accessToken}&refreshToken=\${data.refreshToken}\`;
+                const deepLink = 'remotelink://auth/callback?accessToken=' + data.accessToken + '&refreshToken=' + data.refreshToken;
+                console.log("[Onboard] Redirecting to app via:", deepLink);
                 
                 setupView.style.display = 'none';
                 successView.style.display = 'block';
@@ -510,6 +516,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 window.location.href = deepLink;
                 
               } catch (err) {
+                console.error("[Onboard] Processing error:", err);
                 errorMsg.textContent = err.message;
                 errorMsg.style.display = 'block';
                 submitBtn.disabled = false;
