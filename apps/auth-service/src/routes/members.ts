@@ -131,4 +131,18 @@ export default async function memberRoutes(fastify: FastifyInstance) {
 
      return reply.send({ success: true });
   });
+
+  // 4. Cancel/Delete Invitation
+  fastify.delete('/invitation/:invitationId', async (request: FastifyRequest, reply: FastifyReply) => {
+    const decoded = await requireOrgAdmin(request, reply);
+    if (!decoded) return;
+
+    const { invitationId } = request.params as { invitationId: string };
+
+    await prisma.invitation.deleteMany({
+      where: { id: invitationId, organizationId: decoded.orgId }
+    });
+
+    return reply.send({ success: true });
+  });
 }

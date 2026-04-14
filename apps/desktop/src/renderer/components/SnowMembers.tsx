@@ -92,6 +92,16 @@ export const SnowMembers: React.FC = () => {
     }
   };
 
+  const removeInvitation = async (invitationId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this invitation?')) return;
+    try {
+      await api.delete(`/api/members/invitation/${invitationId}`);
+      fetchTeamData();
+    } catch (err) {
+      alert('Failed to cancel invitation');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">
       
@@ -217,7 +227,10 @@ export const SnowMembers: React.FC = () => {
                 <td className="px-6 py-4 text-xs text-amber-600/60 italic font-medium">Waiting for join...</td>
                 <td className="px-6 py-4 text-xs text-[rgba(28,28,28,0.4)]">---</td>
                 <td className="px-6 py-4 text-right">
-                  <button className="p-2 text-amber-600/40 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100">
+                  <button 
+                    onClick={() => removeInvitation(invite.id)}
+                    className="p-2 text-amber-600/40 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                  >
                     <Trash2 size={16} />
                   </button>
                 </td>
