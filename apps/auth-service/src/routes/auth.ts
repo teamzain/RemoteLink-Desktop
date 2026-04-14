@@ -149,7 +149,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send(await issueTokens(user));
   });
 
-  // 1.5. Verify Invitation Token
+  // 5. Verify Invitation Token
   fastify.get('/invitation/:token', async (request: FastifyRequest, reply: FastifyReply) => {
     const { token } = request.params as { token: string };
     const invitation = await prisma.invitation.findUnique({
@@ -164,12 +164,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send({ email: invitation.email, role: invitation.role, orgName: invitation.organization.name });
   });
 
-  // 1.6. Onboard invited member (Set Password)
+  // 6. Complete Onboarding (Set Password for Invited Member)
   fastify.post('/onboard', async (request: FastifyRequest, reply: FastifyReply) => {
     const { token, password, name } = request.body as any;
-    if (!token || !password) return reply.code(400).send({ error: 'Token and Password required' });
+    if (!token || !password) return reply.code(400).send({ error: 'Token and password are required' });
 
-    const invitation = await prisma.invitation.findUnique({ where: { token } });
+    const invitation = await prisma.invitation.findUnique({
+      where: { token },
+      include: { organization: true }
+    });
+
     if (!invitation || invitation.expiresAt < new Date()) {
       return reply.code(400).send({ error: 'Invalid or expired invitation' });
     }
@@ -177,7 +181,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create the user and link to ORG
+    // Create the user and link to original ORG
     const user = await prisma.user.create({
       data: {
         email: invitation.email,
@@ -190,7 +194,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
     });
 
-    // Delete invitation
+    // Delete used invitation
     await prisma.invitation.delete({ where: { id: invitation.id } });
 
     // Notify billing
@@ -386,5 +390,61 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
       ]
     });
+  });
+
+  // 8. Invitation Bridge Page (Web landing page for emails)
+  fastify.get('/onboard', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token } = request.query as { token: string };
+    if (!token) return reply.code(400).send({ error: 'Token required' });
+
+    const invitation = await prisma.invitation.findUnique({
+      where: { token },
+      include: { organization: { select: { name: true } } }
+    });
+
+    if (!invitation || invitation.expiresAt < new Date()) {
+      return reply.type('text/html').send(`
+        <!DOCTYPE html>
+        <html>
+          <head><title>Invalid Invitation | Connect-X</title><style>body{background:#060608;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}</style></head>
+          <body><div><h1>Invalid or Expired Invitation</h1><p>Please contact your administrator for a new invite.</p></div></body>
+        </html>
+      `);
+    }
+
+    const deepLink = `remotelink://onboard?token=${token}`;
+
+    return reply.type('text/html').send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Join ${invitation.organization.name} | Connect-X</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: -apple-system, system-ui, sans-serif; background: #060608; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+            .card { max-width: 440px; padding: 48px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 32px; backdrop-filter: blur(20px); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+            .icon { width: 64px; height: 64px; background: #fff; border-radius: 18px; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; }
+            h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+            p { color: rgba(255,255,255,0.5); font-size: 15px; margin-bottom: 32px; list-style-type: none; }
+            .btn { display: inline-block; padding: 16px 32px; background: #fff; color: #000; text-decoration: none; border-radius: 14px; font-weight: 600; font-size: 15px; transition: transform 0.2s; }
+            .btn:active { transform: scale(0.96); }
+            .loader { margin-top: 24px; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; }
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/><path d="m14 8 3 3-3 3"/></svg></div>
+            <h1>Join ${invitation.organization.name}</h1>
+            <p>You've been invited to join the team on Connect-X. We are redirecting you to the app to set up your account.</p>
+            <a href="${deepLink}" class="btn">Open Connect-X</a>
+            <br><div class="loader"></div>
+          </div>
+          <script>
+            setTimeout(() => { window.location.href = "${deepLink}"; }, 1500);
+          </script>
+        </body>
+      </html>
+    `);
   });
 }

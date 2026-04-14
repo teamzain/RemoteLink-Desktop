@@ -1014,6 +1014,11 @@ function handleDeepLink(url: string) {
           mainWindow?.webContents.send('auth:deep-link-success', { accessToken, refreshToken });
         });
       }
+    } else if (parsed.host === 'onboard') {
+      const token = parsed.searchParams.get('token');
+      if (token) {
+        mainWindow?.webContents.send('auth:onboard', { token });
+      }
     }
   } catch (e) {
     log.error('[DeepLink] Failed to parse URL:', e);

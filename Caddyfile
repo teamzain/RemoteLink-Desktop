@@ -41,6 +41,10 @@
         reverse_proxy auth-service:3001
     }
 
+    handle /onboard* {
+        reverse_proxy auth-service:3001
+    }
+
     # Signaling Service (WebSocket)
     handle /api/signal* {
         reverse_proxy signaling-service:3002

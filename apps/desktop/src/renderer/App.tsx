@@ -1175,7 +1175,16 @@ export default function App() {
                     console.error('[Auth] Failed to sync user after deep link:', err);
                 }
             });
-            return () => { if (cleanup) cleanup(); };
+
+            const cleanupOnboard = (window as any).electronAPI.onAuthOnboard((data: { token: string }) => {
+                console.log('[Auth] Received onboarding token via deep link:', data.token);
+                setOnboardToken(data.token);
+            });
+
+            return () => { 
+                if (cleanup) cleanup(); 
+                if (cleanupOnboard) cleanupOnboard();
+            };
         }
     }, []);
 
