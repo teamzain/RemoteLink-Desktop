@@ -7,19 +7,20 @@ INSTALL_DIR="$HOME/RemoteLink-Desktop"
 
 echo "🚀 Starting Deployment for RemoteLink Backend..."
 
-# 1. Cleanup existing setup
-if [ -d "$INSTALL_DIR" ]; then
-    echo "🧹 Cleaning up existing installation..."
+# 1. Update or Clone Repository
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo "📥 Updating existing installation..."
     cd "$INSTALL_DIR"
-    docker compose -f docker-compose.prod.yml down -v --remove-orphans || true
-    cd ..
-    rm -rf "$INSTALL_DIR"
+    # Stop services before updating to avoid file locks
+    docker compose -f docker-compose.prod.yml down --remove-orphans || true
+    git fetch origin main
+    git reset --hard origin/main
+    echo "✅ Code updated to latest main."
+else
+    echo "📥 First-time setup: Cloning repository..."
+    git clone "$REPO_URL" "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
 fi
-
-# 2. Clone the repository
-echo "📥 Cloning repository..."
-git clone "$REPO_URL" "$INSTALL_DIR"
-cd "$INSTALL_DIR"
 
 # 3. Apply environment variables
 echo "⚙️ Setting up environment variables..."
