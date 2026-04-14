@@ -101,9 +101,32 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name }
+    // Use a transaction to ensure both user and org are created together
+    const result = await prisma.$transaction(async (tx: any) => {
+      // 1. Create a default Organization for the user
+      const orgSlug = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 5);
+      const org = await tx.organization.create({
+        data: {
+          name: name ? `${name}'s Workspace` : `${email.split('@')[0]}'s Workspace`,
+          slug: orgSlug
+        }
+      });
+
+      // 2. Create User as SUB_ADMIN of that Org
+      const user = await tx.user.create({
+        data: { 
+          email, 
+          password: hashedPassword, 
+          name,
+          role: 'SUB_ADMIN',
+          organizationId: org.id
+        }
+      });
+
+      return { user, org };
     });
+
+    const { user } = result;
 
     // Notify other services that a user was created
     await publishEvent({
