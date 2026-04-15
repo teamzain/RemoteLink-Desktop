@@ -29,74 +29,130 @@ server.get('/health', async () => {
   return { status: 'ok', service: 'auth-service' };
 });
 
-// Onboarding landing page ─ linked from invitation emails.
-// Gmail and most web email clients block custom protocol (remotelink://) hrefs,
-// so the email sends a plain HTTP link here. This page then auto-launches the
-// desktop app via the deep-link. Works whether the app is already open or not.
+// Onboarding web page — linked from invitation emails.
+// The user sets their name and password directly in the browser,
+// then opens the desktop app and logs in with those credentials.
 server.get('/onboard', async (request, reply) => {
   const { token } = request.query as { token?: string };
 
   if (!token) {
-    return reply.code(400).type('text/html').send(`
-      <html><body style="font-family:sans-serif;text-align:center;padding:60px">
-        <h2 style="color:#e53e3e">Invalid Link</h2>
-        <p>This invitation link is missing a token. Please ask your admin to resend the invite.</p>
-      </body></html>
-    `);
+    return reply.code(400).type('text/html').send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/><title>Invalid Link</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8f9fa}
+.box{text-align:center;padding:40px;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,0.08)}
+h2{color:#e53e3e;margin-bottom:12px}p{color:#666}</style></head>
+<body><div class="box"><h2>Invalid Link</h2><p>This invitation link is missing a token.<br>Please ask your admin to resend the invite.</p></div></body></html>`);
   }
-
-  const deepLink = `remotelink://onboard?token=${token}`;
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Join Organization – Connect-X</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F8F9FA;min-height:100vh;display:flex;align-items:center;justify-content:center}
-    .card{background:#fff;border-radius:32px;padding:52px 44px;max-width:420px;width:100%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.03)}
-    .icon{width:68px;height:68px;background:#1C1C1C;border-radius:20px;display:flex;align-items:center;justify-content:center;margin:0 auto 28px;font-size:30px;box-shadow:0 8px 24px rgba(0,0,0,0.18)}
-    h1{font-size:22px;font-weight:800;color:#1C1C1C;letter-spacing:-0.5px;margin-bottom:10px}
-    .sub{font-size:14px;color:rgba(28,28,28,0.42);line-height:1.65;margin-bottom:36px}
-    .btn{display:block;padding:15px 32px;background:#1C1C1C;color:#fff;border-radius:18px;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.2px;transition:opacity .15s;border:none;width:100%;cursor:pointer}
-    .btn:hover{opacity:.82}
-    .hint{margin-top:20px;font-size:11px;color:rgba(28,28,28,0.28);line-height:1.6}
-    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(28,28,28,0.12);border-top-color:#1C1C1C;border-radius:50%;animation:spin .75s linear infinite;vertical-align:middle;margin-right:7px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:#EFF6FF;color:#2563EB;border-radius:99px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:28px}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F2F5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:#fff;border-radius:24px;padding:44px 40px;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,0.10)}
+    .logo{width:56px;height:56px;background:#1C1C1C;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 20px}
+    h1{text-align:center;font-size:20px;font-weight:800;color:#1C1C1C;margin-bottom:6px}
+    .sub{text-align:center;font-size:13px;color:#888;margin-bottom:32px;line-height:1.5}
+    label{display:block;font-size:11px;font-weight:700;color:#999;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+    .field{margin-bottom:18px}
+    input{width:100%;padding:12px 14px;border:1.5px solid #E5E7EB;border-radius:12px;font-size:14px;outline:none;transition:border .15s;background:#FAFAFA}
+    input:focus{border-color:#1C1C1C;background:#fff}
+    .btn{width:100%;padding:14px;background:#1C1C1C;color:#fff;border:none;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;margin-top:8px}
+    .btn:hover{opacity:.85}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .error{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626;padding:12px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;display:none}
+    .success{display:none;text-align:center}
+    .success .check{font-size:48px;margin-bottom:16px}
+    .success h2{font-size:20px;font-weight:800;color:#1C1C1C;margin-bottom:10px}
+    .success p{font-size:13px;color:#888;line-height:1.6}
+    .success .steps{background:#F8F9FA;border-radius:12px;padding:16px 20px;margin-top:20px;text-align:left}
+    .success .steps p{color:#555;font-size:13px;margin-bottom:6px}
+    .success .steps p:last-child{margin-bottom:0}
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon">⚡</div>
-    <div class="badge">
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="5" fill="#2563EB" opacity=".15"/><circle cx="5" cy="5" r="2.5" fill="#2563EB"/></svg>
-      Secure Corporate Invite
-    </div>
-    <h1>Join Your Organization</h1>
-    <p class="sub" id="desc">Opening Connect-X Desktop to complete your account setup. This should only take a moment.</p>
-    <button class="btn" onclick="openApp()">Open Connect-X Desktop</button>
-    <p class="hint" id="hint"><span class="spinner"></span>Launching desktop app automatically…</p>
+<div class="card">
+  <div id="formView">
+    <div class="logo">⚡</div>
+    <h1>Finalize Your Access</h1>
+    <p class="sub">Set your name and password to join your organization on Connect-X.</p>
+    <div class="error" id="errBox"></div>
+    <form id="onboardForm">
+      <div class="field">
+        <label>Full Name</label>
+        <input type="text" id="nameInput" placeholder="Enter your full name" required autocomplete="name"/>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="passInput" placeholder="At least 8 characters" required autocomplete="new-password"/>
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input type="password" id="confirmInput" placeholder="Repeat password" required autocomplete="new-password"/>
+      </div>
+      <button type="submit" class="btn" id="submitBtn">Complete Setup</button>
+    </form>
   </div>
-  <script>
-    var deepLink = ${JSON.stringify(deepLink)};
-    function openApp() {
-      // Use a hidden anchor click so the page does not navigate away.
-      // window.location.href = customProtocol causes Chrome to blank the page.
-      var a = document.createElement('a');
-      a.href = deepLink;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      document.getElementById('hint').innerHTML =
-        'If Connect-X did not open, make sure it is installed and try the button again.';
+
+  <div class="success" id="successView">
+    <div class="check">✅</div>
+    <h2>Welcome to the Team!</h2>
+    <p>Your account has been created successfully.</p>
+    <div class="steps">
+      <p>👉 <strong>Step 1:</strong> Open the Connect-X Desktop app</p>
+      <p>👉 <strong>Step 2:</strong> Log in with your email and the password you just set</p>
+      <p>👉 <strong>Step 3:</strong> You're in!</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  var token = ${JSON.stringify(token)};
+
+  document.getElementById('onboardForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var name = document.getElementById('nameInput').value.trim();
+    var pass = document.getElementById('passInput').value;
+    var confirm = document.getElementById('confirmInput').value;
+    var errBox = document.getElementById('errBox');
+    var btn = document.getElementById('submitBtn');
+
+    errBox.style.display = 'none';
+
+    if (!name) { showErr('Full name is required.'); return; }
+    if (pass.length < 8) { showErr('Password must be at least 8 characters.'); return; }
+    if (pass !== confirm) { showErr('Passwords do not match.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Setting up your account…';
+
+    try {
+      var res = await fetch('/api/auth/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token, name: name, password: pass })
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+      document.getElementById('formView').style.display = 'none';
+      document.getElementById('successView').style.display = 'block';
+    } catch(err) {
+      showErr(err.message);
+      btn.disabled = false;
+      btn.textContent = 'Complete Setup';
     }
-    // Auto-attempt after a short delay so the page renders first
-    setTimeout(openApp, 900);
-  </script>
+  });
+
+  function showErr(msg) {
+    var b = document.getElementById('errBox');
+    b.textContent = msg;
+    b.style.display = 'block';
+  }
+</script>
 </body>
 </html>`;
 
