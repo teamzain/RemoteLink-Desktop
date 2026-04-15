@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { 
-  ShieldCheck, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  CheckCircle2, 
-  Building2, 
+import {
+  ShieldCheck,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  Building2,
   ArrowRight,
-  Loader2
+  Loader2,
+  User
 } from 'lucide-react';
 import api from '../lib/api';
 import logo from '../assets/logo.png';

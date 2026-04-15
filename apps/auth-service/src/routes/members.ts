@@ -64,7 +64,6 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           }
         });
 
-        // In a real app, this URL would point to your frontend onboarding page
         const inviteLink = `remotelink://onboard?token=${token}`;
 
         await transporter.sendMail({
