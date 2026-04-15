@@ -83,7 +83,14 @@ server.get('/onboard', async (request, reply) => {
   <script>
     var deepLink = ${JSON.stringify(deepLink)};
     function openApp() {
-      window.location.href = deepLink;
+      // Use a hidden anchor click so the page does not navigate away.
+      // window.location.href = customProtocol causes Chrome to blank the page.
+      var a = document.createElement('a');
+      a.href = deepLink;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       document.getElementById('hint').innerHTML =
         'If Connect-X did not open, make sure it is installed and try the button again.';
     }
