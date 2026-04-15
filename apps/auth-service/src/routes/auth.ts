@@ -181,19 +181,37 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create the user and link to original ORG
-    const user = await prisma.user.create({
-      data: {
-        email: invitation.email,
-        password: hashedPassword,
-        name: name || invitation.email.split('@')[0],
-        role: invitation.role,
-        organizationId: invitation.organizationId,
-        departmentId: invitation.departmentId,
-        allowedTags: invitation.allowedTags,
-        allowedDeviceIds: (invitation as any).allowedDeviceIds || []
-      }
-    });
+    // Upsert: update existing user if email already exists, otherwise create
+    const existingUser = await prisma.user.findUnique({ where: { email: invitation.email } });
+
+    let user;
+    if (existingUser) {
+      user = await prisma.user.update({
+        where: { email: invitation.email },
+        data: {
+          password: hashedPassword,
+          name: name || existingUser.name || invitation.email.split('@')[0],
+          role: invitation.role,
+          organizationId: invitation.organizationId,
+          departmentId: invitation.departmentId,
+          allowedTags: invitation.allowedTags,
+          allowedDeviceIds: (invitation as any).allowedDeviceIds || []
+        }
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          email: invitation.email,
+          password: hashedPassword,
+          name: name || invitation.email.split('@')[0],
+          role: invitation.role,
+          organizationId: invitation.organizationId,
+          departmentId: invitation.departmentId,
+          allowedTags: invitation.allowedTags,
+          allowedDeviceIds: (invitation as any).allowedDeviceIds || []
+        }
+      });
+    }
 
     // Delete used invitation
     await prisma.invitation.delete({ where: { id: invitation.id } });
