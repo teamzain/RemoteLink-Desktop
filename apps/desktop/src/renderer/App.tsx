@@ -1097,6 +1097,7 @@ export default function App() {
     const isViewer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'viewer';
     const [isViewerWindow, setIsViewerWindow] = useState(isViewer);
     const [remoteCursor, setRemoteCursor] = useState<{ x: number, y: number, visible: boolean } | null>(null);
+    const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
     const [showDiagnostics, setShowDiagnostics] = useState(false);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -1814,6 +1815,12 @@ export default function App() {
                     setHostStatus('status');
                 }
             });
+
+            // Listen for Onboarding deep link
+            (window as any).electronAPI.onOnboardingToken?.((token: string) => {
+                console.log('[Auth] Onboarding token received in renderer:', token);
+                setOnboardingToken(token);
+            });
         }
 
         const removeHostListener = isElectron ? (window as any).electronAPI.onHostStatus((status: string) => {
@@ -2324,6 +2331,10 @@ export default function App() {
         );
     }
 
+
+    if (onboardingToken) {
+        return <SnowOnboard token={onboardingToken} onComplete={() => setOnboardingToken(null)} />;
+    }
 
     if (!isAuthenticated) {
         return (

@@ -62,4 +62,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendFileToViewer: () => ipcRenderer.send('host:send-file'),
   getScreens: () => ipcRenderer.invoke('host:get-screens'),
   setCaptureScreen: (displayId: number) => ipcRenderer.invoke('host:set-capture-screen', displayId),
+  onOnboardingToken: (callback: (token: string) => void) => {
+    const listener = (_: any, token: string) => callback(token);
+    ipcRenderer.on('auth:onboarding-token', listener);
+    return () => ipcRenderer.removeListener('auth:onboarding-token', listener);
+  },
 });

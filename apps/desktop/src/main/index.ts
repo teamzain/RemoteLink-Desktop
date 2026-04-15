@@ -1006,6 +1006,19 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
 function handleDeepLink(url: string) {
   try {
     const parsed = new URL(url);
+    if (parsed.host === 'onboard') {
+      const token = parsed.searchParams.get('token');
+      if (token) {
+        log.info('[DeepLink] Received onboarding token:', token);
+        mainWindow?.webContents.send('auth:onboarding-token', token);
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+      }
+    }
+
     if (parsed.host === 'auth' && parsed.pathname === '/callback') {
       const accessToken  = parsed.searchParams.get('accessToken');
       const refreshToken = parsed.searchParams.get('refreshToken');

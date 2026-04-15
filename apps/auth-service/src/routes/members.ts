@@ -65,8 +65,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
         });
 
         // In a real app, this URL would point to your frontend onboarding page
-        const host = process.env.DOMAIN || process.env.SERVER_IP || 'localhost';
-        const inviteLink = `http://${host}/onboard?token=${token}`;
+        const inviteLink = `remotelink://onboard?token=${token}`;
 
         await transporter.sendMail({
           from: `"Connect-X Team" <${process.env.SMTP_USER}>`,

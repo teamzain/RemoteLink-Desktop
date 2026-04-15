@@ -20,6 +20,7 @@ interface SnowOnboardProps {
 
 export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) => {
   const { setAuth } = useAuthStore();
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +30,10 @@ export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      setError('Full Name is required');
+      return;
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -41,11 +46,11 @@ export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) =
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.post('/api/auth/onboard', { token, password });
+      const { data } = await api.post('/api/auth/onboard', { token, password, name });
       
       // Auto-login on success
       if (data.accessToken && data.user) {
-        setAuth(data.user, data.accessToken, data.refreshToken);
+        await setAuth(data.user, data.accessToken, data.refreshToken);
       }
       
       setIsSuccess(true);
@@ -89,6 +94,23 @@ export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) =
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] ml-1">Full Name</label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                <User size={18} />
+              </div>
+              <input
+                type="text"
+                required
+                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] rounded-[20px] pl-12 pr-4 py-4 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                value={name}
+                placeholder="Enter your name"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] ml-1">New Password</label>
             <div className="relative group">
