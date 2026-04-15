@@ -190,7 +190,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         role: invitation.role,
         organizationId: invitation.organizationId,
         departmentId: invitation.departmentId,
-        allowedTags: invitation.allowedTags
+        allowedTags: invitation.allowedTags,
+        allowedDeviceIds: (invitation as any).allowedDeviceIds || []
       }
     });
 

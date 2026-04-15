@@ -25,7 +25,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     const decoded = await requireOrgAdmin(request, reply);
     if (!decoded) return;
 
-    const { email, role, departmentId, allowedTags } = request.body as any;
+    const { email, role, departmentId, allowedTags, deviceIds } = request.body as any;
     if (!email || !role) return reply.code(400).send({ error: 'Email and Role are required' });
 
     // Ensure they can't invite a Super Admin
@@ -48,6 +48,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           organizationId: orgId,
           departmentId,
           allowedTags: allowedTags || [],
+          allowedDeviceIds: deviceIds || [],
           expiresAt
         }
       });
@@ -112,6 +113,8 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           email: true,
           name: true,
           role: true,
+          allowedTags: true,
+          allowedDeviceIds: true,
           department: { select: { name: true } },
           createdAt: true
       }

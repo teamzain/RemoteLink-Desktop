@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  UserPlus, 
-  Mail, 
-  Shield, 
-  Tag as TagIcon, 
-  Trash2, 
-  Clock, 
-  CheckCircle2, 
+import {
+  Users,
+  UserPlus,
+  Mail,
+  Shield,
+  Monitor,
+  Trash2,
+  Clock,
+  CheckCircle2,
   X,
   AlertCircle,
-  MoreVertical,
-  ChevronDown
+  Search
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -20,8 +19,18 @@ interface Member {
   email: string;
   name: string;
   role: string;
+  allowedDeviceIds?: string[];
+  allowedTags?: string[];
   department?: { name: string };
   createdAt: string;
+}
+
+interface OrgDevice {
+  id: string;
+  device_name: string;
+  access_key: string;
+  device_type: string;
+  is_online: boolean;
 }
 
 interface Invitation {
@@ -42,11 +51,23 @@ export const SnowMembers: React.FC = () => {
   // Form states for invitation
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('OPERATOR');
-  const [inviteTags, setInviteTags] = useState('');
+  const [orgDevices, setOrgDevices] = useState<OrgDevice[]>([]);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
+  const [deviceSearch, setDeviceSearch] = useState('');
 
   useEffect(() => {
     fetchTeamData();
+    fetchOrgDevices();
   }, []);
+
+  const fetchOrgDevices = async () => {
+    try {
+      const { data } = await api.get('/api/devices/mine');
+      setOrgDevices(data || []);
+    } catch (err) {
+      console.error('Failed to fetch org devices:', err);
+    }
+  };
 
   const fetchTeamData = async () => {
     setLoading(true);
@@ -64,22 +85,26 @@ export const SnowMembers: React.FC = () => {
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteError(null);
-    
-    const tagsArray = inviteTags.split(',').map(t => t.trim()).filter(t => t !== '');
-
     try {
       await api.post('/api/members/invite', {
         email: inviteEmail,
         role: inviteRole,
-        allowedTags: tagsArray
+        deviceIds: selectedDeviceIds
       });
       setShowInviteModal(false);
       setInviteEmail('');
-      setInviteTags('');
+      setSelectedDeviceIds([]);
+      setDeviceSearch('');
       fetchTeamData();
     } catch (err: any) {
       setInviteError(err.response?.data?.error || 'Failed to send invitation');
     }
+  };
+
+  const toggleDevice = (deviceId: string) => {
+    setSelectedDeviceIds(prev =>
+      prev.includes(deviceId) ? prev.filter(id => id !== deviceId) : [...prev, deviceId]
+    );
   };
 
   // Update remove functions to use modal
@@ -114,8 +139,8 @@ export const SnowMembers: React.FC = () => {
           <h1 className="text-2xl font-bold text-[#1C1C1C] tracking-tight">Team Management</h1>
           <p className="text-sm text-[rgba(28,28,28,0.4)] mt-1">Manage organization members, roles, and device access.</p>
         </div>
-        <button 
-          onClick={() => setShowInviteModal(true)}
+        <button
+          onClick={() => { setShowInviteModal(true); setSelectedDeviceIds([]); setDeviceSearch(''); setInviteEmail(''); setInviteError(null); }}
           className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1C1C] text-white rounded-xl text-sm font-bold shadow-lg shadow-black/10 hover:bg-[#2C2C2C] transition-all transform active:scale-95"
         >
           <UserPlus size={18} />
@@ -163,7 +188,7 @@ export const SnowMembers: React.FC = () => {
             <tr className="bg-[#F9F9FA] border-b border-[rgba(28,28,28,0.04)]">
               <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">User</th>
               <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Role</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Department</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Device Access</th>
               <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Joined</th>
               <th className="px-6 py-4 text-right"></th>
             </tr>
@@ -192,7 +217,14 @@ export const SnowMembers: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className="text-xs text-[#1C1C1C]">{member.department?.name || '---'}</span>
+                  {member.allowedDeviceIds && member.allowedDeviceIds.length > 0 ? (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+                      <Monitor size={13} />
+                      {member.allowedDeviceIds.length} device{member.allowedDeviceIds.length !== 1 ? 's' : ''}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-[rgba(28,28,28,0.4)]">All org devices</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-xs text-[rgba(28,28,28,0.4)]">
                   {new Date(member.createdAt).toLocaleDateString()}
@@ -324,18 +356,47 @@ export const SnowMembers: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest mb-2 px-1">Access Tags (Optional)</label>
-                <div className="relative">
-                  <TagIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
-                  <input 
-                    type="text" 
-                    value={inviteTags}
-                    onChange={(e) => setInviteTags(e.target.value)}
-                    placeholder="e.g. it-room, dev-cluster"
-                    className="w-full pl-11 pr-4 py-3 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-sm focus:border-[#1C1C1C] outline-none transition-all font-inter"
+                <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest mb-2 px-1">
+                  Device Access
+                  {selectedDeviceIds.length > 0 && (
+                    <span className="ml-2 normal-case font-normal text-blue-600">{selectedDeviceIds.length} selected</span>
+                  )}
+                </label>
+                <div className="relative mb-2">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
+                  <input
+                    type="text"
+                    value={deviceSearch}
+                    onChange={(e) => setDeviceSearch(e.target.value)}
+                    placeholder="Search devices..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-xs focus:border-[#1C1C1C] outline-none transition-all font-inter"
                   />
                 </div>
-                <p className="mt-2 text-[10px] text-[rgba(28,28,28,0.4)] leading-relaxed italic px-1">Comma-separated tags. Operators only see devices matching these tags.</p>
+                <div className="max-h-44 overflow-y-auto rounded-xl border border-[rgba(28,28,28,0.06)] bg-[#F9F9FA] divide-y divide-[rgba(28,28,28,0.04)]">
+                  {orgDevices.filter(d =>
+                    !deviceSearch || d.device_name?.toLowerCase().includes(deviceSearch.toLowerCase()) || d.access_key?.includes(deviceSearch)
+                  ).map(device => (
+                    <label key={device.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={selectedDeviceIds.includes(device.id)}
+                        onChange={() => toggleDevice(device.id)}
+                        className="w-4 h-4 accent-[#1C1C1C] rounded"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-[#1C1C1C] truncate">{device.device_name || 'Unnamed Device'}</div>
+                        <div className="text-[10px] text-[rgba(28,28,28,0.4)]">{device.access_key}</div>
+                      </div>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${device.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    </label>
+                  ))}
+                  {orgDevices.length === 0 && (
+                    <div className="py-6 text-center text-[10px] text-[rgba(28,28,28,0.3)]">No devices found in your organization</div>
+                  )}
+                </div>
+                <p className="mt-2 text-[10px] text-[rgba(28,28,28,0.4)] leading-relaxed italic px-1">
+                  Leave all unchecked to grant access to all org devices.
+                </p>
               </div>
 
               {inviteError && (

@@ -24,18 +24,23 @@ async function mapDevice(device: any, userId: string): Promise<any> {
     };
 }
 
-// Helper to check device access based on role/tags
+// Helper to check device access based on role/tags/deviceIds
 function hasDevicePermission(user: any, device: any): boolean {
     if (user.role === 'SUPER_ADMIN') return true;
     if (user.organizationId !== device.organizationId) return false;
     if (user.role === 'SUB_ADMIN') return true;
-    
-    // OPERATOR/VIEWER check: intersection of tags
-    if (user.allowedTags && user.allowedTags.length > 0) {
-        return user.allowedTags.some((tag: string) => device.tags.includes(tag));
+
+    const hasDeviceIdRestriction = user.allowedDeviceIds && user.allowedDeviceIds.length > 0;
+    const hasTagRestriction = user.allowedTags && user.allowedTags.length > 0;
+
+    // If either restriction is set, device must pass at least one
+    if (hasDeviceIdRestriction || hasTagRestriction) {
+        if (hasDeviceIdRestriction && user.allowedDeviceIds.includes(device.id)) return true;
+        if (hasTagRestriction && user.allowedTags.some((tag: string) => device.tags.includes(tag))) return true;
+        return false;
     }
-    
-    // Default to true if no tags restriction is set on the user's profile but they belong to the org
+
+    // No restrictions set — can see all org devices
     return true;
 }
 

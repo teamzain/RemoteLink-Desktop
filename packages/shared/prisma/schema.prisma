@@ -16,7 +16,8 @@ model User {
   role           UserRole        @default(USER)
   organizationId String?
   departmentId   String?
-  allowedTags    String[]        @default([]) // Tags this user is allowed to access
+  allowedTags      String[]        @default([]) // Tags this user is allowed to access
+  allowedDeviceIds String[]        @default([]) // Specific device IDs this user can access
   organization   Organization?   @relation(fields: [organizationId], references: [id])
   department     Department?     @relation(fields: [departmentId], references: [id])
   createdAt      DateTime        @default(now())
@@ -59,8 +60,9 @@ model Invitation {
   role           UserRole     @default(USER)
   organizationId String
   departmentId   String?
-  allowedTags    String[]     @default([])
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  allowedTags      String[]     @default([])
+  allowedDeviceIds String[]     @default([])
+  organization     Organization @relation(fields: [organizationId], references: [id])
   expiresAt      DateTime
   createdAt      DateTime     @default(now())
 
