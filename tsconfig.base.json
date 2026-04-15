@@ -9,7 +9,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    "composite": false,
-    "ignoreDeprecations": "6.0"
+    "composite": false
   }
 }
