@@ -30,18 +30,21 @@ function hasDevicePermission(user: any, device: any): boolean {
     if (user.organizationId !== device.organizationId) return false;
     if (user.role === 'SUB_ADMIN') return true;
 
-    const hasDeviceIdRestriction = user.allowedDeviceIds && user.allowedDeviceIds.length > 0;
-    const hasTagRestriction = user.allowedTags && user.allowedTags.length > 0;
+    // Full org access granted explicitly
+    if (user.allowedDeviceIds?.includes('__all__')) return true;
 
-    // If either restriction is set, device must pass at least one
-    if (hasDeviceIdRestriction || hasTagRestriction) {
-        if (hasDeviceIdRestriction && user.allowedDeviceIds.includes(device.id)) return true;
-        if (hasTagRestriction && user.allowedTags.some((tag: string) => device.tags.includes(tag))) return true;
-        return false;
+    // Tag-based access
+    if (user.allowedTags?.length > 0) {
+        if (user.allowedTags.some((tag: string) => device.tags.includes(tag))) return true;
     }
 
-    // No restrictions set — can see all org devices
-    return true;
+    // Specific device access
+    if (user.allowedDeviceIds?.length > 0) {
+        if (user.allowedDeviceIds.includes(device.id)) return true;
+    }
+
+    // No access granted — default deny
+    return false;
 }
 
 export default async function deviceRoutes(fastify: FastifyInstance) {

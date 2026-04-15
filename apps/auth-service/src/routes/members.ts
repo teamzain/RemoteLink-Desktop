@@ -25,8 +25,10 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     const decoded = await requireOrgAdmin(request, reply);
     if (!decoded) return;
 
-    const { email, role, departmentId, allowedTags, deviceIds } = request.body as any;
+    const { email, role, departmentId, allowedTags, deviceIds, accessType } = request.body as any;
     if (!email || !role) return reply.code(400).send({ error: 'Email and Role are required' });
+    // accessType: 'full' = all org devices, 'specific' = only deviceIds, omitted = no access
+    const resolvedDeviceIds = accessType === 'full' ? ['__all__'] : (deviceIds || []);
 
     // Ensure they can't invite a Super Admin
     if (role === 'SUPER_ADMIN' && decoded.role !== 'SUPER_ADMIN') {
@@ -48,7 +50,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           organizationId: orgId,
           departmentId,
           allowedTags: allowedTags || [],
-          allowedDeviceIds: deviceIds || [],
+          allowedDeviceIds: resolvedDeviceIds,
           expiresAt
         }
       });
@@ -151,11 +153,12 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     if (!decoded) return;
 
     const { userId } = request.params as { userId: string };
-    const { deviceIds } = request.body as { deviceIds?: string[] };
+    const { deviceIds, accessType } = request.body as { deviceIds?: string[], accessType?: string };
+    const resolvedDeviceIds = accessType === 'full' ? ['__all__'] : (deviceIds || []);
 
     await prisma.user.update({
       where: { id: userId, organizationId: decoded.orgId },
-      data: { allowedDeviceIds: deviceIds || [] }
+      data: { allowedDeviceIds: resolvedDeviceIds }
     });
 
     return reply.send({ success: true });
