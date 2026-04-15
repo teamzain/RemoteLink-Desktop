@@ -64,18 +64,30 @@ export default async function memberRoutes(fastify: FastifyInstance) {
           }
         });
 
-        const inviteLink = `remotelink://onboard?token=${token}`;
+        const serverHost = process.env.SERVER_IP
+          ? `http://${process.env.SERVER_IP}`
+          : 'http://localhost';
+        // HTTP link for the web page that then launches the desktop app.
+        // Plain-text URL is included as a fallback because Gmail auto-detects
+        // and makes plain HTTP URLs clickable even if it strips the button href.
+        const inviteLink = `${serverHost}/onboard?token=${token}`;
 
         await transporter.sendMail({
           from: `"Connect-X Team" <${process.env.SMTP_USER}>`,
           to: email,
           subject: 'You have been invited to join an organization on Connect-X',
           html: `
-            <h1>Hello!</h1>
-            <p>You have been invited to join your team on Connect-X as a <strong>${role}</strong>.</p>
-            <p>Tap the link below to set your password and get started:</p>
-            <a href="${inviteLink}" style="padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 5px;">Join Organization</a>
-            <p>This link expires in 7 days.</p>
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+              <h1 style="font-size:22px;color:#1C1C1C">Hello!</h1>
+              <p style="color:#555;line-height:1.6">You have been invited to join your team on Connect-X as a <strong>${role}</strong>.</p>
+              <p style="color:#555;line-height:1.6">Click the button below to set your password and get started:</p>
+              <p style="margin:28px 0">
+                <a href="${inviteLink}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px">Join Organization</a>
+              </p>
+              <p style="color:#888;font-size:13px">If the button does not work, copy and paste this link into your browser:</p>
+              <p style="word-break:break-all;color:#2563eb;font-size:13px">${inviteLink}</p>
+              <p style="color:#aaa;font-size:12px;margin-top:24px">This link expires in 7 days.</p>
+            </div>
           `
         });
       }
