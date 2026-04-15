@@ -145,7 +145,23 @@ export default async function memberRoutes(fastify: FastifyInstance) {
      return reply.send({ success: true });
   });
 
-  // 4. Cancel/Delete Invitation
+  // 4. Update Member Device Access
+  fastify.patch('/:userId/access', async (request: FastifyRequest, reply: FastifyReply) => {
+    const decoded = await requireOrgAdmin(request, reply);
+    if (!decoded) return;
+
+    const { userId } = request.params as { userId: string };
+    const { deviceIds } = request.body as { deviceIds?: string[] };
+
+    await prisma.user.update({
+      where: { id: userId, organizationId: decoded.orgId },
+      data: { allowedDeviceIds: deviceIds || [] }
+    });
+
+    return reply.send({ success: true });
+  });
+
+  // 5. Cancel/Delete Invitation
   fastify.delete('/invitation/:invitationId', async (request: FastifyRequest, reply: FastifyReply) => {
     const decoded = await requireOrgAdmin(request, reply);
     if (!decoded) return;

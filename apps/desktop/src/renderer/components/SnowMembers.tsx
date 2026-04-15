@@ -10,7 +10,8 @@ import {
   CheckCircle2,
   X,
   AlertCircle,
-  Search
+  Search,
+  Pencil
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -105,6 +106,38 @@ export const SnowMembers: React.FC = () => {
     setSelectedDeviceIds(prev =>
       prev.includes(deviceId) ? prev.filter(id => id !== deviceId) : [...prev, deviceId]
     );
+  };
+
+  // Edit access modal state
+  const [editTarget, setEditTarget] = useState<Member | null>(null);
+  const [editDeviceIds, setEditDeviceIds] = useState<string[]>([]);
+  const [editDeviceSearch, setEditDeviceSearch] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEditAccess = (member: Member) => {
+    setEditTarget(member);
+    setEditDeviceIds(member.allowedDeviceIds || []);
+    setEditDeviceSearch('');
+  };
+
+  const toggleEditDevice = (deviceId: string) => {
+    setEditDeviceIds(prev =>
+      prev.includes(deviceId) ? prev.filter(id => id !== deviceId) : [...prev, deviceId]
+    );
+  };
+
+  const handleSaveAccess = async () => {
+    if (!editTarget) return;
+    setEditSaving(true);
+    try {
+      await api.patch(`/api/members/${editTarget.id}/access`, { deviceIds: editDeviceIds });
+      setEditTarget(null);
+      fetchTeamData();
+    } catch (err) {
+      alert('Failed to update access');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   // Update remove functions to use modal
@@ -230,12 +263,21 @@ export const SnowMembers: React.FC = () => {
                   {new Date(member.createdAt).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <button 
-                    onClick={() => setDeleteTarget({ id: member.id, type: 'member', email: member.email })}
-                    className="p-2 text-[rgba(28,28,28,0.2)] hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100">
+                    <button
+                      onClick={() => openEditAccess(member)}
+                      className="p-2 text-[rgba(28,28,28,0.2)] hover:text-blue-600 transition-colors"
+                      title="Edit device access"
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget({ id: member.id, type: 'member', email: member.email })}
+                      className="p-2 text-[rgba(28,28,28,0.2)] hover:text-red-600 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -307,6 +349,79 @@ export const SnowMembers: React.FC = () => {
                 className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all shadow-lg shadow-red-200"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Access Modal */}
+      {editTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-8 border border-white/20 animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-[#1C1C1C]">Edit Device Access</h2>
+                <p className="text-xs text-[rgba(28,28,28,0.4)] mt-1">{editTarget.name || editTarget.email}</p>
+              </div>
+              <button onClick={() => setEditTarget(null)} className="text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C]"><X size={24} /></button>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest px-1">
+                Device Access
+                {editDeviceIds.length > 0 && (
+                  <span className="ml-2 normal-case font-normal text-blue-600">{editDeviceIds.length} selected</span>
+                )}
+              </label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
+                <input
+                  type="text"
+                  value={editDeviceSearch}
+                  onChange={(e) => setEditDeviceSearch(e.target.value)}
+                  placeholder="Search devices..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-xs focus:border-[#1C1C1C] outline-none transition-all font-inter"
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-[rgba(28,28,28,0.06)] bg-[#F9F9FA] divide-y divide-[rgba(28,28,28,0.04)]">
+                {orgDevices.filter(d =>
+                  !editDeviceSearch || d.device_name?.toLowerCase().includes(editDeviceSearch.toLowerCase()) || d.access_key?.includes(editDeviceSearch)
+                ).map(device => (
+                  <label key={device.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editDeviceIds.includes(device.id)}
+                      onChange={() => toggleEditDevice(device.id)}
+                      className="w-4 h-4 accent-[#1C1C1C] rounded"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-[#1C1C1C] truncate">{device.device_name || 'Unnamed Device'}</div>
+                      <div className="text-[10px] text-[rgba(28,28,28,0.4)]">{device.access_key}</div>
+                    </div>
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${device.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                  </label>
+                ))}
+                {orgDevices.length === 0 && (
+                  <div className="py-6 text-center text-[10px] text-[rgba(28,28,28,0.3)]">No devices in your organization</div>
+                )}
+              </div>
+              <p className="text-[10px] text-[rgba(28,28,28,0.4)] italic px-1">Uncheck all to grant access to all org devices.</p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setEditTarget(null)}
+                className="flex-1 py-3.5 bg-[#F9F9FA] text-[rgba(28,28,28,0.6)] rounded-xl font-bold text-sm hover:bg-[#F0F0F2] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAccess}
+                disabled={editSaving}
+                className="flex-1 py-3.5 bg-[#1C1C1C] text-white rounded-xl font-bold text-sm hover:bg-[#2C2C2C] transition-all shadow-lg shadow-black/10 disabled:opacity-50"
+              >
+                {editSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
