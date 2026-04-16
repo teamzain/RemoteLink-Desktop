@@ -108,12 +108,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (token && refresh) {
-        set({ accessToken: token, refreshToken: refresh });
         try {
+           // Set tokens first so the request interceptor can attach them
+           set({ accessToken: token, refreshToken: refresh });
            const { data } = await api.get('/api/auth/me');
            set({ user: data });
-        } catch (e) {
-           // If /me fails, we might still have tokens
+        } catch (e: any) {
+           // Token expired and refresh also failed — clear everything so the
+           // app shows the login screen instead of triggering "Session Expired"
+           if (e.response?.status === 401 || e.response?.status === 403) {
+             if (isElectron) {
+               try { await (window as any).electronAPI.deleteToken(); } catch {}
+             } else {
+               localStorage.removeItem('access_token');
+               localStorage.removeItem('refresh_token');
+             }
+             set({ user: null, accessToken: null, refreshToken: null });
+           }
+           // Network errors: keep state so the user doesn't get logged out offline
         }
       }
     } finally {

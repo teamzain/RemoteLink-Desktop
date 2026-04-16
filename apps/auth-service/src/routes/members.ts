@@ -38,6 +38,20 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     const orgId = decoded.orgId; // Taken from JWT
     if (!orgId) return reply.code(400).send({ error: 'Admin must belong to an organization to invite members' });
 
+    // Check if the user is already registered (which means they are in an organization)
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return reply.code(400).send({ error: 'This user is already registered and belongs to an organization' });
+    }
+
+    // Check if there is already an active invitation for this email
+    const existingInvite = await prisma.invitation.findFirst({
+      where: { email, expiresAt: { gt: new Date() } }
+    });
+    if (existingInvite) {
+      return reply.code(400).send({ error: 'An active invitation already exists for this email address' });
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 

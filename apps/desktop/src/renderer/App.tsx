@@ -1382,9 +1382,8 @@ export default function App() {
             }
         } catch (e: any) {
             if (e.response?.status === 401 && !isViewerWindow) {
-                // Handled by api interceptor mostly, but ensure we reflect it
+                // Token expired and refresh failed — log out silently, login screen will show
                 handleLogout();
-                showError('Session Expired', 'Your authentication session has timed out. Please sign in again.');
             }
         }
     };

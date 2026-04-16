@@ -420,11 +420,10 @@ class HostProvider extends ChangeNotifier with WidgetsBindingObserver {
         'audio': false,
         'video': {
           'mandatory': {
-            'minWidth': '720',
-            'minHeight': '1280',
             'minFrameRate': '30',
+            'frameRate': '60',
           },
-          'facingMode': 'user',
+          'facingMode': 'environment',
           'optional': [],
         }
       };
@@ -859,9 +858,21 @@ class HostProvider extends ChangeNotifier with WidgetsBindingObserver {
         
         mLineElements = mLineElements.sublist(0, 3)..addAll(currentPayloadTypes);
         lines[videoIdx] = mLineElements.join(' ');
+        
+        // Find existing fmtp line for this payload type or add one to enforce high bitrate
+        int fmtpIdx = lines.indexWhere((l) => l.startsWith('a=fmtp:$preferredPt '));
+        if (fmtpIdx != -1) {
+          lines[fmtpIdx] = '${lines[fmtpIdx]};x-google-min-bitrate=5000;x-google-max-bitrate=10000';
+        } else {
+          lines.insert(videoIdx + 1, 'a=fmtp:$preferredPt x-google-min-bitrate=5000;x-google-max-bitrate=10000');
+        }
+        
         debugPrint('[Host-SDP] Optimized configuration: ${lines[videoIdx]}');
       }
     }
+
+    // Overwrite the global Application Specific (AS) bandwidth limit to 10 Mbps
+    lines.insert(videoIdx + 1, 'b=AS:10000');
 
     return lines.join(isCRLF ? '\r\n' : '\n');
   }

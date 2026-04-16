@@ -333,6 +333,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-bf', '0',
         '-rc-lookahead', '0',
         '-zerolatency', '1',
+        '-bsf:v', 'h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
     case 'h264_amf':
@@ -345,6 +346,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-bufsize', '1000k',
         '-g', gop,
         '-bf', '0',
+        '-bsf:v', 'h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
     case 'h264_qsv':
@@ -357,6 +359,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-bufsize', '1000k',
         '-g', gop,
         '-bf', '0',
+        '-bsf:v', 'h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
     default: // libx264 — CPU fallback

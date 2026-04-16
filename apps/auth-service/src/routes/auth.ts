@@ -22,6 +22,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'User already exists' });
     }
 
+    const existingInvite = await prisma.invitation.findFirst({
+      where: { email, expiresAt: { gt: new Date() } }
+    });
+    if (existingInvite) {
+      return reply.code(400).send({ error: 'You have a pending invitation. Please use the invite link to join your organization.' });
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
@@ -84,6 +91,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return reply.code(400).send({ error: 'User already exists' });
+    }
+
+    const existingInvite = await prisma.invitation.findFirst({
+      where: { email, expiresAt: { gt: new Date() } }
+    });
+    if (existingInvite) {
+      return reply.code(400).send({ error: 'You have a pending invitation. Please use the invite link to join your organization.' });
     }
 
     const record = verificationCodes.get(email);
