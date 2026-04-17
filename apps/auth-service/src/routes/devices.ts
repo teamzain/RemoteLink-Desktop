@@ -368,6 +368,43 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     return reply.send(enrichedDevices);
   });
 
+  // Super Admin: all devices across all organizations (with org context)
+  fastify.get('/all', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || decoded.role !== 'SUPER_ADMIN') {
+      return reply.code(403).send({ error: 'Super Admin access required' });
+    }
+
+    const devices = await prisma.device.findMany({
+      include: {
+        organization: { select: { id: true, name: true, slug: true } }
+      },
+      orderBy: { lastSeenAt: 'desc' }
+    });
+
+    const enrichedDevices = await Promise.all(devices.map(async (device) => {
+      const mapped = await mapDevice(device, decoded.userId);
+      return {
+        ...mapped,
+        org_name: (device as any).organization?.name || null,
+        org_slug: (device as any).organization?.slug || null,
+        org_id: (device as any).organization?.id || null,
+      };
+    }));
+
+    enrichedDevices.sort((a, b) => {
+      if (a.is_online && !b.is_online) return -1;
+      if (!a.is_online && b.is_online) return 1;
+      return 0;
+    });
+
+    return reply.send(enrichedDevices);
+  });
+
   // Maintain backward compatibility for older GET /
   fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;

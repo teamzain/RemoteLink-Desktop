@@ -281,24 +281,24 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                     </div>
                   </div>
                   {/* Members */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50">
-                    <Users size={12} className="text-slate-500" />
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#F9F9FA] border border-[rgba(28,28,28,0.04)]">
+                    <Users size={12} className="text-[rgba(28,28,28,0.4)]" />
                     <div>
                       <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Members</p>
                       <p className="text-xs font-bold text-[#1C1C1C]">{selectedOrg._count.users}</p>
                     </div>
                   </div>
                   {/* Devices */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50">
-                    <Monitor size={12} className="text-slate-500" />
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#F9F9FA] border border-[rgba(28,28,28,0.04)]">
+                    <Monitor size={12} className="text-[rgba(28,28,28,0.4)]" />
                     <div>
                       <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Devices</p>
                       <p className="text-xs font-bold text-[#1C1C1C]">{selectedOrg._count.devices}</p>
                     </div>
                   </div>
                   {/* Created */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50">
-                    <Clock size={12} className="text-slate-500" />
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#F9F9FA] border border-[rgba(28,28,28,0.04)]">
+                    <Clock size={12} className="text-[rgba(28,28,28,0.4)]" />
                     <div>
                       <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Created</p>
                       <p className="text-xs font-bold text-[#1C1C1C]">{new Date(selectedOrg.createdAt).toLocaleDateString()}</p>
@@ -338,7 +338,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                     ) : selectedOrg.users.map(member => {
                       const roleMeta = ROLE_META[member.role] || ROLE_META.USER;
                       return (
-                        <div key={member.id} className="flex items-center gap-3 p-3.5 bg-[#F9F9FA] rounded-2xl hover:bg-[#F3F4F6] transition-colors">
+                        <div key={member.id} className="flex items-center gap-3 p-3.5 bg-[#F9F9FA] rounded-2xl hover:bg-[rgba(28,28,28,0.03)] transition-colors">
                           <div className="w-9 h-9 rounded-xl bg-white border border-[rgba(28,28,28,0.06)] flex items-center justify-center font-bold text-sm text-[#1C1C1C] shadow-sm flex-shrink-0">
                             {(member.name || member.email)[0].toUpperCase()}
                           </div>
@@ -373,7 +373,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                     ) : selectedOrg.devices.map(device => {
                       const isOnline = device.status === 'ONLINE';
                       return (
-                        <div key={device.id} className="flex items-center gap-3 p-3.5 bg-[#F9F9FA] rounded-2xl hover:bg-[#F3F4F6] transition-colors">
+                        <div key={device.id} className="flex items-center gap-3 p-3.5 bg-[#F9F9FA] rounded-2xl hover:bg-[rgba(28,28,28,0.03)] transition-colors">
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                             <DeviceTypeIcon type={device.deviceType} />
                           </div>

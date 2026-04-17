@@ -1,18 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Monitor, 
-  Smartphone, 
-  MoreHorizontal, 
-  Plus, 
-  Filter, 
-  ArrowUpDown, 
-  Search, 
-  ChevronLeft, 
+import {
+  Monitor,
+  Smartphone,
+  MoreHorizontal,
+  Plus,
+  Filter,
+  ArrowUpDown,
+  Search,
+  ChevronLeft,
   ChevronRight,
   Check,
   Smartphone as PhoneIcon,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Building2
 } from 'lucide-react';
 
 interface Device {
@@ -24,6 +25,9 @@ interface Device {
   last_seen?: string;
   local_ip?: string;
   tags?: string[];
+  org_name?: string | null;
+  org_slug?: string | null;
+  org_id?: string | null;
 }
 
 interface SnowDevicesProps {
@@ -128,7 +132,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
       
       {/* Table Title */}
       <div className="flex items-center justify-between mb-1 px-1">
-        <h2 className="text-sm font-semibold text-[#1C1C1C]">Host Device List</h2>
+        <h2 className="text-sm font-semibold text-[#1C1C1C]">{user?.role === 'SUPER_ADMIN' ? 'All Devices' : 'Host Device List'}</h2>
         {selectedIds.length > 0 && (
           <button 
             onClick={() => {
@@ -216,7 +220,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
           <thead>
             <tr className="border-b border-[rgba(0,0,0,0.1)]">
               <th className="w-10 h-10 px-4 py-2 text-left">
-                <div 
+                <div
                   onClick={toggleSelectAll}
                   className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedIds.length === filteredDevices.length && filteredDevices.length > 0 ? 'bg-[#1C1C1C] border-[#1C1C1C]' : 'bg-white border-[rgba(0,0,0,0.2)]'}`}
                 >
@@ -233,6 +237,9 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                   Host Name <Filter size={12} className="opacity-40" />
                 </div>
               </th>
+              {user?.role === 'SUPER_ADMIN' && (
+                <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Organization</th>
+              )}
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Platform</th>
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Last Sync</th>
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Status</th>
@@ -264,6 +271,20 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                        <span className="text-xs font-medium text-[#1C1C1C] truncate max-w-[120px]">{device.device_name || 'Unnamed Host'}</span>
                     </div>
                   </td>
+                  {user?.role === 'SUPER_ADMIN' && (
+                    <td className="px-3 py-3">
+                      {device.org_name ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <Building2 size={11} className="text-blue-600" />
+                          </div>
+                          <span className="text-xs font-semibold text-[#1C1C1C] truncate max-w-[100px]">{device.org_name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[rgba(28,28,28,0.25)]">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.device_type || 'Windows/x64'}</td>
                   <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.last_seen ? new Date(device.last_seen).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now'}</td>
                   <td className="px-3 py-3">

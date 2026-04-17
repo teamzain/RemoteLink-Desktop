@@ -1370,7 +1370,8 @@ export default function App() {
 
     const pollDevices = async () => {
         try {
-            const { data } = await api.get('/api/devices/mine');
+            const endpoint = user?.role === 'SUPER_ADMIN' ? '/api/devices/all' : '/api/devices/mine';
+            const { data } = await api.get(endpoint);
             setDevices(data);
             setGlobalError('');
 
@@ -1697,7 +1698,8 @@ export default function App() {
             let deviceUuid = '';
 
             // 1. Fetch what the server thinks are our devices
-            const { data: fetchedDevices } = await api.get('/api/devices/mine');
+            const devicesEndpoint = user?.role === 'SUPER_ADMIN' ? '/api/devices/all' : '/api/devices/mine';
+            const { data: fetchedDevices } = await api.get(devicesEndpoint);
             setDevices(fetchedDevices);
 
             // 2. Check if our local identity is still valid in the DB
