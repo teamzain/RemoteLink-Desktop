@@ -11,7 +11,10 @@
       "Bash(npx vite:*)",
       "Bash(npm run:*)",
       "Bash(C:/src/flutter/bin/flutter devices *)",
-      "Bash(grep -v \"^--$\")"
+      "Bash(grep -v \"^--$\")",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: non-null assertion on Google OAuth user after transaction *)",
+      "Bash(git push *)"
     ]
   }
 }
