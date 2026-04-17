@@ -2635,8 +2635,8 @@ export default function App() {
 
             <div className={`flex-1 flex overflow-hidden transition-all duration-300 relative ${isAuthenticated ? 'md:ml-[212px]' : ''}`}>
                 <main className="flex-1 flex flex-col overflow-hidden relative bg-white">
-                    {/* Workspace Header - Re-structured for Breadcrumbs */}
-                    <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-[#F8F9FA]/60 backdrop-blur-md border-b border-[rgba(28,28,28,0.04)]">
+                    {/* Workspace Header */}
+                    <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(28,28,28,0.06)]">
                         <div className="flex items-center gap-4">
                             {/* Mobile Menu Toggle */}
                             <button
@@ -2646,38 +2646,75 @@ export default function App() {
                                 <LayoutGrid size={20} className="text-[#1C1C1C]" />
                             </button>
 
-                            <div className="flex flex-col gap-0.5 md:gap-1.5">
-                                <div className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
-                                    <span className="hover:text-[rgba(28,28,28,0.4)] cursor-pointer transition-colors hidden sm:inline" onClick={() => setCurrentView('dashboard')}>Connect-X Devices</span>
-                                    <span className="opacity-50 hidden sm:inline">/</span>
-                                    <span className="text-[rgba(28,28,28,0.6)]">{selectedDevice ? 'Terminal' : currentView === 'host' ? 'Host' : currentView.replace('members', 'Team').replace('organizations', 'Orgs')}</span>
+                            <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-[rgba(28,28,28,0.25)] uppercase tracking-widest hidden sm:flex">
+                                    <span className="hover:text-[rgba(28,28,28,0.5)] cursor-pointer transition-colors" onClick={() => setCurrentView('dashboard')}>Connect-X</span>
+                                    <span>/</span>
+                                    <span className="text-[rgba(28,28,28,0.5)]">{
+                                        selectedDevice ? 'Device Terminal' :
+                                        currentView === 'dashboard' ? 'Overview' :
+                                        currentView === 'host' ? 'Host Device' :
+                                        currentView === 'devices' ? 'All Devices' :
+                                        currentView === 'members' ? 'Team Management' :
+                                        currentView === 'organizations' ? 'Organizations' :
+                                        currentView === 'settings' ? 'Settings' :
+                                        currentView === 'billing' ? 'Subscriptions' :
+                                        currentView === 'profile' ? 'Profile' :
+                                        currentView === 'support' ? 'Support' :
+                                        currentView === 'documentation' ? 'Documentation' : currentView
+                                    }</span>
                                 </div>
-                                <h1 className="text-lg md:text-2xl font-bold text-[#1C1C1C] tracking-tight capitalize truncate max-w-[120px] md:max-w-none">
-                                    {selectedDevice ? selectedDevice.device_name : currentView === 'host' ? 'Host This Device' : currentView}
+                                <h1 className="text-base md:text-xl font-bold text-[#1C1C1C] tracking-tight truncate max-w-[140px] md:max-w-none">
+                                    {selectedDevice ? selectedDevice.device_name :
+                                     currentView === 'dashboard' ? 'Overview' :
+                                     currentView === 'host' ? 'Host This Device' :
+                                     currentView === 'devices' ? 'All Devices' :
+                                     currentView === 'members' ? 'Team Management' :
+                                     currentView === 'organizations' ? 'Organizations' :
+                                     currentView === 'settings' ? 'Settings' :
+                                     currentView === 'billing' ? 'Subscriptions' :
+                                     currentView === 'profile' ? 'User Profile' :
+                                     currentView === 'support' ? 'Support Hub' :
+                                     currentView === 'documentation' ? 'Documentation' : currentView}
                                 </h1>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3 md:gap-6">
-                            <div className="hidden sm:flex items-center bg-white rounded-xl border border-[rgba(28,28,28,0.06)] pl-4 pr-1 py-1 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 transition-all w-48 md:w-64 h-9">
-                                <Search className="w-3.5 h-3.5 text-[rgba(28,28,28,0.2)] mr-2" />
+                        <div className="flex items-center gap-2 md:gap-4">
+                            <div className="hidden sm:flex items-center bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] pl-3.5 pr-1 py-1 transition-all w-44 md:w-60 h-9 focus-within:bg-white focus-within:border-[rgba(28,28,28,0.2)]">
+                                <Search className="w-3.5 h-3.5 text-[rgba(28,28,28,0.3)] mr-2 flex-shrink-0" />
                                 <input
                                     type="text"
                                     placeholder="Search devices..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[rgba(28,28,28,0.2)]"
+                                    className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[rgba(28,28,28,0.25)]"
                                 />
                             </div>
 
-                            <div className="flex items-center gap-2 md:gap-4">
-                                <button onClick={pollDevices} className="p-2 text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors" title="Refresh Sync">
-                                    <RefreshCw className="w-4 h-4" />
-                                </button>
-                                <div className="w-8 h-8 rounded-xl bg-[rgba(28,28,28,0.04)] border border-[rgba(0,0,0,0.04)] flex items-center justify-center text-[10px] font-bold text-[#1C1C1C]">ZB</div>
+                            <button onClick={pollDevices} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[rgba(28,28,28,0.35)] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.06)]" title="Refresh">
+                                <RefreshCw className="w-4 h-4" />
+                            </button>
 
-
-                            </div>
+                            {/* User Avatar */}
+                            <button
+                                onClick={() => setCurrentView('profile')}
+                                className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-[rgba(28,28,28,0.04)] transition-colors group"
+                                title="View Profile"
+                            >
+                                <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
+                                    {(() => {
+                                        const name = user?.name || user?.email || '';
+                                        const parts = name.trim().split(/\s+/);
+                                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                                        return name.slice(0, 2).toUpperCase();
+                                    })()}
+                                </div>
+                                <div className="hidden md:flex flex-col items-start">
+                                    <span className="text-[11px] font-bold text-[#1C1C1C] leading-none truncate max-w-[100px]">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
+                                    <span className="text-[9px] font-bold text-[rgba(28,28,28,0.35)] uppercase tracking-wider mt-0.5">{user?.role?.replace('_', ' ') || 'Member'}</span>
+                                </div>
+                            </button>
                         </div>
                     </header>
 

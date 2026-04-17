@@ -381,18 +381,25 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     const devices = await prisma.device.findMany({
       include: {
-        organization: { select: { id: true, name: true, slug: true } }
+        organization: { select: { id: true, name: true, slug: true } },
+        owner: {
+          select: {
+            organization: { select: { id: true, name: true, slug: true } }
+          }
+        }
       },
       orderBy: { lastSeenAt: 'desc' }
     });
 
     const enrichedDevices = await Promise.all(devices.map(async (device) => {
       const mapped = await mapDevice(device, decoded.userId);
+      // Prefer device's direct org, fall back to owner's org
+      const org = (device as any).organization || (device as any).owner?.organization || null;
       return {
         ...mapped,
-        org_name: (device as any).organization?.name || null,
-        org_slug: (device as any).organization?.slug || null,
-        org_id: (device as any).organization?.id || null,
+        org_name: org?.name || null,
+        org_slug: org?.slug || null,
+        org_id: org?.id || null,
       };
     }));
 

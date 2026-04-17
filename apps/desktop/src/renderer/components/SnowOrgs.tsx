@@ -168,7 +168,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1C1C] text-white rounded-xl text-sm font-bold shadow-lg shadow-black/10 hover:opacity-90 transition-all active:scale-95"
           >
             <Plus size={16} /> New Org
           </button>
@@ -181,7 +181,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search organizations..."
-            className="w-full pl-10 pr-4 py-3 bg-white border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-medium text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none focus:border-blue-300 transition-all shadow-sm"
+            className="w-full pl-10 pr-4 py-3 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-medium text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none focus:bg-white focus:border-[rgba(28,28,28,0.2)] transition-all"
           />
         </div>
 
@@ -191,9 +191,9 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 animate-pulse">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 mb-4" />
-                <div className="h-4 bg-slate-100 rounded mb-2 w-2/3" />
-                <div className="h-3 bg-slate-50 rounded w-1/2" />
+                <div className="w-10 h-10 rounded-xl bg-[rgba(28,28,28,0.06)] mb-4" />
+                <div className="h-4 bg-[rgba(28,28,28,0.04)] rounded mb-2 w-2/3" />
+                <div className="h-3 bg-[rgba(28,28,28,0.03)] rounded w-1/2" />
               </div>
             ))
           ) : filtered.map(org => (
@@ -202,16 +202,16 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
               onClick={() => openDetail(org)}
               className={`bg-white rounded-[24px] border p-6 cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/5 group
                 ${selectedOrg?.id === org.id
-                  ? 'border-blue-400 shadow-md shadow-blue-500/10'
-                  : 'border-[rgba(28,28,28,0.06)] hover:border-blue-100'
+                  ? 'border-[rgba(28,28,28,0.3)] shadow-md shadow-black/8'
+                  : 'border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)]'
                 }`}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-colors
-                  ${selectedOrg?.id === org.id ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                  ${selectedOrg?.id === org.id ? 'bg-[#1C1C1C] text-white' : 'bg-[rgba(28,28,28,0.05)] text-[#1C1C1C] group-hover:bg-[#1C1C1C] group-hover:text-white'}`}>
                   {org.name[0]}
                 </div>
-                <ChevronRight size={16} className="text-[rgba(28,28,28,0.2)] group-hover:text-blue-500 transition-colors mt-1" />
+                <ChevronRight size={16} className="text-[rgba(28,28,28,0.2)] group-hover:text-[#1C1C1C] transition-colors mt-1" />
               </div>
               <h3 className="font-bold text-[#1C1C1C] mb-0.5 truncate">{org.name}</h3>
               <p className="text-[11px] font-mono text-[rgba(28,28,28,0.3)] mb-4 truncate">{org.slug}</p>
@@ -254,7 +254,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
               <div className="p-8 border-b border-[rgba(28,28,28,0.05)]">
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-2xl">
+                    <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] text-white flex items-center justify-center font-bold text-2xl">
                       {selectedOrg.name[0]}
                     </div>
                     <div>
@@ -405,7 +405,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
               <div className="p-6 border-t border-[rgba(28,28,28,0.05)] flex items-center justify-between">
                 <button
                   onClick={() => { setSelectedDevice(null); setSearchQuery(selectedOrg.slug); setCurrentView('devices'); }}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[rgba(28,28,28,0.5)] hover:text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] rounded-xl transition-colors"
                 >
                   <Monitor size={14} /> View in Devices
                 </button>
@@ -451,7 +451,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                     value={name}
                     onChange={e => { setName(e.target.value); if (!slug) setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')); }}
                     placeholder="Acme Corporation"
-                    className="w-full pl-11 pr-5 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-medium focus:border-blue-400 focus:bg-white outline-none transition-all"
+                    className="w-full pl-11 pr-5 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-medium focus:border-[rgba(28,28,28,0.25)] focus:bg-white outline-none transition-all"
                     required
                   />
                 </div>
@@ -466,7 +466,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                     value={slug}
                     onChange={e => setSlug(e.target.value)}
                     placeholder="acme-corp"
-                    className="w-full pl-11 pr-5 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-mono focus:border-blue-400 focus:bg-white outline-none transition-all"
+                    className="w-full pl-11 pr-5 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-mono focus:border-[rgba(28,28,28,0.25)] focus:bg-white outline-none transition-all"
                     required
                   />
                 </div>
@@ -480,7 +480,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
 
               <button
                 type="submit"
-                className="w-full py-4 bg-blue-600 text-white rounded-[20px] text-sm font-bold shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
+                className="w-full py-4 bg-[#1C1C1C] text-white rounded-[20px] text-sm font-bold shadow-xl shadow-black/10 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
               >
                 <CheckCircle2 size={18} /> Provision Organization
               </button>
