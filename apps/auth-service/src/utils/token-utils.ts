@@ -9,10 +9,10 @@ export async function issueTokens(user: any) {
   let sub = await prisma.subscription.findUnique({ where: { userId: user.id } });
   if (!sub) {
     sub = await prisma.subscription.create({
-      data: { userId: user.id, plan: 'FREE', status: 'ACTIVE' }
+      data: { userId: user.id, plan: 'SOLO', status: 'ACTIVE' }
     });
   }
-  const plan = sub.plan || 'FREE';
+  const plan = sub.plan || 'SOLO';
 
   const accessToken = generateToken({
     userId: user.id,

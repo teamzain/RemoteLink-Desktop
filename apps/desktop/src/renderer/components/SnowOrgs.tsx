@@ -48,9 +48,9 @@ interface SnowOrgsProps {
 }
 
 const PLAN_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  FREE:       { label: 'Free',       color: 'text-slate-500',   bg: 'bg-slate-50',   icon: <Package  size={12} /> },
+  SOLO:       { label: 'Solo',       color: 'text-slate-500',   bg: 'bg-slate-50',   icon: <Package  size={12} /> },
   PRO:        { label: 'Pro',        color: 'text-blue-600',    bg: 'bg-blue-50',    icon: <Zap      size={12} /> },
-  BUSINESS:   { label: 'Business',   color: 'text-purple-600',  bg: 'bg-purple-50',  icon: <Star     size={12} /> },
+  TEAM:       { label: 'Team',       color: 'text-purple-600',  bg: 'bg-purple-50',  icon: <Star     size={12} /> },
   ENTERPRISE: { label: 'Enterprise', color: 'text-amber-600',   bg: 'bg-amber-50',   icon: <Crown    size={12} /> },
 };
 
@@ -176,7 +176,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
     o.slug.toLowerCase().includes(search.toLowerCase())
   );
 
-  const planMeta = selectedOrg ? (PLAN_META[selectedOrg.plan] || PLAN_META.FREE) : PLAN_META.FREE;
+  const planMeta = selectedOrg ? (PLAN_META[selectedOrg.plan] || PLAN_META.SOLO) : PLAN_META.SOLO;
 
   return (
     <div className="flex gap-6 h-full animate-in fade-in duration-500 font-inter">
@@ -453,7 +453,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
 
                     {showPlanDropdown && (
                       <div className="absolute bottom-10 right-0 z-50 w-44 bg-white border border-[rgba(28,28,28,0.08)] rounded-2xl shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
-                        {(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'] as const).map(p => {
+                        {(['SOLO', 'PRO', 'TEAM', 'ENTERPRISE'] as const).map(p => {
                           const m = PLAN_META[p];
                           const isCurrentPlan = p === selectedOrg.plan;
                           return (

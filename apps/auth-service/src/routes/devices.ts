@@ -569,7 +569,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (!deviceId || !password) return reply.code(400).send({ error: 'DeviceID and password required' });
 
     const device = await prisma.device.findUnique({ where: { id: deviceId } });
-    if (!device || device.ownerId !== decoded.userId) {
+    if (!device || (device.ownerId !== decoded.userId && decoded.role !== 'SUPER_ADMIN')) {
       return reply.code(403).send({ error: 'Not authorized for this device' });
     }
 

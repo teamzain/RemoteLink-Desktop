@@ -3,67 +3,74 @@ import { prisma, verifyToken } from '@remotelink/shared';
 
 export const PLAN_CATALOG = [
   {
-    id: 'FREE',
-    name: 'Free',
-    price: 0,
-    priceLabel: '$0 / month',
-    description: 'For individuals getting started',
+    id: 'SOLO',
+    name: 'Solo',
+    price: 2.46,
+    priceLabel: '$2.46 / month',
+    description: 'For individuals managing one computer',
     maxDevices: 1,
     maxUsers: 1,
     features: [
-      'P2P remote access',
-      'Basic file transfer',
-      'Standard quality (720p)',
-      'Community support',
+      'Remote access to 1 computer',
+      'File transfer',
+      'Remote reboot',
+      'Chat messaging',
+      'Multi-monitor support',
+      'Clipboard sync',
+      'Wake-on-LAN',
     ],
   },
   {
     id: 'PRO',
     name: 'Pro',
-    price: 29,
-    priceLabel: '$29 / month',
-    description: 'For small teams',
-    maxDevices: 5,
-    maxUsers: 5,
+    price: 8.29,
+    priceLabel: '$8.29 / month',
+    description: 'For professionals managing multiple computers',
+    maxDevices: 10,
+    maxUsers: 1,
     features: [
-      'Everything in Free',
-      'HD streaming (1080p)',
+      'Remote access to 10 computers',
+      'Everything in Solo',
+      'Add & organize users',
       'Session recording',
-      'Priority support',
-      'Custom device tags',
+      'Remote printing',
+      'Whiteboard collaboration',
     ],
   },
   {
-    id: 'BUSINESS',
-    name: 'Business',
-    price: 99,
-    priceLabel: '$99 / month',
-    description: 'For growing organizations',
-    maxDevices: 25,
-    maxUsers: 25,
+    id: 'TEAM',
+    name: 'Team',
+    price: 24.96,
+    priceLabel: '$24.96 / month',
+    description: 'For teams with advanced access control',
+    maxDevices: 50,
+    maxUsers: null,
     features: [
+      'Remote access to 50 computers',
+      'Unlimited users',
       'Everything in Pro',
-      '4K / 60fps streaming',
-      'Team management',
-      'Role-based access control',
-      'Audit logs',
-      'SSO integration',
+      'AD / SSO integration',
+      'Active Directory sync',
+      'HelpDesk portal',
+      'Priority support',
     ],
   },
   {
     id: 'ENTERPRISE',
     name: 'Enterprise',
-    price: null,
-    priceLabel: 'Custom pricing',
-    description: 'For large-scale deployments',
-    maxDevices: null,
+    price: 49.96,
+    priceLabel: '$49.96 / month',
+    description: 'For large organizations with full control',
+    maxDevices: 100,
     maxUsers: null,
     features: [
-      'Everything in Business',
-      'Dedicated relay servers',
-      'SLA guarantee',
-      'Custom branding',
-      'On-premise deployment',
+      'Remote access to 100 computers',
+      'Unlimited users',
+      'Everything in Team',
+      'Scheduled access windows',
+      'Computer grouping',
+      'Mass deployment tools',
+      'Roles & permissions',
       'Dedicated account manager',
     ],
   },
@@ -87,10 +94,10 @@ export default async function billingRoutes(fastify: FastifyInstance) {
 
     let sub = await prisma.subscription.findUnique({ where: { userId: decoded.userId } });
 
-    // Auto-create FREE subscription if missing
+    // Auto-create SOLO subscription if missing
     if (!sub) {
       sub = await prisma.subscription.create({
-        data: { userId: decoded.userId, plan: 'FREE', status: 'ACTIVE' }
+        data: { userId: decoded.userId, plan: 'SOLO', status: 'ACTIVE' }
       });
     }
 
@@ -117,7 +124,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     }
 
     const { userId, plan } = request.body as { userId: string; plan: string };
-    const validPlans = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'];
+    const validPlans = ['SOLO', 'PRO', 'TEAM', 'ENTERPRISE'];
     if (!userId || !validPlans.includes(plan)) {
       return reply.code(400).send({ error: 'userId and a valid plan are required' });
     }
@@ -144,7 +151,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     if (!decoded?.userId) return reply.code(401).send({ error: 'Invalid token' });
 
     const { plan } = request.body as { plan: string };
-    const validPlans = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'];
+    const validPlans = ['SOLO', 'PRO', 'TEAM', 'ENTERPRISE'];
     if (!validPlans.includes(plan)) {
       return reply.code(400).send({ error: 'Invalid plan' });
     }

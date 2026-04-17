@@ -34,16 +34,16 @@ interface SnowBillingProps {
 }
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {
-  FREE:       <Package  size={20} />,
+  SOLO:       <Package  size={20} />,
   PRO:        <Zap      size={20} />,
-  BUSINESS:   <Star     size={20} />,
+  TEAM:       <Star     size={20} />,
   ENTERPRISE: <Crown    size={20} />,
 };
 
 const PLAN_ACCENT: Record<string, { color: string; bg: string; border: string }> = {
-  FREE:       { color: 'text-slate-600',  bg: 'bg-slate-50',   border: 'border-slate-200'  },
+  SOLO:       { color: 'text-slate-600',  bg: 'bg-slate-50',   border: 'border-slate-200'  },
   PRO:        { color: 'text-blue-600',   bg: 'bg-blue-50',    border: 'border-blue-200'   },
-  BUSINESS:   { color: 'text-purple-600', bg: 'bg-purple-50',  border: 'border-purple-200' },
+  TEAM:       { color: 'text-purple-600', bg: 'bg-purple-50',  border: 'border-purple-200' },
   ENTERPRISE: { color: 'text-amber-600',  bg: 'bg-amber-50',   border: 'border-amber-200'  },
 };
 
@@ -52,7 +52,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
   const accessToken = useAuthStore(s => s.accessToken);
   const refreshToken = useAuthStore(s => s.refreshToken);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [activePlan, setActivePlan] = useState<string>(user?.plan || 'FREE');
+  const [activePlan, setActivePlan] = useState<string>(user?.plan || 'SOLO');
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
   const [successPlan, setSuccessPlan] = useState<string | null>(null);
