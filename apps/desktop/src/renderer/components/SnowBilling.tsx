@@ -11,6 +11,7 @@ import {
   Check,
   Users,
   Monitor,
+  ExternalLink,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
@@ -66,7 +67,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
     try {
       const [plansRes, subRes] = await Promise.all([
         api.get('/api/billing/plans'),
-        api.get('/api/billing/subscription'),
+        api.get('/api/billing/current'),
       ]);
       setPlans(plansRes.data);
       setActivePlan(subRes.data.plan);
@@ -81,7 +82,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
     if (planId === activePlan || switching) return;
     setSwitching(planId);
     try {
-      await api.patch('/api/billing/my-plan', { plan: planId });
+      await api.post('/api/billing/subscribe', { plan: planId });
       setActivePlan(planId);
       setSuccessPlan(planId);
       setTimeout(() => setSuccessPlan(null), 3000);
@@ -142,6 +143,19 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
               <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Users</span>
             </div>
           </div>
+          <button 
+            onClick={async () => {
+              try {
+                const { data } = await api.post('/api/billing/portal');
+                if (data.url) window.open(data.url, '_blank');
+              } catch (err) {
+                console.error('Failed to open billing portal', err);
+              }
+            }}
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-colors flex items-center gap-2"
+          >
+            <ExternalLink size={14} /> Manage Billing
+          </button>
         </div>
 
         {currentPlanData && (

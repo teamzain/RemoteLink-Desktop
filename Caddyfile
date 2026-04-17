@@ -55,13 +55,14 @@
         reverse_proxy session-service:3003
     }
 
-    # Billing API (handled by auth-service)
+    # Billing API (handled by billing-service)
     handle /api/billing* {
-        reverse_proxy auth-service:3001
+        uri strip_prefix /api
+        reverse_proxy billing-service:3004
     }
 
-    # Legacy billing service (kept for backwards compat, proxied to auth-service)
+    # Legacy billing service (proxied to billing-service)
     handle /billing* {
-        reverse_proxy auth-service:3001
+        reverse_proxy billing-service:3004
     }
 }
