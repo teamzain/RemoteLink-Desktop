@@ -62,7 +62,88 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     return reply.send(orgs);
   });
 
-  // 3. Get my Org info (SUB_ADMIN / USER)
+  // 3. Get single Org detail (SUPER_ADMIN ONLY) — members, devices, plan
+  fastify.get('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const decoded = await requireSuperAdmin(request, reply);
+    if (!decoded) return;
+
+    const { id } = request.params as { id: string };
+
+    const org = await prisma.organization.findUnique({
+      where: { id },
+      include: {
+        users: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+            subscription: { select: { plan: true, status: true } }
+          },
+          orderBy: { createdAt: 'asc' }
+        },
+        devices: {
+          select: {
+            id: true,
+            name: true,
+            deviceType: true,
+            status: true,
+            lastSeenAt: true,
+            accessKey: true,
+            tags: true
+          },
+          orderBy: { lastSeenAt: 'desc' }
+        },
+        _count: { select: { users: true, devices: true } }
+      }
+    });
+
+    if (!org) return reply.code(404).send({ error: 'Organization not found' });
+
+    // Derive plan from the org owner (SUB_ADMIN) subscription
+    const admin = org.users.find((u: any) => u.role === 'SUB_ADMIN');
+    const plan = (admin as any)?.subscription?.plan || 'FREE';
+
+    return reply.send({ ...org, plan });
+  });
+
+  // 4. Delete Organization (SUPER_ADMIN ONLY)
+  fastify.delete('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const decoded = await requireSuperAdmin(request, reply);
+    if (!decoded) return;
+
+    const { id } = request.params as { id: string };
+
+    try {
+      await prisma.organization.delete({ where: { id } });
+      return reply.send({ success: true });
+    } catch (err: any) {
+      return reply.code(500).send({ error: 'Failed to delete organization' });
+    }
+  });
+
+  // 5. Update Organization name/slug (SUPER_ADMIN ONLY)
+  fastify.patch('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const decoded = await requireSuperAdmin(request, reply);
+    if (!decoded) return;
+
+    const { id } = request.params as { id: string };
+    const { name, slug } = request.body as any;
+
+    try {
+      const org = await prisma.organization.update({
+        where: { id },
+        data: { ...(name && { name }), ...(slug && { slug }) }
+      });
+      return reply.send(org);
+    } catch (err: any) {
+      if (err.code === 'P2002') return reply.code(400).send({ error: 'Slug already taken' });
+      return reply.code(500).send({ error: 'Failed to update organization' });
+    }
+  });
+
+  // 6. Get my Org info (SUB_ADMIN / USER)
   fastify.get('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });

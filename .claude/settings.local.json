@@ -9,7 +9,9 @@
       "Bash(find:*)",
       "Bash(npm install:*)",
       "Bash(npx vite:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(C:/src/flutter/bin/flutter devices *)",
+      "Bash(grep -v \"^--$\")"
     ]
   }
 }

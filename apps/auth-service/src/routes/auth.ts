@@ -1,9 +1,11 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
+import { OAuth2Client } from 'google-auth-library';
 import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isTokenBlacklisted } from '@remotelink/shared';
 import { issueTokens } from '../utils/token-utils';
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
 
 export default async function authRoutes(fastify: FastifyInstance) {
@@ -243,6 +245,63 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send(await issueTokens(user));
   });
 
+  // Google Sign-In (Mobile & Web)
+  fastify.post('/google', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { idToken } = request.body as any;
+    if (!idToken) return reply.code(400).send({ error: 'ID token required' });
+
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      if (!payload?.email) return reply.code(400).send({ error: 'Invalid Google token' });
+
+      const { email, name } = payload;
+
+      let user = await prisma.user.findUnique({ where: { email } });
+
+      if (!user) {
+        // Auto-create account for new Google users
+        const orgSlug = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 5);
+        const result = await prisma.$transaction(async (tx: any) => {
+          const org = await tx.organization.create({
+            data: {
+              name: `${name || email.split('@')[0]}'s Workspace`,
+              slug: orgSlug,
+            }
+          });
+          const newUser = await tx.user.create({
+            data: {
+              email,
+              name: name || email.split('@')[0],
+              role: 'SUB_ADMIN',
+              organizationId: org.id,
+            }
+          });
+          return { user: newUser };
+        });
+        user = result.user;
+
+        await publishEvent({ channel: EventChannel.USER_CREATED, payload: { userId: user.id, email: user.email } });
+
+        try {
+          const billingUrl = process.env.BILLING_SERVICE_URL || 'http://localhost:3003';
+          await fetch(`${billingUrl}/billing/create-customer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id, email: user.email })
+          });
+        } catch (err) {}
+      }
+
+      return reply.send(await issueTokens(user));
+    } catch (err: any) {
+      console.error('[Auth] Google token verification failed:', err.message);
+      return reply.code(401).send({ error: 'Google authentication failed' });
+    }
+  });
 
   fastify.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
     const { email, password } = request.body as any;

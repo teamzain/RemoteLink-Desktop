@@ -26,13 +26,13 @@ export const SnowSplashScreen: React.FC<{ isReady: boolean }> = ({ isReady }) =>
       
       <div className="relative flex flex-col items-center gap-6 animate-in zoom-in-95 duration-1000">
          <div className="w-32 h-32 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-            <img src={logo} alt="SyncLink" className="w-24 h-24 object-contain relative z-10 animate-pulse drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
+            <img src={logo} alt="Connect-X" className="w-24 h-24 object-contain relative z-10 animate-pulse drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]" />
             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
          </div>
 
          <div className="flex flex-col items-center">
             <h1 className="text-4xl font-extrabold text-white tracking-tighter mb-1">
-               SyncLink
+               Connect-X
             </h1>
             <div className="flex items-center gap-3">
                <div className="h-[1px] w-8 bg-white/20" />

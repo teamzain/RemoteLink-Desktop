@@ -33,13 +33,13 @@ const categories: Category[] = [
   {
     title: 'Getting Started',
     icon: Zap,
-    desc: 'Learn the fundamentals of SyncLink node architecture and initial setup.',
+    desc: 'Learn the fundamentals of Connect-X node architecture and initial setup.',
     color: 'text-blue-500',
     bg: 'bg-blue-50/50',
     items: [
-      { title: 'System Requirements', content: 'SyncLink requires Windows 10+, macOS 12+, or Ubuntu 20.04+. Minimum 4GB RAM and a stable internet connection (5 Mbps+). For hosting, port 443 should be open or a relay will be used automatically.' },
+      { title: 'System Requirements', content: 'Connect-X requires Windows 10+, macOS 12+, or Ubuntu 20.04+. Minimum 4GB RAM and a stable internet connection (5 Mbps+). For hosting, port 443 should be open or a relay will be used automatically.' },
       { title: 'Initial Node Setup', content: 'After installing, launch the app and register an account. Your device is automatically registered as a node. Copy your Access Key from the Host Device screen and share it with viewers who need to connect.' },
-      { title: 'Authentication Flows', content: 'SyncLink uses JWT-based auth with short-lived access tokens (15 min) and long-lived refresh tokens (7 days). Tokens are stored securely in the system keychain on desktop. Web sessions fall back to localStorage.' },
+      { title: 'Authentication Flows', content: 'Connect-X uses JWT-based auth with short-lived access tokens (15 min) and long-lived refresh tokens (7 days). Tokens are stored securely in the system keychain on desktop. Web sessions fall back to localStorage.' },
     ]
   },
   {
@@ -50,7 +50,7 @@ const categories: Category[] = [
     bg: 'bg-emerald-50/50',
     items: [
       { title: 'Signaling Servers', content: 'Signaling is handled over WSS at the primary relay (159.65.84.190). The client sends an offer SDP, the relay forwards it to the host, and ICE candidates are exchanged. Signaling data is never stored.' },
-      { title: 'ICE/STUN/TURN Guides', content: 'SyncLink first attempts a direct P2P connection using STUN. If NAT traversal fails (symmetric NAT), it falls back to TURN relay automatically. You can inspect your connection type in the session overlay (Ctrl+Shift+I).' },
+      { title: 'ICE/STUN/TURN Guides', content: 'Connect-X first attempts a direct P2P connection using STUN. If NAT traversal fails (symmetric NAT), it falls back to TURN relay automatically. You can inspect your connection type in the session overlay (Ctrl+Shift+I).' },
       { title: 'Relay Optimization', content: 'To reduce relay latency: (1) ensure both peers are on the same continent, (2) disable VPNs that route through distant servers, (3) check that UDP port 3478 is not blocked by your firewall.' },
     ]
   },
@@ -69,7 +69,7 @@ const categories: Category[] = [
 ];
 
 const apiRefs = [
-  { title: 'Command Line Interface', sub: 'Control nodes via terminal', icon: Terminal, content: 'Run `synclink --help` to see all CLI commands. Key commands: `synclink host` (start hosting), `synclink connect <key>` (connect to a node), `synclink status` (show active sessions), `synclink logout` (clear credentials).' },
+  { title: 'Command Line Interface', sub: 'Control nodes via terminal', icon: Terminal, content: 'Run `connect-x --help` to see all CLI commands. Key commands: `connect-x host` (start hosting), `connect-x connect <key>` (connect to a node), `connect-x status` (show active sessions), `connect-x logout` (clear credentials).' },
   { title: 'Auth Token Management', sub: 'Manage session lifecycle', icon: Key, content: 'GET /api/auth/me — returns current user. POST /api/auth/refresh — refreshes your access token using a refresh token. POST /api/auth/logout — invalidates the refresh token. All endpoints require Bearer token in Authorization header.' },
   { title: 'Broadcasting Params', sub: 'Fine-tune streaming performance', icon: Zap, content: 'Set video quality via query params: ?fps=30&bitrate=4000&codec=h264. Available codecs: h264 (default), vp8. Max bitrate 8000 kbps on BUSINESS+. Latency mode: ?latency=ultra disables B-frames for sub-100ms sessions.' },
 ];
@@ -111,7 +111,7 @@ export const SnowDocumentation: React.FC<{ onNavigateToSupport?: () => void }> =
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Knowledge Base</span>
             </div>
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight mb-4">SyncLink Technical Docs</h1>
+          <h1 className="text-4xl font-extrabold tracking-tight mb-4">Connect-X Technical Docs</h1>
           <p className="text-white/40 text-lg font-medium mb-8 leading-relaxed">
             Comprehensive guides and API references to help you build high-performance, secure P2P node networks.
           </p>
@@ -248,7 +248,7 @@ export const SnowDocumentation: React.FC<{ onNavigateToSupport?: () => void }> =
               <textarea
                 value={guideRequest}
                 onChange={e => setGuideRequest(e.target.value)}
-                placeholder="E.g. We need a guide for deploying SyncLink across 500 remote Windows workstations with SSO..."
+                placeholder="E.g. We need a guide for deploying Connect-X across 500 remote Windows workstations with SSO..."
                 className="w-full h-28 px-4 py-3 bg-white rounded-2xl border border-[rgba(28,28,28,0.08)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none resize-none"
               />
               <div className="flex gap-3">

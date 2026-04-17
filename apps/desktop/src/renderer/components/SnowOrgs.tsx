@@ -1,41 +1,100 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Building2, 
-  Plus, 
-  Search, 
-  Globe, 
-  Settings, 
-  MoreVertical, 
-  ExternalLink,
-  ShieldCheck,
-  Activity,
-  X,
-  CheckCircle2
+import {
+  Building2, Plus, Search, Globe, Settings, ExternalLink,
+  ShieldCheck, Activity, X, CheckCircle2, Users, Monitor,
+  ChevronRight, Trash2, AlertTriangle, Cpu, Smartphone,
+  Apple, Crown, Zap, Star, Package, ArrowLeft, Clock,
+  Wifi, WifiOff, RefreshCw, Mail, Shield
 } from 'lucide-react';
 import api from '../lib/api';
 
-interface Organization {
+interface OrgSummary {
   id: string;
   name: string;
   slug: string;
   createdAt: string;
-  _count: {
-    users: number;
-    devices: number;
-  }
+  _count: { users: number; devices: number };
 }
 
-export const SnowOrgs: React.FC = () => {
-  const [orgs, setOrgs] = useState<Organization[]>([]);
+interface OrgMember {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+  createdAt: string;
+  subscription?: { plan: string; status: string } | null;
+}
+
+interface OrgDevice {
+  id: string;
+  name: string | null;
+  deviceType: string;
+  status: string;
+  lastSeenAt: string;
+  accessKey: string;
+  tags: string[];
+}
+
+interface OrgDetail extends OrgSummary {
+  users: OrgMember[];
+  devices: OrgDevice[];
+  plan: string;
+}
+
+interface SnowOrgsProps {
+  setCurrentView: (view: any) => void;
+  setSelectedDevice: (device: any) => void;
+  setSearchQuery: (query: string) => void;
+}
+
+const PLAN_META: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  FREE:       { label: 'Free',       color: 'text-slate-500',   bg: 'bg-slate-50',   icon: <Package  size={12} /> },
+  PRO:        { label: 'Pro',        color: 'text-blue-600',    bg: 'bg-blue-50',    icon: <Zap      size={12} /> },
+  BUSINESS:   { label: 'Business',   color: 'text-purple-600',  bg: 'bg-purple-50',  icon: <Star     size={12} /> },
+  ENTERPRISE: { label: 'Enterprise', color: 'text-amber-600',   bg: 'bg-amber-50',   icon: <Crown    size={12} /> },
+};
+
+const ROLE_META: Record<string, { label: string; color: string; bg: string }> = {
+  SUB_ADMIN:   { label: 'Admin',    color: 'text-purple-700', bg: 'bg-purple-50' },
+  OPERATOR:    { label: 'Operator', color: 'text-blue-700',   bg: 'bg-blue-50'   },
+  VIEWER:      { label: 'Viewer',   color: 'text-slate-600',  bg: 'bg-slate-100' },
+  USER:        { label: 'User',     color: 'text-slate-500',  bg: 'bg-slate-50'  },
+  SUPER_ADMIN: { label: 'Super',    color: 'text-red-700',    bg: 'bg-red-50'    },
+};
+
+function DeviceTypeIcon({ type }: { type: string }) {
+  const t = type?.toUpperCase();
+  if (t === 'IOS' || t === 'MACOS') return <Apple size={14} />;
+  if (t === 'ANDROID') return <Smartphone size={14} />;
+  return <Monitor size={14} />;
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedDevice, setSearchQuery }) => {
+  const [orgs, setOrgs] = useState<OrgSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchOrgs();
-  }, []);
+  // Detail panel
+  const [selectedOrg, setSelectedOrg] = useState<OrgDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState<'members' | 'devices'>('members');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => { fetchOrgs(); }, []);
 
   const fetchOrgs = async () => {
     setLoading(true);
@@ -49,148 +108,381 @@ export const SnowOrgs: React.FC = () => {
     }
   };
 
-  const handleCreateOrg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const openDetail = async (org: OrgSummary) => {
+    setSelectedOrg(null);
+    setDetailLoading(true);
+    setDetailTab('members');
     try {
-      await api.post('/api/organizations', { name, slug });
-      setShowAddModal(false);
-      setName('');
-      setSlug('');
-      fetchOrgs();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create organization');
+      const { data } = await api.get(`/api/organizations/${org.id}`);
+      setSelectedOrg(data);
+    } catch (err) {
+      console.error('Failed to fetch org detail:', err);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
+  const handleCreateOrg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    try {
+      await api.post('/api/organizations', { name, slug });
+      setShowAddModal(false);
+      setName(''); setSlug('');
+      fetchOrgs();
+    } catch (err: any) {
+      setFormError(err.response?.data?.error || 'Failed to create organization');
+    }
+  };
+
+  const handleDeleteOrg = async () => {
+    if (!selectedOrg) return;
+    try {
+      await api.delete(`/api/organizations/${selectedOrg.id}`);
+      setSelectedOrg(null);
+      setShowDeleteConfirm(false);
+      fetchOrgs();
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+  };
+
+  const filtered = orgs.filter(o =>
+    o.name.toLowerCase().includes(search.toLowerCase()) ||
+    o.slug.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const planMeta = selectedOrg ? (PLAN_META[selectedOrg.plan] || PLAN_META.FREE) : PLAN_META.FREE;
+
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">
-      
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#1C1C1C] tracking-tight">Organizations</h1>
-          <p className="text-sm text-[rgba(28,28,28,0.4)] mt-1">Global management of all registered companies and tenants.</p>
+    <div className="flex gap-6 h-full animate-in fade-in duration-500 font-inter">
+
+      {/* ── LEFT: Org List ── */}
+      <div className={`flex flex-col gap-5 transition-all duration-300 ${selectedOrg || detailLoading ? 'w-[360px] flex-shrink-0' : 'flex-1'}`}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1C1C1C] tracking-tight">Organizations</h1>
+            <p className="text-sm text-[rgba(28,28,28,0.4)] mt-0.5">{orgs.length} registered tenants</p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+          >
+            <Plus size={16} /> New Org
+          </button>
         </div>
-        <button 
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all transform active:scale-95"
-        >
-          <Plus size={18} />
-          New Organization
-        </button>
+
+        {/* Search */}
+        <div className="relative">
+          <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search organizations..."
+            className="w-full pl-10 pr-4 py-3 bg-white border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-medium text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none focus:border-blue-300 transition-all shadow-sm"
+          />
+        </div>
+
+        {/* Org Cards */}
+        <div className={`flex flex-col gap-3 overflow-y-auto pb-6 ${selectedOrg || detailLoading ? '' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}
+          style={selectedOrg || detailLoading ? {} : { display: 'grid' }}>
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 animate-pulse">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 mb-4" />
+                <div className="h-4 bg-slate-100 rounded mb-2 w-2/3" />
+                <div className="h-3 bg-slate-50 rounded w-1/2" />
+              </div>
+            ))
+          ) : filtered.map(org => (
+            <div
+              key={org.id}
+              onClick={() => openDetail(org)}
+              className={`bg-white rounded-[24px] border p-6 cursor-pointer transition-all duration-200 hover:shadow-lg hover:shadow-black/5 group
+                ${selectedOrg?.id === org.id
+                  ? 'border-blue-400 shadow-md shadow-blue-500/10'
+                  : 'border-[rgba(28,28,28,0.06)] hover:border-blue-100'
+                }`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg transition-colors
+                  ${selectedOrg?.id === org.id ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                  {org.name[0]}
+                </div>
+                <ChevronRight size={16} className="text-[rgba(28,28,28,0.2)] group-hover:text-blue-500 transition-colors mt-1" />
+              </div>
+              <h3 className="font-bold text-[#1C1C1C] mb-0.5 truncate">{org.name}</h3>
+              <p className="text-[11px] font-mono text-[rgba(28,28,28,0.3)] mb-4 truncate">{org.slug}</p>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5 text-[rgba(28,28,28,0.4)]">
+                  <Users size={12} />
+                  <span className="text-xs font-semibold">{org._count.users}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[rgba(28,28,28,0.4)]">
+                  <Monitor size={12} />
+                  <span className="text-xs font-semibold">{org._count.devices}</span>
+                </div>
+                <span className="text-[10px] text-[rgba(28,28,28,0.25)] ml-auto">
+                  {new Date(org.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {!loading && filtered.length === 0 && (
+            <div className="col-span-full py-16 flex flex-col items-center gap-2 text-[rgba(28,28,28,0.3)]">
+              <Building2 size={48} strokeWidth={1} />
+              <span className="text-sm font-medium">No organizations found</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Grid of Orgs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {orgs.map((org) => (
-          <div key={org.id} className="bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] shadow-sm p-8 hover:shadow-xl hover:shadow-black/5 transition-all duration-300 group cursor-pointer border-transparent hover:border-blue-100">
-            <div className="flex items-start justify-between mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                {org.name[0]}
-              </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C]"><Settings size={16} /></button>
-                <button className="p-2 text-[rgba(28,28,28,0.2)] hover:text-blue-600"><ExternalLink size={16} /></button>
-              </div>
+      {/* ── RIGHT: Detail Panel ── */}
+      {(selectedOrg || detailLoading) && (
+        <div className="flex-1 bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] shadow-sm overflow-hidden flex flex-col animate-in slide-in-from-right-4 duration-300">
+
+          {detailLoading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <RefreshCw size={24} className="text-blue-500 animate-spin" />
             </div>
+          ) : selectedOrg && (
+            <>
+              {/* Detail Header */}
+              <div className="p-8 border-b border-[rgba(28,28,28,0.05)]">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-2xl">
+                      {selectedOrg.name[0]}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-[#1C1C1C] tracking-tight">{selectedOrg.name}</h2>
+                      <p className="text-xs font-mono text-[rgba(28,28,28,0.35)] mt-0.5">{selectedOrg.slug}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedOrg(null)}
+                    className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
 
-            <h3 className="text-lg font-bold text-[#1C1C1C] mb-1">{org.name}</h3>
-            <p className="text-xs text-[rgba(28,28,28,0.3)] font-mono mb-6 uppercase tracking-widest">{org.slug}.remotelink.io</p>
-
-            <div className="grid grid-cols-2 gap-4 pb-6 border-b border-[rgba(28,28,28,0.04)] mb-6">
-              <div>
-                <p className="text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-wider mb-1">Members</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-bold text-[#1C1C1C]">{org._count.users}</span>
-                  <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">Active</span>
+                {/* Stats row */}
+                <div className="grid grid-cols-4 gap-3">
+                  {/* Plan */}
+                  <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl ${planMeta.bg}`}>
+                    <span className={planMeta.color}>{planMeta.icon}</span>
+                    <div>
+                      <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Plan</p>
+                      <p className={`text-xs font-bold ${planMeta.color}`}>{planMeta.label}</p>
+                    </div>
+                  </div>
+                  {/* Members */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50">
+                    <Users size={12} className="text-slate-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Members</p>
+                      <p className="text-xs font-bold text-[#1C1C1C]">{selectedOrg._count.users}</p>
+                    </div>
+                  </div>
+                  {/* Devices */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50">
+                    <Monitor size={12} className="text-slate-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Devices</p>
+                      <p className="text-xs font-bold text-[#1C1C1C]">{selectedOrg._count.devices}</p>
+                    </div>
+                  </div>
+                  {/* Created */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-50">
+                    <Clock size={12} className="text-slate-500" />
+                    <div>
+                      <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Created</p>
+                      <p className="text-xs font-bold text-[#1C1C1C]">{new Date(selectedOrg.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <p className="text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-wider mb-1">Devices</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-bold text-[#1C1C1C]">{org._count.devices}</span>
-                  <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">Reg.</span>
-                </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 px-8 pt-4 border-b border-[rgba(28,28,28,0.05)]">
+                {(['members', 'devices'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setDetailTab(tab)}
+                    className={`px-4 py-2 rounded-t-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                      detailTab === tab
+                        ? 'bg-[#1C1C1C] text-white'
+                        : 'text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C]'
+                    }`}
+                  >
+                    {tab === 'members' ? `Members (${selectedOrg._count.users})` : `Devices (${selectedOrg._count.devices})`}
+                  </button>
+                ))}
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg">
-                <ShieldCheck size={12} />
-                <span className="text-[10px] font-bold uppercase tracking-wider">Verified Tenant</span>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-y-auto p-8 pt-5">
+
+                {/* Members Tab */}
+                {detailTab === 'members' && (
+                  <div className="space-y-2">
+                    {selectedOrg.users.length === 0 ? (
+                      <div className="py-12 flex flex-col items-center gap-2 text-[rgba(28,28,28,0.3)]">
+                        <Users size={40} strokeWidth={1} />
+                        <span className="text-sm">No members yet</span>
+                      </div>
+                    ) : selectedOrg.users.map(member => {
+                      const roleMeta = ROLE_META[member.role] || ROLE_META.USER;
+                      return (
+                        <div key={member.id} className="flex items-center gap-3 p-3.5 bg-[#F9F9FA] rounded-2xl hover:bg-[#F3F4F6] transition-colors">
+                          <div className="w-9 h-9 rounded-xl bg-white border border-[rgba(28,28,28,0.06)] flex items-center justify-center font-bold text-sm text-[#1C1C1C] shadow-sm flex-shrink-0">
+                            {(member.name || member.email)[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-[#1C1C1C] truncate">{member.name || '—'}</p>
+                            <p className="text-[11px] text-[rgba(28,28,28,0.4)] truncate flex items-center gap-1">
+                              <Mail size={10} />{member.email}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${roleMeta.bg} ${roleMeta.color}`}>
+                              {roleMeta.label}
+                            </span>
+                            <span className="text-[10px] text-[rgba(28,28,28,0.3)]">
+                              {new Date(member.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Devices Tab */}
+                {detailTab === 'devices' && (
+                  <div className="space-y-2">
+                    {selectedOrg.devices.length === 0 ? (
+                      <div className="py-12 flex flex-col items-center gap-2 text-[rgba(28,28,28,0.3)]">
+                        <Monitor size={40} strokeWidth={1} />
+                        <span className="text-sm">No devices registered</span>
+                      </div>
+                    ) : selectedOrg.devices.map(device => {
+                      const isOnline = device.status === 'ONLINE';
+                      return (
+                        <div key={device.id} className="flex items-center gap-3 p-3.5 bg-[#F9F9FA] rounded-2xl hover:bg-[#F3F4F6] transition-colors">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                            <DeviceTypeIcon type={device.deviceType} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-[#1C1C1C] truncate">{device.name || 'Unnamed Device'}</p>
+                            <p className="text-[11px] text-[rgba(28,28,28,0.4)] font-mono truncate">
+                              {device.accessKey} · {device.deviceType}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {device.tags.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-600">
+                                {device.tags[0]}{device.tags.length > 1 ? ` +${device.tags.length - 1}` : ''}
+                              </span>
+                            )}
+                            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                              {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
+                              {isOnline ? 'Online' : timeAgo(device.lastSeenAt)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <span className="text-[10px] text-[rgba(28,28,28,0.3)] font-medium italic">
-                {new Date(org.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-          </div>
-        ))}
 
-        {orgs.length === 0 && !loading && (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center text-[rgba(28,28,28,0.4)] gap-2">
-            <Building2 size={64} strokeWidth={1} />
-            <span className="text-sm font-medium">No organizations found. Ready to onboard your first customer?</span>
-          </div>
-        )}
-      </div>
+              {/* Footer Actions */}
+              <div className="p-6 border-t border-[rgba(28,28,28,0.05)] flex items-center justify-between">
+                <button
+                  onClick={() => { setSelectedDevice(null); setSearchQuery(selectedOrg.slug); setCurrentView('devices'); }}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                >
+                  <Monitor size={14} /> View in Devices
+                </button>
+                {!showDeleteConfirm ? (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                  >
+                    <Trash2 size={14} /> Delete Org
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 rounded-2xl border border-red-100">
+                    <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
+                    <span className="text-[11px] font-bold text-red-600">Permanently delete?</span>
+                    <button onClick={handleDeleteOrg} className="px-3 py-1 bg-red-500 text-white text-[11px] font-bold rounded-lg hover:bg-red-600 transition-colors">Yes</button>
+                    <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1 bg-white text-[rgba(28,28,28,0.5)] text-[11px] font-bold rounded-lg border border-[rgba(28,28,28,0.1)] hover:bg-slate-50 transition-colors">No</button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-      {/* Create Modal */}
+      {/* ── Create Org Modal ── */}
       {showAddModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl p-10 border border-white/20 animate-in zoom-in-95 duration-300">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-2xl font-bold text-[#1C1C1C] tracking-tight">Create Organization</h2>
-              <button onClick={() => setShowAddModal(false)} className="w-10 h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] transition-colors"><X size={24} /></button>
+              <button onClick={() => setShowAddModal(false)} className="w-10 h-10 rounded-full hover:bg-slate-50 flex items-center justify-center text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] transition-colors">
+                <X size={24} />
+              </button>
             </div>
 
-            <form onSubmit={handleCreateOrg} className="space-y-6">
+            <form onSubmit={handleCreateOrg} className="space-y-5">
               <div>
-                <label className="block text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] mb-3 px-1">Display Name</label>
+                <label className="block text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] mb-2 px-1">Display Name</label>
                 <div className="relative">
-                  <Building2 size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
-                  <input 
-                    type="text" 
+                  <Building2 size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
+                  <input
+                    type="text"
                     value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      if (!slug) setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'));
-                    }}
+                    onChange={e => { setName(e.target.value); if (!slug) setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')); }}
                     placeholder="Acme Corporation"
-                    className="w-full pl-12 pr-6 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-[15px] font-medium focus:border-blue-500/50 focus:bg-white outline-none transition-all shadow-sm font-inter"
+                    className="w-full pl-11 pr-5 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-medium focus:border-blue-400 focus:bg-white outline-none transition-all"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] mb-3 px-1">Organization Slug (URL identifier)</label>
+                <label className="block text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] mb-2 px-1">Slug (URL identifier)</label>
                 <div className="relative">
-                  <Globe size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
-                  <input 
-                    type="text" 
+                  <Globe size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)]" />
+                  <input
+                    type="text"
                     value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
+                    onChange={e => setSlug(e.target.value)}
                     placeholder="acme-corp"
-                    className="w-full pl-12 pr-6 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-[15px] font-medium font-mono focus:border-blue-500/50 focus:bg-white outline-none transition-all shadow-sm"
+                    className="w-full pl-11 pr-5 py-4 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-2xl text-sm font-mono focus:border-blue-400 focus:bg-white outline-none transition-all"
                     required
                   />
                 </div>
-                <p className="mt-3 text-[11px] text-[rgba(28,28,28,0.4)] leading-relaxed italic px-1">Unique identifier used for subdomains and deep linking (no spaces).</p>
               </div>
 
-              {error && (
-                <div className="flex items-center gap-3 p-4 bg-red-50 text-red-600 rounded-2xl text-[13px] font-bold border border-red-100">
-                  <Activity size={16} /> {error}
+              {formError && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-semibold border border-red-100">
+                  <Activity size={15} /> {formError}
                 </div>
               )}
 
-              <button 
+              <button
                 type="submit"
-                className="w-full py-5 bg-blue-600 text-white rounded-[24px] text-base font-bold shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:shadow-blue-500/30 transition-all transform active:scale-[0.98] mt-4 flex items-center justify-center gap-3"
+                className="w-full py-4 bg-blue-600 text-white rounded-[20px] text-sm font-bold shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
               >
-                <CheckCircle2 size={20} />
-                Provision Organization
+                <CheckCircle2 size={18} /> Provision Organization
               </button>
             </form>
           </div>

@@ -80,7 +80,7 @@ export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notificatio
       <div className="mt-auto pt-6 border-t border-[rgba(28,28,28,0.05)]">
          <div className="p-4 bg-[rgba(28,28,28,0.02)] rounded-2xl border border-[rgba(28,28,28,0.04)]">
             <p className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] leading-relaxed">
-              SyncLink utilizes E2E encryption for all remote streams. Your machine is currently secure.
+              Connect-X utilizes E2E encryption for all remote streams. Your machine is currently secure.
             </p>
          </div>
       </div>

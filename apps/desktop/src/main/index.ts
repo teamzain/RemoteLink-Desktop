@@ -45,6 +45,7 @@ const viewerWindows = new Map<string, BrowserWindow>();
 const viewerSignalingSockets = new Map<string, WebSocket>();
 let tray: Tray | null = null;
 let isQuitting = false;
+let shownTrayHint = false;
 
 let peerConnection: any = null;
 let dataChannel: any = null;
@@ -439,10 +440,11 @@ function drainNALBuffer() {
         if (headerIdx < nalUnit.length && nalUnit[headerIdx] === 1) headerIdx++;
         const nalType = (headerIdx < nalUnit.length) ? (nalUnit[headerIdx] & 0x1F) : 0;
         
-        const isHeader = (nalType === 7 || nalType === 8 || nalType === 9);
+        // AUD (9) or SPS (7) indicates the clear start of a new Access Unit (frame).
+        const isNewFrame = (nalType === 9 || nalType === 7);
         const isSlice = (nalType === 1 || nalType === 5);
 
-        if ((isHeader || isSlice) && accessUnitBuffer.length > 0 && hasVcl) {
+        if (isNewFrame && accessUnitBuffer.length > 0 && hasVcl) {
           sendFrame(accessUnitBuffer);
           accessUnitBuffer = Buffer.alloc(0);
           hasVcl = false;
@@ -763,14 +765,19 @@ function initiateHostWebRTC(viewerId: string) {
     // 2. Start Clipboard Sync (500ms)
     if (clipboardInterval) clearInterval(clipboardInterval);
     lastClipboardText = clipboard.readText();
+    log.info(`[Host] Initialized clipboard sync. Current text length: ${lastClipboardText?.length || 0}`);
+    
     clipboardInterval = setInterval(() => {
-       const text = clipboard.readText();
-       if (text && text !== lastClipboardText) {
-          lastClipboardText = text;
-          if (dataChannel && dataChannel.isOpen()) {
-             log.info(`[Host] Local clipboard changed. Syncing to viewer... (${text.substring(0, 20)}...)`);
-             dataChannel.sendMessage(JSON.stringify({ type: 'clipboard', text }));
-          }
+       try {
+         if (!dataChannel || !dataChannel.isOpen()) return;
+         const text = clipboard.readText();
+         if (text && text !== lastClipboardText) {
+            lastClipboardText = text;
+            log.info(`[Host] Local clipboard changed. Syncing to viewer... (${text.substring(0, 20)}...)`);
+            dataChannel.sendMessage(JSON.stringify({ type: 'clipboard', text }));
+         }
+       } catch (err: any) {
+         log.error(`[Host] Clipboard poll failed: ${err.message}`);
        }
     }, 500);
   });
@@ -1086,6 +1093,7 @@ function createWindow() {
     mainWindow.once('ready-to-show', () => {
       log.info('[Host] Main window ready to show.');
       if (!app.isPackaged || !process.argv.includes('--hidden')) {
+        mainWindow?.maximize();
         mainWindow?.show();
         mainWindow?.focus();
       }
@@ -1094,7 +1102,16 @@ function createWindow() {
     mainWindow.on('close', (event) => {
       if (!isQuitting) {
         event.preventDefault();
-        mainWindow?.minimize();
+        mainWindow?.hide();
+        // Show a one-time balloon so the user knows where to find it
+        if (tray && !shownTrayHint) {
+          shownTrayHint = true;
+          tray.displayBalloon({
+            title: 'Still running in background',
+            content: 'Connect-X is in the system tray. Click the icon to reopen it.',
+            iconType: 'info'
+          });
+        }
       }
       return false;
     });
@@ -1161,7 +1178,18 @@ app.whenReady().then(() => {
     ]);
     tray.setToolTip('RemoteLink Node');
     tray.setContextMenu(contextMenu);
-    tray.on('double-click', () => mainWindow?.show());
+    tray.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
   } catch (e) {
     log.error('[Host] Failed to initialize Tray:', e);
   }

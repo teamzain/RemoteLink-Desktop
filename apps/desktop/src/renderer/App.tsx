@@ -781,7 +781,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         {/* Logo mark */}
                         <div className="relative mb-8 z-10">
                             <div className="w-20 h-20 rounded-[28px] bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-2xl overflow-hidden">
-                                <img src={logo} alt="SyncLink" className="w-12 h-12 object-contain opacity-70" />
+                                <img src={logo} alt="Connect-X" className="w-12 h-12 object-contain opacity-70" />
                             </div>
                             {/* Orbiting ring */}
                             <div className="absolute inset-0 rounded-[28px] border border-blue-500/20 animate-ping" style={{ animationDuration: '2s' }} />
@@ -1090,6 +1090,7 @@ export default function App() {
     const [showLoginPassword, setShowLoginPassword] = useState(false);
     const [verificationCode, setVerificationCode] = useState('');
     const [isAwaitingVerification, setIsAwaitingVerification] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
     const [sessionCode, setSessionCode] = useState('');
     const [accessPassword, setAccessPassword] = useState('');
     const [showManualPassword, setShowManualPassword] = useState(false);
@@ -1328,7 +1329,7 @@ export default function App() {
 
             setSessionCode(sid);
             setServerIP(sip);
-            setAuth({ id: 'viewer', email: 'node.viewer@synclink.io', name: 'Viewer', plan: 'FREE', role: 'VIEWER', organizationId: null, avatar: null }, tok, '', false);
+            setAuth({ id: 'viewer', email: 'node.viewer@connect-x.io', name: 'Viewer', plan: 'FREE', role: 'VIEWER', organizationId: null, avatar: null }, tok, '', false);
             setWindowDeviceName(dname);
             setWindowDeviceType(dtype);
 
@@ -1780,12 +1781,15 @@ export default function App() {
     useEffect(() => {
         // If all required identity info is loaded and auto-host is enabled, start hosting.
         // hostStatus "" or "idle" means it hasn't started yet.
-        if (isAuthenticated && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
+        // BYPASS: SUPER_ADMIN and SUB_ADMIN must always host manually as per request.
+        const isBypassRole = user?.role === 'SUPER_ADMIN' || user?.role === 'SUB_ADMIN';
+
+        if (isAuthenticated && !isBypassRole && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
             console.log('[Auto-Host] Identity ready, initiating automatic start...');
             hasAutoStartedHost.current = true;
             handleStartHosting();
         }
-    }, [isAuthenticated, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
+    }, [isAuthenticated, user?.role, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
 
     useEffect(() => {
         checkAuth().finally(() => setLoading(false));
@@ -2070,6 +2074,7 @@ export default function App() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        setAuthError(null);
         setLoading(true);
         try {
             await storeLogin(email, password);
@@ -2077,7 +2082,7 @@ export default function App() {
             setTimeout(() => setShowSplash(false), 2000);
             localStorage.setItem('remote_link_server_ip', serverIP);
         } catch (err: any) {
-            showError('Authentication Failed', err.response?.data?.error || `Could not establish secure link to ${serverIP}. Check your credentials and server status.`);
+            setAuthError(err.response?.data?.error || `Could not sign in. Check your credentials and server status.`);
         } finally {
             setLoading(false);
         }
@@ -2085,7 +2090,8 @@ export default function App() {
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!signupName.trim()) { showError('Registration Failed', 'Display name is required.'); return; }
+        setAuthError(null);
+        if (!signupName.trim()) { setAuthError('Display name is required.'); return; }
         setLoading(true);
 
         if (!isAwaitingVerification) {
@@ -2093,13 +2099,13 @@ export default function App() {
                 await storeRequestVerification(email);
                 setIsAwaitingVerification(true);
             } catch (err: any) {
-                showError('Registration Failed', err.response?.data?.error || 'Could not send verification code.');
+                setAuthError(err.response?.data?.error || 'Could not send verification code.');
             } finally {
                 setLoading(false);
             }
         } else {
             if (!verificationCode || verificationCode.length !== 6) {
-                showError('Registration Failed', 'Please enter a valid 6-digit verification code.');
+                setAuthError('Please enter a valid 6-digit verification code.');
                 setLoading(false);
                 return;
             }
@@ -2111,7 +2117,7 @@ export default function App() {
                 setIsAwaitingVerification(false);
                 setVerificationCode('');
             } catch (err: any) {
-                showError('Registration Failed', err.response?.data?.error || 'Could not create account. Please try again.');
+                setAuthError(err.response?.data?.error || 'Could not create account. Please try again.');
             } finally {
                 setLoading(false);
             }
@@ -2345,10 +2351,10 @@ export default function App() {
                         {/* Logo */}
                         <div className="flex items-center gap-3 mb-10 group cursor-default">
                             <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 group-hover:scale-105 transition-transform duration-300 overflow-hidden border border-white/5">
-                                <img src={logo} alt="SyncLink" className="w-10 h-10 object-contain" />
+                                <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">SyncLink</span>
+                                <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
                                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Desktop Auth</span>
                             </div>
                         </div>
@@ -2359,7 +2365,7 @@ export default function App() {
                                 <button
                                     key={mode}
                                     type="button"
-                                    onClick={() => { setAuthMode(mode); setEmail(''); setPassword(''); setSignupName(''); setIsAwaitingVerification(false); setVerificationCode(''); }}
+                                    onClick={() => { setAuthMode(mode); setEmail(''); setPassword(''); setSignupName(''); setIsAwaitingVerification(false); setVerificationCode(''); setAuthError(null); }}
                                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[rgba(28,28,28,0.3)] hover:text-[rgba(28,28,28,0.6)]'}`}
                                 >
                                     {mode === 'login' ? 'Sign In' : 'Create Account'}
@@ -2371,7 +2377,7 @@ export default function App() {
                             {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
                         </h1>
                         <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
-                            {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the SyncLink mesh.'}
+                            {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the Connect-X mesh.'}
                         </p>
 
                         {/* Google Button */}
@@ -2476,6 +2482,13 @@ export default function App() {
                                         </div>
                                     </div>
                                 </>
+                            )}
+
+                            {authError && (
+                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{authError}</p>
+                                </div>
                             )}
 
                             <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
@@ -2833,7 +2846,11 @@ export default function App() {
                             </div>
                         ) : (currentView as string) === 'organizations' ? (
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700">
-                                <SnowOrgs />
+                                <SnowOrgs 
+                                    setCurrentView={setCurrentView}
+                                    setSelectedDevice={setSelectedDevice}
+                                    setSearchQuery={setSearchQuery}
+                                />
                             </div>
                         ) : currentView === 'settings' ? (
                             /* --- SETTINGS VIEW --- */

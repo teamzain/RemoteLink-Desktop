@@ -413,6 +413,7 @@
     "cache": "C:\\Users\\Zain Ul Abidden\\AppData\\Local\\npm-cache",
     "disturl": "https://electronjs.org/headers",
     "fallback_to_build": "true",
+    "fetch_retry_maxtimeout": "120000",
     "globalconfig": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm\\etc\\npmrc",
     "global_prefix": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm",
     "init_module": "C:\\Users\\Zain Ul Abidden\\.npm-init.js",
