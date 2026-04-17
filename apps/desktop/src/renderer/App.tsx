@@ -1725,21 +1725,10 @@ export default function App() {
         if (isAuthenticated) loadDeviceInfo();
     }, [isAuthenticated, serverIP]);
 
-    // Fetch real billing data when billing view is opened
+    // Fetch billing data when billing view is opened
     useEffect(() => {
-        if (currentView === 'billing' && isAuthenticated && !currentPlan) {
-            (async () => {
-                try {
-                    const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
-                    if (!creds?.token) return;
-                    const res = await fetch(`http://${serverIP}/billing/current`, {
-                        headers: { 'Authorization': `Bearer ${creds.token}` }
-                    });
-                    if (res.ok) setCurrentPlan(await res.json());
-                } catch (err) {
-                    console.error('[Billing] Failed to fetch current plan:', err);
-                }
-            })();
+        if (currentView === 'billing' && isAuthenticated) {
+            fetchBillingInfo();
         }
     }, [currentView, isAuthenticated]);
 

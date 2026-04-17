@@ -48,11 +48,9 @@ const PLAN_ACCENT: Record<string, { color: string; bg: string; border: string }>
 };
 
 export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
-  const { setAuth, accessToken, refreshToken } = useAuthStore(s => ({
-    setAuth: s.setAuth,
-    accessToken: s.accessToken,
-    refreshToken: s.refreshToken,
-  }));
+  const setAuth = useAuthStore(s => s.setAuth);
+  const accessToken = useAuthStore(s => s.accessToken);
+  const refreshToken = useAuthStore(s => s.refreshToken);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activePlan, setActivePlan] = useState<string>(user?.plan || 'FREE');
   const [loading, setLoading] = useState(true);

@@ -81,20 +81,6 @@ services:
       - postgres
       - redis
 
-  billing-service:
-    build:
-      context: .
-      dockerfile: ./apps/billing-service/Dockerfile
-    restart: always
-    environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      REDIS_URL: redis://redis:6379
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
-      PORT: 3004
-    depends_on:
-      - postgres
-      - redis
-
   # TURN Server
   coturn:
     image: coturn/coturn:latest
@@ -123,7 +109,6 @@ services:
       - auth-service
       - signaling-service
       - session-service
-      - billing-service
 
 volumes:
   postgres_data:
