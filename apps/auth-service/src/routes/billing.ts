@@ -3,7 +3,7 @@ import { prisma, verifyToken } from '@remotelink/shared';
 
 export const PLAN_CATALOG = [
   {
-    id: 'SOLO',
+    id: 'FREE',
     name: 'Solo',
     price: 2.46,
     priceLabel: '$2.46 / month',
@@ -38,7 +38,7 @@ export const PLAN_CATALOG = [
     ],
   },
   {
-    id: 'TEAM',
+    id: 'BUSINESS',
     name: 'Team',
     price: 24.96,
     priceLabel: '$24.96 / month',
@@ -97,7 +97,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     // Auto-create SOLO subscription if missing
     if (!sub) {
       sub = await prisma.subscription.create({
-        data: { userId: decoded.userId, plan: 'SOLO', status: 'ACTIVE' }
+        data: { userId: decoded.userId, plan: 'FREE', status: 'ACTIVE' }
       });
     }
 
@@ -124,7 +124,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     }
 
     const { userId, plan } = request.body as { userId: string; plan: string };
-    const validPlans = ['SOLO', 'PRO', 'TEAM', 'ENTERPRISE'];
+    const validPlans = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'];
     if (!userId || !validPlans.includes(plan)) {
       return reply.code(400).send({ error: 'userId and a valid plan are required' });
     }
@@ -151,7 +151,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     if (!decoded?.userId) return reply.code(401).send({ error: 'Invalid token' });
 
     const { plan } = request.body as { plan: string };
-    const validPlans = ['SOLO', 'PRO', 'TEAM', 'ENTERPRISE'];
+    const validPlans = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'];
     if (!validPlans.includes(plan)) {
       return reply.code(400).send({ error: 'Invalid plan' });
     }
