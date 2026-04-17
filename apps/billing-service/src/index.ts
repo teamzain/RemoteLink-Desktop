@@ -29,7 +29,9 @@ server.register(rawBody, {
 
 server.register(cors, {
   origin: true,
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 });
 
 server.get('/health', async () => {

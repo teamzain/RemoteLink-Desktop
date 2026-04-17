@@ -19,7 +19,10 @@ import billingRoutes from './routes/billing';
 const server = Fastify({ logger: true });
 
 server.register(cors, {
-  origin: '*' // Allow all local renderer origins
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 });
 
 server.addHook('onRequest', async (request, reply) => {
