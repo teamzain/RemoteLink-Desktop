@@ -284,19 +284,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
         user = result.user;
 
-        await publishEvent({ channel: EventChannel.USER_CREATED, payload: { userId: user.id, email: user.email } });
+        await publishEvent({ channel: EventChannel.USER_CREATED, payload: { userId: user!.id, email: user!.email } });
 
         try {
           const billingUrl = process.env.BILLING_SERVICE_URL || 'http://localhost:3003';
           await fetch(`${billingUrl}/billing/create-customer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id, email: user.email })
+            body: JSON.stringify({ userId: user!.id, email: user!.email })
           });
         } catch (err) {}
       }
 
-      return reply.send(await issueTokens(user));
+      return reply.send(await issueTokens(user!));
     } catch (err: any) {
       console.error('[Auth] Google token verification failed:', err.message);
       return reply.code(401).send({ error: 'Google authentication failed' });
