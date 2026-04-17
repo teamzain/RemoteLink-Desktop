@@ -4,7 +4,7 @@ import {
   ShieldCheck, Activity, X, CheckCircle2, Users, Monitor,
   ChevronRight, Trash2, AlertTriangle, Cpu, Smartphone,
   Apple, Crown, Zap, Star, Package, ArrowLeft, Clock,
-  Wifi, WifiOff, RefreshCw, Mail, Shield
+  Wifi, WifiOff, RefreshCw, Mail, Shield, ChevronDown, Check, Loader2
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -94,6 +94,11 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
   const [detailTab, setDetailTab] = useState<'members' | 'devices'>('members');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Plan assignment
+  const [showPlanDropdown, setShowPlanDropdown] = useState(false);
+  const [planSwitching, setPlanSwitching] = useState(false);
+  const [planSuccess, setPlanSuccess] = useState(false);
+
   useEffect(() => { fetchOrgs(); }, []);
 
   const fetchOrgs = async () => {
@@ -144,6 +149,25 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
       fetchOrgs();
     } catch (err) {
       console.error('Delete failed:', err);
+    }
+  };
+
+  const handleAssignPlan = async (plan: string) => {
+    if (!selectedOrg) return;
+    // Find the SUB_ADMIN of this org to assign the plan to
+    const admin = selectedOrg.users.find(u => u.role === 'SUB_ADMIN');
+    if (!admin) return;
+    setShowPlanDropdown(false);
+    setPlanSwitching(true);
+    try {
+      await api.patch('/api/billing/set-plan', { userId: admin.id, plan });
+      setSelectedOrg({ ...selectedOrg, plan });
+      setPlanSuccess(true);
+      setTimeout(() => setPlanSuccess(false), 3000);
+    } catch (err) {
+      console.error('Plan assignment failed:', err);
+    } finally {
+      setPlanSwitching(false);
     }
   };
 
@@ -402,28 +426,83 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
               </div>
 
               {/* Footer Actions */}
-              <div className="p-6 border-t border-[rgba(28,28,28,0.05)] flex items-center justify-between">
-                <button
-                  onClick={() => { setSelectedDevice(null); setSearchQuery(selectedOrg.slug); setCurrentView('devices'); }}
-                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[rgba(28,28,28,0.5)] hover:text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] rounded-xl transition-colors"
-                >
-                  <Monitor size={14} /> View in Devices
-                </button>
-                {!showDeleteConfirm ? (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                  >
-                    <Trash2 size={14} /> Delete Org
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 rounded-2xl border border-red-100">
-                    <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
-                    <span className="text-[11px] font-bold text-red-600">Permanently delete?</span>
-                    <button onClick={handleDeleteOrg} className="px-3 py-1 bg-red-500 text-white text-[11px] font-bold rounded-lg hover:bg-red-600 transition-colors">Yes</button>
-                    <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1 bg-white text-[rgba(28,28,28,0.5)] text-[11px] font-bold rounded-lg border border-[rgba(28,28,28,0.1)] hover:bg-slate-50 transition-colors">No</button>
+              <div className="p-6 border-t border-[rgba(28,28,28,0.05)] space-y-3">
+
+                {/* Plan Assignment Row */}
+                <div className="flex items-center justify-between p-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)]">
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold text-[#1C1C1C]">Billing Plan</span>
+                    <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">Assign plan to this organization's admin</span>
                   </div>
-                )}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowPlanDropdown(v => !v)}
+                      disabled={planSwitching}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${planMeta.bg} ${planMeta.color} ${planMeta.color.replace('text-', 'border-').replace('600', '200').replace('500', '200')}`}
+                    >
+                      {planSwitching ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : planSuccess ? (
+                        <Check size={12} />
+                      ) : (
+                        planMeta.icon
+                      )}
+                      {planMeta.label}
+                      <ChevronDown size={11} className={`transition-transform ${showPlanDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showPlanDropdown && (
+                      <div className="absolute bottom-10 right-0 z-50 w-44 bg-white border border-[rgba(28,28,28,0.08)] rounded-2xl shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
+                        {(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'] as const).map(p => {
+                          const m = PLAN_META[p];
+                          const isCurrentPlan = p === selectedOrg.plan;
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => handleAssignPlan(p)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                                isCurrentPlan
+                                  ? `${m.bg} ${m.color}`
+                                  : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={m.color}>{m.icon}</span>
+                                {m.label}
+                              </div>
+                              {isCurrentPlan && <Check size={11} />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom actions */}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => { setSelectedDevice(null); setSearchQuery(selectedOrg.slug); setCurrentView('devices'); }}
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[rgba(28,28,28,0.5)] hover:text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] rounded-xl transition-colors"
+                  >
+                    <Monitor size={14} /> View in Devices
+                  </button>
+                  {!showDeleteConfirm ? (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                    >
+                      <Trash2 size={14} /> Delete Org
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 rounded-2xl border border-red-100">
+                      <AlertTriangle size={14} className="text-red-500 flex-shrink-0" />
+                      <span className="text-[11px] font-bold text-red-600">Permanently delete?</span>
+                      <button onClick={handleDeleteOrg} className="px-3 py-1 bg-red-500 text-white text-[11px] font-bold rounded-lg hover:bg-red-600 transition-colors">Yes</button>
+                      <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1 bg-white text-[rgba(28,28,28,0.5)] text-[11px] font-bold rounded-lg border border-[rgba(28,28,28,0.1)] hover:bg-[#F9F9FA] transition-colors">No</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}

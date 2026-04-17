@@ -1630,10 +1630,7 @@ export default function App() {
         return () => unsub();
     }, [isElectron]);
 
-    const [showBillingModal, setShowBillingModal] = useState(false);
-    const [billingPlans, setBillingPlans] = useState<any[]>([]);
     const [currentPlan, setCurrentPlan] = useState<any>(null);
-    const [billingLoading, setBillingLoading] = useState(false);
 
     const [fileReceivedModal, setFileReceivedModal] = useState<{ name: string, path: string, isRemote: boolean } | null>(null);
 
@@ -1649,43 +1646,10 @@ export default function App() {
 
     const fetchBillingInfo = async () => {
         try {
-            setShowBillingModal(true);
-            setBillingLoading(true);
-            const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
-            if (!creds?.token) return;
-
-            const [plansRes, currentRes] = await Promise.all([
-                fetch(`http://${serverIP}/billing/plans`),
-                fetch(`http://${serverIP}/billing/current`, {
-                    headers: { 'Authorization': `Bearer ${creds.token}` }
-                })
-            ]);
-
-            if (plansRes.ok) setBillingPlans(await plansRes.json());
-            if (currentRes.ok) setCurrentPlan(await currentRes.json());
+            const { data } = await api.get('/api/billing/subscription');
+            setCurrentPlan(data);
         } catch (err: any) {
             console.error('Failed to fetch billing info', err);
-            setGlobalError('Failed to load billing details: ' + err.message);
-            setShowBillingModal(false);
-        } finally {
-            setBillingLoading(false);
-        }
-    };
-
-    const handleSubscribe = async (planName: string) => {
-        try {
-            setBillingLoading(true);
-            const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
-            const res = await fetch(`http://${serverIP}/billing/subscribe`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${creds.token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan: planName, paymentMethodId: 'pm_card_visa' })
-            });
-            if (!res.ok) throw new Error(await res.text());
-            fetchBillingInfo();
-        } catch (err: any) {
-            setGlobalError('Subscription failed: ' + err.message);
-            setBillingLoading(false);
         }
     };
 
@@ -2847,7 +2811,7 @@ export default function App() {
                         ) : currentView === 'billing' ? (
                             /* --- BILLING VIEW --- */
                             <div className="w-full pt-4 animate-in fade-in duration-700">
-                                <SnowBilling user={user} currentPlan={currentPlan} onUpgrade={fetchBillingInfo} invoices={[]} />
+                                <SnowBilling user={user} />
                             </div>
                         ) : currentView === 'documentation' ? (
                             /* --- SNOW UI DOCUMENTATION VIEW --- */
@@ -3082,56 +3046,6 @@ export default function App() {
                                 Confirm
                             </button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Profile/Billing Modal */}
-            {showBillingModal && (
-                <div className="fixed inset-0 z-[200] bg-[#1C1C1C]/20 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in" onClick={() => setShowBillingModal(false)}>
-                    <div className="bg-white shadow-2xl rounded-[32px] p-10 w-[800px] max-w-full max-h-[90vh] overflow-y-auto custom-scrollbar relative border border-[rgba(28,28,28,0.06)]" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-start mb-12 border-b border-[rgba(28,28,28,0.06)] pb-8">
-                            <div className="flex items-center gap-6">
-                                <div className="w-16 h-16 bg-[#F8F9FA] rounded-[24px] flex items-center justify-center text-[#1C1C1C] border border-[rgba(28,28,28,0.08)]">
-                                    <CreditCard className="w-8 h-8" />
-                                </div>
-                                <div>
-                                    <h3 className="text-3xl font-black text-[#1C1C1C] tracking-tighter uppercase">Cloud Topology</h3>
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest border border-blue-100/50">{currentPlan?.plan || 'Global Basic'}</span>
-                                        <span className="text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">System Service Plan</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button onClick={() => setShowBillingModal(false)} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-[14px] transition-all">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        {billingLoading && !billingPlans.length ? (
-                            <div className="py-20 flex justify-center"><RefreshCw className="w-10 h-10 animate-spin text-[#1C1C1C]/10" /></div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {billingPlans.map((plan: any) => (
-                                    <div key={plan.name} className={`p-8 rounded-[28px] border transition-all duration-300 ${currentPlan?.plan === plan.name ? 'bg-blue-50/20 border-blue-100 shadow-sm' : 'bg-white border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] hover:shadow-xl hover:shadow-black/5'}`}>
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h4 className="font-bold text-[#1C1C1C] text-lg uppercase tracking-tight">{plan.name}</h4>
-                                            <span className="text-3xl font-black text-[#1C1C1C]">${plan.price}</span>
-                                        </div>
-                                        <ul className="text-[11px] space-y-4 mb-10 text-[rgba(28,28,28,0.5)] font-bold uppercase tracking-widest">
-                                            {plan.features.map((f: string, i: number) => <li key={i} className="flex items-start gap-3"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" /> {f}</li>)}
-                                        </ul>
-                                        <button
-                                            onClick={() => handleSubscribe(plan.name)}
-                                            disabled={currentPlan?.plan === plan.name || billingLoading}
-                                            className={`w-full py-4 rounded-none text-[10px] font-black uppercase tracking-[0.2em] transition-all ${currentPlan?.plan === plan.name ? 'bg-[rgba(28,28,28,0.04)] text-[rgba(28,28,28,0.2)] cursor-not-allowed' : 'bg-[#1C1C1C] text-white hover:opacity-90 active:scale-[0.98]'}`}
-                                        >
-                                            {currentPlan?.plan === plan.name ? 'CURRENT ACTIVE TIER' : 'RESTRUCTURE NODE'}
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
