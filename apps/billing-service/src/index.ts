@@ -364,6 +364,7 @@ server.get('/billing/current', async (request, reply) => {
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
     ...cardInfo,
     invoices
   };

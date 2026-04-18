@@ -126,6 +126,7 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
 
   if (!stripePromiseRef.current) {
     const key = publishableKey || 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
+    console.log('[Stripe Debug] Initializing with Key:', key);
     stripePromiseRef.current = loadStripe(key);
   }
 

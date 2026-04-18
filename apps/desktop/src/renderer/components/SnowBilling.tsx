@@ -68,8 +68,11 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
       
       // Handle both old array response and new object response
       const plansData = Array.isArray(plansRes.data) ? plansRes.data : (plansRes.data.plans || []);
+      const pubKey = plansRes.data.publishableKey || subRes.data.publishableKey;
+      
       setPlans(plansData);
-      setBillingInfo(subRes.data);
+      setBillingInfo({ ...subRes.data, publishableKey: pubKey });
+      console.log('[Billing Debug] Received info from server:', { ...subRes.data, publishableKey: pubKey });
     } catch (err) {
       console.error('Failed to fetch billing info', err);
     } finally {
