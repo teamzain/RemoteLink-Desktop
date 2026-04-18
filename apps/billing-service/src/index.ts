@@ -32,13 +32,6 @@ server.register(rawBody, {
   runFirst: true,
 });
 
-server.register(cors, {
-  origin: '*',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
-});
-
 server.get('/health', async () => {
   return { status: 'ok', service: 'billing-service' };
 });

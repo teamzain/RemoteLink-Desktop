@@ -16,44 +16,8 @@
     }
     respond @options 204
 
-    # Health check
-    handle /health {
-        reverse_proxy auth-service:3001
-    }
-
-    # Auth & Admin Services
-    handle /api/auth* {
-        reverse_proxy auth-service:3001
-    }
-    
-    handle /api/devices* {
-        reverse_proxy auth-service:3001
-    }
-
-    handle /api/members* {
-        reverse_proxy auth-service:3001
-    }
-
-    handle /api/organizations* {
-        reverse_proxy auth-service:3001
-    }
-
-    handle /onboard* {
-        reverse_proxy auth-service:3001
-    }
-
-    # Signaling Service (WebSocket)
-    handle /api/signal* {
-        reverse_proxy signaling-service:3002
-    }
-
-    # Session Service
-    handle /api/session* {
-        reverse_proxy session-service:3003
-    }
-
-    # Billing API (handled by billing-service)
-    handle /api/billing* {
+    # Universal API handling
+    handle /api/* {
         header {
             Access-Control-Allow-Origin "http://127.0.0.1:5173"
             Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
@@ -61,8 +25,39 @@
             Access-Control-Allow-Credentials "true"
             defer
         }
-        uri strip_prefix /api
-        reverse_proxy billing-service:3004
+        
+        # Auth & Admin Services
+        handle /api/auth* {
+            reverse_proxy auth-service:3001
+        }
+        
+        handle /api/devices* {
+            reverse_proxy auth-service:3001
+        }
+
+        handle /api/members* {
+            reverse_proxy auth-service:3001
+        }
+
+        handle /api/organizations* {
+            reverse_proxy auth-service:3001
+        }
+
+        # Signaling Service (WebSocket)
+        handle /api/signal* {
+            reverse_proxy signaling-service:3002
+        }
+
+        # Session Service
+        handle /api/session* {
+            reverse_proxy session-service:3003
+        }
+
+        # Billing API
+        handle /api/billing* {
+            uri strip_prefix /api
+            reverse_proxy billing-service:3004
+        }
     }
 
     # Legacy billing service (proxied to billing-service)
