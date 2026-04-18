@@ -35,7 +35,6 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3001
-    env_file: .env
       BILLING_SERVICE_URL: http://billing-service:3004
       TURN_USER: ${TURN_USER}
       TURN_PASSWORD: ${TURN_PASSWORD}
@@ -48,6 +47,7 @@ services:
       SMTP_SECURE: ${SMTP_SECURE}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -90,8 +90,6 @@ services:
       dockerfile: ./apps/billing-service/Dockerfile
     restart: always
     env_file: .env
-    depends_on:
-      - postgres
     depends_on:
       - postgres
 
