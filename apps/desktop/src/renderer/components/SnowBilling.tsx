@@ -103,6 +103,29 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
     ? new Date(billingInfo.currentPeriodEnd).toLocaleDateString()
     : 'N/A';
 
+  const handleDownloadInvoice = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.warn('Direct download failed, opening in external browser...', err);
+      if ((window as any).electronAPI?.openExternal) {
+        (window as any).electronAPI.openExternal(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter pb-10">
 
@@ -176,7 +199,13 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
                    </div>
                    <div className="flex items-center gap-3">
                       <span className="text-[11px] font-bold text-[#1C1C1C]">${(inv.total / 100).toFixed(2)}</span>
-                      <a href={inv.invoice_pdf} target="_blank" rel="noreferrer" className="p-1.5 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"><Download size={14} /></a>
+                      <button 
+                        onClick={() => handleDownloadInvoice(inv.invoice_pdf, `Invoice-${inv.number || inv.id}.pdf`)} 
+                        className="p-1.5 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                        title="Download Invoice"
+                      >
+                        <Download size={14} />
+                      </button>
                    </div>
                 </div>
               ))}

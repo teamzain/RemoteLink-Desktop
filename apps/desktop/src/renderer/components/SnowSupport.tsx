@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../lib/api';
 import {
   LifeBuoy,
   Search,
@@ -42,7 +43,19 @@ const STATUS_COLORS: Record<string, string> = {
 
 export const SnowSupport: React.FC = () => {
   const [query, setQuery] = useState('');
-  const [tickets, setTickets] = useState<Ticket[]>(INITIAL_TICKETS);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+
+  useEffect(() => {
+    api.get('/api/support/tickets').then(res => {
+      const mapped = res.data.map((t: any) => ({
+        id: t.displayId,
+        subject: t.subject,
+        status: t.status,
+        date: new Date(t.createdAt).toLocaleDateString()
+      }));
+      setTickets(mapped);
+    }).catch(err => console.error('Failed to fetch tickets', err));
+  }, []);
   const [showNewCase, setShowNewCase] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -60,12 +73,22 @@ export const SnowSupport: React.FC = () => {
     !q || t.subject.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)
   );
 
-  const handleSubmitCase = () => {
+  const handleSubmitCase = async () => {
     if (!newSubject.trim()) return;
     setCaseStatus('submitting');
-    setTimeout(() => {
-      const newId = `TIC-${Math.floor(9000 + Math.random() * 999)}`;
-      setTickets(prev => [{ id: newId, subject: newSubject.trim(), status: 'Open', date: 'Just now' }, ...prev]);
+    try {
+      const { data } = await api.post('/api/support/tickets', {
+        subject: newSubject.trim(),
+        description: newDescription.trim(),
+        category: newCategory
+      });
+      const newTicket: Ticket = {
+        id: data.displayId,
+        subject: data.subject,
+        status: data.status as any,
+        date: 'Just now'
+      };
+      setTickets(prev => [newTicket, ...prev]);
       setCaseStatus('submitted');
       setTimeout(() => {
         setShowNewCase(false);
@@ -74,7 +97,9 @@ export const SnowSupport: React.FC = () => {
         setNewCategory('');
         setCaseStatus('idle');
       }, 1500);
-    }, 1000);
+    } catch (err) {
+      setCaseStatus('idle');
+    }
   };
 
   const handleSendReport = () => {

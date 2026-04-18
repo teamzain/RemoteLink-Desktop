@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import api from '../lib/api';
 import {
   BookOpen,
   Zap,
@@ -259,7 +260,17 @@ export const SnowDocumentation: React.FC<{ onNavigateToSupport?: () => void }> =
                   Cancel
                 </button>
                 <button
-                  onClick={() => { if (guideRequest.trim()) { setGuideSent(true); setCustomGuideOpen(false); } }}
+                  onClick={async () => { 
+                    if (guideRequest.trim()) { 
+                      try {
+                        await api.post('/api/support/guides', { description: guideRequest });
+                        setGuideSent(true); 
+                        setCustomGuideOpen(false); 
+                      } catch (err) {
+                        console.error('Failed to submit guide request', err);
+                      }
+                    } 
+                  }}
                   disabled={!guideRequest.trim()}
                   className="flex-1 py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold disabled:opacity-40 hover:opacity-90 transition-all"
                 >

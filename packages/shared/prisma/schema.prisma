@@ -29,6 +29,8 @@ model User {
   trustedDevices   TrustedDevice[]
   twoFactorSecret  String?
   is2FAEnabled     Boolean         @default(false)
+  supportTickets   SupportTicket[]
+  guideRequests    GuideRequest[]
 }
 
 model Organization {
@@ -185,4 +187,27 @@ enum DeviceType {
   LINUX
   IOS
   ANDROID
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  displayId   String   @unique // e.g., TIC-9821
+  subject     String
+  category    String
+  description String
+  status      String   @default("Open") // Open, In Review, Closed
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GuideRequest {
+  id          String   @id @default(uuid())
+  description String
+  status      String   @default("Pending")
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
