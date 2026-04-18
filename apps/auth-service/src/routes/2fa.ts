@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { authenticator } from 'otplib';
+const { authenticator } = require('otplib');
 import * as QRCode from 'qrcode';
 import { prisma, verifyToken } from '@remotelink/shared';
 
