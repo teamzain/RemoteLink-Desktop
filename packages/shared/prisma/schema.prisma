@@ -28,9 +28,12 @@ model User {
   subscription   Subscription?
   trustedDevices   TrustedDevice[]
   twoFactorSecret  String?
-  is2FAEnabled     Boolean         @default(false)
-  supportTickets   SupportTicket[]
-  guideRequests    GuideRequest[]
+  is2FAEnabled         Boolean         @default(false)
+  notifySessionAlert    Boolean         @default(true)
+  notifyDisconnectAlert Boolean         @default(true)
+  notifySoundEffects    Boolean         @default(true)
+  supportTickets       SupportTicket[]
+  guideRequests        GuideRequest[]
 }
 
 model Organization {

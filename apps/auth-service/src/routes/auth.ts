@@ -414,6 +414,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
       allowedTags: user.allowedTags,
       avatar: null,
       is_2fa_enabled: (user as any).is2FAEnabled ?? false,
+      notify_session_alert: (user as any).notifySessionAlert ?? true,
+      notify_disconnect_alert: (user as any).notifyDisconnectAlert ?? true,
+      notify_sound_effects: (user as any).notifySoundEffects ?? true,
     });
   });
 
@@ -430,6 +433,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const updateData: any = {};
 
     if (name) updateData.name = name;
+    
+    if (request.body.notify_session_alert !== undefined) updateData.notifySessionAlert = request.body.notify_session_alert;
+    if (request.body.notify_disconnect_alert !== undefined) updateData.notifyDisconnectAlert = request.body.notify_disconnect_alert;
+    if (request.body.notify_sound_effects !== undefined) updateData.notifySoundEffects = request.body.notify_sound_effects;
 
     if (password) {
       if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
@@ -458,6 +465,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
         plan: updatedUser.subscription?.plan || 'FREE',
         avatar: null,
         is_2fa_enabled: (updatedUser as any).is2FAEnabled ?? false,
+        notify_session_alert: (updatedUser as any).notifySessionAlert ?? true,
+        notify_disconnect_alert: (updatedUser as any).notifyDisconnectAlert ?? true,
+        notify_sound_effects: (updatedUser as any).notifySoundEffects ?? true,
       }
     });
   });

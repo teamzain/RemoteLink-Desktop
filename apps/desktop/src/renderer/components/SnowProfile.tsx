@@ -35,9 +35,9 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
   const [pwError, setPwError] = useState('');
 
   // Notification & 2FA state
-  const [loginNotifications, setLoginNotifications] = useState(
-    localStorage.getItem('login_notifications') !== 'false'
-  );
+  const [notifySessionAlert, setNotifySessionAlert] = useState(user?.notify_session_alert ?? true);
+  const [notifyDisconnectAlert, setNotifyDisconnectAlert] = useState(user?.notify_disconnect_alert ?? true);
+  const [notifySoundEffects, setNotifySoundEffects] = useState(user?.notify_sound_effects ?? true);
   const [is2FAEnabled, setIs2FAEnabled] = useState(user?.is_2fa_enabled ?? false);
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [qrCode, setQrCode] = useState('');
@@ -90,9 +90,21 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
     }
   };
 
-  const handleToggleNotifications = (val: boolean) => {
-    setLoginNotifications(val);
-    localStorage.setItem('login_notifications', String(val));
+  const handleToggleNotification = async (key: string, val: boolean) => {
+    // Optimistic update
+    if (key === 'notify_session_alert') setNotifySessionAlert(val);
+    if (key === 'notify_disconnect_alert') setNotifyDisconnectAlert(val);
+    if (key === 'notify_sound_effects') setNotifySoundEffects(val);
+
+    try {
+      await api.patch('/api/auth/me', { [key]: val });
+    } catch (err) {
+      console.error('Failed to update notification setting', err);
+      // Rollback
+      if (key === 'notify_session_alert') setNotifySessionAlert(!val);
+      if (key === 'notify_disconnect_alert') setNotifyDisconnectAlert(!val);
+      if (key === 'notify_sound_effects') setNotifySoundEffects(!val);
+    }
   };
 
   const handleEnable2FA = async () => {
@@ -276,21 +288,48 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
               </div>
             )}
 
-            {/* Login Notifications Toggle */}
-            <div className="flex items-center justify-between p-3.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.04)]">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-orange-400 shadow-sm">
-                  <Bell size={18} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-[#1C1C1C]">Login Notifications</span>
-                  <span className="text-[10px] text-[rgba(28,28,28,0.4)]">Alert me on new sessions</span>
-                </div>
+            {/* Notifications Section */}
+            <div className="flex flex-col gap-3 pt-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Bell size={14} className="text-orange-400" />
+                <span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Notifications</span>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={loginNotifications} onChange={e => handleToggleNotifications(e.target.checked)} />
-                <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]" />
-              </label>
+              
+              {/* New Session Alert */}
+              <div className="flex items-center justify-between p-3.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.04)]">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-[#1C1C1C]">New Session Alert</span>
+                  <span className="text-[10px] text-[rgba(28,28,28,0.4)]">Notify when a viewer connects to this device</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={notifySessionAlert} onChange={e => handleToggleNotification('notify_session_alert', e.target.checked)} />
+                  <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]" />
+                </label>
+              </div>
+
+              {/* Disconnect Alert */}
+              <div className="flex items-center justify-between p-3.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.04)]">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-[#1C1C1C]">Disconnect Alert</span>
+                  <span className="text-[10px] text-[rgba(28,28,28,0.4)]">Notify when a remote session ends unexpectedly</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={notifyDisconnectAlert} onChange={e => handleToggleNotification('notify_disconnect_alert', e.target.checked)} />
+                  <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]" />
+                </label>
+              </div>
+
+              {/* Sound Effects */}
+              <div className="flex items-center justify-between p-3.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.04)]">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-[#1C1C1C]">Sound Effects</span>
+                  <span className="text-[10px] text-[rgba(28,28,28,0.4)]">Play audio cues for connection events</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={notifySoundEffects} onChange={e => handleToggleNotification('notify_sound_effects', e.target.checked)} />
+                  <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]" />
+                </label>
+              </div>
             </div>
 
             {/* 2FA Status */}
