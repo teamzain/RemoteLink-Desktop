@@ -212,6 +212,16 @@ server.post('/billing/subscribe', async (request, reply) => {
       return { success: true, local: true };
     }
 
+    // We must attach the payment method to the customer before using it for a subscription
+    if (paymentMethodId && !isLocalCustomer) {
+      await stripe.paymentMethods.attach(paymentMethodId, { customer: sub.stripeCustomerId });
+      
+      // Optionally set it as the default for the customer
+      await stripe.customers.update(sub.stripeCustomerId, {
+        invoice_settings: { default_payment_method: paymentMethodId }
+      });
+    }
+
     const subscription = await stripe.subscriptions.create({
       customer: sub.stripeCustomerId,
       items: [{ price: priceId }],
