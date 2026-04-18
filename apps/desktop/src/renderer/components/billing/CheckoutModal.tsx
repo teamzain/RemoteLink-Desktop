@@ -120,10 +120,13 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
   );
 };
 
-const STRIPE_KEY = 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
-const stripePromise = loadStripe(STRIPE_KEY);
-
 const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string, price: string, publishableKey?: string }> = ({ open, onClose, plan, price, publishableKey }) => {
+  const stripePromise = React.useMemo(() => {
+    let rawKey = publishableKey || 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYn0SazBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
+    const cleanKey = String(rawKey).replace(/["']/g, '').trim();
+    return loadStripe(cleanKey);
+  }, [publishableKey]);
+
   if (!open) return null;
 
   return (
