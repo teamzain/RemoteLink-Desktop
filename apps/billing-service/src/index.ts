@@ -41,12 +41,55 @@ server.get('/health', async () => {
 // 1. GET /billing/plans — Returns all four plans
 server.get('/billing/plans', async (request, reply) => {
   const plans = [
-    { name: 'FREE', price: 0, priceId: process.env.STRIPE_PRICE_ID_FREE, features: ['1 session', '1 device', '10 min sessions'] },
-    { name: 'PRO', price: 19, priceId: process.env.STRIPE_PRICE_ID_PRO, features: ['3 sessions', '5 devices', '4 hr sessions'] },
-    { name: 'BUSINESS', price: 49, priceId: process.env.STRIPE_PRICE_ID_BUSINESS, features: ['10 sessions', 'Unlimited devices', 'Unlimited duration', 'Recording'] },
-    { name: 'ENTERPRISE', price: 'Custom', priceId: process.env.STRIPE_PRICE_ID_ENTERPRISE, features: ['Unlimited everything', 'Dedicated support'] },
+    { 
+      id: 'FREE', 
+      name: 'Free', 
+      price: 0, 
+      priceId: process.env.STRIPE_PRICE_ID_FREE, 
+      priceLabel: '$0 / month',
+      description: 'Standard remote access for personal use',
+      maxDevices: 1,
+      maxUsers: 1,
+      features: ['1 session', '1 device', '10 min sessions'] 
+    },
+    { 
+      id: 'PRO', 
+      name: 'Pro', 
+      price: 19, 
+      priceId: process.env.STRIPE_PRICE_ID_PRO, 
+      priceLabel: '$19 / month',
+      description: 'Advanced features for power users',
+      maxDevices: 5,
+      maxUsers: 1,
+      features: ['3 sessions', '5 devices', '4 hr sessions', 'File transfer'] 
+    },
+    { 
+      id: 'BUSINESS', 
+      name: 'Business', 
+      price: 49, 
+      priceId: process.env.STRIPE_PRICE_ID_BUSINESS, 
+      priceLabel: '$49 / month',
+      description: 'Enterprise-grade control for teams',
+      maxDevices: 50,
+      maxUsers: null,
+      features: ['10 sessions', 'Unlimited devices', 'Unlimited duration', 'Recording', 'Team management'] 
+    },
+    { 
+      id: 'ENTERPRISE', 
+      name: 'Enterprise', 
+      price: 'Custom', 
+      priceId: process.env.STRIPE_PRICE_ID_ENTERPRISE, 
+      priceLabel: 'Custom pricing',
+      description: 'Full infrastructure for large organizations',
+      maxDevices: null,
+      maxUsers: null,
+      features: ['Unlimited everything', 'Dedicated support', 'Custom integration'] 
+    },
   ];
-  return plans;
+  return {
+    plans,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY
+  };
 });
 
 // 2. POST /billing/create-customer — Internal call after registration
@@ -177,6 +220,32 @@ server.post('/billing/subscribe', async (request, reply) => {
   }
 });
 
+// 3b. PATCH /billing/my-plan — Direct plan switch (Legacy/Test Mode support)
+server.patch('/billing/my-plan', async (request, reply) => {
+  const authHeader = request.headers.authorization;
+  if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+  const { plan } = request.body as any;
+  if (!plan) return reply.code(400).send({ error: 'Plan is required' });
+
+  try {
+    const sub = await (prisma as any).subscription.upsert({
+      where: { userId: decoded.userId },
+      update: { plan: plan.toUpperCase(), status: 'ACTIVE' },
+      create: { userId: decoded.userId, plan: plan.toUpperCase(), status: 'ACTIVE' }
+    });
+
+    return { success: true, plan: sub.plan };
+  } catch (err: any) {
+    server.log.error(err);
+    return reply.code(500).send({ error: 'Failed to update plan: ' + err.message });
+  }
+});
+
 // 4. POST /billing/cancel — Cancel at end of period
 server.post('/billing/cancel', async (request, reply) => {
   const authHeader = request.headers.authorization;
@@ -250,11 +319,53 @@ server.get('/billing/current', async (request, reply) => {
     }
   }
 
+  // Fetch card details if Stripe customer exists
+  let cardInfo = {};
+  if (sub.stripeCustomerId && !sub.stripeCustomerId.startsWith('local_')) {
+    try {
+      const customer = await stripe.customers.retrieve(sub.stripeCustomerId, {
+        expand: ['invoice_settings.default_payment_method']
+      }) as Stripe.Customer;
+
+      if (customer.invoice_settings?.default_payment_method) {
+        const pm = customer.invoice_settings.default_payment_method as Stripe.PaymentMethod;
+        cardInfo = {
+          card_brand: pm.card?.brand,
+          card_last4: pm.card?.last4,
+          card_exp_month: pm.card?.exp_month,
+          card_exp_year: pm.card?.exp_year,
+        };
+      }
+    } catch (err) {
+      server.log.warn(`Failed to fetch card info for customer ${sub.stripeCustomerId}`);
+    }
+  }
+
+  // Fetch recent invoices
+  let invoices: any[] = [];
+  if (sub.stripeCustomerId && !sub.stripeCustomerId.startsWith('local_')) {
+    try {
+      const invList = await stripe.invoices.list({ customer: sub.stripeCustomerId, limit: 5 });
+      invoices = invList.data.map(inv => ({
+        id: inv.id,
+        number: inv.number,
+        created: inv.created,
+        total: inv.total,
+        status: inv.status,
+        invoice_pdf: inv.invoice_pdf
+      }));
+    } catch (err) {
+      server.log.warn(`Failed to fetch invoices for customer ${sub.stripeCustomerId}`);
+    }
+  }
+
   return {
     plan: sub.plan,
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
-    cancelAtPeriodEnd: sub.cancelAtPeriodEnd
+    cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+    ...cardInfo,
+    invoices
   };
 });
 

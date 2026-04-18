@@ -15,9 +15,9 @@ interface SnowBillingProps {
 }
 
 export const SnowBilling: React.FC<SnowBillingProps> = ({ billingInfo, handleUpgrade, handleManagePortal }) => {
-  const currentPlan = billingInfo?.plan_name || 'Free Tier';
-  const renewalDate = billingInfo?.current_period_end 
-    ? new Date(billingInfo.current_period_end * 1000).toLocaleDateString()
+  const currentPlan = billingInfo?.plan || 'Free Tier';
+  const renewalDate = billingInfo?.currentPeriodEnd 
+    ? new Date(billingInfo.currentPeriodEnd).toLocaleDateString()
     : 'N/A';
   
   const history = billingInfo?.invoices || [

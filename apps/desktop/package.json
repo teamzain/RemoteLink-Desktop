@@ -12,6 +12,8 @@
     "@remotelink/native-capture": "1.0.0",
     "@remotelink/native-input": "1.0.0",
     "@remotelink/shared": "1.0.0",
+    "@stripe/react-stripe-js": "^5.6.1",
+    "@stripe/stripe-js": "^8.11.0",
     "@types/ws": "^8.18.1",
     "bufferutil": "^4.1.0",
     "electron-log": "^5.4.3",

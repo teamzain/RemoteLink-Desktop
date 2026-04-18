@@ -1646,7 +1646,7 @@ export default function App() {
 
     const fetchBillingInfo = async () => {
         try {
-            const { data } = await api.get('/api/billing/subscription');
+            const { data } = await api.get('/api/billing/current');
             setCurrentPlan(data);
         } catch (err: any) {
             console.error('Failed to fetch billing info', err);

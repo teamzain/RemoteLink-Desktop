@@ -19,6 +19,9 @@ import { CheckCircle, RemoveCircle } from '@mui/icons-material'
 import Navbar from '../../components/landing/Navbar'
 import Footer from '../../components/landing/Footer'
 import { ScrollReveal } from '../../components/landing/ScrollReveal'
+import CheckoutModal from '../../components/billing/CheckoutModal'
+import { useAuthStore } from '../../store/authStore'
+import { useNavigate } from 'react-router-dom'
 
 // Bypass structural type mismatches
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +65,31 @@ const plans = [
 
 const PricingPage: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  
+  const [modalOpen, setModalOpen] = React.useState(false);
+  const [selectedPlan, setSelectedPlan] = React.useState({ name: '', price: '' });
+
+  const handlePlanSelect = (plan: typeof plans[0]) => {
+    if (plan.name === 'Free') {
+       navigate('/register');
+       return;
+    }
+    
+    if (plan.name === 'Enterprise') {
+       window.location.href = 'mailto:sales@remotelink.com';
+       return;
+    }
+
+    if (!user) {
+      navigate('/login?redirect=/pricing');
+      return;
+    }
+
+    setSelectedPlan({ name: plan.name, price: plan.price });
+    setModalOpen(true);
+  };
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -131,6 +159,7 @@ const PricingPage: React.FC = () => {
                       fullWidth
                       variant={plan.buttonVariant}
                       size="large"
+                      onClick={() => handlePlanSelect(plan)}
                       sx={{ py: 1.5, mb: 4, borderRadius: '12px' }}
                     >
                       {plan.buttonText}
@@ -171,6 +200,13 @@ const PricingPage: React.FC = () => {
       </Container>
 
       <Footer />
+      
+      <CheckoutModal 
+        open={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        plan={selectedPlan.name}
+        price={selectedPlan.price}
+      />
     </Box>
   )
 }
