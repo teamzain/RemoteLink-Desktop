@@ -11,8 +11,13 @@ import { prisma, verifyToken } from '@remotelink/shared';
 import rawBody from 'fastify-raw-body';
 import cors from '@fastify/cors';
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy';
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_dummy';
+const cleanStripeKey = (key?: string) => {
+  if (!key) return '';
+  return key.replace(/["']/g, '').trim();
+};
+
+const stripeSecretKey = cleanStripeKey(process.env.STRIPE_SECRET_KEY) || 'sk_test_dummy';
+const endpointSecret = cleanStripeKey(process.env.STRIPE_WEBHOOK_SECRET) || 'whsec_dummy';
 
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2024-04-10',
@@ -88,7 +93,7 @@ server.get('/billing/plans', async (request, reply) => {
   ];
   return {
     plans,
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY
+    publishableKey: cleanStripeKey(process.env.STRIPE_PUBLISHABLE_KEY)
   };
 });
 
@@ -364,7 +369,7 @@ server.get('/billing/current', async (request, reply) => {
     status: sub.status,
     currentPeriodEnd: sub.currentPeriodEnd,
     cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+    publishableKey: cleanStripeKey(process.env.STRIPE_PUBLISHABLE_KEY),
     ...cardInfo,
     invoices
   };

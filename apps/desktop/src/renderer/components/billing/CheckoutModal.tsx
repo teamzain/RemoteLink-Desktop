@@ -125,9 +125,17 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
   const stripePromiseRef = React.useRef<any>(null);
 
   if (!stripePromiseRef.current) {
-    const key = publishableKey || 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
-    console.log('[Stripe Debug] Initializing with Key:', key);
-    stripePromiseRef.current = loadStripe(key);
+    let rawKey = publishableKey || 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
+    
+    // Clean the key: remove quotes, whitespace, and ensure it's a valid string
+    const cleanKey = String(rawKey).replace(/["']/g, '').trim();
+    
+    if (cleanKey && cleanKey !== 'undefined' && cleanKey !== 'null') {
+      console.log('[Stripe Debug] Initializing with Clean Key: [' + cleanKey + ']');
+      stripePromiseRef.current = loadStripe(cleanKey);
+    } else {
+      console.error('[Stripe Debug] Invalid Key detected:', cleanKey);
+    }
   }
 
   if (!open) return null;
