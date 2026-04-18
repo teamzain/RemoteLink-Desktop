@@ -520,7 +520,7 @@ cron.schedule('0 0 * * *', async () => {
 
 const start = async () => {
   try {
-    const port = parseInt(process.env.PORT || '3003', 10);
+    const port = parseInt(process.env.PORT || '3004', 10);
     await server.listen({ port, host: '0.0.0.0' });
     server.log.info(`Billing service listening on port ${port}`);
   } catch (err) {
