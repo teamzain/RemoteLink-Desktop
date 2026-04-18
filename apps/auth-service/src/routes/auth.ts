@@ -429,14 +429,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
-    const { name, current_password, password } = request.body as any;
+    const { 
+      name, 
+      current_password, 
+      password, 
+      notify_session_alert, 
+      notify_disconnect_alert, 
+      notify_sound_effects 
+    } = request.body as any;
+
     const updateData: any = {};
 
     if (name) updateData.name = name;
     
-    if (request.body.notify_session_alert !== undefined) updateData.notifySessionAlert = request.body.notify_session_alert;
-    if (request.body.notify_disconnect_alert !== undefined) updateData.notifyDisconnectAlert = request.body.notify_disconnect_alert;
-    if (request.body.notify_sound_effects !== undefined) updateData.notifySoundEffects = request.body.notify_sound_effects;
+    if (notify_session_alert !== undefined) updateData.notifySessionAlert = notify_session_alert;
+    if (notify_disconnect_alert !== undefined) updateData.notifyDisconnectAlert = notify_disconnect_alert;
+    if (notify_sound_effects !== undefined) updateData.notifySoundEffects = notify_sound_effects;
 
     if (password) {
       if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
