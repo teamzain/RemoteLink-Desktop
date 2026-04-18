@@ -120,14 +120,10 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
   );
 };
 
-const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string, price: string, publishableKey?: string }> = ({ open, onClose, plan, price, publishableKey }) => {
-  // Hard-coded key for testing to eliminate any environment/logic issues
-  const stripePromise = React.useMemo(() => {
-    const key = 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
-    console.log('[Stripe Debug] Hard-coded Initialization with Key:', key);
-    return loadStripe(key);
-  }, []);
+const STRIPE_KEY = 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
+const stripePromise = loadStripe(STRIPE_KEY);
 
+const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string, price: string, publishableKey?: string }> = ({ open, onClose, plan, price, publishableKey }) => {
   if (!open) return null;
 
   return (
