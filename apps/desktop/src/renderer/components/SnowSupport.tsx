@@ -102,10 +102,14 @@ export const SnowSupport: React.FC = () => {
     }
   };
 
-  const handleSendReport = () => {
+  const handleSendReport = async () => {
     if (!reportSubject.trim() || !reportBody.trim()) return;
     setReportStatus('sending');
-    setTimeout(() => {
+    try {
+      await api.post('/api/support/report', {
+        subject: reportSubject.trim(),
+        description: reportBody.trim()
+      });
       setReportStatus('sent');
       setTimeout(() => {
         setShowReportModal(false);
@@ -113,7 +117,9 @@ export const SnowSupport: React.FC = () => {
         setReportBody('');
         setReportStatus('idle');
       }, 1800);
-    }, 1000);
+    } catch (err) {
+      setReportStatus('idle');
+    }
   };
 
   return (
