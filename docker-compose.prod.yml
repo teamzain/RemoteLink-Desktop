@@ -35,6 +35,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3001
+    env_file: .env
       BILLING_SERVICE_URL: http://billing-service:3004
       TURN_USER: ${TURN_USER}
       TURN_PASSWORD: ${TURN_PASSWORD}
@@ -63,6 +64,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3002
+    env_file: .env
     depends_on:
       - postgres
       - redis
@@ -77,6 +79,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3003
+    env_file: .env
     depends_on:
       - postgres
       - redis
@@ -97,6 +100,7 @@ services:
       STRIPE_PRICE_ID_ENTERPRISE: ${STRIPE_PRICE_ID_ENTERPRISE}
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3004
+    env_file: .env
     depends_on:
       - postgres
 
