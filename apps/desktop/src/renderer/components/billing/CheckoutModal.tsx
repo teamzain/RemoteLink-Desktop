@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { X, Loader2, Lock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -11,7 +11,7 @@ import api from '../../lib/api';
 
 // const stripePromise = loadStripe('pk_test_51TEHWMFMuc1gePc3kkaRjapGaVdwJQTYPfgUTnr10nKDkwGYnO5azBaLTGojxQI1HeBd134j3lsPnLuzoLtI4tFR00Xd2GT2r8');
 
-const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void }> = ({ plan, price, onClose }) => {
+const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void, onSuccess: () => void }> = ({ plan, price, onClose, onSuccess }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +45,7 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
         if (confirmError) throw new Error(confirmError.message);
       }
 
-      alert(`Successfully subscribed to ${plan} plan!`);
-      onClose();
-      window.location.reload();
+      onSuccess();
     } catch (err: any) {
       console.error('Subscription error:', err);
       setError(err.message || 'An unexpected error occurred.');
@@ -122,10 +120,12 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
 
 const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string, price: string, publishableKey?: string }> = ({ open, onClose, plan, price, publishableKey }) => {
   const stripePromise = React.useMemo(() => {
-    let rawKey = publishableKey || 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYn0SazBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
-    const cleanKey = String(rawKey).replace(/["']/g, '').trim();
-    return loadStripe(cleanKey);
+    // Ignore the server's key temporarily because of a server-side typo issue
+    const correctKey = 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYn0SazBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
+    return loadStripe(correctKey);
   }, [publishableKey]);
+
+  const [success, setSuccess] = useState(false);
 
   if (!open) return null;
 
@@ -134,25 +134,52 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-[440px] bg-white rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         <div className="p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight">Upgrade Workspace</h2>
-            <button onClick={onClose} className="p-2 hover:bg-[rgba(28,28,28,0.04)] rounded-full transition-colors">
-              <X size={20} className="text-[rgba(28,28,28,0.2)]" />
-            </button>
-          </div>
+          
+          {success ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center animate-in zoom-in-95 duration-500">
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                <CheckCircle2 size={40} className="text-emerald-500" />
+              </div>
+              <h3 className="text-2xl font-black text-[#1C1C1C] mb-3 tracking-tight">Subscription Successful!</h3>
+              <p className="text-sm text-[rgba(28,28,28,0.6)] font-medium mb-8 max-w-[280px]">
+                You have successfully upgraded to the <span className="text-[#1C1C1C] font-bold">{plan}</span> plan. Your new features are unlocked.
+              </p>
+              <button
+                onClick={() => {
+                  onClose();
+                  window.location.reload();
+                }}
+                className="w-full py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold hover:bg-black transition-all shadow-lg shadow-black/10"
+              >
+                Continue to Dashboard
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight">Upgrade Workspace</h2>
+                <button onClick={onClose} className="p-2 hover:bg-[rgba(28,28,28,0.04)] rounded-full transition-colors">
+                  <X size={20} className="text-[rgba(28,28,28,0.2)]" />
+                </button>
+              </div>
 
-          <Elements stripe={stripePromise}>
-            <CheckoutForm plan={plan} price={price} onClose={onClose} />
-          </Elements>
+              <Elements stripe={stripePromise}>
+                <CheckoutForm plan={plan} price={price} onClose={onClose} onSuccess={() => setSuccess(true)} />
+              </Elements>
+            </>
+          )}
+
         </div>
         
-        <div className="bg-[rgba(28,28,28,0.02)] p-4 border-t border-[rgba(28,28,28,0.04)] flex items-center justify-center gap-4">
-           <div className="opacity-20 grayscale flex gap-4">
-              <span className="text-[10px] font-black italic">STRIPE</span>
-              <span className="text-[10px] font-black italic">VISA</span>
-              <span className="text-[10px] font-black italic">MASTERCARD</span>
-           </div>
-        </div>
+        {!success && (
+          <div className="bg-[rgba(28,28,28,0.02)] p-4 border-t border-[rgba(28,28,28,0.04)] flex items-center justify-center gap-4">
+             <div className="opacity-20 grayscale flex gap-4">
+                <span className="text-[10px] font-black italic">STRIPE</span>
+                <span className="text-[10px] font-black italic">VISA</span>
+                <span className="text-[10px] font-black italic">MASTERCARD</span>
+             </div>
+          </div>
+        )}
       </div>
     </div>
   );

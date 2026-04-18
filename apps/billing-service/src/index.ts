@@ -179,8 +179,26 @@ server.post('/billing/subscribe', async (request, reply) => {
     const priceId = process.env[`STRIPE_PRICE_ID_${plan.toUpperCase()}`];
     if (!priceId) return reply.code(400).send({ error: 'Invalid plan for subscription' });
 
+    let isLocalCustomer = !sub.stripeCustomerId || sub.stripeCustomerId.startsWith('local_');
+
+    // Attempt to upgrade local customer to a real Stripe customer since they provided a payment method
+    if (isLocalCustomer && paymentMethodId) {
+      const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
+      if (user) {
+        try {
+          const customer = await stripe.customers.create({ email: user.email });
+          sub = await (prisma as any).subscription.update({
+            where: { userId: decoded.userId },
+            data: { stripeCustomerId: customer.id }
+          });
+          isLocalCustomer = false; // Successfully upgraded to Stripe
+        } catch (upgradeErr: any) {
+          server.log.warn(`[Billing] Failed to upgrade local customer to Stripe: ${upgradeErr.message}`);
+        }
+      }
+    }
+
     // If we only have a local (non-Stripe) customer ID, skip Stripe and record locally
-    const isLocalCustomer = !sub.stripeCustomerId || sub.stripeCustomerId.startsWith('local_');
     if (isLocalCustomer) {
       server.log.warn(`[Billing] Local customer — recording plan ${plan} without Stripe.`);
       await (prisma as any).subscription.update({
