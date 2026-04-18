@@ -89,18 +89,9 @@ services:
       context: .
       dockerfile: ./apps/billing-service/Dockerfile
     restart: always
-    environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
-      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
-      STRIPE_PRICE_ID_FREE: ${STRIPE_PRICE_ID_FREE}
-      STRIPE_PRICE_ID_PRO: ${STRIPE_PRICE_ID_PRO}
-      STRIPE_PRICE_ID_BUSINESS: ${STRIPE_PRICE_ID_BUSINESS}
-      STRIPE_PRICE_ID_ENTERPRISE: ${STRIPE_PRICE_ID_ENTERPRISE}
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 3004
     env_file: .env
+    depends_on:
+      - postgres
     depends_on:
       - postgres
 

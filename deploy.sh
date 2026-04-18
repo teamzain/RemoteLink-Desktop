@@ -26,6 +26,9 @@ fi
 echo "⚙️ Setting up environment variables..."
 if [ -f "$HOME/.env.production" ]; then
     cp "$HOME/.env.production" .env
+    # Fix potential Windows line endings and whitespace
+    sed -i 's/\r//' .env
+    echo "✅ Environment variables updated and formatted."
 else
     echo "❌ Error: $HOME/.env.production not found! Please create it first."
     exit 1
