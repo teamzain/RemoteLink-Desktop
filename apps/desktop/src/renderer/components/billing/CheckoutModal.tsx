@@ -121,22 +121,12 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
 };
 
 const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string, price: string, publishableKey?: string }> = ({ open, onClose, plan, price, publishableKey }) => {
-  // Use a ref to store the stripe promise so it remains stable even if props change
-  const stripePromiseRef = React.useRef<any>(null);
-
-  if (!stripePromiseRef.current) {
-    let rawKey = publishableKey || 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
-    
-    // Clean the key: remove quotes, whitespace, and ensure it's a valid string
-    const cleanKey = String(rawKey).replace(/["']/g, '').trim();
-    
-    if (cleanKey && cleanKey !== 'undefined' && cleanKey !== 'null') {
-      console.log('[Stripe Debug] Initializing with Clean Key: [' + cleanKey + ']');
-      stripePromiseRef.current = loadStripe(cleanKey);
-    } else {
-      console.error('[Stripe Debug] Invalid Key detected:', cleanKey);
-    }
-  }
+  // Hard-coded key for testing to eliminate any environment/logic issues
+  const stripePromise = React.useMemo(() => {
+    const key = 'pk_test_51TEHWMFMuc1gePc3kkaRjaPGaVdwJQTYPFgUTnr18nKDkwGYnO5azBatTGojxQilHeBdlJ4jJlsPnLuzeLtl4fFR00Xd2GT2r8';
+    console.log('[Stripe Debug] Hard-coded Initialization with Key:', key);
+    return loadStripe(key);
+  }, []);
 
   if (!open) return null;
 
@@ -152,7 +142,7 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
             </button>
           </div>
 
-          <Elements stripe={stripePromiseRef.current}>
+          <Elements stripe={stripePromise}>
             <CheckoutForm plan={plan} price={price} onClose={onClose} />
           </Elements>
         </div>
