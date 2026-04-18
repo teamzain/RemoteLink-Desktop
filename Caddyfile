@@ -4,18 +4,15 @@
 }
 
 :80 {
-    # Global CORS handling for development
-    header {
-        Access-Control-Allow-Origin "http://127.0.0.1:5173"
-        Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        Access-Control-Allow-Headers "Content-Type, Authorization"
-        Access-Control-Allow-Credentials "true"
-        defer
-    }
-
     # Handle standard CORS preflight requests
     @options {
         method OPTIONS
+    }
+    header @options {
+        Access-Control-Allow-Origin "http://127.0.0.1:5173"
+        Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization, Origin, Accept"
+        Access-Control-Allow-Credentials "true"
     }
     respond @options 204
 
@@ -57,6 +54,13 @@
 
     # Billing API (handled by billing-service)
     handle /api/billing* {
+        header {
+            Access-Control-Allow-Origin "http://127.0.0.1:5173"
+            Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            Access-Control-Allow-Headers "Content-Type, Authorization, Origin, Accept"
+            Access-Control-Allow-Credentials "true"
+            defer
+        }
         uri strip_prefix /api
         reverse_proxy billing-service:3004
     }
