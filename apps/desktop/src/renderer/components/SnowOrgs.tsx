@@ -91,7 +91,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
   // Detail panel
   const [selectedOrg, setSelectedOrg] = useState<OrgDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailTab, setDetailTab] = useState<'members' | 'devices'>('members');
+  const [detailTab, setDetailTab] = useState<'members' | 'devices' | 'billing'>('members');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Plan assignment
@@ -375,7 +375,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
 
               {/* Tabs */}
               <div className="flex gap-1 px-8 pt-4 border-b border-[rgba(28,28,28,0.05)]">
-                {(['members', 'devices'] as const).map(tab => (
+                {(['members', 'devices', 'billing'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setDetailTab(tab)}
@@ -385,7 +385,9 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                         : 'text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C]'
                     }`}
                   >
-                    {tab === 'members' ? `Members (${selectedOrg._count.users})` : `Devices (${selectedOrg._count.devices})`}
+                    {tab === 'members' ? `Members (${selectedOrg._count.users})` : 
+                     tab === 'devices' ? `Devices (${selectedOrg._count.devices})` : 
+                     'Billing History'}
                   </button>
                 ))}
               </div>
@@ -465,60 +467,59 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                     })}
                   </div>
                 )}
+
+                {/* Billing Tab */}
+                {detailTab === 'billing' && (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    {!orgBilling ? (
+                      <div className="py-12 flex flex-col items-center gap-2 text-[rgba(28,28,28,0.3)]">
+                        <CreditCard size={40} strokeWidth={1} />
+                        <span className="text-sm">No billing data found</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {orgBilling.invoices?.length > 0 ? (
+                          orgBilling.invoices.map((inv: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.05)] hover:bg-[rgba(28,28,28,0.03)] transition-colors">
+                              <div>
+                                <p className="text-sm font-bold text-[#1C1C1C]">${inv.amount}</p>
+                                <p className="text-[10px] text-[rgba(28,28,28,0.4)] uppercase font-bold tracking-wider mt-0.5">{new Date(inv.date).toLocaleDateString()}</p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold uppercase tracking-wider ${
+                                  inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                }`}>
+                                  {inv.status}
+                                </span>
+                                {inv.pdfUrl && (
+                                  <a href={inv.pdfUrl} target="_blank" rel="noreferrer" className="p-2 hover:bg-black/5 rounded-xl transition-colors text-[#1C1C1C]/60">
+                                    <Download size={14} />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="py-12 text-center text-[rgba(28,28,28,0.3)]">
+                            <p className="text-sm italic">No recent invoices.</p>
+                          </div>
+                        )}
+                        
+                        {orgBilling.currentPeriodEnd && (
+                          <div className="mt-6 p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50">
+                             <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest text-center">
+                               Next Billing Date: {new Date(orgBilling.currentPeriodEnd).toLocaleDateString()}
+                             </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-            {/* Billing History Section */}
-            <div className="mt-8 pt-8 border-t border-[rgba(28,28,28,0.05)]">
-              <h3 className="text-sm font-bold text-[#1C1C1C] mb-4 flex items-center gap-2">
-                <CreditCard size={16} className="text-[#1C1C1C]/40" />
-                Billing History
-              </h3>
-              
-              {!orgBilling ? (
-                <div className="p-8 text-center bg-[rgba(28,28,28,0.02)] rounded-2xl border border-dashed border-[rgba(28,28,28,0.05)]">
-                  <p className="text-sm text-[rgba(28,28,28,0.4)]">No billing data found for this organization.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {orgBilling.invoices?.length > 0 ? (
-                    orgBilling.invoices.map((inv: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-[rgba(28,28,28,0.02)] rounded-xl border border-[rgba(28,28,28,0.05)]">
-                        <div>
-                          <p className="text-sm font-bold text-[#1C1C1C]">${inv.amount}</p>
-                          <p className="text-[10px] text-[rgba(28,28,28,0.4)] uppercase font-bold tracking-wider">{new Date(inv.date).toLocaleDateString()}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                            inv.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
-                          }`}>
-                            {inv.status}
-                          </span>
-                          {inv.pdfUrl && (
-                            <a href={inv.pdfUrl} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-black/5 rounded-lg transition-colors text-[#1C1C1C]/60">
-                              <Download size={14} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center">
-                      <p className="text-sm text-[rgba(28,28,28,0.4)] italic">No recent invoices.</p>
-                    </div>
-                  )}
-                  
-                  {orgBilling.currentPeriodEnd && (
-                    <p className="text-[10px] text-center text-[rgba(28,28,28,0.4)] mt-4 font-bold uppercase tracking-widest">
-                      Next Billing Date: {new Date(orgBilling.currentPeriodEnd).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer Actions */}
+              {/* Footer Actions */}
               <div className="p-6 border-t border-[rgba(28,28,28,0.05)] space-y-3">
-
                 {/* Plan Assignment Row */}
                 <div className="flex items-center justify-between p-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)]">
                   <div className="flex flex-col">

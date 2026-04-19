@@ -11,6 +11,10 @@ function generateAccessKey(): string {
 async function mapDevice(device: any, userId: string): Promise<any> {
     const cleanKey = String(device.accessKey).replace(/\s/g, '');
     const presence = await redisPublisher.get(`presence:${cleanKey}`);
+    
+    // Handle nested organization info if present (from includes)
+    const org = device.organization || device.owner?.organization || null;
+
     return {
       id: device.id,
       device_name: device.name,
@@ -20,7 +24,10 @@ async function mapDevice(device: any, userId: string): Promise<any> {
       is_online: presence === 'online',
       is_owned: device.ownerId === userId,
       has_password: !!device.accessPasswordHash,
-      tags: device.tags || []
+      tags: device.tags || [],
+      org_name: org?.name || null,
+      org_slug: org?.slug || null,
+      org_id: org?.id || null
     };
 }
 
@@ -318,26 +325,41 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) return reply.code(401).send({ error: 'User not found' });
 
+    const deviceInclude = {
+      organization: { select: { id: true, name: true, slug: true } },
+      owner: {
+        select: {
+          organization: { select: { id: true, name: true, slug: true } }
+        }
+      }
+    };
+
     let orgDevices: any[] = [];
     if (user.role === 'SUPER_ADMIN') {
-        orgDevices = await prisma.device.findMany({});
+        orgDevices = await prisma.device.findMany({ include: deviceInclude });
     } else if (user.organizationId) {
         // Find devices in org that match user's permissions
         const allOrgDevices = await prisma.device.findMany({
-            where: { organizationId: user.organizationId }
+            where: { organizationId: user.organizationId },
+            include: deviceInclude
         });
         orgDevices = allOrgDevices.filter((d: any) => hasDevicePermission(user, d));
     }
 
     // 2. Fetch devices personally owned (legacy/personal fallback)
     const ownedDevices = await prisma.device.findMany({
-      where: { ownerId: decoded.userId }
+      where: { ownerId: decoded.userId },
+      include: deviceInclude
     });
 
     // Fetch saved devices
     const savedRelations = await prisma.savedDevice.findMany({
       where: { userId: decoded.userId },
-      include: { device: true }
+      include: { 
+        device: {
+          include: deviceInclude
+        }
+      }
     });
     const savedDevices = savedRelations.map((s: any) => s.device);
 
@@ -392,15 +414,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     });
 
     const enrichedDevices = await Promise.all(devices.map(async (device) => {
-      const mapped = await mapDevice(device, decoded.userId);
-      // Prefer device's direct org, fall back to owner's org
-      const org = (device as any).organization || (device as any).owner?.organization || null;
-      return {
-        ...mapped,
-        org_name: org?.name || null,
-        org_slug: org?.slug || null,
-        org_id: org?.id || null,
-      };
+      return mapDevice(device, decoded.userId);
     }));
 
     enrichedDevices.sort((a, b) => {
