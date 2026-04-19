@@ -357,8 +357,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user || !(user as any).twoFactorSecret) return reply.code(400).send({ error: '2FA not set up' });
 
-    const result = await totp.verify(code, { secret: (user as any).twoFactorSecret });
-    if (!result.valid) return reply.code(401).send({ error: 'Invalid 2FA code' });
+    const isValid = totp.verify({ token: code, secret: (user as any).twoFactorSecret });
+    if (!isValid) return reply.code(401).send({ error: 'Invalid 2FA code' });
 
     return reply.send(await issueTokens(user));
   });
