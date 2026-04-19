@@ -168,6 +168,33 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // ── 2FA Check ──
+      if ((user as any).is2FAEnabled) {
+        const { generateToken } = require('@remotelink/shared');
+        const tempToken = generateToken({ userId: user.id, type: '2fa-temp' }, '5m');
+        
+        if (platform === 'desktop' || platform === 'mobile') {
+          const deepLink = `remotelink://auth/2fa?tempToken=${tempToken}`;
+          return reply.type('text/html').send(`
+            <!DOCTYPE html>
+            <html>
+              <head><title>2FA Required | Connect-X</title></head>
+              <body style="background:#060608;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;">
+                <div style="padding:40px;background:rgba(255,255,255,0.03);border-radius:24px;border:1px solid rgba(255,255,255,0.1);">
+                  <h1>Security Verification</h1>
+                  <p>Please enter your 2FA code in the app to continue.</p>
+                  <a href="${deepLink}" style="padding:14px 28px;background:#fff;color:#000;text-decoration:none;border-radius:12px;font-weight:600;">Open Connect-X</a>
+                </div>
+                <script>setTimeout(() => { window.location.href = "${deepLink}"; }, 1000);</script>
+              </body>
+            </html>
+          `);
+        }
+
+        const webUrl = `${process.env.WEB_APP_URL || 'http://localhost:3000'}/auth/callback?tempToken=${tempToken}`;
+        return reply.redirect(webUrl);
+      }
+
       // Issue our own JWT tokens
       const tokens = await issueTokens(user);
 

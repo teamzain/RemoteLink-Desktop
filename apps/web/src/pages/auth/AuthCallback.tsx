@@ -13,6 +13,13 @@ const AuthCallback: React.FC = () => {
     const handleCallback = async () => {
       const accessToken = searchParams.get('accessToken');
       const refreshToken = searchParams.get('refreshToken');
+      const tempToken = searchParams.get('tempToken');
+
+      if (tempToken) {
+        useAuthStore.getState().setTemp2faToken(tempToken);
+        navigate('/2fa');
+        return;
+      }
 
       if (!accessToken || !refreshToken) {
         console.error('OAuth tokens missing from URL');

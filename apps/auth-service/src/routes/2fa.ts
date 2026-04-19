@@ -23,7 +23,7 @@ export default async function mfaRoutes(fastify: FastifyInstance) {
       if (!user) return reply.code(404).send({ error: 'User not found' });
 
       const secret = totp.generateSecret();
-      const otpauth = totp.toURI({ label: user.email, issuer: 'RemoteLink', secret });
+      const otpauth = totp.toURI({ label: user.email, issuer: 'Connect-X', secret });
       const qrCode = await QRCode.toDataURL(otpauth);
 
       // Save temporary secret to user

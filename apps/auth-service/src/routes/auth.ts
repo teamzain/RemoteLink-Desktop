@@ -302,6 +302,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
         } catch (err) {}
       }
 
+      if ((user as any).is2FAEnabled) {
+        const { generateToken } = require('@remotelink/shared');
+        const tempToken = generateToken({ userId: user!.id, type: '2fa-temp' }, '5m');
+        return reply.send({ twoFactorRequired: true, tempToken });
+      }
+
       return reply.send(await issueTokens(user!));
     } catch (err: any) {
       console.error('[Auth] Google token verification failed:', err.message);
