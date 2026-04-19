@@ -12,6 +12,7 @@ import oauthRoutes from './routes/oauth';
 import mfaRoutes from './routes/2fa';
 import passwordRoutes from './routes/password';
 import deviceRoutes from './routes/devices';
+import adminSettingsRoutes from './routes/admin-settings';
 import organizationRoutes from './routes/organizations';
 import memberRoutes from './routes/members';
 import billingRoutes from './routes/billing';
@@ -173,6 +174,7 @@ server.register(organizationRoutes, { prefix: '/api/organizations' });
 server.register(memberRoutes, { prefix: '/api/members' });
 server.register(billingRoutes, { prefix: '/api/billing' });
 server.register(supportRoutes, { prefix: '/api/support' });
+server.register(adminSettingsRoutes, { prefix: '/api/admin/settings' });
 
 server.setNotFoundHandler((request, reply) => {
   console.log(`[Auth-Service-Wildcard] 404: ${request.method} ${request.url}`);

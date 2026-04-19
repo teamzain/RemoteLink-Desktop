@@ -130,27 +130,16 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
 
         {/* System & Pages Section */}
         <div className="flex flex-col gap-2">
-          <span className="px-3 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.1em]">Pages</span>
+          <span className="px-3 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.1em]">System</span>
           <div className="flex flex-col gap-1">
             <button 
-              onClick={() => { setCurrentView('profile'); setSelectedDevice(null); }}
-              className={navItemClass(isProfile)}
-            >
-              <div className={indicatorClass(isProfile)} />
-              <div className="flex items-center gap-2.5">
-                <User size={16} className={isProfile ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
-                <span className={textClass(isProfile)}>User Profile</span>
-              </div>
-            </button>
-
-            <button 
               onClick={() => { setCurrentView('settings'); setSelectedDevice(null); }}
-              className={navItemClass(isSettings)}
+              className={navItemClass(isSettings || isProfile)}
             >
-              <div className={indicatorClass(isSettings)} />
+              <div className={indicatorClass(isSettings || isProfile)} />
               <div className="flex items-center gap-2.5">
-                <Settings size={16} className={isSettings ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
-                <span className={textClass(isSettings)}>Settings</span>
+                <Settings size={16} className={isSettings || isProfile ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <span className={textClass(isSettings || isProfile)}>Settings</span>
               </div>
             </button>
 

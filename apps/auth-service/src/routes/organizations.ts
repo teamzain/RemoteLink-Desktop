@@ -170,4 +170,28 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
 
     return reply.send(user.organization);
   });
+
+  // 7. Update my Org settings (SUB_ADMIN ONLY)
+  fastify.patch('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+    
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
+      return reply.code(403).send({ error: 'Org Admin access required' });
+    }
+
+    const { defaultMemberRole, require2FA } = request.body as any;
+    const updateData: any = {};
+    if (defaultMemberRole) updateData.defaultMemberRole = defaultMemberRole;
+    if (require2FA !== undefined) updateData.require2FA = require2FA;
+
+    const org = await prisma.organization.update({
+      where: { id: decoded.orgId },
+      data: updateData
+    });
+
+    return reply.send(org);
+  });
 }

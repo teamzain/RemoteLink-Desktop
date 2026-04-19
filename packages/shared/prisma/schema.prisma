@@ -47,6 +47,25 @@ model Organization {
   departments      Department[]
   invitations      Invitation[]
   enrollmentTokens EnrollmentToken[]
+
+  // Org-level settings
+  defaultMemberRole UserRole        @default(USER)
+  require2FA       Boolean         @default(false)
+}
+
+model PlatformSettings {
+  id                    Int      @id @default(1)
+  defaultRelayUrl       String   @default("relay.connect-x.io")
+  maxSessionDuration    Int      @default(60)
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?
+  forceSubAdmin2FA      Boolean  @default(false)
+  globalTokenLifetime   Int      @default(24)
+  minPasswordLength     Int      @default(8)
+  maxPasswordLength     Int      @default(32)
+  defaultOrgPlan        Plan     @default(FREE)
+  restrictPlanChanges   Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
 }
 
 model Department {

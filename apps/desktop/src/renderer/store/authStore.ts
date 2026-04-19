@@ -12,6 +12,10 @@ interface User {
   role: 'SUPER_ADMIN' | 'SUB_ADMIN' | 'OPERATOR' | 'VIEWER' | 'USER';
   organizationId: string | null;
   avatar: string | null;
+  is_2fa_enabled?: boolean;
+  notify_session_alert?: boolean;
+  notify_disconnect_alert?: boolean;
+  notify_sound_effects?: boolean;
 }
 
 interface AuthState {
@@ -70,7 +74,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const { temp2faToken } = get();
-      const { data } = await api.post('/api/auth/2fa/verify-login', { 
+      const { data } = await api.post('/api/auth/verify-2fa', { 
         code, 
         tempToken: temp2faToken 
       });

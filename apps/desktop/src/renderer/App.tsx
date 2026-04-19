@@ -17,9 +17,10 @@ import { SnowRightBar } from './components/SnowRightBar';
 import { SnowHost } from './components/SnowHost';
 import { SnowBilling } from './components/SnowBilling';
 import { SnowDocumentation } from './components/SnowDocumentation';
-import { SnowProfile } from './components/SnowProfile';
 import { SnowSupport } from './components/SnowSupport';
-import { SnowSettings } from './components/SnowSettings';
+import { SnowUserSettings } from './components/SnowUserSettings';
+import { SnowOrgSettings } from './components/SnowOrgSettings';
+import { SnowAdminSettings } from './components/SnowAdminSettings';
 import { SnowSplashScreen } from './components/SnowSplashScreen';
 import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
@@ -1151,29 +1152,22 @@ export default function App() {
             (window as any).electronAPI.isPackaged().then(setIsPackaged);
         }
 
+        const cleanups: (() => void)[] = [];
+
         // Listen for Google OAuth callback tokens from main process
         if ((window as any).electronAPI?.onAuthDeepLinkSuccess) {
             const cleanup = (window as any).electronAPI.onAuthDeepLinkSuccess(async (data: { accessToken: string, refreshToken: string }) => {
                 console.log('[Auth] Received tokens via deep link, finalizing login...');
-                
-                // Fetch user data manually to sync with tokens
                 try {
-                    // Temporarily set tokens in store so api.get('/me') works
                     await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', role: 'USER', organizationId: null, avatar: null }, data.accessToken, data.refreshToken);
-                    
-                    // The checkAuth() call inside useAuthStore will refresh the user profile properly
                     await checkAuth();
-                    
                     setShowSplash(true);
                     setTimeout(() => setShowSplash(false), 2000);
                 } catch (err) {
                     console.error('[Auth] Failed to sync user after deep link:', err);
                 }
             });
-
-            return () => { 
-                if (cleanup) cleanup(); 
-            };
+            if (cleanup) cleanups.push(cleanup);
         }
 
         if ((window as any).electronAPI?.onTemp2faToken) {
@@ -1181,10 +1175,12 @@ export default function App() {
                 console.log('[Auth] Received 2FA temp token via deep link');
                 setTemp2faToken(token);
             });
-            return () => {
-                if (cleanup) cleanup();
-            };
+            if (cleanup) cleanups.push(cleanup);
         }
+
+        return () => {
+            cleanups.forEach(c => c());
+        };
     }, []);
 
 
@@ -2898,9 +2894,18 @@ export default function App() {
                                 <SnowDocumentation onNavigateToSupport={() => setCurrentView('support')} />
                             </div>
                         ) : currentView === 'profile' ? (
-                            /* --- SNOW UI PROFILE VIEW --- */
+                            /* --- PROFILE ALIASED TO SETTINGS --- */
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
-                                <SnowProfile user={user} logout={storeLogout} />
+                                <SnowUserSettings 
+                                    serverIP={serverIP}
+                                    isAutoHostEnabled={isAutoHostEnabled}
+                                    setIsAutoHostEnabled={(val) => {
+                                        setIsAutoHostEnabled(val);
+                                        localStorage.setItem('is_auto_host_enabled', String(val));
+                                    }}
+                                    onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
+                                    logout={storeLogout}
+                                />
                             </div>
                         ) : currentView === 'support' ? (
                             /* --- SNOW UI SUPPORT VIEW --- */
@@ -2935,17 +2940,34 @@ export default function App() {
                                 />
                             </div>
                         ) : currentView === 'settings' ? (
-                            /* --- SETTINGS VIEW --- */
-                            <div className="w-full pt-2 animate-in fade-in duration-500">
-                                <SnowSettings
-                                    serverIP={serverIP}
-                                    isAutoHostEnabled={isAutoHostEnabled}
-                                    setIsAutoHostEnabled={(val) => {
-                                        setIsAutoHostEnabled(val);
-                                        localStorage.setItem('is_auto_host_enabled', String(val));
-                                    }}
-                                    onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
-                                />
+                            /* --- UNIFIED SETTINGS VIEW --- */
+                            <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
+                                <div className="space-y-12 pb-20">
+                                    <SnowUserSettings 
+                                        serverIP={serverIP}
+                                        isAutoHostEnabled={isAutoHostEnabled}
+                                        setIsAutoHostEnabled={(val) => {
+                                            setIsAutoHostEnabled(val);
+                                            localStorage.setItem('is_auto_host_enabled', String(val));
+                                        }}
+                                        onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
+                                        logout={storeLogout}
+                                    />
+
+                                    {(user?.role === 'SUB_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.06)]">
+                                            <h2 className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] mb-8 ml-1">Organization Control</h2>
+                                            <SnowOrgSettings />
+                                        </div>
+                                    )}
+
+                                    {user?.role === 'SUPER_ADMIN' && (
+                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.06)]">
+                                            <h2 className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] mb-8 ml-1">Platform Control</h2>
+                                            <SnowAdminSettings />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ) : null}
                     </div>

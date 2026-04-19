@@ -431,6 +431,39 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // 5.1 List Active Sessions (Mocking from JWT for now, could be Prisma/Redis)
+  fastify.get('/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    // In a real app, you'd fetch this from a Session table. 
+    // For now, we return the current session as a single item list.
+    return reply.send([
+      {
+        id: 'current',
+        ip: request.ip,
+        userAgent: request.headers['user-agent'] || 'Unknown',
+        lastSeen: new Date().toISOString(),
+        isCurrent: true
+      }
+    ]);
+  });
+
+  // 5.2 Revoke Session
+  fastify.delete('/sessions/:sessionId', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    // For now, just a placeholder. If they revoke 'current', we can't easily logout 
+    // without blacklisting the current token.
+    return reply.send({ success: true });
+  });
+
+
   // 6. Update Profile/Password
   fastify.patch('/me', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
