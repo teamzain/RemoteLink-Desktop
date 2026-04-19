@@ -1,7 +1,12 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-const { authenticator } = require('otplib');
+import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib';
 import * as QRCode from 'qrcode';
 import { prisma, verifyToken } from '@remotelink/shared';
+
+const totp = new TOTP({
+  crypto: new NobleCryptoPlugin(),
+  base32: new ScureBase32Plugin()
+});
 
 export default async function mfaRoutes(fastify: FastifyInstance) {
   // 1. Generate 2FA Secret & QR Code
@@ -17,8 +22,8 @@ export default async function mfaRoutes(fastify: FastifyInstance) {
       const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
       if (!user) return reply.code(404).send({ error: 'User not found' });
 
-      const secret = authenticator.generateSecret();
-      const otpauth = authenticator.keyuri(user.email, 'RemoteLink', secret);
+      const secret = totp.generateSecret();
+      const otpauth = totp.toURI({ label: user.email, issuer: 'RemoteLink', secret });
       const qrCode = await QRCode.toDataURL(otpauth);
 
       // Save temporary secret to user
@@ -50,8 +55,8 @@ export default async function mfaRoutes(fastify: FastifyInstance) {
       const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
       if (!user || !user.twoFactorSecret) return reply.code(400).send({ error: '2FA not initialized' });
 
-      const isValid = authenticator.verify({ token: code, secret: user.twoFactorSecret });
-      if (!isValid) return reply.code(400).send({ error: 'Invalid verification code' });
+      const result = await totp.verify(code, { secret: user.twoFactorSecret });
+      if (!result.valid) return reply.code(400).send({ error: 'Invalid verification code' });
 
       await prisma.user.update({
         where: { id: user.id },

@@ -4,6 +4,12 @@ import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
 import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isTokenBlacklisted } from '@remotelink/shared';
 import { issueTokens } from '../utils/token-utils';
+import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib';
+
+const totp = new TOTP({
+  crypto: new NobleCryptoPlugin(),
+  base32: new ScureBase32Plugin()
+});
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
@@ -345,9 +351,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user || !(user as any).twoFactorSecret) return reply.code(400).send({ error: '2FA not set up' });
 
-    const { authenticator } = require('otplib');
-    const isValid = authenticator.verify({ token: code, secret: (user as any).twoFactorSecret });
-    if (!isValid) return reply.code(401).send({ error: 'Invalid 2FA code' });
+    const result = await totp.verify(code, { secret: (user as any).twoFactorSecret });
+    if (!result.valid) return reply.code(401).send({ error: 'Invalid 2FA code' });
 
     return reply.send(await issueTokens(user));
   });
