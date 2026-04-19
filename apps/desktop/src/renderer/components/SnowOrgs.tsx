@@ -4,7 +4,7 @@ import {
   ShieldCheck, Activity, X, CheckCircle2, Users, Monitor,
   ChevronRight, Trash2, AlertTriangle, Cpu, Smartphone,
   Apple, Crown, Zap, Star, Package, ArrowLeft, Clock,
-  Wifi, WifiOff, RefreshCw, Mail, Shield, ChevronDown, Check, Loader2
+  Wifi, WifiOff, RefreshCw, Mail, Shield, ChevronDown, Check, Loader2, Download, CreditCard
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -99,7 +99,32 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
   const [planSwitching, setPlanSwitching] = useState(false);
   const [planSuccess, setPlanSuccess] = useState(false);
 
-  useEffect(() => { fetchOrgs(); }, []);
+  // Stats & Revenue
+  const [revenue, setRevenue] = useState<{ totalRevenue: number, subscriptions: any[] } | null>(null);
+  const [orgBilling, setOrgBilling] = useState<any>(null);
+
+  useEffect(() => {
+    fetchOrgs();
+    fetchRevenue();
+  }, []);
+
+  const fetchRevenue = async () => {
+    try {
+      const { data } = await api.get('/api/billing/revenue');
+      setRevenue(data);
+    } catch (err) {
+      console.error('Failed to fetch revenue stats', err);
+    }
+  };
+
+  const fetchOrgBilling = async (adminId: string) => {
+    try {
+      const { data } = await api.get(`/api/billing/organization-admin/${adminId}`);
+      setOrgBilling(data);
+    } catch (err) {
+      console.error('Failed to fetch org billing', err);
+    }
+  };
 
   const fetchOrgs = async () => {
     setLoading(true);
@@ -120,8 +145,17 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
     try {
       const { data } = await api.get(`/api/organizations/${org.id}`);
       setSelectedOrg(data);
+      
+      // Fetch billing info for the org's admin
+      const admin = data.users?.find((u: any) => u.role === 'SUB_ADMIN');
+      if (admin) {
+        fetchOrgBilling(admin.id);
+      } else {
+        setOrgBilling(null);
+      }
     } catch (err) {
       console.error('Failed to fetch org detail:', err);
+      setOrgBilling(null);
     } finally {
       setDetailLoading(false);
     }
@@ -188,7 +222,15 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-[#1C1C1C] tracking-tight">Organizations</h1>
-            <p className="text-sm text-[rgba(28,28,28,0.4)] mt-0.5">{orgs.length} registered tenants</p>
+            <div className="flex items-center gap-3 mt-1">
+              <p className="text-sm text-[rgba(28,28,28,0.4)]">{orgs.length} tenants</p>
+              {revenue && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-600 rounded-full text-xs font-bold border border-green-100">
+                  <span className="opacity-60">Total Revenue:</span>
+                  <span>${revenue.totalRevenue.toLocaleString()}</span>
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -425,7 +467,56 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
                 )}
               </div>
 
-              {/* Footer Actions */}
+            {/* Billing History Section */}
+            <div className="mt-8 pt-8 border-t border-[rgba(28,28,28,0.05)]">
+              <h3 className="text-sm font-bold text-[#1C1C1C] mb-4 flex items-center gap-2">
+                <CreditCard size={16} className="text-[#1C1C1C]/40" />
+                Billing History
+              </h3>
+              
+              {!orgBilling ? (
+                <div className="p-8 text-center bg-[rgba(28,28,28,0.02)] rounded-2xl border border-dashed border-[rgba(28,28,28,0.05)]">
+                  <p className="text-sm text-[rgba(28,28,28,0.4)]">No billing data found for this organization.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {orgBilling.invoices?.length > 0 ? (
+                    orgBilling.invoices.map((inv: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-[rgba(28,28,28,0.02)] rounded-xl border border-[rgba(28,28,28,0.05)]">
+                        <div>
+                          <p className="text-sm font-bold text-[#1C1C1C]">${inv.amount}</p>
+                          <p className="text-[10px] text-[rgba(28,28,28,0.4)] uppercase font-bold tracking-wider">{new Date(inv.date).toLocaleDateString()}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                            inv.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'
+                          }`}>
+                            {inv.status}
+                          </span>
+                          {inv.pdfUrl && (
+                            <a href={inv.pdfUrl} target="_blank" rel="noreferrer" className="p-1.5 hover:bg-black/5 rounded-lg transition-colors text-[#1C1C1C]/60">
+                              <Download size={14} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center">
+                      <p className="text-sm text-[rgba(28,28,28,0.4)] italic">No recent invoices.</p>
+                    </div>
+                  )}
+                  
+                  {orgBilling.currentPeriodEnd && (
+                    <p className="text-[10px] text-center text-[rgba(28,28,28,0.4)] mt-4 font-bold uppercase tracking-widest">
+                      Next Billing Date: {new Date(orgBilling.currentPeriodEnd).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
               <div className="p-6 border-t border-[rgba(28,28,28,0.05)] space-y-3">
 
                 {/* Plan Assignment Row */}

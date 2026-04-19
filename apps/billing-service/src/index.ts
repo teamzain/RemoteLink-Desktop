@@ -32,12 +32,13 @@ server.register(rawBody, {
   runFirst: true,
 });
 
-server.register(cors, {
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
-});
+// CORS is handled by the reverse proxy (Caddy)
+// server.register(cors, {
+//   origin: true,
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
+// });
 
 server.get('/health', async () => {
   return { status: 'ok', service: 'billing-service' };
@@ -279,6 +280,34 @@ server.patch('/billing/my-plan', async (request, reply) => {
   }
 });
 
+// 3c. PATCH /billing/set-plan — Assign plan to specific user (Super Admin only)
+server.patch('/billing/set-plan', async (request, reply) => {
+  const authHeader = request.headers.authorization;
+  if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded || decoded.role !== 'SUPER_ADMIN') {
+    return reply.code(403).send({ error: 'Forbidden: Super Admin only' });
+  }
+
+  const { userId, plan } = request.body as any;
+  if (!userId || !plan) return reply.code(400).send({ error: 'userId and plan are required' });
+
+  try {
+    const sub = await (prisma as any).subscription.upsert({
+      where: { userId },
+      update: { plan: plan.toUpperCase(), status: 'ACTIVE' },
+      create: { userId, plan: plan.toUpperCase(), status: 'ACTIVE' }
+    });
+
+    return { success: true, plan: sub.plan, userId };
+  } catch (err: any) {
+    server.log.error(err);
+    return reply.code(500).send({ error: 'Failed to set plan: ' + err.message });
+  }
+});
+
 // 4. POST /billing/cancel — Cancel at end of period
 server.post('/billing/cancel', async (request, reply) => {
   const authHeader = request.headers.authorization;
@@ -452,6 +481,87 @@ server.get('/billing/invoices', async (request, reply) => {
   } catch (err: any) {
     server.log.error(err);
     return reply.code(500).send({ error: 'Failed to fetch invoices: ' + err.message });
+  }
+});
+
+// 6b. GET /billing/revenue — Platform-wide revenue (Super Admin only)
+server.get('/billing/revenue', async (request, reply) => {
+  const authHeader = request.headers.authorization;
+  if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded || decoded.role !== 'SUPER_ADMIN') {
+    return reply.code(403).send({ error: 'Forbidden' });
+  }
+
+  try {
+    // 1. Get balance from Stripe
+    const balance = await stripe.balance.retrieve();
+    
+    // 2. Get recent successful charges for total calculation
+    const charges = await stripe.charges.list({ limit: 100 });
+    const totalRevenue = charges.data
+      .filter(c => c.status === 'succeeded' && !c.refunded)
+      .reduce((acc, c) => acc + c.amount, 0);
+
+    // 3. Get active subscription counts
+    const subStats = await (prisma as any).subscription.groupBy({
+      by: ['plan'],
+      _count: true,
+      where: { status: 'ACTIVE' }
+    });
+
+    return {
+      totalRevenue: totalRevenue / 100,
+      availableBalance: balance.available[0].amount / 100,
+      pendingBalance: balance.pending[0].amount / 100,
+      currency: balance.available[0].currency.toUpperCase(),
+      subscriptions: subStats
+    };
+  } catch (err: any) {
+    server.log.error(err);
+    return reply.code(500).send({ error: 'Failed to fetch revenue stats: ' + err.message });
+  }
+});
+
+// 6c. GET /billing/organization-admin/:userId — Detailed billing for an org admin
+server.get('/billing/organization-admin/:userId', async (request, reply) => {
+  const authHeader = request.headers.authorization;
+  if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded || decoded.role !== 'SUPER_ADMIN') {
+    return reply.code(403).send({ error: 'Forbidden' });
+  }
+
+  const { userId } = request.params as any;
+
+  try {
+    const sub = await (prisma as any).subscription.findUnique({ where: { userId } });
+    if (!sub) return reply.code(404).send({ error: 'No subscription found for this user' });
+
+    let invoices: any[] = [];
+    if (sub.stripeCustomerId && !sub.stripeCustomerId.startsWith('local_')) {
+      const invList = await stripe.invoices.list({ customer: sub.stripeCustomerId, limit: 10 });
+      invoices = invList.data.map(inv => ({
+        amount: inv.total / 100,
+        date: new Date(inv.created * 1000).toISOString(),
+        status: inv.status,
+        pdfUrl: inv.invoice_pdf
+      }));
+    }
+
+    return {
+      plan: sub.plan,
+      status: sub.status,
+      currentPeriodEnd: sub.currentPeriodEnd,
+      invoices
+    };
+  } catch (err: any) {
+    server.log.error(err);
+    return reply.code(500).send({ error: 'Failed to fetch org billing: ' + err.message });
   }
 });
 
