@@ -1683,10 +1683,15 @@ export default function App() {
 
             if (!localKey || !existingInDb) {
                 // We have no key, or our key was deleted from the server.
-                console.log(`[Identity] Current machine is not registered as a node.`);
-                setIsLocalHostRegistered(false);
-                setDeviceId('');
-                setHostAccessKey('');
+                // BUT: If the API call failed (fetchedDevices is not an array), don't unregister!
+                if (Array.isArray(fetchedDevices)) {
+                    console.log(`[Identity] Current machine is not registered as a node.`);
+                    setIsLocalHostRegistered(false);
+                    setDeviceId('');
+                    setHostAccessKey('');
+                } else {
+                    console.warn(`[Identity] Skipping registration check due to invalid API response.`);
+                }
             } else {
                 deviceUuid = existingInDb.id;
                 console.log(`[Identity] Verified existing identity: ${localKey}`);

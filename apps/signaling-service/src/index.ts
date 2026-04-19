@@ -64,12 +64,16 @@ function broadcastGlobalStats() {
 async function startServer() {
   console.log('[Signaling] Starting services...');
   
-  // 1. Wait for Redis cleanup to finish sequentially
-  await clearStalePresence();
+  // 1. Run Redis cleanup in background (don't block server start if Redis is slow/down)
+  clearStalePresence().then(() => {
+    console.log('[Signaling] Background cleanup finished.');
+  }).catch(err => {
+    console.warn('[Signaling] Background cleanup failed:', err);
+  });
   
-  // 2. Start WebSocket Server ONLY after cleanup
+  // 2. Start WebSocket Server
   const wss = new WebSocketServer({ port: PORT, host: '0.0.0.0' });
-  console.log(`[Signaling] Cleanup finished. Ready for connections on ws://0.0.0.0:${PORT}`);
+  console.log(`[Signaling] WebSocket server listening on ws://0.0.0.0:${PORT}`);
 
   wss.on('connection', (ws: WebSocket) => {
     const connectionId = uuidv4();

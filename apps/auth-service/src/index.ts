@@ -20,12 +20,13 @@ import supportRoutes from './routes/support';
 
 const server = Fastify({ logger: true });
 
-server.register(cors, {
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-});
+// CORS is handled by the reverse proxy (Caddy)
+// server.register(cors, {
+//   origin: true,
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization']
+// });
 
 server.addHook('onRequest', async (request, reply) => {
   console.log(`[Auth-Service] ${request.method} ${request.url}`);
@@ -182,14 +183,22 @@ server.setNotFoundHandler((request, reply) => {
 });
 
 server.setErrorHandler((error, request, reply) => {
-  server.log.error(error);
+  server.log.error(`[Auth-Service-Error] ${request.method} ${request.url}: ${error.message}`);
+  if (error.stack) console.error(error.stack);
+
   if (error.code === 'P2024') {
     return reply.status(503).send({ error: 'Database timeout, please try again' });
   }
   if (error.message.includes('Redis')) {
     return reply.status(503).send({ error: 'Session service temporarily unavailable' });
   }
-  reply.status(error.statusCode || 500).send({ error: error.message || 'Internal Server Error' });
+  
+  const statusCode = error.statusCode || 500;
+  reply.status(statusCode).send({ 
+    error: error.message || 'Internal Server Error',
+    code: error.code,
+    ...(process.env.NODE_ENV !== 'production' && { stack: error.stack })
+  });
 });
 
 const start = async () => {

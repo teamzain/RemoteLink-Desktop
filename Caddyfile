@@ -3,28 +3,28 @@
     auto_https off
 }
 
-:80 {
-    # Handle standard CORS preflight requests
-    @options {
-        method OPTIONS
-    }
-    header @options {
+(cors) {
+    header {
         Access-Control-Allow-Origin "http://127.0.0.1:5173"
         Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         Access-Control-Allow-Headers "Content-Type, Authorization, Origin, Accept"
         Access-Control-Allow-Credentials "true"
     }
-    respond @options 204
+}
+
+:80 {
+    # Handle standard CORS preflight requests
+    @options {
+        method OPTIONS
+    }
+    handle @options {
+        import cors
+        respond 204
+    }
 
     # Universal API handling
     handle /api/* {
-        header {
-            Access-Control-Allow-Origin "http://127.0.0.1:5173"
-            Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-            Access-Control-Allow-Headers "Content-Type, Authorization, Origin, Accept"
-            Access-Control-Allow-Credentials "true"
-            defer
-        }
+        import cors
         
         # Auth & Admin Services
         handle /api/auth* {
