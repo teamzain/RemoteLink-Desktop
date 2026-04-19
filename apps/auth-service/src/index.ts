@@ -17,6 +17,7 @@ import organizationRoutes from './routes/organizations';
 import memberRoutes from './routes/members';
 import billingRoutes from './routes/billing';
 import supportRoutes from './routes/support';
+import analyticsRoutes from './routes/analytics';
 
 const server = Fastify({ logger: true });
 
@@ -176,6 +177,7 @@ server.register(memberRoutes, { prefix: '/api/members' });
 server.register(billingRoutes, { prefix: '/api/billing' });
 server.register(supportRoutes, { prefix: '/api/support' });
 server.register(adminSettingsRoutes, { prefix: '/api/admin/settings' });
+server.register(analyticsRoutes, { prefix: '/api/analytics' });
 
 server.setNotFoundHandler((request, reply) => {
   console.log(`[Auth-Service-Wildcard] 404: ${request.method} ${request.url}`);

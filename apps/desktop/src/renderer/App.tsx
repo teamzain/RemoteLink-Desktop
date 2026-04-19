@@ -25,6 +25,7 @@ import { SnowSplashScreen } from './components/SnowSplashScreen';
 import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
+import { SnowAnalytics } from './components/SnowAnalytics';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -1086,7 +1087,7 @@ export default function App() {
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
-    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations'>('dashboard');
+    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics'>('dashboard');
     const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -1146,6 +1147,7 @@ export default function App() {
     const [localIP, setLocalIP] = useState('127.0.0.1');
     const [showSettings, setShowSettings] = useState(false);
     const [isPackaged, setIsPackaged] = useState(false);
+    const [analyticsSummary, setAnalyticsSummary] = useState<any>(null);
 
     useEffect(() => {
         if ((window as any).electronAPI?.isPackaged) {
@@ -1392,12 +1394,22 @@ export default function App() {
                 setHostSessionId(self.access_key);
             }
         } catch (e: any) {
-            if (e.response?.status === 401 && !isViewerWindow) {
-                // Token expired and refresh failed — log out silently, login screen will show
+            if ((e.response?.status === 401 || e.response?.status === 403) && !isViewerWindow) {
+                // Token expired, role changed, or refresh failed — log out to reset state
                 handleLogout();
             }
         }
     };
+
+    useEffect(() => {
+        if (user?.role === 'SUPER_ADMIN') {
+            api.get('/api/analytics/summary').then(res => {
+                setAnalyticsSummary(res.data);
+            }).catch(e => {
+                console.error('[Analytics] Failed to fetch background summary:', e);
+            });
+        }
+    }, [user?.role, currentView]);
 
     useEffect(() => {
         if (!isAuthenticated || (!accessToken && !isViewerWindow)) return;
@@ -2705,7 +2717,8 @@ export default function App() {
                                         currentView === 'billing' ? 'Subscriptions' :
                                         currentView === 'profile' ? 'Profile' :
                                         currentView === 'support' ? 'Support' :
-                                        currentView === 'documentation' ? 'Documentation' : currentView
+                                        currentView === 'documentation' ? 'Documentation' :
+                                        currentView === 'analytics' ? 'Platform Analytics' : currentView
                                     }</span>
                                 </div>
                                 <h1 className="text-base md:text-xl font-bold text-[#1C1C1C] tracking-tight truncate max-w-[140px] md:max-w-none">
@@ -2719,7 +2732,8 @@ export default function App() {
                                      currentView === 'billing' ? 'Subscriptions' :
                                      currentView === 'profile' ? 'User Profile' :
                                      currentView === 'support' ? 'Support Hub' :
-                                     currentView === 'documentation' ? 'Documentation' : currentView}
+                                     currentView === 'documentation' ? 'Documentation' :
+                                     currentView === 'analytics' ? 'Platform Analytics' : currentView}
                                 </h1>
                             </div>
                         </div>
@@ -2812,6 +2826,8 @@ export default function App() {
                                     devices={devices} 
                                     activeSessionCount={activeSessionCount} 
                                     telemetryHistory={telemetryHistory}
+                                    analytics={analyticsSummary}
+                                    user={user}
                                     onNavigate={(view: any, filter: any) => {
                                         if (view === 'devices') {
                                             if (filter === 'online') setSearchQuery(':online');
@@ -2819,6 +2835,8 @@ export default function App() {
                                             setCurrentView('devices');
                                         } else if (view === 'sessions') {
                                             setCurrentView('sessions' as any);
+                                        } else if (view === 'analytics') {
+                                            setCurrentView('analytics' as any);
                                         }
                                     }}
                                 />
@@ -2943,6 +2961,10 @@ export default function App() {
                                     setSelectedDevice={setSelectedDevice}
                                     setSearchQuery={setSearchQuery}
                                 />
+                            </div>
+                        ) : (currentView as string) === 'analytics' ? (
+                            <div className="w-full h-full pt-8 animate-in fade-in duration-700">
+                                <SnowAnalytics />
                             </div>
                         ) : currentView === 'settings' ? (
                             /* --- UNIFIED SETTINGS VIEW --- */

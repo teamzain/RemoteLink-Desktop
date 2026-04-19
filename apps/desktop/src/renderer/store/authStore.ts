@@ -106,22 +106,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     const { refreshToken } = get();
-    if (refreshToken) {
-      try {
-        await api.post('/api/auth/logout', { refreshToken });
-      } catch (e) {
-        console.error('Logout API failed:', e);
-      }
-    }
-    
+    // 1. Clear memory state IMMEDIATELY to stop polling loops
+    set({ user: null, accessToken: null, refreshToken: null });
+
+    // 2. Clear persistent storage
     if (isElectron) {
-      await (window as any).electronAPI.deleteToken();
+      try { await (window as any).electronAPI.deleteToken(); } catch {}
     } else {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
     }
-    
-    set({ user: null, accessToken: null, refreshToken: null });
+
+    // 3. Inform server (optional, don't wait for it)
+    if (refreshToken) {
+      api.post('/api/auth/logout', { refreshToken }).catch(() => {});
+    }
   },
 
   checkAuth: async () => {

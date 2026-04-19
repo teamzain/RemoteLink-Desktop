@@ -103,7 +103,10 @@ export const SnowDashboard: React.FC<{
   activeSessionCount: number;
   telemetryHistory: { cpu: number, memory: number, time: string }[];
   onNavigate: (view: any, filter?: string) => void;
-}> = ({ devices, activeSessionCount, telemetryHistory = [], onNavigate }) => {
+  analytics?: any;
+  user?: any;
+}> = ({ devices, activeSessionCount, telemetryHistory = [], onNavigate, analytics, user }) => {
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const latestStats = (telemetryHistory && telemetryHistory.length > 0) 
     ? telemetryHistory[telemetryHistory.length - 1] 
     : { cpu: 0, memory: 0 };
@@ -145,6 +148,15 @@ export const SnowDashboard: React.FC<{
         {/* Metric Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
           <MetricCard 
+            title={isSuperAdmin ? "Registered Customers" : "Team Members"} 
+            value={isSuperAdmin ? (analytics?.users?.total || '...').toString() : '—'} 
+            trend="+12.5%" 
+            isPositive={true} 
+            bg="bg-white" 
+            data={[{v:10}, {v:12}, {v:11}, {v:15}, {v:14}, {v:18}]}
+            onClick={() => onNavigate(isSuperAdmin ? 'analytics' : 'members')}
+          />
+          <MetricCard 
             title="Registered Devices" 
             value={devices.length.toString()} 
             trend="+12.5%" 
@@ -154,17 +166,8 @@ export const SnowDashboard: React.FC<{
             onClick={() => onNavigate('devices')}
           />
           <MetricCard 
-            title="Devices Online" 
-            value={onlineCount.toString()} 
-            trend="+2.4%" 
-            isPositive={true} 
-            bg="bg-white" 
-            data={[{v:20}, {v:18}, {v:19}, {v:17}, {v:15}, {v:14}]}
-            onClick={() => onNavigate('devices', 'online')}
-          />
-          <MetricCard 
             title="CPU Usage" 
-            value={`${latestStats.cpu}%`} 
+            value={`${isSuperAdmin ? (analytics?.devices?.health?.cpuUsage || latestStats.cpu) : latestStats.cpu}%`} 
             trend={parseFloat(latestStats.cpu.toString()) > 50 ? "High" : "Optimal"} 
             isPositive={parseFloat(latestStats.cpu.toString()) < 80} 
             bg="bg-white" 
@@ -172,13 +175,32 @@ export const SnowDashboard: React.FC<{
           />
           <MetricCard 
             title="Memory Load" 
-            value={`${latestStats.memory}%`} 
+            value={`${isSuperAdmin ? (analytics?.devices?.health?.memoryLoad || latestStats.memory) : latestStats.memory}%`} 
             trend="Stable" 
             isPositive={true} 
             bg="bg-white" 
             data={telemetryHistory.map(h => ({ v: h.memory }))}
           />
         </div>
+
+        {isSuperAdmin && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <MetricCard 
+              title="Bandwidth Utilization" 
+              value={`${analytics?.devices?.health?.bandwidth || '0.00'} Mbps`} 
+              trend="Optimal" 
+              isPositive={true} 
+              bg="bg-blue-50/30" 
+            />
+            <MetricCard 
+              title="Adapter Usage" 
+              value={`${analytics?.devices?.health?.adapterUsage || '0'}%`} 
+              trend="Healthy" 
+              isPositive={true} 
+              bg="bg-emerald-50/30" 
+            />
+          </div>
+        )}
 
         {/* Big Line Chart (Performance) */}
         <div className="w-full h-[330px] bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 mb-8 flex flex-col shadow-sm">

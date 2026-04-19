@@ -18,13 +18,14 @@ import {
   BookOpen,
   LifeBuoy,
   LogOut,
-  Building2
+  Building2,
+  TrendingUp
 } from 'lucide-react';
 
 interface SnowSidebarProps {
-  currentView: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations';
+  currentView: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics';
   selectedDevice: any;
-  setCurrentView: (view: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations') => void;
+  setCurrentView: (view: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics') => void;
   setSelectedDevice: (device: any) => void;
   handleLogout: () => void;
   user: any;
@@ -52,6 +53,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   const isSupport = currentView === 'support' && !selectedDevice;
   const isMembers = currentView === 'members' && !selectedDevice;
   const isOrgs = currentView === 'organizations' && !selectedDevice;
+  const isAnalytics = currentView === 'analytics' && !selectedDevice;
 
   const userRole = user?.role || 'USER';
   const canManageTeam = userRole === 'SUB_ADMIN' || userRole === 'SUPER_ADMIN';
@@ -157,16 +159,29 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             )}
 
             {canManageOrgs && (
-              <button 
-                onClick={() => { setCurrentView('organizations'); setSelectedDevice(null); }}
-                className={navItemClass(isOrgs)}
-              >
-                <div className={indicatorClass(isOrgs)} />
-                <div className="flex items-center gap-2.5">
-                  <Building2 size={16} className={isOrgs ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
-                  <span className={textClass(isOrgs)}>Organizations</span>
-                </div>
-              </button>
+              <>
+                <button 
+                  onClick={() => { setCurrentView('organizations'); setSelectedDevice(null); }}
+                  className={navItemClass(isOrgs)}
+                >
+                  <div className={indicatorClass(isOrgs)} />
+                  <div className="flex items-center gap-2.5">
+                    <Building2 size={16} className={isOrgs ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                    <span className={textClass(isOrgs)}>Organizations</span>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => { setCurrentView('analytics'); setSelectedDevice(null); }}
+                  className={navItemClass(isAnalytics)}
+                >
+                  <div className={indicatorClass(isAnalytics)} />
+                  <div className="flex items-center gap-2.5">
+                    <TrendingUp size={16} className={isAnalytics ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                    <span className={textClass(isAnalytics)}>Platform Analytics</span>
+                  </div>
+                </button>
+              </>
             )}
 
             <button 
