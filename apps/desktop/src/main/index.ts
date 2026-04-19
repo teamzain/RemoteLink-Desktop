@@ -1038,6 +1038,19 @@ function handleDeepLink(url: string) {
         });
       }
     }
+
+    if (parsed.host === 'auth' && parsed.pathname === '/2fa') {
+      const tempToken = parsed.searchParams.get('tempToken');
+      if (tempToken) {
+        log.info('[DeepLink] Received 2FA temp token');
+        mainWindow?.webContents.send('auth:temp-2fa-token', tempToken);
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+      }
+    }
   } catch (e) {
     log.error('[DeepLink] Failed to parse URL:', e);
   }

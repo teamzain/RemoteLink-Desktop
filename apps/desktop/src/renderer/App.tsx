@@ -1079,8 +1079,11 @@ export default function App() {
 
     const [loading, setLoading] = useState(true);
     const [showSplash, setShowSplash] = useState(false);
-    const { user, accessToken, login: storeLogin, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
+    const { user, accessToken, temp2faToken, login: storeLogin, verify2fa: storeVerify2fa, setTemp2faToken, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
     const isAuthenticated = !!accessToken;
+    const [totpCode, setTotpCode] = useState('');
+    const [twoFaError, setTwoFaError] = useState<string | null>(null);
+    const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
     const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations'>('dashboard');
     const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -1170,6 +1173,16 @@ export default function App() {
 
             return () => { 
                 if (cleanup) cleanup(); 
+            };
+        }
+
+        if ((window as any).electronAPI?.onTemp2faToken) {
+            const cleanup = (window as any).electronAPI.onTemp2faToken((token: string) => {
+                console.log('[Auth] Received 2FA temp token via deep link');
+                setTemp2faToken(token);
+            });
+            return () => {
+                if (cleanup) cleanup();
             };
         }
     }, []);
@@ -2032,7 +2045,11 @@ export default function App() {
         setAuthError(null);
         setLoading(true);
         try {
-            await storeLogin(email, password);
+            const result = await storeLogin(email, password);
+            if (result?.twoFactorRequired) {
+                // Store handles setting temp2faToken
+                return;
+            }
             setShowSplash(true);
             setTimeout(() => setShowSplash(false), 2000);
             localStorage.setItem('remote_link_server_ip', serverIP);
@@ -2040,6 +2057,22 @@ export default function App() {
             setAuthError(err.response?.data?.error || `Could not sign in. Check your credentials and server status.`);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleVerify2faLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (totpCode.length !== 6) return;
+        setTwoFaError(null);
+        setIsVerifying2fa(true);
+        try {
+            await storeVerify2fa(totpCode);
+            setShowSplash(true);
+            setTimeout(() => setShowSplash(false), 2000);
+        } catch (err: any) {
+            setTwoFaError(err.response?.data?.error || 'Invalid 2FA code');
+        } finally {
+            setIsVerifying2fa(false);
         }
     };
 
@@ -2297,6 +2330,63 @@ export default function App() {
     }
 
     if (!isAuthenticated) {
+        if (temp2faToken) {
+            return (
+                <div className="h-screen w-full flex items-center justify-center bg-white font-inter select-none">
+                    <div className="w-full max-w-sm p-8 animate-in fade-in zoom-in-95 duration-500">
+                         <div className="flex items-center gap-3 mb-10 group cursor-default">
+                            <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 transition-transform duration-300 overflow-hidden border border-white/5">
+                                <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
+                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Verification Required</span>
+                            </div>
+                        </div>
+
+                        <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Two-Factor Auth</h1>
+                        <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+                            Open your authenticator app and enter the 6-digit verification code.
+                        </p>
+
+                        <form onSubmit={handleVerify2faLogin} className="space-y-6">
+                            <div className="space-y-1.5">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    maxLength={6}
+                                    placeholder="000 000"
+                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[24px] px-4 py-5 text-center text-3xl font-mono font-bold tracking-[0.2em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.1)]"
+                                    value={totpCode}
+                                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                />
+                            </div>
+
+                            {twoFaError && (
+                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{twoFaError}</p>
+                                </div>
+                            )}
+
+                            <button type="submit" disabled={isVerifying2fa || totpCode.length !== 6} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                {isVerifying2fa ? <RefreshCw size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                                VERIFY & CONTINUE
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setTemp2faToken(null)}
+                                className="w-full text-xs font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
+                            >
+                                Back to Sign In
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
         return (
             <div className="h-screen w-full flex overflow-hidden bg-white font-inter select-none">
                 <SnowSplashScreen isReady={!loading} />

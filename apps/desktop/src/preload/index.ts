@@ -67,4 +67,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:onboarding-token', listener);
     return () => ipcRenderer.removeListener('auth:onboarding-token', listener);
   },
+  onTemp2faToken: (callback: (token: string) => void) => {
+    const listener = (_: any, token: string) => callback(token);
+    ipcRenderer.on('auth:temp-2fa-token', listener);
+    return () => ipcRenderer.removeListener('auth:temp-2fa-token', listener);
+  },
 });

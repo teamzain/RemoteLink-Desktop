@@ -18,9 +18,12 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  temp2faToken: string | null;
   isLoading: boolean;
+  setTemp2faToken: (token: string | null) => void;
   setAuth: (user: User, accessToken: string, refreshToken: string, persist?: boolean) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ twoFactorRequired?: boolean }>;
+  verify2fa: (code: string) => Promise<void>;
   requestVerification: (email: string) => Promise<void>;
   register: (name: string, email: string, password: string, verificationCode: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -31,7 +34,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: null,
   refreshToken: null,
+  temp2faToken: null,
   isLoading: false,
+
+  setTemp2faToken: (token) => set({ temp2faToken: token }),
 
   setAuth: async (user, accessToken, refreshToken, persist = true) => {
     if (persist) {
@@ -42,14 +48,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.setItem('refresh_token', refreshToken);
       }
     }
-    set({ user, accessToken, refreshToken });
+    set({ user, accessToken, refreshToken, temp2faToken: null });
   },
 
   login: async (email, password) => {
     set({ isLoading: true });
     try {
       const { data } = await api.post('/api/auth/login', { email, password });
+      if (data.twoFactorRequired) {
+        set({ temp2faToken: data.tempToken });
+        return { twoFactorRequired: true };
+      }
       await get().setAuth(data.user, data.accessToken, data.refreshToken);
+      return { twoFactorRequired: false };
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  verify2fa: async (code) => {
+    set({ isLoading: true });
+    try {
+      const { temp2faToken } = get();
+      const { data } = await api.post('/api/auth/2fa/verify-login', { 
+        code, 
+        tempToken: temp2faToken 
+      });
+      await get().setAuth(data.user, data.accessToken, data.refreshToken);
+      set({ temp2faToken: null });
     } finally {
       set({ isLoading: false });
     }
