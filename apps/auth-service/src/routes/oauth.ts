@@ -171,7 +171,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       // ── 2FA Check ──
       if ((user as any).is2FAEnabled) {
         const { generateToken } = require('@remotelink/shared');
-        const tempToken = generateToken({ userId: user.id, type: '2fa-temp' }, '5m');
+        const tempToken = generateToken({ userId: user!.id, type: '2fa-temp' }, '5m');
         
         if (platform === 'desktop' || platform === 'mobile') {
           const deepLink = `remotelink://auth/2fa?tempToken=${tempToken}`;
@@ -196,7 +196,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       }
 
       // Issue our own JWT tokens
-      const tokens = await issueTokens(user);
+      const tokens = await issueTokens(user!);
 
       // Redirect back to the client
       if (platform === 'desktop' || platform === 'mobile') {
