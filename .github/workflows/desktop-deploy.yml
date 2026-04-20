@@ -7,6 +7,7 @@ on:
 
 jobs:
   build:
+    name: Build Windows App
     runs-on: windows-latest
     steps:
       - name: Checkout Code
@@ -28,15 +29,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install SSH Key
-        uses: shimataro/ssh-key-action@v2
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          known_hosts: "unnecessary_with_strict_checking_off" # Handled by scp flags
-          if_key_exists: replace
+          name: desktop-release
+          path: apps/desktop/release/*
+          retention-days: 1
 
-      - name: Deploy to DigitalOcean
-        shell: pwsh
-        run: |
-          # Upload using native scp (the key is now in the default ssh location)
-          scp -o StrictHostKeyChecking=no -r apps/desktop/release/* root@159.65.84.190:/var/www/downloads/desktop/
+  deploy:
+    name: Deploy to DigitalOcean
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-release
+          path: release
+
+      - name: Deploy via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: 159.65.84.190
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "release/*"
+          target: "/var/www/downloads/desktop/"
+          strip_components: 1
+          overwrite: true
