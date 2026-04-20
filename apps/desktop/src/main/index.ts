@@ -1,4 +1,4 @@
-import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
+﻿import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { join, basename, resolve } from 'path';
@@ -352,7 +352,7 @@ function stopStreaming() {
 /** Build encoder-specific FFmpeg args for low-latency, high-quality streaming.
  *  ALL encoders must emit AUD NAL units so the frame splitter works correctly. */
 function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[] {
-  const gop = '10'; // keyframe every 10 frames ≈ 167ms at 60fps
+  const gop = '10'; // keyframe every 10 frames â‰ˆ 167ms at 60fps
   switch (encoder) {
     case 'h264_nvenc':
       return [
@@ -396,7 +396,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-bsf:v', 'h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
-    default: // libx264 — CPU fallback
+    default: // libx264 â€” CPU fallback
       return [
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
@@ -430,7 +430,7 @@ function probeEncoder(ffmpegPath: string, encoder: string): Promise<boolean> {
 }
 
 /** Detect best available encoder once, cache result.
- *  Always runs in the background — never blocks the UI or a connection. */
+ *  Always runs in the background â€” never blocks the UI or a connection. */
 async function detectBestEncoder(): Promise<void> {
   if (encoderDetected) return;
   const ffmpegPath = getFFmpegPath();
@@ -508,7 +508,7 @@ function startStreaming() {
 
   const ffmpegPath = getFFmpegPath();
   const fps = '60';
-  const bitrate = '8000k'; // Adaptive High quality — 8Mbps (Optimized for clarity)
+  const bitrate = '8000k'; // Adaptive High quality â€” 8Mbps (Optimized for clarity)
   const frameInterval = Math.floor(1000 / parseInt(fps));
 
   initPollInterval = setInterval(() => {
@@ -670,7 +670,7 @@ function initiateHostWebRTC(viewerId: string) {
   cleanUpWebRTC();
   currentViewerId = viewerId;
 
-  // ── Pre-start FFmpeg BEFORE WebRTC is ready ──────────────────────────────
+  // â”€â”€ Pre-start FFmpeg BEFORE WebRTC is ready â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // This hides FFmpeg cold-start latency behind the ICE handshake (~200-500ms).
   // Output is buffered until the video track opens, then flushed.
   log.info('[Host] Pre-starting FFmpeg to eliminate cold-start lag...');
@@ -914,12 +914,12 @@ function handleControlMessage(msg: any) {
         break;
       case 'request-keyframe':
         // Force-inject a keyframe by writing a synthetic IDR request to FFmpeg.
-        // Do NOT call startStreaming() — that kills the track and causes the black screen.
+        // Do NOT call startStreaming() â€” that kills the track and causes the black screen.
         log.info('[Host] Keyframe requested. Forcing IDR on FFmpeg...');
         if (ffmpegProcess?.stdin?.writable) {
           // Sending SIGKILL then restarting is too heavy; instead we
           // rely on low gop=-g10 to deliver a natural IDR within ~167ms.
-          // Just log it — the stream is already continuous.
+          // Just log it â€” the stream is already continuous.
           log.info('[Host] IDR will arrive on next GOP boundary (gop=10).');
         } else {
           // FFmpeg died; safe to restart now
@@ -1425,6 +1425,3 @@ function connectViewerSignaling(sessionId: string, serverIP: string, token: stri
     viewerSignalingSockets.delete(sessionId);
   });
 }
-
- 
- 
