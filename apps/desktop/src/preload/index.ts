@@ -72,4 +72,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:temp-2fa-token', listener);
     return () => ipcRenderer.removeListener('auth:temp-2fa-token', listener);
   },
+  updates: {
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    quitAndInstall: () => ipcRenderer.invoke('update:quitAndInstall'),
+    onAvailable: (callback: (info: any) => void) => {
+      const listener = (_: any, info: any) => callback(info);
+      ipcRenderer.on('update:available', listener);
+      return () => ipcRenderer.removeListener('update:available', listener);
+    },
+    onNotAvailable: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('update:not-available', listener);
+      return () => ipcRenderer.removeListener('update:not-available', listener);
+    },
+    onDownloadProgress: (callback: (progress: any) => void) => {
+      const listener = (_: any, progress: any) => callback(progress);
+      ipcRenderer.on('update:download-progress', listener);
+      return () => ipcRenderer.removeListener('update:download-progress', listener);
+    },
+    onDownloaded: (callback: (info: any) => void) => {
+      const listener = (_: any, info: any) => callback(info);
+      ipcRenderer.on('update:downloaded', listener);
+      return () => ipcRenderer.removeListener('update:downloaded', listener);
+    },
+    onError: (callback: (error: string) => void) => {
+      const listener = (_: any, error: string) => callback(error);
+      ipcRenderer.on('update:error', listener);
+      return () => ipcRenderer.removeListener('update:error', listener);
+    }
+  }
 });

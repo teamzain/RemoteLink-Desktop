@@ -45,6 +45,14 @@ fi
 echo "🏗️ Building and launching services..."
 docker compose -f docker-compose.prod.yml up -d --build
 
+# 6. Desktop App Hosting Setup
+echo "📁 Setting up Desktop Download directories..."
+# Ensure the directory exists and has correct permissions for Caddy
+sudo mkdir -p /var/www/downloads/desktop
+sudo chown -R $USER:$USER /var/www/downloads
+sudo chmod -R 755 /var/www/downloads
+echo "✅ Download directory ready at /var/www/downloads/desktop"
+
 echo "✅ Deployment Complete!"
 echo "------------------------------------------------"
 echo "Services status:"

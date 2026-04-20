@@ -1,4 +1,5 @@
 import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { join, basename, resolve } from 'path';
 import { spawn, ChildProcess } from 'child_process';
@@ -119,6 +120,38 @@ ipcMain.handle('system:getDeterministicKey', () => {
   const crypto = require('crypto');
   const hash = crypto.createHash('sha256').update(mac).digest('hex');
   return (BigInt('0x' + hash.substring(0, 12)) % 1000000000n).toString().padStart(9, '0');
+});
+
+// --- Auto-Updater Handlers ---
+autoUpdater.autoDownload = false; // We want to notify first
+autoUpdater.logger = log;
+
+ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
+ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
+ipcMain.handle('update:quitAndInstall', () => autoUpdater.quitAndInstall());
+
+autoUpdater.on('update-available', (info) => {
+  log.info('[Updater] Update available:', info.version);
+  mainWindow?.webContents.send('update:available', info);
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  log.info('[Updater] Update not available:', info.version);
+  mainWindow?.webContents.send('update:not-available');
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  mainWindow?.webContents.send('update:download-progress', progressObj);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info('[Updater] Update downloaded:', info.version);
+  mainWindow?.webContents.send('update:downloaded', info);
+});
+
+autoUpdater.on('error', (err) => {
+  log.error('[Updater] Error:', err);
+  mainWindow?.webContents.send('update:error', err.message);
 });
 
 ipcMain.handle('system:getMachineName', () => os.hostname());
@@ -1226,6 +1259,11 @@ app.whenReady().then(() => {
        log.info(`[Host] Processing startup deep link: ${startupUrl}`);
        handleDeepLink(startupUrl);
     });
+  }
+
+  // Check for updates on startup
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch(e => log.error('[Updater] Failed initial check:', e));
   }
 });
 

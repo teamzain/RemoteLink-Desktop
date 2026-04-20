@@ -504,7 +504,6 @@
     "globalconfig": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm\\etc\\npmrc",
     "global_prefix": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm",
     "init_module": "C:\\Users\\Zain Ul Abidden\\.npm-init.js",
-    "legacy_peer_deps": "true",
     "local_prefix": "D:\\Work\\RemoteLink-Desktop",
     "node_gyp": "C:\\Program Files\\nodejs\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
     "npm_version": "11.11.0",

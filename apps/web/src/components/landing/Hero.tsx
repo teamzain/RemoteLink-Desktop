@@ -62,7 +62,9 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
                 >
                   Start for Free
                 </StyledButton>
-                <Button
+                <StyledButton
+                  component="a"
+                  href="http://159.65.84.190/downloads/desktop/Connect-X-Setup.exe"
                   variant="outlined"
                   size="large"
                   sx={{
@@ -70,12 +72,16 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
                     py: 1.5,
                     fontSize: '1.1rem',
                     borderRadius: '30px',
-                    borderColor: 'divider',
-                    color: 'text.primary',
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
+                    '&:hover': {
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                    }
                   }}
                 >
-                  Book a Demo
-                </Button>
+                  Download for Windows
+                </StyledButton>
               </Stack>
             </Box>
           </StyledGrid>

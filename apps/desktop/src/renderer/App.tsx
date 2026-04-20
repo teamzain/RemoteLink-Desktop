@@ -26,6 +26,7 @@ import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
 import { SnowAnalytics } from './components/SnowAnalytics';
+import UpdateBanner from './components/UpdateBanner';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -2633,6 +2634,7 @@ export default function App() {
 
     return (
         <div className="h-screen w-full bg-[#F8F9FA] text-[#1C1C1C] flex overflow-hidden font-inter selection:bg-blue-500/20 select-none">
+            <UpdateBanner />
             <SnowSplashScreen isReady={!loading} />
 
             {/* THEATER MODE VIEWER (Standard or Dedicated Window) */}

@@ -64,6 +64,12 @@
         }
     }
 
+    # Desktop App Downloads & Updates
+    handle /downloads/* {
+        root * /var/www/downloads
+        file_server browse
+    }
+
     # Legacy billing service (proxied to billing-service)
     handle /billing* {
         reverse_proxy billing-service:3004
