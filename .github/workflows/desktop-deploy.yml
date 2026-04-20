@@ -33,14 +33,15 @@ jobs:
         run: |
           # Create a temporary file for the SSH key
           $keyFile = [System.IO.Path]::GetTempFileName()
-          "${{ secrets.SERVER_SSH_KEY }}" | Set-Content $keyFile
+          # Use ASCII encoding to avoid BOM/formatting issues that break SSH keys
+          $env:SSH_KEY = "${{ secrets.SERVER_SSH_KEY }}"
+          $env:SSH_KEY | Out-File -FilePath $keyFile -Encoding ASCII
           
           # Set permissions (required for SSH)
           icacls $keyFile /inheritance:r
           icacls $keyFile /grant:r "${env:USERNAME}:(R)"
           
           # Upload using native scp
-          # -o StrictHostKeyChecking=no prevents the "Trust this host?" prompt
           scp -i $keyFile -o StrictHostKeyChecking=no -r apps/desktop/release/* root@159.65.84.190:/var/www/downloads/desktop/
           
           # Clean up
