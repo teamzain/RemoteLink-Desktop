@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -17,15 +17,31 @@
 
 * { box-sizing: border-box; }
 
+html {
+  font-size: 17px;
+}
+
 body {
   margin: 0;
   padding: 0;
   background-color: var(--bg-app);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, sans-serif;
+  font-family: 'Lato', -apple-system, sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Reduced motion mode */
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Scale up hardcoded tiny sizes so they're readable */
+.text-\[9px\]  { font-size: 11px !important; }
+.text-\[10px\] { font-size: 12px !important; }
+.text-\[11px\] { font-size: 13px !important; }
 
 @layer utilities {
   /* SnowUI Card styles */

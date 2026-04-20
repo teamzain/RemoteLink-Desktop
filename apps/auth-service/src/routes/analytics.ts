@@ -94,8 +94,8 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         recentUsers
       });
     } catch (err: any) {
-      console.error('[Analytics-Error]', err);
-      return reply.code(500).send({ error: 'Internal Server Error' });
+      console.error('[Analytics-Error]', err?.message, err?.stack);
+      return reply.code(500).send({ error: err?.message || 'Internal Server Error' });
     }
   });
 }

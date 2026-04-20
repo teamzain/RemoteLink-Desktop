@@ -849,22 +849,16 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         return (
             <div className="w-full h-full flex items-center justify-center relative bg-[#060608]">
                 {isMobileDevice && zoomMode === 'fit' ? (
-                    // pt-20 at top gives 80px clearance so the top toolbar NEVER covers the phone screen.
                     <div className="relative flex items-center justify-center pt-24 pb-4 px-4 w-full h-full max-h-screen">
-                        {/* Phone Frame wrapper */}
                         <div className="relative rounded-[48px] p-3 bg-[#1C1C1C] border border-white/[0.08] shadow-[0_30px_100px_rgba(0,0,0,0.8)] h-full aspect-[9/19.5] flex-shrink-0 flex items-center justify-center max-h-[920px]">
-                            {/* Bezel inner — video fills this directly for accurate tap coordinates */}
                             <div className="relative w-full h-full rounded-[38px] overflow-hidden bg-black pointer-events-auto">
                                 {contentNode}
                             </div>
-                            {/* Camera Notch */}
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[100px] h-[26px] bg-black rounded-full pointer-events-none z-50 flex items-center justify-center border border-white/[0.04]">
                                 <div className="w-2.5 h-2.5 rounded-full bg-blue-900/30 ml-auto mr-3 flex items-center justify-center">
                                     <div className="w-1.5 h-1.5 rounded-full bg-[#1A1A1A]" />
                                 </div>
                             </div>
-
-                            {/* Hardware Buttons */}
                             <div className="absolute top-32 -left-1 w-1 h-12 bg-[#2A2A2A] rounded-l-md" />
                             <div className="absolute top-48 -left-1 w-1 h-20 bg-[#2A2A2A] rounded-l-md" />
                             <div className="absolute top-48 -right-1 w-1 h-24 bg-[#2A2A2A] rounded-r-md" />
@@ -1088,8 +1082,8 @@ export default function App() {
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
-    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics'>('dashboard');
-    const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect'>('dashboard');
+    const [authMode, setAuthMode] = useState<'login' | 'signup' | 'connect'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [signupName, setSignupName] = useState('');
@@ -1145,6 +1139,7 @@ export default function App() {
     const [isLocalHostRegistered, setIsLocalHostRegistered] = useState(false);
 
     const [serverIP, setServerIP] = useState('159.65.84.190'); // HARDCODED
+    const [localAuthKey, setLocalAuthKey] = useState('');
     const [localIP, setLocalIP] = useState('127.0.0.1');
     const [showSettings, setShowSettings] = useState(false);
     const [isPackaged, setIsPackaged] = useState(false);
@@ -1774,6 +1769,14 @@ export default function App() {
     }, [isAuthenticated, user?.role, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
 
     useEffect(() => {
+        if (isElectron && (window as any).electronAPI?.getDeterministicKey) {
+            (window as any).electronAPI.getDeterministicKey().then((k: string | null) => {
+                if (k) setLocalAuthKey(k);
+            });
+        }
+    }, []);
+
+    useEffect(() => {
         checkAuth().finally(() => setLoading(false));
 
         if (!isElectron) return;
@@ -2238,7 +2241,7 @@ export default function App() {
             setViewerStatus('idle');
         } catch (e: any) {
             setViewerStatus('error');
-            setViewerError(e.message);
+            setViewerError(e.response?.data?.error || e.message || 'Failed to find device.');
         }
     };
 
@@ -2263,7 +2266,7 @@ export default function App() {
             }
         } catch (e: any) {
             setViewerStatus('error');
-            setViewerError(e.message);
+            setViewerError(e.response?.data?.error || e.message || 'Connection failed.');
         }
     };
 
@@ -2420,18 +2423,139 @@ export default function App() {
 
                         {/* Auth Mode Tabs */}
                         <div className="flex bg-[#F8F9FA] rounded-2xl p-1 mb-8 border border-[rgba(28,28,28,0.04)]">
-                            {(['login', 'signup'] as const).map(mode => (
+                            {(['login', 'signup', 'connect'] as const).map(mode => (
                                 <button
                                     key={mode}
                                     type="button"
-                                    onClick={() => { setAuthMode(mode); setEmail(''); setPassword(''); setSignupName(''); setIsAwaitingVerification(false); setVerificationCode(''); setAuthError(null); }}
+                                    onClick={() => {
+                                        setAuthMode(mode);
+                                        setEmail(''); setPassword(''); setSignupName('');
+                                        setIsAwaitingVerification(false); setVerificationCode(''); setAuthError(null);
+                                        if (mode === 'connect') {
+                                            setViewerStep(1); setSessionCode(''); setAccessPassword('');
+                                            setViewerError(''); setViewerStatus('idle');
+                                        }
+                                    }}
                                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[rgba(28,28,28,0.3)] hover:text-[rgba(28,28,28,0.6)]'}`}
                                 >
-                                    {mode === 'login' ? 'Sign In' : 'Create Account'}
+                                    {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Register' : 'Connect'}
                                 </button>
                             ))}
                         </div>
 
+                        {authMode === 'connect' ? (
+                            /* --- GUEST CONNECT FLOW --- */
+                            <div className="animate-in fade-in duration-300">
+                                <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
+                                <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+                                    Enter the device access key and password to connect without an account.
+                                </p>
+
+                                {viewerStep === 1 ? (
+                                    <div className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Access Key</label>
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                    <Monitor size={16} />
+                                                </div>
+                                                <input
+                                                    autoFocus
+                                                    type="text"
+                                                    placeholder="000 000 000"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-center focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    value={sessionCode}
+                                                    onChange={e => setSessionCode(formatCode(e.target.value))}
+                                                    onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
+                                                    maxLength={11}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {viewerError && (
+                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                                <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={handleFindDevice}
+                                            disabled={viewerStatus === 'connecting' || !sessionCode}
+                                            className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                                        >
+                                            {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                                            FIND DEVICE
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                        <div className="flex items-center gap-3 p-4 bg-[#F8F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)] mb-2">
+                                            <div className="w-8 h-8 bg-[#1C1C1C] rounded-xl flex items-center justify-center flex-shrink-0">
+                                                <Monitor size={14} className="text-white" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest">Target Device</p>
+                                                <p className="text-sm font-bold text-[#1C1C1C] font-mono">{formatCode(sessionCode)}</p>
+                                            </div>
+                                            <div className="w-2.5 h-2.5 bg-[#71DD8C] rounded-full animate-pulse" />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Password</label>
+                                            <div className="relative group">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                    <Lock size={16} />
+                                                </div>
+                                                <input
+                                                    autoFocus
+                                                    type={showManualPassword ? 'text' : 'password'}
+                                                    placeholder="••••••••"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    value={accessPassword}
+                                                    onChange={e => setAccessPassword(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowManualPassword(!showManualPassword)}
+                                                    className="absolute inset-y-0 right-4 flex items-center text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                                                >
+                                                    {showManualPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {viewerError && (
+                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                                <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={handleConnectToHost}
+                                            disabled={viewerStatus === 'connecting' || !accessPassword}
+                                            className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                                        >
+                                            {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
+                                            ESTABLISH LINK
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); }}
+                                            className="w-full text-xs font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
+                                        >
+                                            ← Change Device
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                        <>
                         <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
                             {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
                         </h1>
@@ -2555,34 +2679,9 @@ export default function App() {
                                 {authMode === 'login' ? 'SIGN IN' : isAwaitingVerification ? 'VERIFY TO PROCEED' : 'CREATE ACCOUNT'}
                             </button>
 
-                            <div className="pt-2 flex flex-col items-center gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowSettings(!showSettings)}
-                                    className="flex items-center gap-2 text-[10px] font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
-                                >
-                                    <Settings size={12} /> signaling server configuration
-                                </button>
-
-                                {showSettings && (
-                                    <div className="w-full p-5 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)] space-y-4 animate-in slide-in-from-top-4 duration-300">
-                                        <div className="space-y-2">
-                                            <span className="text-[9px] font-black text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] ml-1">Current Node IP</span>
-                                            <input
-                                                type="text"
-                                                className="w-full bg-white border border-[rgba(28,28,28,0.06)] rounded-xl px-4 py-2.5 text-xs font-mono font-bold text-[#1C1C1C] outline-none"
-                                                value={serverIP}
-                                                onChange={(e) => setServerIP(e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between px-1">
-                                            <span className="text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase">Interface Detect</span>
-                                            <span className="text-[10px] font-mono font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{localIP}</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         </form>
+                        </>
+                        )}
 
                     </div>
 
@@ -2591,41 +2690,101 @@ export default function App() {
                     </div>
                 </div>
 
-                {/* RIGHT — High Contrast Brand Panel */}
-                <div className="w-[45%] bg-[#1C1C1C] relative flex flex-col items-center justify-center p-20 overflow-hidden animate-in fade-in slide-in-from-right-8 duration-1000">
-                    {/* Abstract Visual Elements */}
-                    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full -mr-32 -mt-32" />
-                    <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-white/5 blur-[100px] rounded-full -ml-32 -mb-32" />
+                {/* RIGHT — Host Identity Panel */}
+                <div className="w-[45%] bg-[#1C1C1C] relative flex flex-col items-center justify-center p-12 overflow-hidden animate-in fade-in slide-in-from-right-8 duration-1000">
+                    {/* Glow blobs */}
+                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/10 blur-[100px] rounded-full -mr-24 -mt-24 pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-white/5 blur-[80px] rounded-full -ml-24 -mb-24 pointer-events-none" />
 
-                    <div className="relative z-10 flex flex-col items-center text-center">
-                        <div className="w-24 h-24 rounded-[32px] bg-white text-[#1C1C1C] flex items-center justify-center shadow-2xl shadow-black/40 mb-10 group hover:rotate-6 transition-transform duration-500">
-                            <Link size={48} />
+                    <div className="relative z-10 flex flex-col items-center w-full max-w-xs">
+                        {/* Animated Laptop Illustration */}
+                        <div className="mb-10 relative">
+                            <style>{`
+                                @keyframes scanline { 0%,100%{transform:translateY(0)} 50%{transform:translateY(52px)} }
+                                @keyframes cursorBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+                                @keyframes pulseRing { 0%{transform:scale(1);opacity:.5} 100%{transform:scale(1.5);opacity:0} }
+                                @keyframes floatLaptop { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-6px)} }
+                                @keyframes dotStream { 0%{opacity:.2} 50%{opacity:1} 100%{opacity:.2} }
+                            `}</style>
+                            <div style={{animation:'floatLaptop 3s ease-in-out infinite'}}>
+                                {/* Laptop screen */}
+                                <svg width="220" height="160" viewBox="0 0 220 160" fill="none">
+                                    {/* Screen body */}
+                                    <rect x="20" y="4" width="180" height="118" rx="10" fill="#0F0F0F" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5"/>
+                                    {/* Screen bezel inner */}
+                                    <rect x="28" y="12" width="164" height="102" rx="6" fill="#111827"/>
+                                    {/* Simulated content lines */}
+                                    <rect x="38" y="24" width="60" height="5" rx="2.5" fill="rgba(255,255,255,0.15)"/>
+                                    <rect x="38" y="34" width="100" height="4" rx="2" fill="rgba(255,255,255,0.07)"/>
+                                    <rect x="38" y="42" width="80" height="4" rx="2" fill="rgba(255,255,255,0.07)"/>
+                                    {/* Scan line */}
+                                    <rect x="28" y="12" width="164" height="2" rx="1" fill="rgba(99,179,237,0.25)" style={{animation:'scanline 2.5s ease-in-out infinite'}}/>
+                                    {/* Remote cursor dot */}
+                                    <circle cx="130" cy="75" r="4" fill="#60A5FA" style={{animation:'cursorBlink 1.2s ease-in-out infinite'}}/>
+                                    <circle cx="130" cy="75" r="8" fill="none" stroke="#60A5FA" strokeWidth="1.5" style={{animation:'pulseRing 1.2s ease-out infinite'}}/>
+                                    {/* Activity dots bottom */}
+                                    {[0,1,2,3].map(i=>(
+                                        <circle key={i} cx={38+i*12} cy={104} r="3" fill="#60A5FA" style={{animation:`dotStream 1.4s ease-in-out ${i*0.25}s infinite`}}/>
+                                    ))}
+                                    {/* Camera dot */}
+                                    <circle cx="110" cy="9" r="2.5" fill="rgba(255,255,255,0.1)"/>
+                                    {/* Base */}
+                                    <path d="M0 130 L20 122 L200 122 L220 130 L220 133 Q110 140 0 133 Z" fill="#1a1a1a" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                                    {/* Keyboard hint */}
+                                    <rect x="70" y="124" width="80" height="4" rx="2" fill="rgba(255,255,255,0.04)"/>
+                                </svg>
+                            </div>
+                            {/* Base glow */}
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-4 bg-blue-500/20 blur-xl rounded-full"/>
                         </div>
 
-                        <h2 className="text-5xl font-extrabold text-white tracking-tighter mb-4 leading-tight">
-                            Secure Mesh<br />Connectivity.
-                        </h2>
-                        <p className="text-white/40 text-lg font-medium max-w-sm leading-relaxed mb-12">
-                            Unifying cross-platform devices with hardware-level security and ultra-low latency.
-                        </p>
+                        <h2 className="text-2xl font-extrabold text-white tracking-tight mb-1 text-center">This Machine</h2>
+                        <p className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] mb-8 text-center">Share these credentials to allow remote access</p>
 
-                        <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                            {[
-                                { label: 'E2EE Setup', icon: ShieldCheck },
-                                { label: 'P2P Relay', icon: Radio },
-                                { label: 'Zero Trust', icon: Shield },
-                                { label: 'Cross Device', icon: LayoutGrid }
-                            ].map((feat, idx) => (
-                                <div key={idx} className="p-4 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm flex flex-col items-start gap-3 hover:bg-white/10 hover:border-white/10 transition-all cursor-default">
-                                    <feat.icon size={18} className="text-white/80" />
-                                    <span className="text-[10px] font-bold text-white uppercase tracking-widest">{feat.label}</span>
-                                </div>
-                            ))}
+                        {/* Server IP */}
+                        <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 mb-3 flex items-center gap-4">
+                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                                <Globe size={14} className="text-blue-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-0.5">Signaling Server</p>
+                                <p className="text-sm font-mono font-bold text-white/80">{serverIP}</p>
+                            </div>
+                        </div>
+
+                        {/* Access Key */}
+                        <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 mb-3 flex items-center gap-4">
+                            <div className="w-8 h-8 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                                <KeyRound size={14} className="text-green-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-0.5">Access Key</p>
+                                {localAuthKey ? (
+                                    <p className="text-sm font-mono font-bold text-white tracking-[0.15em]">{formatCode(localAuthKey)}</p>
+                                ) : (
+                                    <p className="text-sm font-bold text-white/20 italic">Not registered</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* PIN */}
+                        <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 flex items-center gap-4">
+                            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                                <Lock size={14} className="text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-0.5">Device PIN</p>
+                                {devicePassword ? (
+                                    <p className="text-sm font-mono font-bold text-white/70 tracking-[0.3em]">{'•'.repeat(Math.min(devicePassword.length, 10))}</p>
+                                ) : (
+                                    <p className="text-sm font-bold text-white/20 italic">Not configured</p>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Decorative Floor */}
-                    <div className="absolute bottom-0 inset-x-0 h-1/2 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                    {/* Decorative floor */}
+                    <div className="absolute bottom-0 inset-x-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
                 </div>
             </div>
         );
@@ -2843,6 +3002,131 @@ export default function App() {
                                     }}
                                 />
                             </div>
+                        ) : currentView === 'connect' ? (
+                            /* --- QUICK CONNECT VIEW (AUTHENTICATED) --- */
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 min-h-[80vh]">
+                                <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-500">
+                                    <div className="flex items-center gap-3 mb-10 group cursor-default justify-center">
+                                        <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 transition-transform duration-300 overflow-hidden border border-white/5">
+                                            <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
+                                        </div>
+                                        <div className="flex flex-col text-left">
+                                            <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
+                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Direct Link</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-center mb-8">
+                                        <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
+                                        <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] leading-relaxed">
+                                            Enter the device access key and password to connect directly to a remote node.
+                                        </p>
+                                    </div>
+
+                                    {viewerStep === 1 ? (
+                                        <div className="space-y-4">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Access Key</label>
+                                                <div className="relative group">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                        <Monitor size={16} />
+                                                    </div>
+                                                    <input
+                                                        autoFocus
+                                                        type="text"
+                                                        placeholder="000 000 000"
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-center focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                        value={sessionCode}
+                                                        onChange={e => setSessionCode(formatCode(e.target.value))}
+                                                        onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
+                                                        maxLength={11}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {viewerError && (
+                                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
+                                                </div>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={handleFindDevice}
+                                                disabled={viewerStatus === 'connecting' || !sessionCode}
+                                                className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                                            >
+                                                {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                                                FIND DEVICE
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                            <div className="flex items-center gap-3 p-4 bg-[#F8F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)] mb-2">
+                                                <div className="w-8 h-8 bg-[#1C1C1C] rounded-xl flex items-center justify-center flex-shrink-0">
+                                                    <Monitor size={14} className="text-white" />
+                                                </div>
+                                                <div className="flex-1 min-w-0 text-left">
+                                                    <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest">Target Device</p>
+                                                    <p className="text-sm font-bold text-[#1C1C1C] font-mono">{formatCode(sessionCode)}</p>
+                                                </div>
+                                                <div className="w-2.5 h-2.5 bg-[#71DD8C] rounded-full animate-pulse" />
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Password</label>
+                                                <div className="relative group">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                        <Lock size={16} />
+                                                    </div>
+                                                    <input
+                                                        autoFocus
+                                                        type={showManualPassword ? 'text' : 'password'}
+                                                        placeholder="••••••••"
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                        value={accessPassword}
+                                                        onChange={e => setAccessPassword(e.target.value)}
+                                                        onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowManualPassword(!showManualPassword)}
+                                                        className="absolute inset-y-0 right-4 flex items-center text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                                                    >
+                                                        {showManualPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {viewerError && (
+                                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
+                                                </div>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={handleConnectToHost}
+                                                disabled={viewerStatus === 'connecting' || !accessPassword}
+                                                className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+                                            >
+                                                {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
+                                                ESTABLISH LINK
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); }}
+                                                className="w-full text-xs font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
+                                            >
+                                                ← Change Device
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         ) : (currentView as any) === 'sessions' ? (
                             /* --- ACTIVE SESSIONS VIEW --- */
                             <div className="w-full pt-8 animate-in fade-in duration-700">
@@ -2921,12 +3205,17 @@ export default function App() {
                         ) : currentView === 'profile' ? (
                             /* --- PROFILE ALIASED TO SETTINGS --- */
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
-                                <SnowUserSettings 
+                                <SnowUserSettings
                                     serverIP={serverIP}
                                     isAutoHostEnabled={isAutoHostEnabled}
                                     setIsAutoHostEnabled={(val) => {
                                         setIsAutoHostEnabled(val);
                                         localStorage.setItem('is_auto_host_enabled', String(val));
+                                        if (val && hostStatus !== 'status') {
+                                            handleStartHosting();
+                                        } else if (!val && hostStatus === 'status') {
+                                            handleStopHosting();
+                                        }
                                     }}
                                     onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
                                     logout={storeLogout}
@@ -2972,12 +3261,17 @@ export default function App() {
                             /* --- UNIFIED SETTINGS VIEW --- */
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
                                 <div className="space-y-12 pb-20">
-                                    <SnowUserSettings 
+                                    <SnowUserSettings
                                         serverIP={serverIP}
                                         isAutoHostEnabled={isAutoHostEnabled}
                                         setIsAutoHostEnabled={(val) => {
                                             setIsAutoHostEnabled(val);
                                             localStorage.setItem('is_auto_host_enabled', String(val));
+                                            if (val && hostStatus !== 'status') {
+                                                handleStartHosting();
+                                            } else if (!val && hostStatus === 'status') {
+                                                handleStopHosting();
+                                            }
                                         }}
                                         onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
                                         logout={storeLogout}

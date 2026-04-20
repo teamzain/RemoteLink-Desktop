@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, Building2, Monitor, TrendingUp, ArrowUpRight, 
-  Calendar, Shield, Activity, Search, ChevronRight,
-  PieChart as PieIcon, CreditCard, DollarSign
+import {
+  Users, Building2, Monitor, TrendingUp, ArrowUpRight,
+  Activity, ChevronRight,
+  PieChart as PieIcon, DollarSign
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -40,6 +40,7 @@ export const SnowAnalytics: React.FC = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [revenue, setRevenue] = useState<RevenueData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
@@ -47,28 +48,72 @@ export const SnowAnalytics: React.FC = () => {
 
   const fetchStats = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const [analyticsRes, revenueRes] = await Promise.all([
+      const [analyticsRes, revenueRes] = await Promise.allSettled([
         api.get('/api/analytics/summary'),
         api.get('/api/billing/revenue')
       ]);
-      setData(analyticsRes.data);
-      setRevenue(revenueRes.data);
+
+      if (analyticsRes.status === 'fulfilled') {
+        const body = analyticsRes.value.data;
+        if (body && typeof body === 'object' && 'users' in body) {
+          setData(body);
+        } else {
+          const status = analyticsRes.value.status;
+          console.error('[Analytics] Unexpected response:', status, body);
+          setError(`Server returned status ${status} with unexpected body. Check server logs — Prisma may have failed.`);
+        }
+      } else {
+        const reason = (analyticsRes as PromiseRejectedResult).reason;
+        const msg = reason?.response?.data?.error || reason?.message || 'Failed to load analytics data.';
+        console.error('[Analytics] Request rejected:', reason?.response?.status, msg);
+        setError(`${reason?.response?.status ? `[${reason.response.status}] ` : ''}${msg}`);
+      }
+
+      setRevenue(
+        revenueRes.status === 'fulfilled'
+          ? revenueRes.value.data
+          : { totalRevenue: 0, availableBalance: 0, pendingBalance: 0, currency: 'usd', subscriptions: [] }
+      );
     } catch (err: any) {
+      setError('Unexpected error loading analytics.');
       console.error('Failed to fetch analytics:', err);
-      // If 403, we show a synchronization error which indicates the user needs to re-login
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading || !data || !revenue) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <div className="w-12 h-12 border-4 border-[rgba(28,28,28,0.05)] border-t-[#1C1C1C] rounded-full animate-spin mb-4" />
-        <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em]">
-          {loading ? 'Aggregating Platform Data...' : 'Synchronization Error. Retrying...'}
+        <p className="text-xs font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em]">
+          Aggregating Platform Data...
         </p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="w-16 h-16 bg-red-50 rounded-[24px] flex items-center justify-center">
+          <Activity size={28} className="text-red-400" />
+        </div>
+        <p className="text-sm font-bold text-[#1C1C1C]">Analytics Unavailable</p>
+        <p className="text-xs text-[rgba(28,28,28,0.4)] max-w-sm text-center leading-relaxed">
+          {error ?? 'No data returned from the analytics API.'}
+        </p>
+        <p className="text-[11px] text-[rgba(28,28,28,0.25)] max-w-sm text-center">
+          Endpoint: <span className="font-mono">/api/analytics/summary</span> — ensure the server is deployed and the PlatformSettings migration has run.
+        </p>
+        <button
+          onClick={fetchStats}
+          className="mt-2 px-6 py-2.5 bg-[#1C1C1C] text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -84,7 +129,7 @@ export const SnowAnalytics: React.FC = () => {
           { label: 'Registered Customers', value: data.users?.total, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Registered Devices', value: data.devices?.total, icon: Monitor, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Organizations', value: data.orgs?.total, icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50' },
-          { label: 'Total Revenue', value: `$${revenue.totalRevenue?.toFixed(2)}`, icon: DollarSign, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Total Revenue', value: `$${revenue?.totalRevenue?.toFixed(2) ?? '0.00'}`, icon: DollarSign, color: 'text-amber-600', bg: 'bg-amber-50' },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-6 rounded-[24px] border border-[rgba(28,28,28,0.06)] shadow-sm hover:shadow-md transition-all group">
             <div className="flex items-center justify-between mb-4">

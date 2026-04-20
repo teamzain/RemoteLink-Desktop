@@ -19,13 +19,14 @@ import {
   LifeBuoy,
   LogOut,
   Building2,
-  TrendingUp
+  TrendingUp,
+  Zap
 } from 'lucide-react';
 
 interface SnowSidebarProps {
-  currentView: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics';
+  currentView: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect';
   selectedDevice: any;
-  setCurrentView: (view: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics') => void;
+  setCurrentView: (view: 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect') => void;
   setSelectedDevice: (device: any) => void;
   handleLogout: () => void;
   user: any;
@@ -118,6 +119,17 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             </button>
 
             <button 
+              onClick={() => { setCurrentView('connect'); setSelectedDevice(null); }}
+              className={navItemClass(currentView === 'connect')}
+            >
+              <div className={indicatorClass(currentView === 'connect')} />
+              <div className="flex items-center gap-2.5">
+                <Zap size={16} className={currentView === 'connect' ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <span className={textClass(currentView === 'connect')}>Quick Connect</span>
+              </div>
+            </button>
+
+            <button 
               onClick={() => { setCurrentView('devices'); setSelectedDevice(null); }}
               className={navItemClass(isDevices)}
             >
@@ -153,7 +165,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
                 <div className={indicatorClass(isMembers)} />
                 <div className="flex items-center gap-2.5">
                   <Users size={16} className={isMembers ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
-                  <span className={textClass(isMembers)}>Team Management</span>
+                  <span className={textClass(isMembers)}>Members</span>
                 </div>
               </button>
             )}
@@ -201,16 +213,18 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
         <div className="flex flex-col gap-2">
           <span className="px-3 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.1em]">Account</span>
           <div className="flex flex-col gap-1">
-             <button 
-              onClick={() => { setCurrentView('billing'); setSelectedDevice(null); }}
-              className={navItemClass(isBilling)}
-            >
-              <div className={indicatorClass(isBilling)} />
-              <div className="flex items-center gap-2.5">
-                <CreditCard size={16} className={isBilling ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
-                <span className={textClass(isBilling)}>Subscriptions</span>
-              </div>
-            </button>
+            {userRole !== 'SUPER_ADMIN' && (
+              <button
+                onClick={() => { setCurrentView('billing'); setSelectedDevice(null); }}
+                className={navItemClass(isBilling)}
+              >
+                <div className={indicatorClass(isBilling)} />
+                <div className="flex items-center gap-2.5">
+                  <CreditCard size={16} className={isBilling ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                  <span className={textClass(isBilling)}>Subscriptions</span>
+                </div>
+              </button>
+            )}
 
             <button 
               onClick={() => { setCurrentView('support'); setSelectedDevice(null); }}

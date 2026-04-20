@@ -147,8 +147,16 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
   const savePref = (key: string, val: any) => {
     localStorage.setItem(key, String(val));
     if (key === 'stream_quality') setQuality(val);
-    if (key === 'reduced_motion') setReducedMotion(val);
+    if (key === 'reduced_motion') {
+      setReducedMotion(val);
+      document.documentElement.classList.toggle('reduce-motion', val);
+    }
   };
+
+  // Apply persisted reduced motion on mount
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduce-motion', reducedMotion);
+  }, []);
 
   const toggleNotify = async (key: string, val: boolean) => {
     if (key === 'session') setNotifySession(val);
@@ -187,7 +195,9 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
         <div>
           <h1 className="text-2xl font-extrabold text-[#1C1C1C] tracking-tight">{name || email}</h1>
           <p className="text-xs font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest mt-1 flex items-center gap-2">
-            <Shield size={12} className="text-blue-500" /> {user?.role?.replace('_', ' ')} · {user?.plan} Plan
+            <Shield size={12} className="text-blue-500" />
+            {user?.role?.replace('_', ' ')}
+            {user?.role !== 'SUPER_ADMIN' && ` · ${user?.plan} Plan`}
           </p>
         </div>
       </div>
