@@ -509,7 +509,7 @@
     "npm_version": "11.11.0",
     "prefix": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm",
     "userconfig": "C:\\Users\\Zain Ul Abidden\\.npmrc",
-    "user_agent": "npm/11.11.0 node/v24.14.1 win32 x64 workspaces/true"
+    "user_agent": "npm/11.11.0 node/v24.14.1 win32 x64 workspaces/false"
   },
   "target_defaults": {
     "include_dirs": [],
