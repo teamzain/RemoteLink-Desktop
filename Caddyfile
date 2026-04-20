@@ -47,6 +47,14 @@
             reverse_proxy auth-service:3001
         }
 
+        handle /api/analytics* {
+            reverse_proxy auth-service:3001
+        }
+
+        handle /api/admin* {
+            reverse_proxy auth-service:3001
+        }
+
         # Signaling Service (WebSocket)
         handle /api/signal* {
             reverse_proxy signaling-service:3002
