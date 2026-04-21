@@ -26,6 +26,39 @@ import {
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 
+export function playUISound(type: 'toggle' | 'connect' | 'disconnect' | 'error') {
+  if (localStorage.getItem('pref_sound_enabled') === 'false') return;
+  try {
+    const ctx = new AudioContext();
+    const g = ctx.createGain();
+    g.connect(ctx.destination);
+    const o = ctx.createOscillator();
+    o.connect(g);
+    const configs: Record<string, { freq: number[]; dur: number; wave: OscillatorType }> = {
+      toggle:     { freq: [880],        dur: 0.08, wave: 'sine' },
+      connect:    { freq: [523, 659],   dur: 0.12, wave: 'sine' },
+      disconnect: { freq: [440, 330],   dur: 0.14, wave: 'sine' },
+      error:      { freq: [220],        dur: 0.2,  wave: 'sawtooth' },
+    };
+    const c = configs[type];
+    o.type = c.wave;
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + c.dur * c.freq.length);
+    c.freq.forEach((f, i) => {
+      o.frequency.setValueAtTime(f, ctx.currentTime + i * c.dur);
+    });
+    o.start(ctx.currentTime);
+    o.stop(ctx.currentTime + c.dur * c.freq.length + 0.05);
+    o.onended = () => ctx.close();
+  } catch {}
+}
+
+export function fireNotification(title: string, body: string) {
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/icon.png', silent: true });
+  }
+}
+
 interface SnowUserSettingsProps {
   serverIP: string;
   isAutoHostEnabled: boolean;
@@ -68,10 +101,10 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
   const [quality, setQuality] = useState(localStorage.getItem('stream_quality') || 'auto');
   const [reducedMotion, setReducedMotion] = useState(localStorage.getItem('reduced_motion') === 'true');
 
-  // --- Notifications State ---
-  const [notifySession, setNotifySession] = useState(user?.notify_session_alert ?? true);
-  const [notifyDisconnect, setNotifyDisconnect] = useState(user?.notify_disconnect_alert ?? true);
-  const [soundEnabled, setSoundEnabled] = useState(user?.notify_sound_effects ?? true);
+  // --- Notifications State (localStorage-backed so App.tsx can read them) ---
+  const [notifySession, setNotifySession] = useState(() => localStorage.getItem('pref_notify_session') !== 'false');
+  const [notifyDisconnect, setNotifyDisconnect] = useState(() => localStorage.getItem('pref_notify_disconnect') !== 'false');
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('pref_sound_enabled') !== 'false');
 
   useEffect(() => {
     if (activeTab === 'security') fetchSessions();
@@ -159,15 +192,25 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
   }, []);
 
   const toggleNotify = async (key: string, val: boolean) => {
-    if (key === 'session') setNotifySession(val);
-    if (key === 'disconnect') setNotifyDisconnect(val);
-    if (key === 'sound') setSoundEnabled(val);
+    if (key === 'session') {
+      setNotifySession(val);
+      localStorage.setItem('pref_notify_session', String(val));
+      if (val && Notification.permission === 'default') Notification.requestPermission();
+    }
+    if (key === 'disconnect') {
+      setNotifyDisconnect(val);
+      localStorage.setItem('pref_notify_disconnect', String(val));
+      if (val && Notification.permission === 'default') Notification.requestPermission();
+    }
+    if (key === 'sound') {
+      setSoundEnabled(val);
+      localStorage.setItem('pref_sound_enabled', String(val));
+      if (val) playUISound('toggle');
+    }
     try {
       const apiKey = key === 'session' ? 'notify_session_alert' : key === 'disconnect' ? 'notify_disconnect_alert' : 'notify_sound_effects';
-      await api.patch('/api/auth/me', { [apiKey]: val });
-    } catch (e) {
-      // rollback omitted for brevity but recommended
-    }
+      await api.patch('/api/auth/me', { [apiKey]: val }).catch(() => {});
+    } catch {}
   };
 
   const Toggle = ({ checked, onChange }: { checked: boolean, onChange: (v: boolean) => void }) => (

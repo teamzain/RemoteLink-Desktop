@@ -12,7 +12,6 @@ import {
   Check,
   Smartphone as PhoneIcon,
   Trash2,
-  ExternalLink,
   Building2
 } from 'lucide-react';
 
@@ -243,19 +242,25 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Platform</th>
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Last Sync</th>
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Status</th>
-              <th className="w-10 px-3 py-3 text-center"></th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredDevices.map((device) => {
               const isSelected = selectedIds.includes(device.id);
+              const canConnect = device.is_online && user?.role !== 'VIEWER';
               return (
-                <tr 
-                  key={device.id} 
-                  className={`border-b border-[rgba(0,0,0,0.04)] hover:bg-[rgba(28,28,28,0.02)] transition-colors group ${!device.is_online ? 'bg-slate-50/50' : ''}`}
+                <tr
+                  key={device.id}
+                  onClick={() => {
+                    if (device.is_online) {
+                      handleDeviceClick(device);
+                    }
+                  }}
+                  className={`border-b border-[rgba(0,0,0,0.04)] transition-colors group cursor-pointer ${isSelected ? 'bg-blue-50/40' : device.is_online ? 'hover:bg-[rgba(28,28,28,0.02)]' : 'bg-slate-50/50 hover:bg-slate-50'}`}
                 >
-                  <td className="px-4 py-3">
-                    <div 
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <div
                       onClick={() => toggleSelect(device.id)}
                       className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${isSelected ? 'bg-[#1C1C1C] border-[#1C1C1C]' : 'bg-white border-[rgba(0,0,0,0.2)]'}`}
                     >
@@ -265,10 +270,10 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                   <td className="px-3 py-3 text-xs font-mono text-[#1C1C1C]">{formatID(device.access_key)}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-2">
-                       <div className="w-6 h-6 rounded-full bg-[rgba(28,28,28,0.04)] flex items-center justify-center p-1">
-                          {getOsIcon(device.device_type)}
-                       </div>
-                       <span className="text-xs font-medium text-[#1C1C1C] truncate max-w-[120px]">{device.device_name || 'Unnamed Host'}</span>
+                      <div className="w-6 h-6 rounded-full bg-[rgba(28,28,28,0.04)] flex items-center justify-center p-1">
+                        {getOsIcon(device.device_type)}
+                      </div>
+                      <span className="text-xs font-medium text-[#1C1C1C] truncate max-w-[120px]">{device.device_name || 'Unnamed Host'}</span>
                     </div>
                   </td>
                   {user?.role === 'SUPER_ADMIN' && (
@@ -286,34 +291,40 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     </td>
                   )}
                   <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.device_type || 'Windows/x64'}</td>
-                  <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.last_seen ? new Date(device.last_seen).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now'}</td>
+                  <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.last_seen ? new Date(device.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}</td>
                   <td className="px-3 py-3">
-                    <span className={device.is_online ? "badge-online" : "badge-offline"}>
+                    <span className={device.is_online ? 'badge-online' : 'badge-offline'}>
                       {device.is_online ? 'CONNECTABLE' : 'OFFLINE'}
                     </span>
                   </td>
-                  <td className="px-3 py-3 relative">
-                    <div className="flex items-center justify-center gap-1">
-                      {device.is_online && (
-                        <button 
+                  <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-2">
+                      {device.is_online ? (
+                        <button
                           onClick={() => {
-                            if (user?.role === 'VIEWER') {
+                            if (!canConnect) {
                               alert('Your role is View-Only. You do not have permission to connect to devices.');
                               return;
                             }
                             handleDeviceClick(device);
                           }}
-                          className={`p-1 transition-colors ${user?.role === 'VIEWER' ? 'text-[rgba(28,28,28,0.1)] cursor-not-allowed' : 'text-[rgba(28,28,28,0.2)] hover:text-blue-500'}`}
-                          title={user?.role === 'VIEWER' ? "View-Only Access" : "Connect"}
+                          disabled={!canConnect}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
+                            canConnect
+                              ? 'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-95 shadow-sm shadow-emerald-500/20'
+                              : 'bg-[rgba(28,28,28,0.06)] text-[rgba(28,28,28,0.25)] cursor-not-allowed'
+                          }`}
                         >
-                          <ExternalLink size={14} />
+                          Connect
                         </button>
+                      ) : (
+                        <span className="text-[11px] text-[rgba(28,28,28,0.2)] font-medium px-3">—</span>
                       )}
-                      <button 
-                         onClick={() => setActionModal({ type: 'rename', device })}
-                         className="p-1 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                      <button
+                        onClick={() => setActionModal({ type: 'rename', device })}
+                        className="p-1.5 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
                       >
-                         <MoreHorizontal size={14} />
+                        <MoreHorizontal size={14} />
                       </button>
                     </div>
                   </td>

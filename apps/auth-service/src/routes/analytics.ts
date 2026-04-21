@@ -68,7 +68,7 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
           name: true,
           role: true,
           createdAt: true,
-          organization: { select: { name: true } }
+          organization: { select: { id: true, name: true } }
         }
       });
 

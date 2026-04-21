@@ -170,7 +170,7 @@ export const SnowAdminSettings: React.FC = () => {
             {settings.maintenanceMode && (
               <div className="mt-4">
                 <input
-                  value={settings.maintenanceMessage}
+                  value={settings.maintenanceMessage ?? ''}
                   onChange={e => setSettings({ ...settings, maintenanceMessage: e.target.value })}
                   onBlur={() => handleUpdate({ maintenanceMessage: settings.maintenanceMessage })}
                   className="w-full bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm font-medium text-red-600 outline-none placeholder:text-red-300"

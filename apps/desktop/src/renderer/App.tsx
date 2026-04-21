@@ -26,7 +26,9 @@ import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
 import { SnowAnalytics } from './components/SnowAnalytics';
+import { SnowOrgDetail } from './components/SnowOrgDetail';
 import UpdateBanner from './components/UpdateBanner';
+import { playUISound, fireNotification } from './components/SnowUserSettings';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -1082,8 +1084,13 @@ export default function App() {
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
-    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect'>('dashboard');
-    const [authMode, setAuthMode] = useState<'login' | 'signup' | 'connect'>('login');
+    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail'>('dashboard');
+    const [orgDetailId, setOrgDetailId] = useState<string | null>(null);
+    const [authMode, setAuthMode] = useState<'login' | 'signup' | 'connect' | 'forgot' | 'reset'>('login');
+    const [resetEmail, setResetEmail] = useState('');
+    const [resetCode, setResetCode] = useState('');
+    const [resetNewPassword, setResetNewPassword] = useState('');
+    const [resetMsg, setResetMsg] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [signupName, setSignupName] = useState('');
@@ -1360,6 +1367,9 @@ export default function App() {
 
     useEffect(() => {
         if (!isElectron) return;
+        // Request notification permission on first load
+        if (Notification.permission === 'default') Notification.requestPermission();
+
         const removeHostStatusListener = (window as any).electronAPI.onHostStatus((status: string) => {
             console.log(`[Renderer] Host Status: ${status}`);
             if (status.startsWith('Registered:')) {
@@ -1368,8 +1378,18 @@ export default function App() {
                 setHostStatus('status');
             } else if (status.startsWith('WebRTC:')) {
                 setHostStatus('status');
+                // Viewer just connected
+                if (localStorage.getItem('pref_notify_session') !== 'false') {
+                    fireNotification('Session Started', 'A viewer has connected to your device.');
+                }
+                playUISound('connect');
             } else if (status === 'error' || status === 'disconnected') {
                 setHostStatus('idle');
+                // Unexpected disconnect
+                if (localStorage.getItem('pref_notify_disconnect') !== 'false') {
+                    fireNotification('Session Ended', 'The remote session was disconnected.');
+                }
+                playUISound('disconnect');
             }
         });
         return () => removeHostStatusListener();
@@ -1847,6 +1867,10 @@ export default function App() {
                         if (isElectron) (window as any).electronAPI.log('[Renderer] WebRTC connection dropped or failed.');
                         setViewerStatus('connection_lost');
                         clearTimeout(connectionTimeout);
+                        if (localStorage.getItem('pref_notify_disconnect') !== 'false') {
+                            fireNotification('Connection Lost', 'Your remote session was unexpectedly disconnected.');
+                        }
+                        playUISound('disconnect');
                     } else if (pc.connectionState === 'closed') {
                         clearTimeout(connectionTimeout);
                     }
@@ -2422,7 +2446,7 @@ export default function App() {
                         </div>
 
                         {/* Auth Mode Tabs */}
-                        <div className="flex bg-[#F8F9FA] rounded-2xl p-1 mb-8 border border-[rgba(28,28,28,0.04)]">
+                        <div className={`flex bg-[#F8F9FA] rounded-2xl p-1 mb-8 border border-[rgba(28,28,28,0.04)] ${(authMode === 'forgot' || authMode === 'reset') ? 'hidden' : ''}`}>
                             {(['login', 'signup', 'connect'] as const).map(mode => (
                                 <button
                                     key={mode}
@@ -2556,6 +2580,7 @@ export default function App() {
                             </div>
                         ) : (
                         <>
+                        {(authMode === 'login' || authMode === 'signup') && <>
                         <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
                             {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
                         </h1>
@@ -2645,7 +2670,7 @@ export default function App() {
                                     <div className="space-y-1.5">
                                         <div className="flex items-center justify-between ml-1">
                                             <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
-                                            {authMode === 'login' && <button type="button" className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
+                                            {authMode === 'login' && <button type="button" onClick={() => { setResetEmail(email); setResetMsg(''); setAuthMode('forgot'); }} className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
                                         </div>
                                         <div className="relative group">
                                             <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
@@ -2680,6 +2705,104 @@ export default function App() {
                             </button>
 
                         </form>
+                        </>}
+
+                        {/* ── Forgot Password ── */}
+                        {authMode === 'forgot' && (
+                        <div className="animate-in fade-in duration-300">
+                            <button onClick={() => setAuthMode('login')} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
+                                <ChevronLeft size={14} /> Back to Sign In
+                            </button>
+                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Forgot Password</h2>
+                            <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Enter your email and we'll send a 6-character reset code.</p>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                setLoading(true);
+                                setResetMsg('');
+                                try {
+                                    await api.post('/api/auth/password/forgot', { email: resetEmail });
+                                    setAuthMode('reset');
+                                } catch (err: any) {
+                                    setResetMsg(err?.response?.data?.error || 'Something went wrong.');
+                                } finally { setLoading(false); }
+                            }} className="space-y-4">
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
+                                    <input
+                                        type="email" required
+                                        value={resetEmail}
+                                        onChange={e => setResetEmail(e.target.value)}
+                                        placeholder="name@company.com"
+                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                    />
+                                </div>
+                                {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
+                                <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
+                                    SEND RESET CODE
+                                </button>
+                                <button type="button" onClick={() => setAuthMode('reset')} className="w-full text-center text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
+                                    Already have a code?
+                                </button>
+                            </form>
+                        </div>
+                        )}
+
+                        {/* ── Reset Password ── */}
+                        {authMode === 'reset' && (
+                        <div className="animate-in fade-in duration-300">
+                            <button onClick={() => { setAuthMode('forgot'); setResetMsg(''); }} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
+                                <ChevronLeft size={14} /> Back
+                            </button>
+                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Enter Reset Code</h2>
+                            <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Check your email for the 6-character code, then set a new password.</p>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                setLoading(true);
+                                setResetMsg('');
+                                try {
+                                    await api.post('/api/auth/password/reset', { email: resetEmail, code: resetCode, newPassword: resetNewPassword });
+                                    setResetCode('');
+                                    setResetNewPassword('');
+                                    setResetMsg('');
+                                    setAuthMode('login');
+                                    setAuthError('Password reset! Please sign in.');
+                                } catch (err: any) {
+                                    setResetMsg(err?.response?.data?.error || 'Invalid or expired code.');
+                                } finally { setLoading(false); }
+                            }} className="space-y-4">
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
+                                    <input type="email" required value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="Your email" className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]" />
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><KeyRound size={16} /></div>
+                                    <input
+                                        type="text" required maxLength={6}
+                                        value={resetCode}
+                                        onChange={e => setResetCode(e.target.value.toUpperCase())}
+                                        placeholder="XXXXXX"
+                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-black tracking-[0.3em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)] placeholder:tracking-normal"
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Lock size={16} /></div>
+                                    <input
+                                        type="password" required minLength={8}
+                                        value={resetNewPassword}
+                                        onChange={e => setResetNewPassword(e.target.value)}
+                                        placeholder="New password (min 8 chars)"
+                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                    />
+                                </div>
+                                {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
+                                <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                                    RESET PASSWORD
+                                </button>
+                            </form>
+                        </div>
+                        )}
                         </>
                         )}
 
@@ -3255,7 +3378,20 @@ export default function App() {
                             </div>
                         ) : (currentView as string) === 'analytics' ? (
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700">
-                                <SnowAnalytics />
+                                <SnowAnalytics
+                                    onSelectOrg={(orgId) => {
+                                        setOrgDetailId(orgId);
+                                        setCurrentView('org-detail');
+                                    }}
+                                    onPayoutClick={() => setCurrentView('billing')}
+                                />
+                            </div>
+                        ) : (currentView as string) === 'org-detail' ? (
+                            <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
+                                <SnowOrgDetail
+                                    orgId={orgDetailId!}
+                                    onBack={() => setCurrentView('analytics')}
+                                />
                             </div>
                         ) : currentView === 'settings' ? (
                             /* --- UNIFIED SETTINGS VIEW --- */
