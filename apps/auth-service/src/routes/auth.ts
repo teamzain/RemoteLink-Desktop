@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 import { OAuth2Client } from 'google-auth-library';
-import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isTokenBlacklisted } from '@remotelink/shared';
+import { prisma, publishEvent, EventChannel, verifyToken, blacklistToken, isTokenBlacklisted, redisPublisher } from '@remotelink/shared';
 import { issueTokens } from '../utils/token-utils';
 import { TOTP, NobleCryptoPlugin, ScureBase32Plugin } from 'otplib';
 
@@ -145,6 +145,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
       });
 
+      // 3. Create a 5-minute TRIAL subscription for the new owner
+      const trialDurationMs = 5 * 60 * 1000;
+      await tx.subscription.create({
+        data: {
+          userId: user.id,
+          plan: 'TRIAL',
+          status: 'ACTIVE',
+          currentPeriodEnd: new Date(Date.now() + trialDurationMs)
+        }
+      });
+
       return { user, org };
     });
 
@@ -247,6 +258,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
         body: JSON.stringify({ userId: user.id, email: user.email })
       });
     } catch (err) { }
+
+    // Notify signaling for real-time team update
+    try {
+      await redisPublisher.publish(EventChannel.ORG_UPDATES, JSON.stringify({
+        type: 'member-onboarded',
+        organizationId: invitation.organizationId
+      }));
+    } catch (err) {
+      console.error('[Auth-Service] Failed to publish member-onboarded event:', err);
+    }
 
     return reply.send(await issueTokens(user));
   });
@@ -420,6 +441,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       email: user.email,
       name: user.name,
       plan: user.subscription?.plan || 'TRIAL',
+      status: user.subscription?.status || 'ACTIVE',
+      currentPeriodEnd: user.subscription?.currentPeriodEnd,
       role: user.role,
       organizationId: user.organizationId,
       allowedTags: user.allowedTags,
@@ -427,7 +450,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       is_2fa_enabled: (user as any).is2FAEnabled ?? false,
       notify_session_alert: (user as any).notifySessionAlert ?? true,
       notify_disconnect_alert: (user as any).notifyDisconnectAlert ?? true,
-      notify_sound_effects: (user as any).notifySoundEffects ?? true,
+      notify_sound_effects: (user as any).notifySoundEffects ?? true
     });
   });
 
@@ -550,23 +573,40 @@ export default async function authRoutes(fastify: FastifyInstance) {
           const orgId = user.organizationId;
 
           // Dissociate other users first (standard cleanup)
-          await tx.user.updateMany({
+          // 1. Delete all other members of this organization
+          const subordinates = await tx.user.findMany({
             where: { organizationId: orgId, NOT: { id: userId } },
-            data: { organizationId: null, role: 'USER' }
+            select: { id: true }
           });
+          const subordinateIds = subordinates.map((s: any) => s.id);
 
-          // Dissociate other devices
-          await tx.device.updateMany({
-            where: { organizationId: orgId, NOT: { ownerId: userId } },
-            data: { organizationId: null }
-          });
+          if (subordinateIds.length > 0) {
+            // Clean up subordinate data
+            const subDevices = await tx.device.findMany({ where: { ownerId: { in: subordinateIds } } });
+            const subDeviceIds = subDevices.map((d: any) => d.id);
 
-          // Delete org entities
+            await tx.trustedDevice.deleteMany({
+              where: { OR: [{ viewerUserId: { in: subordinateIds } }, { hostDeviceId: { in: subDeviceIds } }] }
+            });
+            await tx.savedDevice.deleteMany({
+              where: { OR: [{ userId: { in: subordinateIds } }, { deviceId: { in: subDeviceIds } }] }
+            });
+            await tx.session.deleteMany({
+              where: { OR: [{ viewerId: { in: subordinateIds } }, { hostId: { in: subDeviceIds } }] }
+            });
+            await tx.device.deleteMany({ where: { ownerId: { in: subordinateIds } } });
+            await tx.subscription.deleteMany({ where: { userId: { in: subordinateIds } } });
+            await tx.supportTicket.deleteMany({ where: { userId: { in: subordinateIds } } });
+            await tx.guideRequest.deleteMany({ where: { userId: { in: subordinateIds } } });
+
+            // Delete the subordinate users themselves
+            await tx.user.deleteMany({ where: { id: { in: subordinateIds } } });
+          }
+
+          // 2. Clean up org-level entities
           await tx.enrollmentToken.deleteMany({ where: { organizationId: orgId } });
           await tx.invitation.deleteMany({ where: { organizationId: orgId } });
           await tx.department.deleteMany({ where: { organizationId: orgId } });
-
-          // We will delete the Org record at the end of the user deletion to avoid FK issues
         }
 
         // 2. Clean up user-specific data

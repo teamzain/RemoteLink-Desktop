@@ -70,6 +70,16 @@ export const SnowMembers: React.FC = () => {
     }
   }, [user, isRestricted]);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('[SnowMembers] Real-time refresh triggered');
+      fetchTeamData();
+    };
+
+    window.addEventListener('team-refresh', handleRefresh);
+    return () => window.removeEventListener('team-refresh', handleRefresh);
+  }, []);
+
   const fetchOrgDevices = async () => {
     try {
       const { data } = await api.get('/api/devices/mine');

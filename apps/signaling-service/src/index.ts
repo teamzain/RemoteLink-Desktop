@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
-import { redisPublisher, redisSubscriber, verifyToken } from '@remotelink/shared';
+import { redisPublisher, redisSubscriber, verifyToken, EventChannel } from '@remotelink/shared';
 
 const PORT = parseInt(process.env.PORT || '3002', 10);
 
@@ -33,6 +33,8 @@ async function clearStalePresence() {
 
 // Map connectionId -> Set of accessKeys they are monitoring
 const presenceSubscriptions = new Map<string, Set<string>>();
+// Map connectionId -> organizationId they are monitoring
+const orgSubscriptions = new Map<string, string>();
 
 // Helper to broadcast status to all subscribers
 async function broadcastPresence(sessionId: string, status: 'online' | 'offline') {
@@ -53,7 +55,7 @@ async function broadcastPresence(sessionId: string, status: 'online' | 'offline'
 function broadcastGlobalStats() {
   const activeSessions = new Set(viewerRegistry.values()).size;
   const statsUpdate = JSON.stringify({ type: 'global-stats', activeSessions });
-  
+
   for (const ws of localClients.values()) {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(statsUpdate);
@@ -63,14 +65,14 @@ function broadcastGlobalStats() {
 
 async function startServer() {
   console.log('[Signaling] Starting services...');
-  
+
   // 1. Run Redis cleanup in background (don't block server start if Redis is slow/down)
   clearStalePresence().then(() => {
     console.log('[Signaling] Background cleanup finished.');
   }).catch(err => {
     console.warn('[Signaling] Background cleanup failed:', err);
   });
-  
+
   // 2. Start WebSocket Server
   const wss = new WebSocketServer({ port: PORT, host: '0.0.0.0' });
   console.log(`[Signaling] WebSocket server listening on ws://0.0.0.0:${PORT}`);
@@ -78,7 +80,7 @@ async function startServer() {
   wss.on('connection', (ws: WebSocket) => {
     const connectionId = uuidv4();
     localClients.set(connectionId, ws);
-    
+
     console.log(`[Signaling] Client connected: ${connectionId}`);
 
     ws.on('message', async (message) => {
@@ -87,31 +89,40 @@ async function startServer() {
 
         switch (data.type) {
           case 'subscribe-presence':
-            const keysToWatch = Array.isArray(data.accessKeys) 
-              ? data.accessKeys.map((k: any) => String(k).toLowerCase()) 
+            const keysToWatch = Array.isArray(data.accessKeys)
+              ? data.accessKeys.map((k: any) => String(k).toLowerCase())
               : [];
             presenceSubscriptions.set(connectionId, new Set(keysToWatch));
             console.log(`[Signaling] Client ${connectionId} subscribed to ${keysToWatch.length} keys.`);
             break;
 
+          case 'subscribe-org':
+            const orgId = data.organizationId;
+            if (orgId) {
+              orgSubscriptions.set(connectionId, orgId);
+              console.log(`[Signaling] Client ${connectionId} subscribed to org: ${orgId}`);
+              ws.send(JSON.stringify({ type: 'subscribed-org', organizationId: orgId }));
+            }
+            break;
+
           case 'register':
             let sessionId = data.accessKey;
             // Standardize and ensure case-insensitivity at the perimeter
-            if (sessionId) sessionId = String(sessionId).replace(/\s/g, '').toLowerCase(); 
-            
+            if (sessionId) sessionId = String(sessionId).replace(/\s/g, '').toLowerCase();
+
             if (!sessionId || sessionId.trim() === '') {
               sessionId = Math.floor(100000000 + Math.random() * 900000000).toString();
             }
-            
+
             sessionRegistry.set(sessionId, connectionId);
             reverseRegistry.set(connectionId, sessionId);
-            
+
             // Set presence with 90s TTL (1.5 minutes) for faster offline detection
             await redisPublisher.set(`presence:${sessionId}`, 'online', 'EX', 90);
-            
+
             console.log(`[Signaling] Registered Host session: ${sessionId}`);
             ws.send(JSON.stringify({ type: 'registered', sessionId, connectionId }));
-            
+
             // Broadcast "Online" to all subscribers
             broadcastPresence(sessionId, 'online');
             break;
@@ -124,7 +135,7 @@ async function startServer() {
               // console.log(`[Signaling] Pulse ACK: ${heartbeatSessionId}`);
             }
             break;
-          
+
           case 'pong':
             // Explicit response to server-side ping
             // console.log(`[Signaling] Pong from ${connectionId}`);
@@ -132,11 +143,11 @@ async function startServer() {
 
           case 'join':
             let targetSessionId = data.sessionId;
-            if (targetSessionId) targetSessionId = String(targetSessionId).replace(/\s/g, '').toLowerCase(); 
+            if (targetSessionId) targetSessionId = String(targetSessionId).replace(/\s/g, '').toLowerCase();
             const token = data.token;
 
             console.log(`[Signaling] Join attempt for session: ${targetSessionId}`);
-            
+
             if (!token) {
               return ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Authentication token required' }));
             }
@@ -150,7 +161,7 @@ async function startServer() {
             if (hostId) {
               viewerRegistry.set(connectionId, targetSessionId);
               ws.send(JSON.stringify({ type: 'joined', success: true }));
-              
+
               const hostWs = localClients.get(hostId);
               if (hostWs && hostWs.readyState === WebSocket.OPEN) {
                 hostWs.send(JSON.stringify({
@@ -170,9 +181,9 @@ async function startServer() {
             if (unregSessionId) {
               console.log(`[Signaling] Unregistering Session: ${unregSessionId}`);
               if (sessionRegistry.get(unregSessionId) === connectionId) {
-                 sessionRegistry.delete(unregSessionId);
-                 await redisPublisher.del(`presence:${unregSessionId}`);
-                 broadcastPresence(unregSessionId, 'offline');
+                sessionRegistry.delete(unregSessionId);
+                await redisPublisher.del(`presence:${unregSessionId}`);
+                broadcastPresence(unregSessionId, 'offline');
               }
               reverseRegistry.delete(connectionId);
             }
@@ -207,16 +218,17 @@ async function startServer() {
     ws.on('close', async () => {
       localClients.delete(connectionId);
       presenceSubscriptions.delete(connectionId);
+      orgSubscriptions.delete(connectionId);
       const sessionId = reverseRegistry.get(connectionId);
       if (sessionId) {
         if (sessionRegistry.get(sessionId) === connectionId) {
           sessionRegistry.delete(sessionId);
-          await redisPublisher.del(`presence:${sessionId}`).catch(() => {});
+          await redisPublisher.del(`presence:${sessionId}`).catch(() => { });
           broadcastPresence(sessionId, 'offline');
         }
         reverseRegistry.delete(connectionId);
       }
-      
+
       if (viewerRegistry.has(connectionId)) {
         const sessionId = viewerRegistry.get(connectionId);
         if (sessionId) {
@@ -253,19 +265,19 @@ async function startServer() {
     }, 15000); // 15s ping
 
     ws.on('message', async (msg) => {
-       try {
-         const data = JSON.parse(msg.toString());
-         if (data.type === 'pong' || data.type === 'heartbeat') {
-            pingsMissed = 0; // Reset on any active pulse
+      try {
+        const data = JSON.parse(msg.toString());
+        if (data.type === 'pong' || data.type === 'heartbeat') {
+          pingsMissed = 0; // Reset on any active pulse
 
-            // EXTEND PRESENCE TTL:
-            // If this is a host, refresh their 'Online' status in Redis (90s TTL)
-            const sessionId = reverseRegistry.get(connectionId);
-            if (sessionId && sessionRegistry.get(sessionId) === connectionId) {
-               await redisPublisher.set(`presence:${sessionId}`, 'online', 'EX', 90).catch(() => {});
-            }
-         }
-       } catch {}
+          // EXTEND PRESENCE TTL:
+          // If this is a host, refresh their 'Online' status in Redis (90s TTL)
+          const sessionId = reverseRegistry.get(connectionId);
+          if (sessionId && sessionRegistry.get(sessionId) === connectionId) {
+            await redisPublisher.set(`presence:${sessionId}`, 'online', 'EX', 90).catch(() => { });
+          }
+        }
+      } catch { }
     });
   });
 
@@ -286,6 +298,35 @@ async function startServer() {
 
   redisPublisher.on('error', (err) => console.error('[Signaling] Redis Publisher Error:', err));
   redisSubscriber.on('error', (err) => console.error('[Signaling] Redis Subscriber Error:', err));
+
+  // Listen for Organization Updates
+  redisSubscriber.subscribe(EventChannel.ORG_UPDATES, (err) => {
+    if (err) console.error('[Signaling] Failed to subscribe to ORG_UPDATES', err);
+  });
+
+  redisSubscriber.on('message', (channel, message) => {
+    if (channel === EventChannel.ORG_UPDATES) {
+      try {
+        const payload = JSON.parse(message);
+        const { organizationId, type } = payload;
+
+        console.log(`[Signaling] Received Org Update: ${type} for ${organizationId}`);
+
+        // Broadcast to all clients subscribed to this organization
+        const updateMsg = JSON.stringify({ type: 'team-update', payload });
+        for (const [connId, subOrgId] of orgSubscriptions.entries()) {
+          if (subOrgId === organizationId) {
+            const clientWs = localClients.get(connId);
+            if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(updateMsg);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[Signaling] Failed to process Org Update:', err);
+      }
+    }
+  });
 }
 
 startServer().catch(err => {

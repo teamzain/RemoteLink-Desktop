@@ -12,10 +12,30 @@ export enum Plan {
 export type LimitName = 'maxConcurrentSessions' | 'maxDevices' | 'sessionDurationMinutes' | 'fileTransfer' | 'sessionRecording' | 'teamMembers';
 
 export async function getPlanLimits(userId: string) {
-  const sub = await (prisma as any).subscription.findUnique({
+  // 1. Try to find user's personal subscription
+  let sub = await (prisma as any).subscription.findUnique({
     where: { userId },
     include: { user: true }
   });
+
+  // 2. If missing, and user is in an organization, fall back to the organization's SUB_ADMIN subscription
+  if (!sub) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true }
+    });
+
+    if (user?.organizationId) {
+      const owner = await prisma.user.findFirst({
+        where: { organizationId: user.organizationId, role: 'SUB_ADMIN' },
+        include: { subscription: true },
+        orderBy: { createdAt: 'asc' }
+      });
+      if (owner?.subscription) {
+        sub = owner.subscription as any;
+      }
+    }
+  }
 
   const currentPlan = sub?.plan || 'TRIAL';
 
@@ -23,7 +43,7 @@ export async function getPlanLimits(userId: string) {
     where: { plan: currentPlan as any }
   });
 
-  return { plan: currentPlan, limits };
+  return { plan: currentPlan, limits, sub };
 }
 
 export function checkPlanLimit(limitName: LimitName) {
@@ -38,32 +58,22 @@ export function checkPlanLimit(limitName: LimitName) {
       if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
       const userId = decoded.userId;
-      const { plan: currentPlan, limits } = await getPlanLimits(userId);
+      const { plan: currentPlan, limits, sub } = await getPlanLimits(userId);
 
       if (!limits) {
         return reply.code(500).send({ error: 'Plan limits not configured' });
       }
 
       // --- 1. Lifetime Trial Check for TRIAL users who haven't paid ---
-      const sub = await (prisma as any).subscription.findUnique({ where: { userId } });
       const isTrial = currentPlan === 'TRIAL';
 
       if (isTrial) {
-        // Calculate total duration of all sessions for this viewer
-        const sessions = await (prisma as any).session.findMany({
-          where: { viewerId: userId, endTime: { not: null } }
-        });
-
-        const totalMinutes = sessions.reduce((acc: number, sess: any) => {
-          const duration = (sess.endTime.getTime() - sess.startTime.getTime()) / 1000 / 60;
-          return acc + duration;
-        }, 0);
-
-        if (totalMinutes >= 10) {
+        // Enforce 5-minute trial from Subscription.currentPeriodEnd
+        if (sub && sub.currentPeriodEnd && new Date() > sub.currentPeriodEnd) {
           return reply.code(403).send({
-            error: 'Trial Expired: You has used your 10-minute testing period. Please purchase a plan to continue using RemoteLink.',
+            error: 'Trial Expired: Your 5-minute testing period has ended. Please purchase a plan to continue using RemoteLink.',
             trialExpired: true,
-            totalMinutes
+            currentPeriodEnd: sub.currentPeriodEnd
           });
         }
       }

@@ -96,7 +96,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         const watchdog = setInterval(() => {
             const vw = videoRef.current?.videoWidth || 0;
             const vh = videoRef.current?.videoHeight || 0;
-            
+
             if ((vw === 0 || vh === 0) && controlChannelRef?.current?.readyState === 'open') {
                 console.warn('[Watchdog] Black screen detected (0x0). Requesting recovery keyframe from host...');
                 try {
@@ -119,7 +119,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         if (videoRef.current && remoteStream) {
             videoRef.current.srcObject = remoteStream;
             // Force a play attempt to wake the decoder
-            videoRef.current.play().catch(() => {});
+            videoRef.current.play().catch(() => { });
         }
     }, [remoteStream]);
 
@@ -440,11 +440,11 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     // Assign stream to video element whenever it changes
     useEffect(() => {
         if (!videoRef.current || !remoteStream) return;
-        
+
         console.log('[VideoPlayer] Stream received. Initializing decoder...');
         const video = videoRef.current;
         video.srcObject = remoteStream;
-        
+
         const tryPlay = async () => {
             try {
                 await video.play();
@@ -560,7 +560,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             }
 
             let x: number, y: number;
-            
+
             // Standard proportional containment math
             const containerWidth = rect.width;
             const containerHeight = rect.height;
@@ -621,7 +621,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 const now = Date.now();
                 if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
                 lastMouseMoveRef.current = now;
-                
+
                 // Early exit for Mobile specifically
                 if (e.buttons === 0 && (!deviceType || deviceType.toLowerCase() === 'mobile' || deviceType.toLowerCase() === 'android' || deviceType.toLowerCase() === 'ios')) {
                     return;
@@ -678,10 +678,10 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         {...videoProps}
                     />
                 </div>
-                
+
                 {/* Auto-play recovery overlay */}
                 {isAutoPlayBlocked && (
-                    <div 
+                    <div
                         className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm cursor-pointer"
                         onClick={() => {
                             videoRef.current?.play().then(() => setIsAutoPlayBlocked(false)).catch(console.error);
@@ -725,10 +725,10 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 {/* Remote Cursor Overlay */}
                 {remoteCursor && remoteCursor.visible && (
-                    <div 
+                    <div
                         className="absolute pointer-events-none z-50 transition-all duration-75"
-                        style={{ 
-                            left: `${remoteCursor.x * 100}%`, 
+                        style={{
+                            left: `${remoteCursor.x * 100}%`,
                             top: `${remoteCursor.y * 100}%`,
                             transform: 'translate(-3px, -3px)'
                         }}
@@ -739,14 +739,14 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 {/* Stream Diagnostics HUD */}
                 <div className="absolute top-4 right-4 z-[110] flex flex-col gap-2">
-                     <button 
+                    <button
                         onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
                         className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
-                     >
+                    >
                         <Info size={14} />
-                     </button>
+                    </button>
 
-                     {showDiagnostics && (
+                    {showDiagnostics && (
                         <div className="p-4 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center">
@@ -771,7 +771,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                                 </div>
                             </div>
                         </div>
-                     )}
+                    )}
                 </div>
             </div>
         ) : (
@@ -1443,11 +1443,15 @@ export default function App() {
                 console.log('[Monitor] Presence WebSocket connected.');
                 retryCount = 0; // Reset on success
                 pollDevices(); // Immediate sync on connect
-                
-                // Re-subscribe if we have devices loaded
+
                 if (devices.length > 0) {
                     const keys = devices.map((d: any) => String(d.access_key || '').toLowerCase().replace(/\s/g, ''));
                     monitor?.send(JSON.stringify({ type: 'subscribe-presence', accessKeys: keys }));
+                }
+
+                // Subscribe to Org Updates for real-time team management
+                if (user?.organizationId) {
+                    monitor?.send(JSON.stringify({ type: 'subscribe-org', organizationId: user.organizationId }));
                 }
             };
 
@@ -1468,6 +1472,10 @@ export default function App() {
                         });
                     } else if (data.type === 'global-stats') {
                         setActiveSessionCount(data.activeSessions || 0);
+                    } else if (data.type === 'team-update') {
+                        console.log('[Monitor] Real-time team update received:', data.payload);
+                        // Dispatch a custom event to notify SnowMembers or other components
+                        window.dispatchEvent(new CustomEvent('team-refresh'));
                     }
                 } catch (err) {
                     console.error('[Monitor] Message parse error:', err);
@@ -1639,8 +1647,8 @@ export default function App() {
 
     const [deviceId, setDeviceId] = useState('');
     const [viewerStep, setViewerStep] = useState<1 | 2>(1);
-    const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number, cpu: string, memory: string }>({ 
-        bandwidth: '0.00', 
+    const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number, cpu: string, memory: string }>({
+        bandwidth: '0.00',
         activeUsers: 0,
         cpu: '0.0',
         memory: '0.0'
@@ -1742,7 +1750,7 @@ export default function App() {
             const machineName = (isElectron && (window as any).electronAPI.getMachineName)
                 ? await (window as any).electronAPI.getMachineName()
                 : 'RemoteLink Web User';
-            
+
             let localKey = isElectron ? await (window as any).electronAPI.getDeterministicKey() : null;
 
             const { data: newDevice } = await api.post('/api/devices/register', {
@@ -1754,7 +1762,7 @@ export default function App() {
             setHostAccessKey(newDevice.access_key);
             setHostSessionId(newDevice.access_key);
             setIsLocalHostRegistered(true);
-            
+
             addNotification('Device initialized successfully.', 'system');
             pollDevices();
         } catch (e: any) {
@@ -2375,7 +2383,7 @@ export default function App() {
             return (
                 <div className="h-screen w-full flex items-center justify-center bg-white font-inter select-none">
                     <div className="w-full max-w-sm p-8 animate-in fade-in zoom-in-95 duration-500">
-                         <div className="flex items-center gap-3 mb-10 group cursor-default">
+                        <div className="flex items-center gap-3 mb-10 group cursor-default">
                             <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 transition-transform duration-300 overflow-hidden border border-white/5">
                                 <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
                             </div>
@@ -2579,231 +2587,231 @@ export default function App() {
                                 )}
                             </div>
                         ) : (
-                        <>
-                        {(authMode === 'login' || authMode === 'signup') && <>
-                        <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
-                            {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
-                        </h1>
-                        <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
-                            {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the Connect-X mesh.'}
-                        </p>
-
-                        {/* Google Button */}
-                        <button
-                            type="button"
-                            onClick={handleGoogleLogin}
-                            className="w-full flex items-center justify-center gap-3 bg-white border border-[rgba(28,28,28,0.08)] text-[#1C1C1C] hover:bg-[#F8F9FA] hover:border-[rgba(28,28,28,0.2)] transition-all py-3.5 rounded-2xl text-sm font-semibold group shadow-sm active:scale-[0.99] mb-6"
-                        >
-                            <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                            </svg>
-                            {authMode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
-                        </button>
-
-                        <div className="relative flex items-center justify-center mb-6">
-                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.06)]" /></div>
-                            <span className="relative z-10 bg-white px-4 text-[10px] text-[rgba(28,28,28,0.2)] uppercase tracking-widest font-bold">or with email</span>
-                        </div>
-
-                        <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-                            {authMode === 'signup' && isAwaitingVerification ? (
-                                <div className="space-y-1.5 animate-in fade-in">
-                                    <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Verification Code</label>
-                                    <div className="relative group">
-                                        <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                            <ShieldCheck size={16} />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            required
-                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                            value={verificationCode}
-                                            placeholder="123456"
-                                            onChange={(e) => setVerificationCode(e.target.value)}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] text-center text-[rgba(28,28,28,0.4)] mt-2">
-                                        Code sent to <strong className="text-[#1C1C1C]">{email}</strong>
+                            <>
+                                {(authMode === 'login' || authMode === 'signup') && <>
+                                    <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
+                                        {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
+                                    </h1>
+                                    <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+                                        {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the Connect-X mesh.'}
                                     </p>
-                                </div>
-                            ) : (
-                                <>
-                                    {authMode === 'signup' && (
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Display Name</label>
-                                            <div className="relative group">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                    <User size={16} />
+
+                                    {/* Google Button */}
+                                    <button
+                                        type="button"
+                                        onClick={handleGoogleLogin}
+                                        className="w-full flex items-center justify-center gap-3 bg-white border border-[rgba(28,28,28,0.08)] text-[#1C1C1C] hover:bg-[#F8F9FA] hover:border-[rgba(28,28,28,0.2)] transition-all py-3.5 rounded-2xl text-sm font-semibold group shadow-sm active:scale-[0.99] mb-6"
+                                    >
+                                        <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                                        </svg>
+                                        {authMode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+                                    </button>
+
+                                    <div className="relative flex items-center justify-center mb-6">
+                                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.06)]" /></div>
+                                        <span className="relative z-10 bg-white px-4 text-[10px] text-[rgba(28,28,28,0.2)] uppercase tracking-widest font-bold">or with email</span>
+                                    </div>
+
+                                    <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
+                                        {authMode === 'signup' && isAwaitingVerification ? (
+                                            <div className="space-y-1.5 animate-in fade-in">
+                                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Verification Code</label>
+                                                <div className="relative group">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                        <ShieldCheck size={16} />
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                        value={verificationCode}
+                                                        placeholder="123456"
+                                                        onChange={(e) => setVerificationCode(e.target.value)}
+                                                    />
                                                 </div>
+                                                <p className="text-[10px] text-center text-[rgba(28,28,28,0.4)] mt-2">
+                                                    Code sent to <strong className="text-[#1C1C1C]">{email}</strong>
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {authMode === 'signup' && (
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Display Name</label>
+                                                        <div className="relative group">
+                                                            <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                                <User size={16} />
+                                                            </div>
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                                value={signupName}
+                                                                placeholder="Your name"
+                                                                onChange={(e) => setSignupName(e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Email Address</label>
+                                                    <div className="relative group">
+                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                            <Mail size={16} />
+                                                        </div>
+                                                        <input
+                                                            type="email"
+                                                            required
+                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                            value={email}
+                                                            placeholder="name@company.com"
+                                                            onChange={(e) => setEmail(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1.5">
+                                                    <div className="flex items-center justify-between ml-1">
+                                                        <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
+                                                        {authMode === 'login' && <button type="button" onClick={() => { setResetEmail(email); setResetMsg(''); setAuthMode('forgot'); }} className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
+                                                    </div>
+                                                    <div className="relative group">
+                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                            <Lock size={16} />
+                                                        </div>
+                                                        <input
+                                                            type={showLoginPassword ? "text" : "password"}
+                                                            required
+                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                            value={password}
+                                                            placeholder="••••••••"
+                                                            onChange={(e) => setPassword(e.target.value)}
+                                                        />
+                                                        <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
+                                                            {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {authError && (
+                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
+                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
+                                                <p className="text-xs font-semibold text-red-600 leading-relaxed">{authError}</p>
+                                            </div>
+                                        )}
+
+                                        <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
+                                            {loading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                                            {authMode === 'login' ? 'SIGN IN' : isAwaitingVerification ? 'VERIFY TO PROCEED' : 'CREATE ACCOUNT'}
+                                        </button>
+
+                                    </form>
+                                </>}
+
+                                {/* ── Forgot Password ── */}
+                                {authMode === 'forgot' && (
+                                    <div className="animate-in fade-in duration-300">
+                                        <button onClick={() => setAuthMode('login')} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
+                                            <ChevronLeft size={14} /> Back to Sign In
+                                        </button>
+                                        <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Forgot Password</h2>
+                                        <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Enter your email and we'll send a 6-character reset code.</p>
+                                        <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            setLoading(true);
+                                            setResetMsg('');
+                                            try {
+                                                await api.post('/api/auth/password/forgot', { email: resetEmail });
+                                                setAuthMode('reset');
+                                            } catch (err: any) {
+                                                setResetMsg(err?.response?.data?.error || 'Something went wrong.');
+                                            } finally { setLoading(false); }
+                                        }} className="space-y-4">
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
                                                 <input
-                                                    type="text"
-                                                    required
+                                                    type="email" required
+                                                    value={resetEmail}
+                                                    onChange={e => setResetEmail(e.target.value)}
+                                                    placeholder="name@company.com"
                                                     className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                                    value={signupName}
-                                                    placeholder="Your name"
-                                                    onChange={(e) => setSignupName(e.target.value)}
                                                 />
                                             </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-1.5">
-                                        <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Email Address</label>
-                                        <div className="relative group">
-                                            <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                <Mail size={16} />
-                                            </div>
-                                            <input
-                                                type="email"
-                                                required
-                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                                value={email}
-                                                placeholder="name@company.com"
-                                                onChange={(e) => setEmail(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between ml-1">
-                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
-                                            {authMode === 'login' && <button type="button" onClick={() => { setResetEmail(email); setResetMsg(''); setAuthMode('forgot'); }} className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
-                                        </div>
-                                        <div className="relative group">
-                                            <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                <Lock size={16} />
-                                            </div>
-                                            <input
-                                                type={showLoginPassword ? "text" : "password"}
-                                                required
-                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                                value={password}
-                                                placeholder="••••••••"
-                                                onChange={(e) => setPassword(e.target.value)}
-                                            />
-                                            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
-                                                {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
+                                            <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                                {loading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
+                                                SEND RESET CODE
                                             </button>
-                                        </div>
+                                            <button type="button" onClick={() => setAuthMode('reset')} className="w-full text-center text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
+                                                Already have a code?
+                                            </button>
+                                        </form>
                                     </div>
-                                </>
-                            )}
+                                )}
 
-                            {authError && (
-                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
-                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{authError}</p>
-                                </div>
-                            )}
-
-                            <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
-                                {loading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                                {authMode === 'login' ? 'SIGN IN' : isAwaitingVerification ? 'VERIFY TO PROCEED' : 'CREATE ACCOUNT'}
-                            </button>
-
-                        </form>
-                        </>}
-
-                        {/* ── Forgot Password ── */}
-                        {authMode === 'forgot' && (
-                        <div className="animate-in fade-in duration-300">
-                            <button onClick={() => setAuthMode('login')} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
-                                <ChevronLeft size={14} /> Back to Sign In
-                            </button>
-                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Forgot Password</h2>
-                            <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Enter your email and we'll send a 6-character reset code.</p>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                setLoading(true);
-                                setResetMsg('');
-                                try {
-                                    await api.post('/api/auth/password/forgot', { email: resetEmail });
-                                    setAuthMode('reset');
-                                } catch (err: any) {
-                                    setResetMsg(err?.response?.data?.error || 'Something went wrong.');
-                                } finally { setLoading(false); }
-                            }} className="space-y-4">
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
-                                    <input
-                                        type="email" required
-                                        value={resetEmail}
-                                        onChange={e => setResetEmail(e.target.value)}
-                                        placeholder="name@company.com"
-                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                    />
-                                </div>
-                                {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
-                                <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
-                                    SEND RESET CODE
-                                </button>
-                                <button type="button" onClick={() => setAuthMode('reset')} className="w-full text-center text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
-                                    Already have a code?
-                                </button>
-                            </form>
-                        </div>
-                        )}
-
-                        {/* ── Reset Password ── */}
-                        {authMode === 'reset' && (
-                        <div className="animate-in fade-in duration-300">
-                            <button onClick={() => { setAuthMode('forgot'); setResetMsg(''); }} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
-                                <ChevronLeft size={14} /> Back
-                            </button>
-                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Enter Reset Code</h2>
-                            <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Check your email for the 6-character code, then set a new password.</p>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                setLoading(true);
-                                setResetMsg('');
-                                try {
-                                    await api.post('/api/auth/password/reset', { email: resetEmail, code: resetCode, newPassword: resetNewPassword });
-                                    setResetCode('');
-                                    setResetNewPassword('');
-                                    setResetMsg('');
-                                    setAuthMode('login');
-                                    setAuthError('Password reset! Please sign in.');
-                                } catch (err: any) {
-                                    setResetMsg(err?.response?.data?.error || 'Invalid or expired code.');
-                                } finally { setLoading(false); }
-                            }} className="space-y-4">
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
-                                    <input type="email" required value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="Your email" className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]" />
-                                </div>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><KeyRound size={16} /></div>
-                                    <input
-                                        type="text" required maxLength={6}
-                                        value={resetCode}
-                                        onChange={e => setResetCode(e.target.value.toUpperCase())}
-                                        placeholder="XXXXXX"
-                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-black tracking-[0.3em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)] placeholder:tracking-normal"
-                                    />
-                                </div>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Lock size={16} /></div>
-                                    <input
-                                        type="password" required minLength={8}
-                                        value={resetNewPassword}
-                                        onChange={e => setResetNewPassword(e.target.value)}
-                                        placeholder="New password (min 8 chars)"
-                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
-                                    />
-                                </div>
-                                {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
-                                <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                    {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                                    RESET PASSWORD
-                                </button>
-                            </form>
-                        </div>
-                        )}
-                        </>
+                                {/* ── Reset Password ── */}
+                                {authMode === 'reset' && (
+                                    <div className="animate-in fade-in duration-300">
+                                        <button onClick={() => { setAuthMode('forgot'); setResetMsg(''); }} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
+                                            <ChevronLeft size={14} /> Back
+                                        </button>
+                                        <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Enter Reset Code</h2>
+                                        <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Check your email for the 6-character code, then set a new password.</p>
+                                        <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            setLoading(true);
+                                            setResetMsg('');
+                                            try {
+                                                await api.post('/api/auth/password/reset', { email: resetEmail, code: resetCode, newPassword: resetNewPassword });
+                                                setResetCode('');
+                                                setResetNewPassword('');
+                                                setResetMsg('');
+                                                setAuthMode('login');
+                                                setAuthError('Password reset! Please sign in.');
+                                            } catch (err: any) {
+                                                setResetMsg(err?.response?.data?.error || 'Invalid or expired code.');
+                                            } finally { setLoading(false); }
+                                        }} className="space-y-4">
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
+                                                <input type="email" required value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="Your email" className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]" />
+                                            </div>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><KeyRound size={16} /></div>
+                                                <input
+                                                    type="text" required maxLength={6}
+                                                    value={resetCode}
+                                                    onChange={e => setResetCode(e.target.value.toUpperCase())}
+                                                    placeholder="XXXXXX"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-black tracking-[0.3em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)] placeholder:tracking-normal"
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Lock size={16} /></div>
+                                                <input
+                                                    type="password" required minLength={8}
+                                                    value={resetNewPassword}
+                                                    onChange={e => setResetNewPassword(e.target.value)}
+                                                    placeholder="New password (min 8 chars)"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                />
+                                            </div>
+                                            {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
+                                            <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                                {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                                                RESET PASSWORD
+                                            </button>
+                                        </form>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                     </div>
@@ -2829,36 +2837,36 @@ export default function App() {
                                 @keyframes floatLaptop { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-6px)} }
                                 @keyframes dotStream { 0%{opacity:.2} 50%{opacity:1} 100%{opacity:.2} }
                             `}</style>
-                            <div style={{animation:'floatLaptop 3s ease-in-out infinite'}}>
+                            <div style={{ animation: 'floatLaptop 3s ease-in-out infinite' }}>
                                 {/* Laptop screen */}
                                 <svg width="220" height="160" viewBox="0 0 220 160" fill="none">
                                     {/* Screen body */}
-                                    <rect x="20" y="4" width="180" height="118" rx="10" fill="#0F0F0F" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5"/>
+                                    <rect x="20" y="4" width="180" height="118" rx="10" fill="#0F0F0F" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
                                     {/* Screen bezel inner */}
-                                    <rect x="28" y="12" width="164" height="102" rx="6" fill="#111827"/>
+                                    <rect x="28" y="12" width="164" height="102" rx="6" fill="#111827" />
                                     {/* Simulated content lines */}
-                                    <rect x="38" y="24" width="60" height="5" rx="2.5" fill="rgba(255,255,255,0.15)"/>
-                                    <rect x="38" y="34" width="100" height="4" rx="2" fill="rgba(255,255,255,0.07)"/>
-                                    <rect x="38" y="42" width="80" height="4" rx="2" fill="rgba(255,255,255,0.07)"/>
+                                    <rect x="38" y="24" width="60" height="5" rx="2.5" fill="rgba(255,255,255,0.15)" />
+                                    <rect x="38" y="34" width="100" height="4" rx="2" fill="rgba(255,255,255,0.07)" />
+                                    <rect x="38" y="42" width="80" height="4" rx="2" fill="rgba(255,255,255,0.07)" />
                                     {/* Scan line */}
-                                    <rect x="28" y="12" width="164" height="2" rx="1" fill="rgba(99,179,237,0.25)" style={{animation:'scanline 2.5s ease-in-out infinite'}}/>
+                                    <rect x="28" y="12" width="164" height="2" rx="1" fill="rgba(99,179,237,0.25)" style={{ animation: 'scanline 2.5s ease-in-out infinite' }} />
                                     {/* Remote cursor dot */}
-                                    <circle cx="130" cy="75" r="4" fill="#60A5FA" style={{animation:'cursorBlink 1.2s ease-in-out infinite'}}/>
-                                    <circle cx="130" cy="75" r="8" fill="none" stroke="#60A5FA" strokeWidth="1.5" style={{animation:'pulseRing 1.2s ease-out infinite'}}/>
+                                    <circle cx="130" cy="75" r="4" fill="#60A5FA" style={{ animation: 'cursorBlink 1.2s ease-in-out infinite' }} />
+                                    <circle cx="130" cy="75" r="8" fill="none" stroke="#60A5FA" strokeWidth="1.5" style={{ animation: 'pulseRing 1.2s ease-out infinite' }} />
                                     {/* Activity dots bottom */}
-                                    {[0,1,2,3].map(i=>(
-                                        <circle key={i} cx={38+i*12} cy={104} r="3" fill="#60A5FA" style={{animation:`dotStream 1.4s ease-in-out ${i*0.25}s infinite`}}/>
+                                    {[0, 1, 2, 3].map(i => (
+                                        <circle key={i} cx={38 + i * 12} cy={104} r="3" fill="#60A5FA" style={{ animation: `dotStream 1.4s ease-in-out ${i * 0.25}s infinite` }} />
                                     ))}
                                     {/* Camera dot */}
-                                    <circle cx="110" cy="9" r="2.5" fill="rgba(255,255,255,0.1)"/>
+                                    <circle cx="110" cy="9" r="2.5" fill="rgba(255,255,255,0.1)" />
                                     {/* Base */}
-                                    <path d="M0 130 L20 122 L200 122 L220 130 L220 133 Q110 140 0 133 Z" fill="#1a1a1a" stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+                                    <path d="M0 130 L20 122 L200 122 L220 130 L220 133 Q110 140 0 133 Z" fill="#1a1a1a" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
                                     {/* Keyboard hint */}
-                                    <rect x="70" y="124" width="80" height="4" rx="2" fill="rgba(255,255,255,0.04)"/>
+                                    <rect x="70" y="124" width="80" height="4" rx="2" fill="rgba(255,255,255,0.04)" />
                                 </svg>
                             </div>
                             {/* Base glow */}
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-4 bg-blue-500/20 blur-xl rounded-full"/>
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-4 bg-blue-500/20 blur-xl rounded-full" />
                         </div>
 
                         <h2 className="text-2xl font-extrabold text-white tracking-tight mb-1 text-center">This Machine</h2>
@@ -2992,32 +3000,32 @@ export default function App() {
                                     <span>/</span>
                                     <span className="text-[rgba(28,28,28,0.5)]">{
                                         selectedDevice ? 'Device Terminal' :
-                                        currentView === 'dashboard' ? 'Overview' :
-                                        currentView === 'host' ? 'Host Device' :
-                                        currentView === 'devices' ? 'All Devices' :
-                                        currentView === 'members' ? 'Team Management' :
-                                        currentView === 'organizations' ? 'Organizations' :
-                                        currentView === 'settings' ? 'Settings' :
-                                        currentView === 'billing' ? 'Subscriptions' :
-                                        currentView === 'profile' ? 'Profile' :
-                                        currentView === 'support' ? 'Support' :
-                                        currentView === 'documentation' ? 'Documentation' :
-                                        currentView === 'analytics' ? 'Platform Analytics' : currentView
+                                            currentView === 'dashboard' ? 'Overview' :
+                                                currentView === 'host' ? 'Host Device' :
+                                                    currentView === 'devices' ? 'All Devices' :
+                                                        currentView === 'members' ? 'Team Management' :
+                                                            currentView === 'organizations' ? 'Organizations' :
+                                                                currentView === 'settings' ? 'Settings' :
+                                                                    currentView === 'billing' ? 'Subscriptions' :
+                                                                        currentView === 'profile' ? 'Profile' :
+                                                                            currentView === 'support' ? 'Support' :
+                                                                                currentView === 'documentation' ? 'Documentation' :
+                                                                                    currentView === 'analytics' ? 'Platform Analytics' : currentView
                                     }</span>
                                 </div>
                                 <h1 className="text-base md:text-xl font-bold text-[#1C1C1C] tracking-tight truncate max-w-[140px] md:max-w-none">
                                     {selectedDevice ? selectedDevice.device_name :
-                                     currentView === 'dashboard' ? 'Overview' :
-                                     currentView === 'host' ? 'Host This Device' :
-                                     currentView === 'devices' ? 'All Devices' :
-                                     currentView === 'members' ? 'Team Management' :
-                                     currentView === 'organizations' ? 'Organizations' :
-                                     currentView === 'settings' ? 'Settings' :
-                                     currentView === 'billing' ? 'Subscriptions' :
-                                     currentView === 'profile' ? 'User Profile' :
-                                     currentView === 'support' ? 'Support Hub' :
-                                     currentView === 'documentation' ? 'Documentation' :
-                                     currentView === 'analytics' ? 'Platform Analytics' : currentView}
+                                        currentView === 'dashboard' ? 'Overview' :
+                                            currentView === 'host' ? 'Host This Device' :
+                                                currentView === 'devices' ? 'All Devices' :
+                                                    currentView === 'members' ? 'Team Management' :
+                                                        currentView === 'organizations' ? 'Organizations' :
+                                                            currentView === 'settings' ? 'Settings' :
+                                                                currentView === 'billing' ? 'Subscriptions' :
+                                                                    currentView === 'profile' ? 'User Profile' :
+                                                                        currentView === 'support' ? 'Support Hub' :
+                                                                            currentView === 'documentation' ? 'Documentation' :
+                                                                                currentView === 'analytics' ? 'Platform Analytics' : currentView}
                                 </h1>
                             </div>
                         </div>
@@ -3106,9 +3114,9 @@ export default function App() {
                         ) : currentView === 'dashboard' ? (
                             /* --- SNOW UI DASHBOARD VIEW --- */
                             <div className="w-full animate-in fade-in duration-700">
-                                <SnowDashboard 
-                                    devices={devices} 
-                                    activeSessionCount={activeSessionCount} 
+                                <SnowDashboard
+                                    devices={devices}
+                                    activeSessionCount={activeSessionCount}
                                     telemetryHistory={telemetryHistory}
                                     analytics={analyticsSummary}
                                     user={user}
@@ -3263,7 +3271,7 @@ export default function App() {
                                             <p className="text-sm text-[rgba(28,28,28,0.4)]">Real-time connections to your fleet</p>
                                         </div>
                                     </div>
-                                    
+
                                     {activeSessionCount === 0 ? (
                                         <div className="py-20 flex flex-col items-center justify-center text-center">
                                             <div className="w-20 h-20 bg-[#F8F9FA] rounded-[32px] flex items-center justify-center mb-6">
@@ -3370,7 +3378,7 @@ export default function App() {
                             </div>
                         ) : (currentView as string) === 'organizations' ? (
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700">
-                                <SnowOrgs 
+                                <SnowOrgs
                                     setCurrentView={setCurrentView}
                                     setSelectedDevice={setSelectedDevice}
                                     setSearchQuery={setSearchQuery}

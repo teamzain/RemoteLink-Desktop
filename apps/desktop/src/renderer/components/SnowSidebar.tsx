@@ -215,7 +215,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
         <div className="flex flex-col gap-2">
           <span className="px-3 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.1em]">Account</span>
           <div className="flex flex-col gap-1">
-            {userRole !== 'SUPER_ADMIN' && (
+            {userRole === 'SUB_ADMIN' && (
               <button
                 onClick={() => { setCurrentView('billing'); setSelectedDevice(null); }}
                 className={navItemClass(isBilling)}

@@ -11,6 +11,7 @@ export enum EventChannel {
   SESSION_ENDED = 'session:ended',
   USER_CREATED = 'user:created',
   DEVICE_REGISTERED = 'device:registered',
+  ORG_UPDATES = 'org:updates',
 }
 
 export interface PublishEvent {
