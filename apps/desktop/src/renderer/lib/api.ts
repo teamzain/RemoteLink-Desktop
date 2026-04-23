@@ -4,8 +4,11 @@ import axios from 'axios';
 const isElectron = !!(window as any).electronAPI;
 
 const getBaseURL = async () => {
+  // Use environment variable if available (e.g. from .env for local dev)
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+
   const serverIP = '159.65.84.190';
-  
   // Connect to production server at 159.65.84.190 for end-to-end testing
   return `http://${serverIP}`;
 };
@@ -15,7 +18,7 @@ const api = axios.create();
 // Update baseURL on each request in case it changed in localStorage
 api.interceptors.request.use(async (config) => {
   config.baseURL = await getBaseURL();
-  
+
   let token;
   if (isElectron) {
     const result = await (window as any).electronAPI.getToken();
@@ -82,10 +85,10 @@ api.interceptors.response.use(
       if (!refreshToken) {
         isRefreshing = false;
         if (isElectron) {
-           await (window as any).electronAPI.deleteToken();
+          await (window as any).electronAPI.deleteToken();
         } else {
-           localStorage.removeItem('access_token');
-           localStorage.removeItem('refresh_token');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
         }
         return Promise.reject(error);
       }
@@ -99,10 +102,10 @@ api.interceptors.response.use(
         const { accessToken, refreshToken: newRefreshToken } = data;
 
         if (isElectron) {
-            await (window as any).electronAPI.setToken(accessToken, newRefreshToken);
+          await (window as any).electronAPI.setToken(accessToken, newRefreshToken);
         } else {
-            localStorage.setItem('access_token', accessToken);
-            localStorage.setItem('refresh_token', newRefreshToken);
+          localStorage.setItem('access_token', accessToken);
+          localStorage.setItem('refresh_token', newRefreshToken);
         }
 
         processQueue(null, accessToken);
@@ -114,10 +117,10 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         isRefreshing = false;
         if (isElectron) {
-            await (window as any).electronAPI.deleteToken();
+          await (window as any).electronAPI.deleteToken();
         } else {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
         }
         return Promise.reject(refreshError);
       }

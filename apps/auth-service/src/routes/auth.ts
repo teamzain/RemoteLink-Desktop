@@ -579,6 +579,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             select: { id: true }
           });
           const subordinateIds = subordinates.map((s: any) => s.id);
+          console.log(`[Auth-Service] Cascading Delete: Found ${subordinateIds.length} subordinates for Org ${orgId}`);
 
           if (subordinateIds.length > 0) {
             // Clean up subordinate data
@@ -601,7 +602,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
             // Delete the subordinate users themselves
             await tx.user.deleteMany({ where: { id: { in: subordinateIds } } });
+            console.log(`[Auth-Service] Cascading Delete: ${subordinateIds.length} subordinate users removed.`);
           }
+
+          // 2. Clean up org-level entities
+          console.log(`[Auth-Service] Cascading Delete: Cleaning up Org entities for ${orgId}`);
 
           // 2. Clean up org-level entities
           await tx.enrollmentToken.deleteMany({ where: { organizationId: orgId } });
