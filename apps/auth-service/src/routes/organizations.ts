@@ -103,7 +103,7 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
 
     // Derive plan from the org owner (SUB_ADMIN) subscription
     const admin = org.users.find((u: any) => u.role === 'SUB_ADMIN');
-    const plan = (admin as any)?.subscription?.plan || 'FREE';
+    const plan = (admin as any)?.subscription?.plan || 'TRIAL';
 
     return reply.send({ ...org, plan });
   });

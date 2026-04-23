@@ -54,13 +54,13 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
     }
 
     const params = new URLSearchParams({
-      client_id:     clientId,
-      redirect_uri:  callbackUrl,
+      client_id: clientId,
+      redirect_uri: callbackUrl,
       response_type: 'code',
-      scope:         'openid email profile',
-      state:         platform || 'web',        // carry platform through OAuth round-trip
-      access_type:   'offline',
-      prompt:        'select_account',
+      scope: 'openid email profile',
+      state: platform || 'web',        // carry platform through OAuth round-trip
+      access_type: 'offline',
+      prompt: 'select_account',
     });
 
     return reply.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
@@ -74,10 +74,10 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: error || 'No authorization code received from Google' });
     }
 
-    const clientId     = process.env.GOOGLE_CLIENT_ID;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const callbackUrl  = process.env.GOOGLE_CALLBACK_URL || 'http://159.65.84.190/api/auth/oauth/google/callback';
-    const platform     = state || 'web';
+    const callbackUrl = process.env.GOOGLE_CALLBACK_URL || 'http://159.65.84.190/api/auth/oauth/google/callback';
+    const platform = state || 'web';
 
     if (!clientId || !clientSecret) {
       return reply.code(500).send({ error: 'Google OAuth credentials not configured' });
@@ -87,10 +87,10 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       // Exchange authorization code for Google tokens
       const tokenBody = new URLSearchParams({
         code,
-        client_id:     clientId,
+        client_id: clientId,
         client_secret: clientSecret,
-        redirect_uri:  callbackUrl,
-        grant_type:    'authorization_code',
+        redirect_uri: callbackUrl,
+        grant_type: 'authorization_code',
       }).toString();
 
       const googleTokens = await httpsPost('oauth2.googleapis.com', '/token', tokenBody, {});
@@ -136,9 +136,9 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
         // Create initial subscription
         try {
           await prisma.subscription.create({
-            data: { userId: user!.id, plan: 'FREE' },
+            data: { userId: user!.id, plan: 'TRIAL' },
           });
-        } catch {}
+        } catch { }
       } else {
         // If user already exists but doesn't have an Org (legacy fix), promote them
         if (!user.organizationId) {
@@ -153,7 +153,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
 
             return await tx.user.update({
               where: { id: user!.id },
-              data: { 
+              data: {
                 role: 'SUB_ADMIN',
                 organizationId: org.id
               }
@@ -163,7 +163,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
           // Normal name backfill
           user = await prisma.user.update({
             where: { id: user.id },
-            data:  { name: googleUser.name },
+            data: { name: googleUser.name },
           });
         }
       }
@@ -172,7 +172,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       if ((user as any).is2FAEnabled) {
         const { generateToken } = require('@remotelink/shared');
         const tempToken = generateToken({ userId: user!.id, type: '2fa-temp' }, '5m');
-        
+
         if (platform === 'desktop' || platform === 'mobile') {
           const deepLink = `remotelink://auth/2fa?tempToken=${tempToken}`;
           return reply.type('text/html').send(`
@@ -201,7 +201,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       // Redirect back to the client
       if (platform === 'desktop' || platform === 'mobile') {
         const deepLink = `remotelink://auth/callback?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`;
-        
+
         // Return a professional landing page instead of a raw redirect
         return reply.type('text/html').send(`
           <!DOCTYPE html>

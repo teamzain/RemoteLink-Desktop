@@ -419,7 +419,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       id: user.id,
       email: user.email,
       name: user.name,
-      plan: user.subscription?.plan || 'FREE',
+      plan: user.subscription?.plan || 'TRIAL',
       role: user.role,
       organizationId: user.organizationId,
       allowedTags: user.allowedTags,

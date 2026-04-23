@@ -13,7 +13,16 @@ async function main() {
 
   const plans = [
     {
-      plan: 'FREE', // SOLO
+      plan: 'TRIAL',
+      maxConcurrentSessions: 1,
+      maxDevices: 1,
+      sessionDurationMinutes: 10,
+      fileTransfer: false,
+      sessionRecording: false,
+      teamMembers: 0,
+    },
+    {
+      plan: 'SOLO',
       maxConcurrentSessions: 1,
       maxDevices: 1,
       sessionDurationMinutes: -1,

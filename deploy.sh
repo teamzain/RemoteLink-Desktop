@@ -55,6 +55,13 @@ echo "🏗️ Building and launching services..."
 # Use --pull always to ensure we have the latest base images
 docker compose -f docker-compose.prod.yml up -d --build --pull always --remove-orphans
 
+# 5b. Database Migrations & Seeding
+echo "🗄️ Running database migrations and seeding..."
+# We run this inside the auth-service container because it has the prisma environment setup
+docker compose -f docker-compose.prod.yml exec -T auth-service npx prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+docker compose -f docker-compose.prod.yml exec -T auth-service npm run seed -w @remotelink/shared
+echo "✅ Database schema and seeding updated."
+
 # 6. Desktop App Hosting Setup
 echo "📁 Setting up Desktop Download directories..."
 # Ensure the directory exists and has correct permissions for Caddy

@@ -2,7 +2,8 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma, verifyToken } from './index'; // assuming index exports these
 
 export enum Plan {
-  FREE = 'FREE',
+  TRIAL = 'TRIAL',
+  SOLO = 'SOLO',
   PRO = 'PRO',
   BUSINESS = 'BUSINESS',
   ENTERPRISE = 'ENTERPRISE'
@@ -16,7 +17,7 @@ export async function getPlanLimits(userId: string) {
     include: { user: true }
   });
 
-  const currentPlan = sub?.plan || 'FREE';
+  const currentPlan = sub?.plan || 'TRIAL';
 
   const limits = await (prisma as any).planLimit.findUnique({
     where: { plan: currentPlan as any }
@@ -43,11 +44,11 @@ export function checkPlanLimit(limitName: LimitName) {
         return reply.code(500).send({ error: 'Plan limits not configured' });
       }
 
-      // --- 1. Lifetime Trial Check for FREE (Solo) users who haven't paid ---
+      // --- 1. Lifetime Trial Check for TRIAL users who haven't paid ---
       const sub = await (prisma as any).subscription.findUnique({ where: { userId } });
-      const isPaid = sub?.stripeSubscriptionId || sub?.status === 'ACTIVE' && currentPlan !== 'FREE';
+      const isTrial = currentPlan === 'TRIAL';
 
-      if (currentPlan === 'FREE' && !isPaid) {
+      if (isTrial) {
         // Calculate total duration of all sessions for this viewer
         const sessions = await (prisma as any).session.findMany({
           where: { viewerId: userId, endTime: { not: null } }

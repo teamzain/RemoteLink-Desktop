@@ -52,9 +52,8 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
       }
 
       // 2. Call backend to subscribe
-      const billingUrl = import.meta.env.VITE_BILLING_URL || import.meta.env.VITE_API_URL;
-      const { data } = await api.post(`${billingUrl}/billing/subscribe`, {
-        plan: plan.toUpperCase(),
+      const { data } = await api.post(`/api/billing/subscribe`, {
+        plan, // Already uppercase ID from SnowBilling
         paymentMethodId: paymentMethod.id,
       });
 
@@ -66,7 +65,7 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
         }
       }
 
-      notify(`Successfully subscribed to ${plan} plan!`, 'success');
+      notify(`You have successfully upgraded to your new plan. Your new features are unlocked.`, 'success');
       onClose();
       // Refresh page to show updated status
       window.location.reload();
@@ -103,7 +102,7 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void 
         <Typography variant="h5" color="primary" sx={{ fontWeight: 900, mb: 3 }}>
           ${price}/month
         </Typography>
-        
+
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Secure payment processing by Stripe.
         </Typography>

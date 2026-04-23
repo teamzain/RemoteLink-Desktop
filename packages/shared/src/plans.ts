@@ -1,5 +1,6 @@
 export enum PlanId {
-    FREE = 'FREE',
+    TRIAL = 'TRIAL',
+    SOLO = 'SOLO',
     PRO = 'PRO',
     BUSINESS = 'BUSINESS',
     ENTERPRISE = 'ENTERPRISE',
@@ -19,7 +20,7 @@ export interface PlanMetadata {
 
 export const PLAN_CATALOG: PlanMetadata[] = [
     {
-        id: PlanId.FREE,
+        id: PlanId.SOLO,
         name: 'Solo',
         price: 2.46,
         priceLabel: '$2.46 / month',

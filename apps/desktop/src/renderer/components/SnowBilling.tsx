@@ -34,17 +34,17 @@ interface SnowBillingProps {
 }
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {
-  FREE:       <Package  size={20} />,
-  PRO:        <Zap      size={20} />,
-  BUSINESS:   <Star     size={20} />,
-  ENTERPRISE: <Crown    size={20} />,
+  FREE: <Package size={20} />,
+  PRO: <Zap size={20} />,
+  BUSINESS: <Star size={20} />,
+  ENTERPRISE: <Crown size={20} />,
 };
 
 const PLAN_ACCENT: Record<string, { color: string; bg: string; border: string }> = {
-  FREE:       { color: 'text-slate-600',  bg: 'bg-slate-50',   border: 'border-slate-200'  },
-  PRO:        { color: 'text-blue-600',   bg: 'bg-blue-50',    border: 'border-blue-200'   },
-  BUSINESS:   { color: 'text-purple-600', bg: 'bg-purple-50',  border: 'border-purple-200' },
-  ENTERPRISE: { color: 'text-amber-600',  bg: 'bg-amber-50',   border: 'border-amber-200'  },
+  FREE: { color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
+  PRO: { color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+  BUSINESS: { color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+  ENTERPRISE: { color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
 };
 
 export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
@@ -65,11 +65,11 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
         api.get('/api/billing/plans'),
         api.get('/api/billing/current'),
       ]);
-      
+
       // Handle both old array response and new object response
       const plansData = Array.isArray(plansRes.data) ? plansRes.data : (plansRes.data.plans || []);
       const pubKey = plansRes.data.publishableKey || subRes.data.publishableKey;
-      
+
       setPlans(plansData);
       setBillingInfo({ ...subRes.data, publishableKey: pubKey });
       console.log('[Billing Debug] Received info from server:', { ...subRes.data, publishableKey: pubKey });
@@ -82,24 +82,24 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
 
   const handlePlanAction = (plan: Plan) => {
     if (plan.id === billingInfo?.plan) return;
-    
+
     if (plan.id === 'FREE') {
-       // Optional: Call downgrade endpoint
-       return;
+      // Optional: Call downgrade endpoint
+      return;
     }
 
     if (plan.id === 'ENTERPRISE') {
-       window.location.href = 'mailto:sales@remotelink.com';
-       return;
+      window.location.href = 'mailto:sales@remotelink.com';
+      return;
     }
 
-    setSelectedPlan({ name: plan.name, price: String(plan.price) });
+    setSelectedPlan({ name: plan.id, price: String(plan.price) });
     setModalOpen(true);
   };
 
   const activePlan = billingInfo?.plan || 'FREE';
   const currentPlanData = Array.isArray(plans) ? plans.find(p => p.id === activePlan) : null;
-  const renewalDate = billingInfo?.currentPeriodEnd 
+  const renewalDate = billingInfo?.currentPeriodEnd
     ? new Date(billingInfo.currentPeriodEnd).toLocaleDateString()
     : 'N/A';
 
@@ -172,48 +172,48 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-         {/* Payment Method */}
-         <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 shadow-sm">
-           <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">Payment Method</h3>
-           <div className="p-4 bg-[rgba(28,28,28,0.02)] rounded-[18px] border border-[rgba(28,28,28,0.04)] flex items-center justify-between">
-             <div className="flex items-center gap-3">
-                <div className="w-10 h-6 bg-[#1C1C1C] rounded flex items-center justify-center text-white text-[8px] italic font-black">{billingInfo?.card_brand?.toUpperCase() || 'VISA'}</div>
-                <div className="flex flex-col">
-                   <span className="text-xs font-bold text-[#1C1C1C]">{billingInfo?.card_brand ? `${billingInfo.card_brand.charAt(0).toUpperCase() + billingInfo.card_brand.slice(1)} ending in ${billingInfo.card_last4}` : 'No card on file'}</span>
-                   <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">{billingInfo?.card_exp_month ? `Expires ${billingInfo.card_exp_month}/${billingInfo.card_exp_year}` : 'Add a payment method below'}</span>
-                </div>
-             </div>
-             {billingInfo?.card_brand && <CheckCircle2 size={16} className="text-emerald-500" />}
-           </div>
-         </div>
+        {/* Payment Method */}
+        <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 shadow-sm">
+          <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">Payment Method</h3>
+          <div className="p-4 bg-[rgba(28,28,28,0.02)] rounded-[18px] border border-[rgba(28,28,28,0.04)] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-6 bg-[#1C1C1C] rounded flex items-center justify-center text-white text-[8px] italic font-black">{billingInfo?.card_brand?.toUpperCase() || 'VISA'}</div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-[#1C1C1C]">{billingInfo?.card_brand ? `${billingInfo.card_brand.charAt(0).toUpperCase() + billingInfo.card_brand.slice(1)} ending in ${billingInfo.card_last4}` : 'No card on file'}</span>
+                <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">{billingInfo?.card_exp_month ? `Expires ${billingInfo.card_exp_month}/${billingInfo.card_exp_year}` : 'Add a payment method below'}</span>
+              </div>
+            </div>
+            {billingInfo?.card_brand && <CheckCircle2 size={16} className="text-emerald-500" />}
+          </div>
+        </div>
 
-         {/* Invoice History */}
-         <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 shadow-sm overflow-hidden">
-           <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">Recent Invoices</h3>
-           <div className="space-y-3">
-              {billingInfo?.invoices?.map((inv: any, idx: number) => (
-                <div key={inv.id || idx} className="flex items-center justify-between py-2 border-b border-[rgba(0,0,0,0.02)] last:border-0">
-                   <div className="flex flex-col">
-                      <span className="text-[11px] font-bold text-[#1C1C1C]">{inv.number}</span>
-                      <span className="text-[9px] text-[rgba(28,28,28,0.4)] font-medium">{new Date(inv.created * 1000).toLocaleDateString()}</span>
-                   </div>
-                   <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-bold text-[#1C1C1C]">${(inv.total / 100).toFixed(2)}</span>
-                      <button 
-                        onClick={() => handleDownloadInvoice(inv.invoice_pdf, `Invoice-${inv.number || inv.id}.pdf`)} 
-                        className="p-1.5 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
-                        title="Download Invoice"
-                      >
-                        <Download size={14} />
-                      </button>
-                   </div>
+        {/* Invoice History */}
+        <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 shadow-sm overflow-hidden">
+          <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">Recent Invoices</h3>
+          <div className="space-y-3">
+            {billingInfo?.invoices?.map((inv: any, idx: number) => (
+              <div key={inv.id || idx} className="flex items-center justify-between py-2 border-b border-[rgba(0,0,0,0.02)] last:border-0">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-[#1C1C1C]">{inv.number}</span>
+                  <span className="text-[9px] text-[rgba(28,28,28,0.4)] font-medium">{new Date(inv.created * 1000).toLocaleDateString()}</span>
                 </div>
-              ))}
-              {(!billingInfo?.invoices || billingInfo.invoices.length === 0) && (
-                <p className="text-[11px] text-[rgba(28,28,28,0.3)] italic text-center py-2">No invoices yet.</p>
-              )}
-           </div>
-         </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] font-bold text-[#1C1C1C]">${(inv.total / 100).toFixed(2)}</span>
+                  <button
+                    onClick={() => handleDownloadInvoice(inv.invoice_pdf, `Invoice-${inv.number || inv.id}.pdf`)}
+                    className="p-1.5 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                    title="Download Invoice"
+                  >
+                    <Download size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {(!billingInfo?.invoices || billingInfo.invoices.length === 0) && (
+              <p className="text-[11px] text-[rgba(28,28,28,0.3)] italic text-center py-2">No invoices yet.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Plan Cards */}
@@ -237,11 +237,10 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
               return (
                 <div
                   key={plan.id || idx}
-                  className={`relative rounded-[20px] border p-6 transition-all duration-200 ${
-                    isActive
+                  className={`relative rounded-[20px] border p-6 transition-all duration-200 ${isActive
                       ? `${accent.bg} ${accent.border} shadow-sm`
                       : 'bg-white border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] hover:shadow-md hover:shadow-black/5'
-                  }`}
+                    }`}
                 >
                   {/* Active badge */}
                   {isActive && (
@@ -291,8 +290,8 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
         )}
       </div>
 
-      <CheckoutModal 
-        open={modalOpen} 
+      <CheckoutModal
+        open={modalOpen}
         onClose={() => setModalOpen(false)}
         plan={selectedPlan.name}
         price={selectedPlan.price}

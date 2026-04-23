@@ -64,7 +64,7 @@ server.post('/billing/create-customer', async (request, reply) => {
       data: {
         userId,
         stripeCustomerId: customer.id,
-        plan: 'FREE',
+        plan: 'TRIAL',
         status: 'ACTIVE'
       }
     });
@@ -101,7 +101,7 @@ server.post('/billing/subscribe', async (request, reply) => {
           create: {
             userId: decoded.userId,
             stripeCustomerId: customer.id,
-            plan: 'FREE',
+            plan: 'TRIAL',
             status: 'ACTIVE'
           },
           update: {
@@ -115,7 +115,7 @@ server.post('/billing/subscribe', async (request, reply) => {
           create: {
             userId: decoded.userId,
             stripeCustomerId: `local_${decoded.userId}`,
-            plan: 'FREE',
+            plan: 'TRIAL',
             status: 'ACTIVE'
           },
           update: { stripeCustomerId: `local_${decoded.userId}` }
@@ -123,10 +123,10 @@ server.post('/billing/subscribe', async (request, reply) => {
       }
     }
 
-    if (plan === 'FREE') {
+    if (plan === 'TRIAL') {
       await (prisma as any).subscription.update({
         where: { userId: decoded.userId },
-        data: { plan: 'FREE', status: 'ACTIVE', stripeSubscriptionId: null }
+        data: { plan: 'TRIAL', status: 'ACTIVE', stripeSubscriptionId: null }
       });
       return { success: true };
     }
@@ -310,7 +310,7 @@ server.get('/billing/current', async (request, reply) => {
         create: {
           userId: decoded.userId,
           stripeCustomerId: customer.id,
-          plan: 'FREE',
+          plan: 'TRIAL',
           status: 'ACTIVE'
         },
         update: { stripeCustomerId: customer.id }
@@ -323,7 +323,7 @@ server.get('/billing/current', async (request, reply) => {
           create: {
             userId: decoded.userId,
             stripeCustomerId: `local_${decoded.userId}`,
-            plan: 'FREE',
+            plan: 'TRIAL',
             status: 'ACTIVE'
           },
           update: {}
@@ -541,7 +541,7 @@ server.post('/billing/webhook', { config: { rawBody: true } }, async (request: a
         [process.env.STRIPE_PRICE_ID_BUSINESS!]: 'BUSINESS',
         [process.env.STRIPE_PRICE_ID_ENTERPRISE!]: 'ENTERPRISE'
       };
-      const newPlan = planMap[data.items.data[0].price.id] || 'FREE';
+      const newPlan = planMap[data.items.data[0].price.id] || 'TRIAL';
 
       await (prisma as any).subscription.update({
         where: { stripeSubscriptionId: data.id },
@@ -556,7 +556,7 @@ server.post('/billing/webhook', { config: { rawBody: true } }, async (request: a
     case 'customer.subscription.deleted':
       await (prisma as any).subscription.update({
         where: { stripeSubscriptionId: data.id },
-        data: { status: 'CANCELLED', plan: 'FREE' }
+        data: { status: 'CANCELLED', plan: 'TRIAL' }
       });
       break;
 
@@ -603,7 +603,7 @@ cron.schedule('0 0 * * *', async () => {
   for (const sub of expired) {
     await (prisma as any).subscription.update({
       where: { id: sub.id },
-      data: { plan: 'FREE', status: 'CANCELLED' }
+      data: { plan: 'TRIAL', status: 'CANCELLED' }
     });
     console.info(`[Cron] Downgraded user ${sub.userId} due to expired past_due status`);
     // TODO: Send final email notification

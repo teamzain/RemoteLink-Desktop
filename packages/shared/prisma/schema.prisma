@@ -65,7 +65,7 @@ model PlatformSettings {
   globalTokenLifetime   Int      @default(24)
   minPasswordLength     Int      @default(8)
   maxPasswordLength     Int      @default(32)
-  defaultOrgPlan        Plan     @default(FREE)
+  defaultOrgPlan        Plan     @default(TRIAL)
   restrictPlanChanges   Boolean  @default(false)
   updatedAt             DateTime @updatedAt
 }
@@ -113,7 +113,7 @@ model Subscription {
   userId               String             @unique
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
-  plan                 Plan               @default(FREE)
+  plan                 Plan               @default(TRIAL)
   status               SubscriptionStatus @default(ACTIVE)
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean            @default(false)
@@ -192,7 +192,8 @@ enum UserRole {
 }
 
 enum Plan {
-  FREE
+  TRIAL
+  SOLO
   PRO
   BUSINESS
   ENTERPRISE

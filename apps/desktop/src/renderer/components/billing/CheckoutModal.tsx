@@ -36,7 +36,7 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void,
       if (pmError) throw new Error(pmError.message);
 
       const { data } = await api.post(`/api/billing/subscribe`, {
-        plan: plan.toUpperCase(),
+        plan, // Already uppercase ID from SnowBilling
         paymentMethodId: paymentMethod.id,
       });
 
@@ -62,8 +62,8 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void,
           <span className="text-xs font-bold text-[#3b82f6] bg-blue-50 px-2 py-0.5 rounded-md">Recurring Monthly</span>
         </div>
         <div className="flex justify-between items-center p-4 bg-[rgba(28,28,28,0.02)] rounded-2xl border border-[rgba(28,28,28,0.06)]">
-           <span className="text-lg font-bold text-[#1C1C1C]">{plan}</span>
-           <span className="text-xl font-black text-[#1C1C1C]">${price}<span className="text-xs font-medium text-[rgba(28,28,28,0.4)]">/mo</span></span>
+          <span className="text-lg font-bold text-[#1C1C1C]">{plan}</span>
+          <span className="text-xl font-black text-[#1C1C1C]">${price}<span className="text-xs font-medium text-[rgba(28,28,28,0.4)]">/mo</span></span>
         </div>
       </div>
 
@@ -82,8 +82,8 @@ const CheckoutForm: React.FC<{ plan: string, price: string, onClose: () => void,
           }} />
         </div>
         <div className="flex items-center gap-2 mt-3 px-1">
-           <Lock size={12} className="text-[rgba(28,28,28,0.3)]" />
-           <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">Your payment info is encrypted and never stored on our servers.</span>
+          <Lock size={12} className="text-[rgba(28,28,28,0.3)]" />
+          <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">Your payment info is encrypted and never stored on our servers.</span>
         </div>
       </div>
 
@@ -134,7 +134,7 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-[440px] bg-white rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
         <div className="p-8">
-          
+
           {success ? (
             <div className="flex flex-col items-center justify-center py-8 text-center animate-in zoom-in-95 duration-500">
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
@@ -142,7 +142,7 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
               </div>
               <h3 className="text-2xl font-black text-[#1C1C1C] mb-3 tracking-tight">Subscription Successful!</h3>
               <p className="text-sm text-[rgba(28,28,28,0.6)] font-medium mb-8 max-w-[280px]">
-                You have successfully upgraded to the <span className="text-[#1C1C1C] font-bold">{plan}</span> plan. Your new features are unlocked.
+                You have successfully upgraded to your new plan. Your new features are unlocked.
               </p>
               <button
                 onClick={() => {
@@ -170,14 +170,14 @@ const CheckoutModal: React.FC<{ open: boolean, onClose: () => void, plan: string
           )}
 
         </div>
-        
+
         {!success && (
           <div className="bg-[rgba(28,28,28,0.02)] p-4 border-t border-[rgba(28,28,28,0.04)] flex items-center justify-center gap-4">
-             <div className="opacity-20 grayscale flex gap-4">
-                <span className="text-[10px] font-black italic">STRIPE</span>
-                <span className="text-[10px] font-black italic">VISA</span>
-                <span className="text-[10px] font-black italic">MASTERCARD</span>
-             </div>
+            <div className="opacity-20 grayscale flex gap-4">
+              <span className="text-[10px] font-black italic">STRIPE</span>
+              <span className="text-[10px] font-black italic">VISA</span>
+              <span className="text-[10px] font-black italic">MASTERCARD</span>
+            </div>
           </div>
         )}
       </div>
