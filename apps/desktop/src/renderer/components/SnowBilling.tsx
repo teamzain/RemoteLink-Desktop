@@ -103,26 +103,11 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
     ? new Date(billingInfo.currentPeriodEnd).toLocaleDateString()
     : 'N/A';
 
-  const handleDownloadInvoice = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.warn('Direct download failed, opening in external browser...', err);
-      if ((window as any).electronAPI?.openExternal) {
-        (window as any).electronAPI.openExternal(url);
-      } else {
-        window.open(url, '_blank');
-      }
+  const handleDownloadInvoice = (url: string) => {
+    if ((window as any).electronAPI?.openExternal) {
+      (window as any).electronAPI.openExternal(url);
+    } else {
+      window.open(url, '_blank');
     }
   };
 
@@ -200,7 +185,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-bold text-[#1C1C1C]">${(inv.total / 100).toFixed(2)}</span>
                   <button
-                    onClick={() => handleDownloadInvoice(inv.invoice_pdf, `Invoice-${inv.number || inv.id}.pdf`)}
+                    onClick={() => handleDownloadInvoice(inv.invoice_pdf)}
                     className="p-1.5 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
                     title="Download Invoice"
                   >
@@ -238,8 +223,8 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
                 <div
                   key={plan.id || idx}
                   className={`relative rounded-[20px] border p-6 transition-all duration-200 ${isActive
-                      ? `${accent.bg} ${accent.border} shadow-sm`
-                      : 'bg-white border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] hover:shadow-md hover:shadow-black/5'
+                    ? `${accent.bg} ${accent.border} shadow-sm`
+                    : 'bg-white border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] hover:shadow-md hover:shadow-black/5'
                     }`}
                 >
                   {/* Active badge */}
