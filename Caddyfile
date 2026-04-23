@@ -78,6 +78,11 @@
         file_server browse
     }
 
+    # Onboarding Page (Served by Auth Service)
+    handle /onboard* {
+        reverse_proxy auth-service:3001
+    }
+
     # Legacy billing service (proxied to billing-service)
     handle /billing* {
         reverse_proxy billing-service:3004
