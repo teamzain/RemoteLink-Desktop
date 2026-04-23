@@ -45,6 +45,11 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
   const [twoFaStatus, setTwoFaStatus] = useState<'idle' | 'loading' | 'verifying' | 'done' | 'error'>('idle');
   const [twoFaError, setTwoFaError] = useState('');
 
+  // Close Account modal state
+  const [showCloseAccountModal, setShowCloseAccountModal] = useState(false);
+  const [closeAccountStatus, setCloseAccountStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [closeAccountError, setCloseAccountError] = useState('');
+
   const handleSaveProfile = async () => {
     if (!name.trim()) return;
     setSaveStatus('saving');
@@ -137,15 +142,16 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
   };
 
   const handleCloseAccount = async () => {
-    const confirmed = window.confirm('Are you absolutely sure you want to close your account? This will permanently delete your organization, all team members, and all registered devices. This action cannot be undone.');
-    if (!confirmed) return;
-
+    setCloseAccountStatus('loading');
+    setCloseAccountError('');
     try {
       await api.delete('/api/auth/me');
+      setShowCloseAccountModal(false);
       logout();
     } catch (err: any) {
       console.error('Failed to close account', err);
-      alert(err?.response?.data?.error || 'Failed to close account. Please contact support.');
+      setCloseAccountStatus('error');
+      setCloseAccountError(err?.response?.data?.error || 'Failed to close account. Please contact support.');
     }
   };
 
@@ -376,12 +382,55 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
           <span className="text-[10px] text-red-400">Permanently remove all your nodes and account data.</span>
         </div>
         <button
-          onClick={handleCloseAccount}
+          onClick={() => { setShowCloseAccountModal(true); setCloseAccountStatus('idle'); setCloseAccountError(''); }}
           className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors shadow-sm"
         >
           <LogOut size={14} /> Close Account
         </button>
       </div>
+
+      {/* Close Account Confirmation Modal */}
+      {showCloseAccountModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-[#1C1C1C]/40 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-white rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.06)] p-8 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-red-50 rounded-2xl flex items-center justify-center">
+                <AlertCircle size={18} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#1C1C1C]">Close Account</h3>
+                <p className="text-[10px] text-[rgba(28,28,28,0.4)]">This action is permanent and irreversible</p>
+              </div>
+            </div>
+            <p className="text-xs text-[rgba(28,28,28,0.6)] leading-relaxed mb-6">
+              This will permanently delete your organization, all team members, all registered devices, and all session history. You cannot undo this.
+            </p>
+            {closeAccountError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl border border-red-100 mb-4">
+                <AlertCircle size={13} className="text-red-500 shrink-0" />
+                <span className="text-[11px] text-red-600 font-medium">{closeAccountError}</span>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCloseAccountModal(false)}
+                disabled={closeAccountStatus === 'loading'}
+                className="flex-1 py-2.5 rounded-xl border border-[rgba(28,28,28,0.1)] text-xs font-bold text-[#1C1C1C] hover:bg-[#F9F9FA] transition-all disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseAccount}
+                disabled={closeAccountStatus === 'loading'}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-red-700 transition-all disabled:opacity-60"
+              >
+                {closeAccountStatus === 'loading' && <Loader2 size={13} className="animate-spin" />}
+                {closeAccountStatus === 'loading' ? 'Deleting…' : 'Yes, Delete Everything'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2FA Setup Modal */}
       {show2FAModal && (
