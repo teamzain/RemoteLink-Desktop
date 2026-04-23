@@ -29,36 +29,81 @@ const StyledGrid = Grid as any;
 
 const plans = [
   {
-    name: 'Free',
-    price: '0',
-    features: ['1 Device', 'Standard Speed', 'Basic Security', 'No File Transfer'],
-    excluded: ['Dual Monitor Support', 'Mobile Access', 'Admin Tools'],
-    buttonText: 'Get Started',
+    name: 'Solo',
+    id: 'FREE',
+    price: '2.46',
+    features: [
+      '1 Computer',
+      'Unlimited Remote Access',
+      'Always-ON Access',
+      'Unlimited Concurrent',
+      'File Transfer',
+      'Remote Printing',
+      'Whiteboard',
+      'Remote Reboot',
+      '4:4:4 Color accuracy'
+    ],
+    excluded: [
+      'Platform Independent',
+      'Add & organize users',
+      'AD / SSO integration'
+    ],
+    buttonText: 'Get Solo',
     buttonVariant: 'outlined' as const,
   },
   {
     name: 'Pro',
-    price: '19',
+    id: 'PRO',
+    price: '8.29',
     popular: true,
-    features: ['5 Devices', 'Ultra Fast Speed', 'Advanced Security', 'File Transfer', 'Dual Monitor Support'],
-    excluded: ['Mobile Access', 'Admin Tools'],
+    features: [
+      '10 Computers',
+      'Everything in Solo',
+      'Platform Independent',
+      'Add & organize users',
+      'Session recording',
+      'Mic passthrough'
+    ],
+    excluded: [
+      'AD / SSO integration',
+      'Endpoint Backup'
+    ],
     buttonText: 'Try Pro',
     buttonVariant: 'contained' as const,
   },
   {
-    name: 'Business',
-    price: '49',
-    features: ['50 Devices', 'Ultra Fast Speed', 'Enterprise Security', 'File Transfer', 'Admin Dashboard', 'Mobile Access'],
-    excluded: ['Custom Integration', 'Dedicated Support'],
-    buttonText: 'Contact Sales',
+    name: 'Team',
+    id: 'BUSINESS',
+    price: '24.96',
+    features: [
+      '50 Computers',
+      'Unlimited Users',
+      'Everything in Pro',
+      'Endpoint Cloud Backup',
+      'AD / SSO / IdP Sync',
+      'HelpDesk Support'
+    ],
+    excluded: [
+      'Schedule Access',
+      'Computer Grouping'
+    ],
+    buttonText: 'Start Free Trial',
     buttonVariant: 'contained' as const,
   },
   {
     name: 'Enterprise',
-    price: 'Custom',
-    features: ['Unlimited Devices', 'Ultra Fast Speed', 'Maximum Security', 'Custom Integration', 'Dedicated Support', '24/7 Priority'],
+    id: 'ENTERPRISE',
+    price: '49.96',
+    features: [
+      '100 Computers',
+      'Everything in Team',
+      'Schedule remote access',
+      'Computer Grouping',
+      'Mass Deployment',
+      'Roles & Permissions'
+    ],
     excluded: [],
-    buttonText: 'Talk to Enterprise',
+    buttonText: 'Get Enterprise',
     buttonVariant: 'contained' as const,
   },
 ];
@@ -67,19 +112,19 @@ const PricingPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  
+
   const [modalOpen, setModalOpen] = React.useState(false);
   const [selectedPlan, setSelectedPlan] = React.useState({ name: '', price: '' });
 
   const handlePlanSelect = (plan: typeof plans[0]) => {
     if (plan.name === 'Free') {
-       navigate('/register');
-       return;
+      navigate('/register');
+      return;
     }
-    
+
     if (plan.name === 'Enterprise') {
-       window.location.href = 'mailto:sales@remotelink.com';
-       return;
+      window.location.href = 'mailto:sales@remotelink.com';
+      return;
     }
 
     if (!user) {
@@ -94,7 +139,7 @@ const PricingPage: React.FC = () => {
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
-      
+
       <Container maxWidth="lg" sx={{ py: 12, flexGrow: 1 }}>
         <ScrollReveal>
           <Box sx={{ textAlign: 'center', mb: 8 }}>
@@ -154,7 +199,7 @@ const PricingPage: React.FC = () => {
                         </Typography>
                       )}
                     </Box>
-                    
+
                     <Button
                       fullWidth
                       variant={plan.buttonVariant}
@@ -173,9 +218,9 @@ const PricingPage: React.FC = () => {
                           <ListItemIcon sx={{ minWidth: 32, color: 'success.main' }}>
                             <CheckCircle sx={{ fontSize: 20 }} />
                           </ListItemIcon>
-                          <ListItemText 
-                            primary={feature} 
-                            primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }} 
+                          <ListItemText
+                            primary={feature}
+                            primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
                           />
                         </ListItem>
                       ))}
@@ -184,9 +229,9 @@ const PricingPage: React.FC = () => {
                           <ListItemIcon sx={{ minWidth: 32, color: 'text.disabled' }}>
                             <RemoveCircle sx={{ fontSize: 20 }} />
                           </ListItemIcon>
-                          <ListItemText 
-                            primary={feature} 
-                            primaryTypographyProps={{ variant: 'body2', color: 'text.disabled' }} 
+                          <ListItemText
+                            primary={feature}
+                            primaryTypographyProps={{ variant: 'body2', color: 'text.disabled' }}
                           />
                         </ListItem>
                       ))}
@@ -200,10 +245,10 @@ const PricingPage: React.FC = () => {
       </Container>
 
       <Footer />
-      
-      <CheckoutModal 
-        open={modalOpen} 
-        onClose={() => setModalOpen(false)} 
+
+      <CheckoutModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
         plan={selectedPlan.name}
         price={selectedPlan.price}
       />

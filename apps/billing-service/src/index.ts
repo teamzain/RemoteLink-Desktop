@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import Fastify from 'fastify';
 import Stripe from 'stripe';
 import cron from 'node-cron';
-import { prisma, verifyToken } from '@remotelink/shared';
+import { prisma, verifyToken, PLAN_CATALOG } from '@remotelink/shared';
 import rawBody from 'fastify-raw-body';
 import cors from '@fastify/cors';
 
@@ -44,56 +44,10 @@ server.get('/health', async () => {
   return { status: 'ok', service: 'billing-service' };
 });
 
-// 1. GET /billing/plans — Returns all four plans
+// 1. GET /billing/plans — Returns all plans from shared catalog
 server.get('/billing/plans', async (request, reply) => {
-  const plans = [
-    { 
-      id: 'FREE', 
-      name: 'Free', 
-      price: 0, 
-      priceId: process.env.STRIPE_PRICE_ID_FREE, 
-      priceLabel: '$0 / month',
-      description: 'Standard remote access for personal use',
-      maxDevices: 1,
-      maxUsers: 1,
-      features: ['1 session', '1 device', '10 min sessions'] 
-    },
-    { 
-      id: 'PRO', 
-      name: 'Pro', 
-      price: 19, 
-      priceId: process.env.STRIPE_PRICE_ID_PRO, 
-      priceLabel: '$19 / month',
-      description: 'Advanced features for power users',
-      maxDevices: 5,
-      maxUsers: 1,
-      features: ['3 sessions', '5 devices', '4 hr sessions', 'File transfer'] 
-    },
-    { 
-      id: 'BUSINESS', 
-      name: 'Business', 
-      price: 49, 
-      priceId: process.env.STRIPE_PRICE_ID_BUSINESS, 
-      priceLabel: '$49 / month',
-      description: 'Enterprise-grade control for teams',
-      maxDevices: 50,
-      maxUsers: null,
-      features: ['10 sessions', 'Unlimited devices', 'Unlimited duration', 'Recording', 'Team management'] 
-    },
-    { 
-      id: 'ENTERPRISE', 
-      name: 'Enterprise', 
-      price: 'Custom', 
-      priceId: process.env.STRIPE_PRICE_ID_ENTERPRISE, 
-      priceLabel: 'Custom pricing',
-      description: 'Full infrastructure for large organizations',
-      maxDevices: null,
-      maxUsers: null,
-      features: ['Unlimited everything', 'Dedicated support', 'Custom integration'] 
-    },
-  ];
   return {
-    plans,
+    plans: PLAN_CATALOG,
     publishableKey: cleanStripeKey(process.env.STRIPE_PUBLISHABLE_KEY)
   };
 });
@@ -105,7 +59,7 @@ server.post('/billing/create-customer', async (request, reply) => {
 
   try {
     const customer = await stripe.customers.create({ email });
-    
+
     await (prisma as any).subscription.create({
       data: {
         userId,
@@ -216,7 +170,7 @@ server.post('/billing/subscribe', async (request, reply) => {
     // We must attach the payment method to the customer before using it for a subscription
     if (paymentMethodId && !isLocalCustomer) {
       await stripe.paymentMethods.attach(paymentMethodId, { customer: sub.stripeCustomerId });
-      
+
       // Optionally set it as the default for the customer
       await stripe.customers.update(sub.stripeCustomerId, {
         invoice_settings: { default_payment_method: paymentMethodId }
@@ -348,7 +302,7 @@ server.get('/billing/current', async (request, reply) => {
   if (!sub) {
     const user = await (prisma as any).user.findUnique({ where: { id: decoded.userId } });
     if (!user) return reply.code(404).send({ error: 'User not found' });
-    
+
     try {
       const customer = await stripe.customers.create({ email: user.email });
       sub = await (prisma as any).subscription.upsert({
@@ -471,7 +425,7 @@ server.get('/billing/invoices', async (request, reply) => {
     if (!sub || !sub.stripeCustomerId) return reply.code(404).send({ error: 'Customer not found' });
 
     const invoices = await stripe.invoices.list({ customer: sub.stripeCustomerId });
-    
+
     return invoices.data.map(inv => ({
       amount: inv.total / 100,
       date: new Date(inv.created * 1000).toISOString(),
@@ -498,7 +452,7 @@ server.get('/billing/revenue', async (request, reply) => {
   try {
     // 1. Get balance from Stripe
     const balance = await stripe.balance.retrieve();
-    
+
     // 2. Get recent successful charges for total calculation
     const charges = await stripe.charges.list({ limit: 100 });
     const totalRevenue = charges.data
@@ -588,11 +542,11 @@ server.post('/billing/webhook', { config: { rawBody: true } }, async (request: a
         [process.env.STRIPE_PRICE_ID_ENTERPRISE!]: 'ENTERPRISE'
       };
       const newPlan = planMap[data.items.data[0].price.id] || 'FREE';
-      
+
       await (prisma as any).subscription.update({
         where: { stripeSubscriptionId: data.id },
-        data: { 
-          plan: newPlan, 
+        data: {
+          plan: newPlan,
           status: data.status.toUpperCase() as any,
           currentPeriodEnd: new Date(data.current_period_end * 1000)
         }
@@ -638,7 +592,7 @@ server.post('/billing/webhook', { config: { rawBody: true } }, async (request: a
 cron.schedule('0 0 * * *', async () => {
   console.log('[Cron] Checking for expired past_due subscriptions...');
   const now = new Date();
-  
+
   const expired = await (prisma as any).subscription.findMany({
     where: {
       status: 'PAST_DUE',

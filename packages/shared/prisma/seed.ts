@@ -13,36 +13,36 @@ async function main() {
 
   const plans = [
     {
-      plan: 'FREE',
+      plan: 'FREE', // SOLO
       maxConcurrentSessions: 1,
-      maxDevices: 10,
-      sessionDurationMinutes: 10,
-      fileTransfer: false,
-      sessionRecording: false,
-      teamMembers: 1,
-    },
-    {
-      plan: 'PRO',
-      maxConcurrentSessions: 3,
-      maxDevices: 50,
-      sessionDurationMinutes: 240,
-      fileTransfer: true,
-      sessionRecording: false,
-      teamMembers: 1,
-    },
-    {
-      plan: 'BUSINESS',
-      maxConcurrentSessions: 10,
-      maxDevices: -1, // unlimited
-      sessionDurationMinutes: -1, // unlimited
+      maxDevices: 1,
+      sessionDurationMinutes: -1,
       fileTransfer: true,
       sessionRecording: true,
-      teamMembers: -1, // unlimited
+      teamMembers: 1,
     },
     {
-      plan: 'ENTERPRISE',
-      maxConcurrentSessions: 100, // custom high value
-      maxDevices: -1,
+      plan: 'PRO', // PRO
+      maxConcurrentSessions: 1,
+      maxDevices: 10,
+      sessionDurationMinutes: -1,
+      fileTransfer: true,
+      sessionRecording: true,
+      teamMembers: 1,
+    },
+    {
+      plan: 'BUSINESS', // TEAM
+      maxConcurrentSessions: -1,
+      maxDevices: 50,
+      sessionDurationMinutes: -1,
+      fileTransfer: true,
+      sessionRecording: true,
+      teamMembers: -1,
+    },
+    {
+      plan: 'ENTERPRISE', // ENTERPRISE
+      maxConcurrentSessions: -1,
+      maxDevices: 100,
       sessionDurationMinutes: -1,
       fileTransfer: true,
       sessionRecording: true,
@@ -80,7 +80,7 @@ async function main() {
 
   console.log(`Checking for Super Admin: ${adminEmail}...`);
   const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
-  
+
   if (!existingAdmin) {
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
     const admin = await prisma.user.create({
@@ -91,10 +91,10 @@ async function main() {
         role: 'SUPER_ADMIN',
         organizationId: org.id,
         subscription: {
-           create: {
-              plan: 'ENTERPRISE',
-              status: 'ACTIVE'
-           }
+          create: {
+            plan: 'ENTERPRISE',
+            status: 'ACTIVE'
+          }
         }
       }
     });

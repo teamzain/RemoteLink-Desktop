@@ -37,24 +37,46 @@ export function checkPlanLimit(limitName: LimitName) {
       if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
       const userId = decoded.userId;
-
-      // 1. Get user's subscription and limits
       const { plan: currentPlan, limits } = await getPlanLimits(userId);
 
       if (!limits) {
         return reply.code(500).send({ error: 'Plan limits not configured' });
       }
 
+      // --- 1. Lifetime Trial Check for FREE (Solo) users who haven't paid ---
+      const sub = await (prisma as any).subscription.findUnique({ where: { userId } });
+      const isPaid = sub?.stripeSubscriptionId || sub?.status === 'ACTIVE' && currentPlan !== 'FREE';
+
+      if (currentPlan === 'FREE' && !isPaid) {
+        // Calculate total duration of all sessions for this viewer
+        const sessions = await (prisma as any).session.findMany({
+          where: { viewerId: userId, endTime: { not: null } }
+        });
+
+        const totalMinutes = sessions.reduce((acc: number, sess: any) => {
+          const duration = (sess.endTime.getTime() - sess.startTime.getTime()) / 1000 / 60;
+          return acc + duration;
+        }, 0);
+
+        if (totalMinutes >= 10) {
+          return reply.code(403).send({
+            error: 'Trial Expired: You has used your 10-minute testing period. Please purchase a plan to continue using RemoteLink.',
+            trialExpired: true,
+            totalMinutes
+          });
+        }
+      }
+
       const limitValue = (limits as any)[limitName];
 
-      // 3. Dynamic checks based on limitName
+      // --- 2. Dynamic checks based on limitName ---
       if (limitName === 'maxConcurrentSessions') {
         const activeSessions = await (prisma as any).session.count({
           where: { viewerId: userId, status: 'ACTIVE' }
         });
         if (activeSessions >= limitValue && limitValue !== -1) {
-          return reply.code(403).send({ 
-            error: `Plan limit reached: Max concurrent sessions for ${currentPlan} is ${limitValue}. Upgrade to Pro or Business for more.`,
+          return reply.code(403).send({
+            error: `Plan limit reached: Max concurrent sessions for ${currentPlan} is ${limitValue}. Upgrade for more.`,
             limitReached: true,
             limitName
           });
@@ -66,8 +88,8 @@ export function checkPlanLimit(limitName: LimitName) {
           where: { ownerId: userId }
         });
         if (deviceCount >= limitValue && limitValue !== -1) {
-          return reply.code(403).send({ 
-            error: `Plan limit reached: Max devices for ${currentPlan} is ${limitValue}. Upgrade to Pro or Business for more.`,
+          return reply.code(403).send({
+            error: `Plan limit reached: Max devices for ${currentPlan} is ${limitValue}. Upgrade your plan to add more computers.`,
             limitReached: true,
             limitName
           });
@@ -76,7 +98,7 @@ export function checkPlanLimit(limitName: LimitName) {
 
       if (limitName === 'sessionRecording' || limitName === 'fileTransfer') {
         if (!limitValue) {
-          return reply.code(403).send({ 
+          return reply.code(403).send({
             error: `${limitName === 'sessionRecording' ? 'Session Recording' : 'File Transfer'} is not available on the ${currentPlan} plan. Please upgrade.`,
             limitReached: true,
             limitName

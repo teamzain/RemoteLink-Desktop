@@ -4,19 +4,33 @@ import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
 export default async function memberRoutes(fastify: FastifyInstance) {
-  
-  // Helper to verify Org Admin (SUB_ADMIN)
+
+  // Helper to verify Org Admin (SUB_ADMIN) and Plan permission
   const requireOrgAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
-    
+
     if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
       return reply.code(403).send({ error: 'Org Admin access required' });
     }
-    
+
+    // Skip plan check for Super Admins
+    if (decoded.role === 'SUPER_ADMIN') return decoded;
+
+    // Check plan for Sub Admins (Org Managers)
+    const sub = await prisma.subscription.findUnique({ where: { userId: decoded.userId } });
+    const plan = sub?.plan || 'FREE';
+    if (plan === 'FREE' || plan === 'PRO') {
+      return reply.code(403).send({
+        error: 'Team management is only available on Team and Enterprise plans. Please upgrade to continue.',
+        planRestricted: true,
+        currentPlan: plan
+      });
+    }
+
     return decoded;
   };
 
@@ -125,19 +139,19 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     const members = await prisma.user.findMany({
       where: { organizationId: decoded.orgId },
       select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          allowedTags: true,
-          allowedDeviceIds: true,
-          department: { select: { name: true } },
-          createdAt: true
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        allowedTags: true,
+        allowedDeviceIds: true,
+        department: { select: { name: true } },
+        createdAt: true
       }
     });
 
     const pendingInvites = await prisma.invitation.findMany({
-        where: { organizationId: decoded.orgId, expiresAt: { gt: new Date() } }
+      where: { organizationId: decoded.orgId, expiresAt: { gt: new Date() } }
     });
 
     return reply.send({ members, pendingInvites });
@@ -145,20 +159,20 @@ export default async function memberRoutes(fastify: FastifyInstance) {
 
   // 3. Remove a Member
   fastify.delete('/:userId', async (request: FastifyRequest, reply: FastifyReply) => {
-     const decoded = await requireOrgAdmin(request, reply);
-     if (!decoded) return;
+    const decoded = await requireOrgAdmin(request, reply);
+    if (!decoded) return;
 
-     const { userId } = request.params as { userId: string };
+    const { userId } = request.params as { userId: string };
 
-     // Block self-deletion
-     if (userId === decoded.userId) return reply.code(400).send({ error: 'Cannot remove yourself' });
+    // Block self-deletion
+    if (userId === decoded.userId) return reply.code(400).send({ error: 'Cannot remove yourself' });
 
-     await prisma.user.update({
-         where: { id: userId, organizationId: decoded.orgId },
-         data: { organizationId: null, role: 'USER' } // Reset to generic user
-     });
+    await prisma.user.update({
+      where: { id: userId, organizationId: decoded.orgId },
+      data: { organizationId: null, role: 'USER' } // Reset to generic user
+    });
 
-     return reply.send({ success: true });
+    return reply.send({ success: true });
   });
 
   // 4. Update Member Device Access

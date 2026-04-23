@@ -12,6 +12,7 @@ import Settings from './pages/dashboard/Settings'
 import Profile from './pages/dashboard/Profile'
 import Support from './pages/dashboard/Support'
 import Documentation from './pages/dashboard/Documentation'
+import Members from './pages/dashboard/Members'
 import SessionViewer from './pages/session/SessionViewer'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
@@ -45,7 +46,7 @@ function App() {
       <Route path="/solutions" element={<SolutionsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/resources" element={<ResourcesPage />} />
-      
+
       {/* Dashboard Routes (Protected) */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
       <Route path="/dashboard/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
@@ -55,6 +56,7 @@ function App() {
       <Route path="/dashboard/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/dashboard/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
       <Route path="/dashboard/documentation" element={<ProtectedRoute><Documentation /></ProtectedRoute>} />
+      <Route path="/dashboard/members" element={<ProtectedRoute><Members /></ProtectedRoute>} />
       <Route path="/session/:deviceId" element={<ProtectedRoute><SessionViewer /></ProtectedRoute>} />
 
       {/* Auth Routes */}

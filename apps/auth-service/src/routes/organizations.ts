@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma, verifyToken } from '@remotelink/shared';
 
 export default async function organizationRoutes(fastify: FastifyInstance) {
-  
+
   // Helper to verify Super Admin
   const requireSuperAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
@@ -10,15 +10,15 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
       reply.code(401).send({ error: 'Unauthorized' });
       return false;
     }
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
-    
+
     if (!decoded || decoded.role !== 'SUPER_ADMIN') {
       reply.code(403).send({ error: 'Super Admin access required' });
       return false;
     }
-    
+
     return decoded;
   };
 
@@ -116,9 +116,32 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
-      await prisma.organization.delete({ where: { id } });
+      await prisma.$transaction(async (tx: any) => {
+        // 1. Dissociate users from this organization
+        await tx.user.updateMany({
+          where: { organizationId: id },
+          data: { organizationId: null, role: 'USER' }
+        });
+
+        // 2. Dissociate devices from this organization
+        await tx.device.updateMany({
+          where: { organizationId: id },
+          data: { organizationId: null }
+        });
+
+        // 3. Delete related entities that cannot exist without an organization
+        await tx.enrollmentToken.deleteMany({ where: { organizationId: id } });
+        await tx.invitation.deleteMany({ where: { organizationId: id } });
+        await tx.department.deleteMany({ where: { organizationId: id } });
+
+        // 4. Finally delete the organization itself
+        await tx.organization.delete({ where: { id } });
+      });
+
       return reply.send({ success: true });
     } catch (err: any) {
+      const server = (fastify as any).log || console;
+      server.error(`[Auth-Service] Failed to delete organization ${id}:`, err);
       return reply.code(500).send({ error: 'Failed to delete organization' });
     }
   });
@@ -147,7 +170,7 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
   fastify.get('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -175,7 +198,7 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
   fastify.patch('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {

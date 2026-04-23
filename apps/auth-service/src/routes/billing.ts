@@ -1,80 +1,5 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { prisma, verifyToken } from '@remotelink/shared';
-
-export const PLAN_CATALOG = [
-  {
-    id: 'FREE',
-    name: 'Solo',
-    price: 2.46,
-    priceLabel: '$2.46 / month',
-    description: 'For individuals managing one computer',
-    maxDevices: 1,
-    maxUsers: 1,
-    features: [
-      'Remote access to 1 computer',
-      'File transfer',
-      'Remote reboot',
-      'Chat messaging',
-      'Multi-monitor support',
-      'Clipboard sync',
-      'Wake-on-LAN',
-    ],
-  },
-  {
-    id: 'PRO',
-    name: 'Pro',
-    price: 8.29,
-    priceLabel: '$8.29 / month',
-    description: 'For professionals managing multiple computers',
-    maxDevices: 10,
-    maxUsers: 1,
-    features: [
-      'Remote access to 10 computers',
-      'Everything in Solo',
-      'Add & organize users',
-      'Session recording',
-      'Remote printing',
-      'Whiteboard collaboration',
-    ],
-  },
-  {
-    id: 'BUSINESS',
-    name: 'Team',
-    price: 24.96,
-    priceLabel: '$24.96 / month',
-    description: 'For teams with advanced access control',
-    maxDevices: 50,
-    maxUsers: null,
-    features: [
-      'Remote access to 50 computers',
-      'Unlimited users',
-      'Everything in Pro',
-      'AD / SSO integration',
-      'Active Directory sync',
-      'HelpDesk portal',
-      'Priority support',
-    ],
-  },
-  {
-    id: 'ENTERPRISE',
-    name: 'Enterprise',
-    price: 49.96,
-    priceLabel: '$49.96 / month',
-    description: 'For large organizations with full control',
-    maxDevices: 100,
-    maxUsers: null,
-    features: [
-      'Remote access to 100 computers',
-      'Unlimited users',
-      'Everything in Team',
-      'Scheduled access windows',
-      'Computer grouping',
-      'Mass deployment tools',
-      'Roles & permissions',
-      'Dedicated account manager',
-    ],
-  },
-];
+import { prisma, verifyToken, PLAN_CATALOG } from '@remotelink/shared';
 
 export default async function billingRoutes(fastify: FastifyInstance) {
 
@@ -101,7 +26,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const catalog = PLAN_CATALOG.find(p => p.id === sub!.plan) || PLAN_CATALOG[0];
+    const catalog = PLAN_CATALOG.find((p: any) => p.id === sub!.plan) || PLAN_CATALOG[0];
 
     return reply.send({
       plan: sub.plan,

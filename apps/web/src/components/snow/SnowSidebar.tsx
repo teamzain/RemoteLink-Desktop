@@ -1,13 +1,14 @@
 import React from 'react';
-import { 
+import {
   Link as LucideLink,
-  Monitor, 
-  Settings, 
-  CreditCard, 
-  User, 
+  Monitor,
+  Settings,
+  CreditCard,
+  User,
   PieChart,
   LogOut,
-  LifeBuoy
+  LifeBuoy,
+  Users
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -20,7 +21,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  
+
   const isActive = (path: string) => location.pathname === path;
 
   const navItemClass = (active: boolean) => `
@@ -45,10 +46,10 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
   };
 
   return (
-    <aside 
+    <aside
       className={`fixed left-0 top-0 bottom-0 bg-white border-r border-[rgba(28,28,28,0.08)] flex flex-col font-inter z-30 shadow-sm transition-all duration-300 overflow-hidden ${isCollapsed ? 'w-[72px]' : 'w-[212px]'}`}
     >
-      
+
       {/* Brand Logo Section */}
       <NavLink to="/dashboard" className={`flex items-center gap-3 pt-8 mb-10 transition-all duration-300 ${isCollapsed ? 'px-0 justify-center' : 'px-5'}`}>
         <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center shadow-lg shadow-black/10 transition-transform hover:scale-105 shrink-0">
@@ -63,7 +64,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
 
       {/* Main Navigation Scroll Area */}
       <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-10 space-y-9 overflow-x-hidden">
-        
+
         {/* Dashboards Section */}
         <div className="flex flex-col gap-2">
           {!isCollapsed && (
@@ -80,6 +81,15 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
               <div className={indicatorClass(isActive('/dashboard/devices'))} />
               <Monitor size={18} className="shrink-0" />
               <span className={textClass(isActive('/dashboard/devices'))}>All Devices</span>
+            </NavLink>
+
+            <NavLink to="/dashboard/members" className={({ isActive: active }) => navItemClass(active)}>
+              <div className={indicatorClass(isActive('/dashboard/members'))} />
+              <Users size={18} className="shrink-0" />
+              <span className={textClass(isActive('/dashboard/members'))}>Team Management</span>
+              {(user?.plan === 'FREE' || user?.plan === 'PRO') && !isCollapsed && (
+                <div className="ml-auto bg-[rgba(28,28,28,0.04)] px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-tight text-[rgba(28,28,28,0.3)]">PRO+</div>
+              )}
             </NavLink>
           </div>
         </div>
@@ -110,7 +120,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
             <span className="px-3 text-[10px] font-black text-[rgba(28,28,28,0.2)] uppercase tracking-[0.2em] animate-in fade-in duration-300">Service</span>
           )}
           <div className="flex flex-col gap-1">
-             <NavLink to="/dashboard/billing" className={({ isActive: active }) => navItemClass(active)}>
+            <NavLink to="/dashboard/billing" className={({ isActive: active }) => navItemClass(active)}>
               <div className={indicatorClass(isActive('/dashboard/billing'))} />
               <CreditCard size={18} className="shrink-0" />
               <span className={textClass(isActive('/dashboard/billing'))}>Billing</span>
@@ -128,7 +138,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
 
       {/* Footer Branding & Logout */}
       <div className={`mt-auto p-4 border-t border-[rgba(28,28,28,0.04)] bg-[#F8F9FA]/30 transition-all duration-300 ${isCollapsed ? 'px-2' : 'px-4'}`}>
-        <button 
+        <button
           onClick={handleLogout}
           className={`group flex items-center justify-center rounded-xl border border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] transition-all bg-white shadow-sm ${isCollapsed ? 'w-10 h-10 mx-auto' : 'w-full py-2.5 gap-2.5 px-3'}`}
         >

@@ -74,9 +74,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
           // If mail fails but it's a timeout or network issue, we JUST LOG IT and don't fail the request.
           // This allows the user to use the code from the terminal.
           console.error(`[Auth] SMTP Delivery Failed (Bypassing for Dev): ${mailErr.message}`);
-          return reply.send({ 
-            success: true, 
-            message: 'Verification code generated (Check server terminal for dev fallback).' 
+          return reply.send({
+            success: true,
+            message: 'Verification code generated (Check server terminal for dev fallback).'
           });
         }
       } else {
@@ -91,7 +91,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   fastify.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
     const { email, password, name, verificationCode } = request.body as any;
-    
+
     if (!email || !password || !verificationCode) {
       return reply.code(400).send({ error: 'Email, password, and verification code are required' });
     }
@@ -136,9 +136,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       // 2. Create User as SUB_ADMIN of that Org
       const user = await tx.user.create({
-        data: { 
-          email, 
-          password: hashedPassword, 
+        data: {
+          email,
+          password: hashedPassword,
           name,
           role: 'SUB_ADMIN',
           organizationId: org.id
@@ -246,7 +246,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id, email: user.email })
       });
-    } catch (err) {}
+    } catch (err) { }
 
     return reply.send(await issueTokens(user));
   });
@@ -299,7 +299,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user!.id, email: user!.email })
           });
-        } catch (err) {}
+        } catch (err) { }
       }
 
       if ((user as any).is2FAEnabled) {
@@ -366,7 +366,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/refresh', async (request: FastifyRequest, reply: FastifyReply) => {
     const { refreshToken } = request.body as any;
     if (!refreshToken) return reply.code(400).send({ error: 'Refresh token required' });
-    
+
     // Check if blacklisted in Redis
     const isBlacklisted = await isTokenBlacklisted(refreshToken);
     if (isBlacklisted) {
@@ -375,7 +375,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     const decoded = verifyToken(refreshToken);
     if (!decoded || !decoded.userId || decoded.type !== 'refresh') {
-       return reply.code(401).send({ error: 'Invalid refresh token' });
+      return reply.code(401).send({ error: 'Invalid refresh token' });
     }
 
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
@@ -473,26 +473,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
-    const { 
-      name, 
-      current_password, 
-      password, 
-      notify_session_alert, 
-      notify_disconnect_alert, 
-      notify_sound_effects 
+    const {
+      name,
+      current_password,
+      password,
+      notify_session_alert,
+      notify_disconnect_alert,
+      notify_sound_effects
     } = request.body as any;
 
     const updateData: any = {};
 
     if (name) updateData.name = name;
-    
+
     if (notify_session_alert !== undefined) updateData.notifySessionAlert = notify_session_alert;
     if (notify_disconnect_alert !== undefined) updateData.notifyDisconnectAlert = notify_disconnect_alert;
     if (notify_sound_effects !== undefined) updateData.notifySoundEffects = notify_sound_effects;
 
     if (password) {
       if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
-      
+
       const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
       if (!user || !user.password) return reply.code(401).send({ error: 'Unauthorized' });
 
@@ -524,6 +524,92 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // 6.1 Close Account (Complete Wipe)
+  fastify.delete('/me', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const userId = decoded.userId;
+
+    try {
+      await prisma.$transaction(async (tx: any) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          include: { organization: true }
+        });
+
+        if (!user) throw new Error('User not found');
+
+        // 1. If user is a SUB_ADMIN, they might own an organization.
+        // If they are the only admin or we want to delete the whole workspace:
+        if (user.role === 'SUB_ADMIN' && user.organizationId) {
+          const orgId = user.organizationId;
+
+          // Dissociate other users first (standard cleanup)
+          await tx.user.updateMany({
+            where: { organizationId: orgId, NOT: { id: userId } },
+            data: { organizationId: null, role: 'USER' }
+          });
+
+          // Dissociate other devices
+          await tx.device.updateMany({
+            where: { organizationId: orgId, NOT: { ownerId: userId } },
+            data: { organizationId: null }
+          });
+
+          // Delete org entities
+          await tx.enrollmentToken.deleteMany({ where: { organizationId: orgId } });
+          await tx.invitation.deleteMany({ where: { organizationId: orgId } });
+          await tx.department.deleteMany({ where: { organizationId: orgId } });
+
+          // We will delete the Org record at the end of the user deletion to avoid FK issues
+        }
+
+        // 2. Clean up user-specific data
+        const userDevices = await tx.device.findMany({ where: { ownerId: userId } });
+        const deviceIds = userDevices.map((d: any) => d.id);
+
+        // Remove from Trust/Saved lists (both directions)
+        await tx.trustedDevice.deleteMany({
+          where: { OR: [{ viewerUserId: userId }, { hostDeviceId: { in: deviceIds } }] }
+        });
+        await tx.savedDevice.deleteMany({
+          where: { OR: [{ userId: userId }, { deviceId: { in: deviceIds } }] }
+        });
+
+        // Delete Sessions
+        await tx.session.deleteMany({
+          where: { OR: [{ viewerId: userId }, { hostId: { in: deviceIds } }] }
+        });
+
+        // Delete Devices
+        await tx.device.deleteMany({ where: { ownerId: userId } });
+
+        // Delete Subscription & Support
+        await tx.subscription.deleteMany({ where: { userId } });
+        await tx.supportTicket.deleteMany({ where: { userId } });
+        await tx.guideRequest.deleteMany({ where: { userId } });
+
+        // 3. Delete the User
+        await tx.user.delete({ where: { id: userId } });
+
+        // 4. Finally delete the Org if they were a SUB_ADMIN
+        if (user.role === 'SUB_ADMIN' && user.organizationId) {
+          await tx.organization.delete({ where: { id: user.organizationId } });
+        }
+      });
+
+      return reply.send({ success: true, message: 'Account closed and all data wiped.' });
+    } catch (err: any) {
+      console.error('[Auth-Service] Account closure failed:', err);
+      return reply.code(500).send({ error: 'Failed to close account' });
+    }
+  });
+
   // 7. Get ICE Servers (STUN/TURN) for WebRTC
   fastify.get('/ice-servers', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
@@ -537,7 +623,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { 
+        {
           urls: `turn:${serverIP}:3478`,
           username: turnUser,
           credential: turnPass

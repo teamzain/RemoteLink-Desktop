@@ -34,16 +34,26 @@ else
     exit 1
 fi
 
-# 4. Check for Docker/Docker Compose
-if ! command -v docker &> /dev/null; then
-    echo "📦 Installing Docker..."
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sh get-docker.sh
-fi
+# 4. Check for Dependencies
+echo "🔍 Checking dependencies..."
+for cmd in docker git curl; do
+    if ! command -v $cmd &> /dev/null; then
+        if [ "$cmd" == "docker" ]; then
+            echo "📦 Installing Docker..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sh get-docker.sh
+            rm get-docker.sh
+        else
+            echo "❌ Error: $cmd is not installed. Please install it first."
+            exit 1
+        fi
+    fi
+done
 
 # 5. Build and Launch
 echo "🏗️ Building and launching services..."
-docker compose -f docker-compose.prod.yml up -d --build
+# Use --pull to ensure we have the latest base images
+docker compose -f docker-compose.prod.yml up -d --build --pull --remove-orphans
 
 # 6. Desktop App Hosting Setup
 echo "📁 Setting up Desktop Download directories..."
@@ -52,6 +62,11 @@ sudo mkdir -p /var/www/downloads/desktop
 sudo chown -R $USER:$USER /var/www/downloads
 sudo chmod -R 755 /var/www/downloads
 echo "✅ Download directory ready at /var/www/downloads/desktop"
+
+# 7. Cleanup
+echo "🧹 Cleaning up unused Docker resources..."
+docker image prune -f
+docker builder prune -f --filter "until=24h"
 
 echo "✅ Deployment Complete!"
 echo "------------------------------------------------"
