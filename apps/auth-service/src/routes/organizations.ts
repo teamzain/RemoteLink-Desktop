@@ -108,6 +108,58 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     return reply.send({ ...org, plan });
   });
 
+  // 6. Get my Org info (SUB_ADMIN / USER)
+  fastify.get('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: {
+        organization: {
+          include: {
+            departments: true,
+            _count: { select: { users: true, devices: true } }
+          }
+        }
+      }
+    });
+
+    if (!user?.organization) {
+      return reply.code(404).send({ error: 'No organization joined yet' });
+    }
+
+    return reply.send(user.organization);
+  });
+
+  // 7. Update my Org settings (SUB_ADMIN ONLY)
+  fastify.patch('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
+      return reply.code(403).send({ error: 'Org Admin access required' });
+    }
+
+    const { defaultMemberRole, require2FA } = request.body as any;
+    const updateData: any = {};
+    if (defaultMemberRole) updateData.defaultMemberRole = defaultMemberRole;
+    if (require2FA !== undefined) updateData.require2FA = require2FA;
+
+    const org = await prisma.organization.update({
+      where: { id: decoded.orgId },
+      data: updateData
+    });
+
+    return reply.send(org);
+  });
+
   // 4. Delete Organization (SUPER_ADMIN ONLY)
   fastify.delete('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const decoded = await requireSuperAdmin(request, reply);
@@ -166,55 +218,4 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // 6. Get my Org info (SUB_ADMIN / USER)
-  fastify.get('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
-
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        organization: {
-          include: {
-            departments: true,
-            _count: { select: { users: true, devices: true } }
-          }
-        }
-      }
-    });
-
-    if (!user?.organization) {
-      return reply.code(404).send({ error: 'No organization joined yet' });
-    }
-
-    return reply.send(user.organization);
-  });
-
-  // 7. Update my Org settings (SUB_ADMIN ONLY)
-  fastify.patch('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
-    const authHeader = request.headers.authorization;
-    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
-      return reply.code(403).send({ error: 'Org Admin access required' });
-    }
-
-    const { defaultMemberRole, require2FA } = request.body as any;
-    const updateData: any = {};
-    if (defaultMemberRole) updateData.defaultMemberRole = defaultMemberRole;
-    if (require2FA !== undefined) updateData.require2FA = require2FA;
-
-    const org = await prisma.organization.update({
-      where: { id: decoded.orgId },
-      data: updateData
-    });
-
-    return reply.send(org);
-  });
 }

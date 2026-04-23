@@ -14,19 +14,19 @@ export const SnowMembers: React.FC<SnowMembersProps> = ({ user }) => {
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState('USER');
 
-    const isRestricted = user?.plan === 'FREE' || user?.plan === 'PRO';
+    const isRestricted = user && (user.plan === 'FREE' || user.plan === 'PRO');
 
     useEffect(() => {
-        if (!isRestricted) {
+        if (user && !isRestricted) {
             fetchMembers();
-        } else {
+        } else if (user) {
             setIsLoading(false);
         }
-    }, [isRestricted]);
+    }, [user, isRestricted]);
 
     const fetchMembers = async () => {
         try {
-            const { data } = await api.get('/api/auth/members');
+            const { data } = await api.get('/api/members');
             setMembers(data.members || []);
             setPendingInvites(data.pendingInvites || []);
         } catch (err) {
