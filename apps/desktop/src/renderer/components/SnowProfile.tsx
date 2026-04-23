@@ -136,6 +136,19 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
     }
   };
 
+  const handleCloseAccount = async () => {
+    const confirmed = window.confirm('Are you absolutely sure you want to close your account? This will permanently delete your organization, all team members, and all registered devices. This action cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await api.delete('/api/auth/me');
+      logout();
+    } catch (err: any) {
+      console.error('Failed to close account', err);
+      alert(err?.response?.data?.error || 'Failed to close account. Please contact support.');
+    }
+  };
+
   const planLabel = user?.plan || 'FREE';
 
   return (
@@ -294,7 +307,7 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
                 <Bell size={14} className="text-orange-400" />
                 <span className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-wider">Notifications</span>
               </div>
-              
+
               {/* New Session Alert */}
               <div className="flex items-center justify-between p-3.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.04)]">
                 <div className="flex flex-col">
@@ -362,7 +375,10 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
           <span className="text-xs font-bold text-red-600">Danger Zone</span>
           <span className="text-[10px] text-red-400">Permanently remove all your nodes and account data.</span>
         </div>
-        <button onClick={logout} className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors shadow-sm">
+        <button
+          onClick={handleCloseAccount}
+          className="flex items-center gap-2 px-4 py-2 bg-white text-red-600 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors shadow-sm"
+        >
           <LogOut size={14} /> Close Account
         </button>
       </div>
