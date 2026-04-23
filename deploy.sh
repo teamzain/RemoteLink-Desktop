@@ -58,7 +58,7 @@ docker compose -f docker-compose.prod.yml up -d --build --pull always --remove-o
 # 5b. Database Migrations & Seeding
 echo "🗄️ Running database migrations and seeding..."
 # We run this inside the auth-service container because it has the prisma environment setup
-docker compose -f docker-compose.prod.yml exec -T auth-service npx prisma migrate deploy --schema=./packages/shared/prisma/schema.prisma
+docker compose -f docker-compose.prod.yml exec -T auth-service npx prisma db push --schema=./packages/shared/prisma/schema.prisma --accept-data-loss
 docker compose -f docker-compose.prod.yml exec -T auth-service npm run seed -w @remotelink/shared
 echo "✅ Database schema and seeding updated."
 
