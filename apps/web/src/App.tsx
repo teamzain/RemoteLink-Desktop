@@ -20,6 +20,7 @@ import ForgotPassword from './pages/auth/ForgotPassword'
 import TwoFactor from './pages/auth/TwoFactor'
 import ResetPassword from './pages/auth/ResetPassword'
 import AuthCallback from './pages/auth/AuthCallback'
+import Onboard from './pages/auth/Onboard'
 
 import React, { useEffect } from 'react'
 
@@ -65,6 +66,7 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/2fa" element={<TwoFactor />} />
+      <Route path="/onboard" element={<Onboard />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
     </Routes>
   )
