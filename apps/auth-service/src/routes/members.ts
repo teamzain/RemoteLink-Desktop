@@ -154,6 +154,10 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     const decoded = await requireOrgAdmin(request, reply);
     if (!decoded) return;
 
+    if (!decoded.orgId) {
+      return reply.send({ members: [], pendingInvites: [] });
+    }
+
     const members = await prisma.user.findMany({
       where: { organizationId: decoded.orgId },
       select: {
