@@ -14,7 +14,7 @@ export const SnowMembers: React.FC<SnowMembersProps> = ({ user }) => {
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState('USER');
 
-    const isRestricted = user && (user.plan === 'FREE' || user.plan === 'PRO');
+    const isRestricted = user && (user.plan === 'TRIAL' || user.plan === 'SOLO' || user.plan === 'PRO');
 
     useEffect(() => {
         if (user && !isRestricted) {

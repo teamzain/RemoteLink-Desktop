@@ -57,8 +57,8 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   const isAnalytics = currentView === 'analytics' && !selectedDevice;
 
   const userRole = user?.role || 'USER';
-  const userPlan = user?.plan || 'FREE';
-  const isRestricted = userPlan === 'FREE' || userPlan === 'PRO';
+  const userPlan = user?.plan || 'TRIAL';
+  const isRestricted = userPlan === 'TRIAL' || userPlan === 'SOLO' || userPlan === 'PRO';
   const canManageTeam = (userRole === 'SUB_ADMIN' || userRole === 'SUPER_ADMIN') && !isRestricted;
   const canManageOrgs = userRole === 'SUPER_ADMIN';
 

@@ -59,7 +59,7 @@ export const SnowMembers: React.FC = () => {
   const [deviceSearch, setDeviceSearch] = useState('');
 
   const { user } = useAuthStore();
-  const isRestricted = user && (user.plan === 'FREE' || user.plan === 'PRO');
+  const isRestricted = user && (user.plan === 'TRIAL' || user.plan === 'SOLO' || user.plan === 'PRO');
 
   useEffect(() => {
     if (user && !isRestricted) {
@@ -267,8 +267,8 @@ export const SnowMembers: React.FC = () => {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${member.role === 'SUB_ADMIN' ? 'bg-purple-50 text-purple-600' :
-                      member.role === 'OPERATOR' ? 'bg-blue-50 text-blue-600' :
-                        'bg-slate-50 text-slate-500'
+                    member.role === 'OPERATOR' ? 'bg-blue-50 text-blue-600' :
+                      'bg-slate-50 text-slate-500'
                     }`}>
                     {member.role.replace('_', ' ')}
                   </span>
