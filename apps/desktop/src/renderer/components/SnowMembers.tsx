@@ -14,6 +14,7 @@ import {
   Pencil
 } from 'lucide-react';
 import api from '../lib/api';
+import { useAuthStore } from '../store/authStore';
 
 interface Member {
   id: string;
@@ -57,10 +58,17 @@ export const SnowMembers: React.FC = () => {
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
   const [deviceSearch, setDeviceSearch] = useState('');
 
+  const { user } = useAuthStore();
+  const isRestricted = user && (user.plan === 'FREE' || user.plan === 'PRO');
+
   useEffect(() => {
-    fetchTeamData();
-    fetchOrgDevices();
-  }, []);
+    if (user && !isRestricted) {
+      fetchTeamData();
+      fetchOrgDevices();
+    } else if (user) {
+      setLoading(false);
+    }
+  }, [user, isRestricted]);
 
   const fetchOrgDevices = async () => {
     try {
@@ -182,7 +190,7 @@ export const SnowMembers: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">
-      
+
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -209,7 +217,7 @@ export const SnowMembers: React.FC = () => {
           </div>
           <p className="text-3xl font-bold text-[#1C1C1C]">{members.length}</p>
         </div>
-        
+
         <div className="p-6 bg-white rounded-3xl border border-[rgba(28,28,28,0.04)] shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
@@ -258,11 +266,10 @@ export const SnowMembers: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                    member.role === 'SUB_ADMIN' ? 'bg-purple-50 text-purple-600' :
-                    member.role === 'OPERATOR' ? 'bg-blue-50 text-blue-600' :
-                    'bg-slate-50 text-slate-500'
-                  }`}>
+                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${member.role === 'SUB_ADMIN' ? 'bg-purple-50 text-purple-600' :
+                      member.role === 'OPERATOR' ? 'bg-blue-50 text-blue-600' :
+                        'bg-slate-50 text-slate-500'
+                    }`}>
                     {member.role.replace('_', ' ')}
                   </span>
                 </td>
@@ -323,7 +330,7 @@ export const SnowMembers: React.FC = () => {
                 <td className="px-6 py-4 text-xs text-amber-600/60 italic font-medium">Waiting for join...</td>
                 <td className="px-6 py-4 text-xs text-[rgba(28,28,28,0.4)]">---</td>
                 <td className="px-6 py-4 text-right">
-                  <button 
+                  <button
                     onClick={() => setDeleteTarget({ id: invite.id, type: 'invitation', email: invite.email })}
                     className="p-2 text-amber-600/40 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
                   >
@@ -335,10 +342,30 @@ export const SnowMembers: React.FC = () => {
           </tbody>
         </table>
 
-        {members.length === 0 && invitations.length === 0 && !loading && (
+        {members.length === 0 && invitations.length === 0 && !loading && !isRestricted && (
           <div className="py-20 flex flex-col items-center justify-center text-[rgba(28,28,28,0.4)] gap-2">
             <Users size={48} strokeWidth={1} />
             <span className="text-xs">No team members yet. Invite your first colleague!</span>
+          </div>
+        )}
+
+        {isRestricted && (
+          <div className="py-24 flex flex-col items-center justify-center text-center px-6">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-[28px] flex items-center justify-center mb-8 shadow-sm">
+              <Users size={40} strokeWidth={1.5} />
+            </div>
+            <h2 className="text-2xl font-bold text-[#1C1C1C] mb-3 tracking-tight">Team Management Restricted</h2>
+            <p className="text-sm text-[rgba(28,28,28,0.5)] max-w-sm mb-10 leading-relaxed font-medium">
+              Elevate your organization by adding team members, managing roles, and delegating access.
+              Team features are available on <span className="text-[#1C1C1C] font-bold">Team</span> and <span className="text-[#1C1C1C] font-bold">Enterprise</span> plans.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <button
+                className="px-10 py-4 bg-[#1C1C1C] text-white rounded-2xl text-sm font-bold shadow-2xl shadow-black/10 hover:bg-[#2C2C2C] transition-all transform active:scale-[0.98]"
+              >
+                Explore Team Plans
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -357,13 +384,13 @@ export const SnowMembers: React.FC = () => {
               Are you sure you want to remove <strong>{deleteTarget.email}</strong>? This action cannot be undone.
             </p>
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setDeleteTarget(null)}
                 className="flex-1 py-3.5 bg-[#F9F9FA] text-[rgba(28,28,28,0.6)] rounded-xl font-bold text-sm hover:bg-[#F0F0F2] transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={() => deleteTarget.type === 'member' ? removeMember(deleteTarget.id) : removeInvitation(deleteTarget.id)}
                 className="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-all shadow-lg shadow-red-200"
               >
@@ -478,8 +505,8 @@ export const SnowMembers: React.FC = () => {
             <form onSubmit={handleSendInvite} className="space-y-5">
               <div>
                 <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest mb-2 px-1">Email Address</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="colleague@company.com"
@@ -491,15 +518,15 @@ export const SnowMembers: React.FC = () => {
               <div>
                 <label className="block text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest mb-2 px-1">Assign Role</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setInviteRole('OPERATOR')}
                     className={`px-3 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${inviteRole === 'OPERATOR' ? 'bg-[#1C1C1C] text-white border-[#1C1C1C]' : 'bg-white text-[rgba(28,28,28,0.6)] border-[rgba(28,28,28,0.1)] hover:border-[rgba(28,28,28,0.3)]'}`}
                   >
                     Operator (Full Access)
                   </button>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setInviteRole('VIEWER')}
                     className={`px-3 py-2.5 rounded-xl border text-[11px] font-bold transition-all ${inviteRole === 'VIEWER' ? 'bg-[#1C1C1C] text-white border-[#1C1C1C]' : 'bg-white text-[rgba(28,28,28,0.6)] border-[rgba(28,28,28,0.1)] hover:border-[rgba(28,28,28,0.3)]'}`}
                   >
@@ -575,7 +602,7 @@ export const SnowMembers: React.FC = () => {
                 </div>
               )}
 
-              <button 
+              <button
                 type="submit"
                 className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl text-sm font-bold shadow-xl shadow-black/10 hover:bg-[#2C2C2C] transition-all transform active:scale-[0.98] mt-4"
               >

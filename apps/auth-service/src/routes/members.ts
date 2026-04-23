@@ -8,13 +8,17 @@ export default async function memberRoutes(fastify: FastifyInstance) {
   // Helper to verify Org Admin (SUB_ADMIN) and Plan permission
   const requireOrgAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
-    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+    if (!authHeader) {
+      reply.code(401).send({ error: 'Unauthorized' });
+      return null;
+    }
 
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
 
     if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
-      return reply.code(403).send({ error: 'Org Admin access required' });
+      reply.code(403).send({ error: 'Org Admin access required' });
+      return null;
     }
 
     // Skip plan check for Super Admins
@@ -22,13 +26,27 @@ export default async function memberRoutes(fastify: FastifyInstance) {
 
     // Check plan for Sub Admins (Org Managers)
     const sub = await prisma.subscription.findUnique({ where: { userId: decoded.userId } });
-    const plan = sub?.plan || 'FREE';
-    if (plan === 'FREE' || plan === 'PRO') {
-      return reply.code(403).send({
+
+    // If the SUB_ADMIN making the request doesn't have a plan, check if the ORG owner does
+    let plan = sub?.plan;
+
+    if (!plan && decoded.orgId) {
+      const orgOwner = await prisma.user.findFirst({
+        where: { organizationId: decoded.orgId, role: 'SUB_ADMIN' },
+        include: { subscription: true },
+        orderBy: { createdAt: 'asc' }
+      });
+      plan = orgOwner?.subscription?.plan;
+    }
+
+    const currentPlan = plan || 'FREE';
+    if (currentPlan === 'FREE' || currentPlan === 'PRO') {
+      reply.code(403).send({
         error: 'Team management is only available on Team and Enterprise plans. Please upgrade to continue.',
         planRestricted: true,
-        currentPlan: plan
+        currentPlan
       });
+      return null;
     }
 
     return decoded;
