@@ -39,7 +39,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
       plan = orgOwner?.subscription?.plan;
     }
 
-    const currentPlan = plan || 'TRIAL';
+    const currentPlan = (plan as string) || 'TRIAL';
     if (currentPlan === 'TRIAL' || currentPlan === 'SOLO' || currentPlan === 'PRO') {
       reply.code(403).send({
         error: 'Team management is only available on Team and Enterprise plans. Please upgrade to continue.',
