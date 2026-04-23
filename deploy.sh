@@ -52,8 +52,8 @@ done
 
 # 5. Build and Launch
 echo "🏗️ Building and launching services..."
-# Use --pull to ensure we have the latest base images
-docker compose -f docker-compose.prod.yml up -d --build --pull --remove-orphans
+# Use --pull always to ensure we have the latest base images
+docker compose -f docker-compose.prod.yml up -d --build --pull always --remove-orphans
 
 # 6. Desktop App Hosting Setup
 echo "📁 Setting up Desktop Download directories..."
