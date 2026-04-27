@@ -164,7 +164,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
       const lockoutKey = `lockout:${accessKey}`;
       const attempts = await redisPublisher.get(lockoutKey);
-      if (attempts && parseInt(attempts) >= 20) {
+      if (attempts && parseInt(attempts) >= 5) {
         const ttl = await redisPublisher.ttl(lockoutKey);
         return reply.code(429).send({ error: 'Too many attempts', retryAfter: ttl });
       }
@@ -619,6 +619,21 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     return reply.send({ exists: true, online });
   });
 
+  // POST /connect/lookup (Guest Viewer Step 1)
+  fastify.post('/connect/lookup', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { accessKey } = request.body as any;
+    if (!accessKey) return reply.code(400).send({ error: 'Access Key required' });
+    const key = String(accessKey).replace(/\s/g, '');
+
+    const device = await prisma.device.findUnique({ where: { accessKey: key }, select: { id: true, name: true, accessKey: true } });
+    if (!device) return reply.code(404).send({ exists: false, error: 'No machine found with that access key' });
+
+    const presence = await redisPublisher.get(`presence:${key}`);
+    const online = presence === 'online';
+    if (!online) return reply.code(409).send({ exists: true, online: false, error: 'That machine is offline. Ask the owner to open RemoteLink and check their connection.' });
+
+    return reply.send({ exists: true, online: true, name: device.name });
+  });
 
 
 }

@@ -26,6 +26,7 @@ import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
 import { SnowAnalytics } from './components/SnowAnalytics';
+import { SnowHome } from './components/SnowHome';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
 import UpdateBanner from './components/UpdateBanner';
 import { playUISound, fireNotification } from './components/SnowUserSettings';
@@ -1084,7 +1085,7 @@ export default function App() {
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
-    const [currentView, setCurrentView] = useState<'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail'>('dashboard');
+    const [currentView, setCurrentView] = useState<'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail'>('home');
     const [orgDetailId, setOrgDetailId] = useState<string | null>(null);
     const [authMode, setAuthMode] = useState<'login' | 'signup' | 'connect' | 'forgot' | 'reset'>('login');
     const [resetEmail, setResetEmail] = useState('');
@@ -1647,6 +1648,9 @@ export default function App() {
 
     const [deviceId, setDeviceId] = useState('');
     const [viewerStep, setViewerStep] = useState<1 | 2>(1);
+    const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
+    const [lockoutSeconds, setLockoutSeconds] = useState(0);
+    const [showAuthModal, setShowAuthModal] = useState(false);
     const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number, cpu: string, memory: string }>({
         bandwidth: '0.00',
         activeUsers: 0,
@@ -2263,12 +2267,29 @@ export default function App() {
         if (!sessionCode) return;
         setViewerStatus('connecting');
         setViewerError('');
+        setAccessPassword('');
+        setLockoutSeconds(0);
+        setTargetDeviceName(null);
         try {
             const cleanKey = sessionCode.replace(/\s/g, '');
-            const { data } = await api.get(`/api/devices/status?key=${cleanKey}`);
-            if (!data.exists) throw new Error('Device not found. Check the access key.');
-            if (!data.online) throw new Error('This machine is currently offline.');
+            let lookupData: any = null;
+            try {
+                // New guest lookup endpoint (preferred)
+                const { data } = await api.post('/api/devices/connect/lookup', { accessKey: cleanKey });
+                lookupData = data;
+            } catch (lookupErr: any) {
+                // Backward compatibility for older servers that only expose /status
+                if (lookupErr?.response?.status !== 404) {
+                    throw lookupErr;
+                }
+                const { data } = await api.get(`/api/devices/status?key=${cleanKey}`);
+                lookupData = data;
+            }
 
+            if (!lookupData?.exists) throw new Error('No machine found with that access key. Check and try again.');
+            if (!lookupData?.online) throw new Error('That machine is offline. Ask the owner to open RemoteLink and check their connection.');
+
+            setTargetDeviceName(lookupData?.name || null);
             setViewerStep(2);
             setViewerStatus('idle');
         } catch (e: any) {
@@ -2298,9 +2319,21 @@ export default function App() {
             }
         } catch (e: any) {
             setViewerStatus('error');
+            if (e.response?.status === 429) {
+                const retryAfter = Number(e.response?.data?.retryAfter || 0);
+                setLockoutSeconds(retryAfter > 0 ? retryAfter : 300);
+            }
             setViewerError(e.response?.data?.error || e.message || 'Connection failed.');
         }
     };
+
+    useEffect(() => {
+        if (lockoutSeconds <= 0) return;
+        const timer = window.setInterval(() => {
+            setLockoutSeconds((prev) => (prev > 1 ? prev - 1 : 0));
+        }, 1000);
+        return () => window.clearInterval(timer);
+    }, [lockoutSeconds]);
 
     const formatCode = (code: string) => {
         if (!code) return '';
@@ -2378,7 +2411,7 @@ export default function App() {
         return <SnowOnboard token={onboardingToken} onComplete={() => setOnboardingToken(null)} />;
     }
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated && showAuthModal) {
         if (temp2faToken) {
             return (
                 <div className="h-screen w-full flex items-center justify-center bg-white font-inter select-none">
@@ -2452,6 +2485,17 @@ export default function App() {
                                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Desktop Auth</span>
                             </div>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowAuthModal(false);
+                                setAuthMode('login');
+                                setAuthError(null);
+                            }}
+                            className="mb-6 text-[11px] font-bold text-[rgba(28,28,28,0.45)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
+                        >
+                            ← Back to Home
+                        </button>
 
                         {/* Auth Mode Tabs */}
                         <div className={`flex bg-[#F8F9FA] rounded-2xl p-1 mb-8 border border-[rgba(28,28,28,0.04)] ${(authMode === 'forgot' || authMode === 'reset') ? 'hidden' : ''}`}>
@@ -2959,19 +3003,21 @@ export default function App() {
             )}
 
             {/* --- SNOW UI SIDEBAR NAV --- */}
-            <SnowSidebar
-                currentView={currentView}
-                selectedDevice={selectedDevice}
-                setCurrentView={(v: any) => { setCurrentView(v); setIsSidebarOpen(false); }}
-                setSelectedDevice={setSelectedDevice}
-                handleLogout={() => {
-                    storeLogout();
-                    setAuth({} as any, '', '');
-                }}
-                user={user}
-                isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
-            />
+            {isAuthenticated && (
+                <SnowSidebar
+                    currentView={currentView}
+                    selectedDevice={selectedDevice}
+                    setCurrentView={(v: any) => { setCurrentView(v); setIsSidebarOpen(false); }}
+                    setSelectedDevice={setSelectedDevice}
+                    handleLogout={() => {
+                        storeLogout();
+                        setAuth({} as any, '', '');
+                    }}
+                    user={user}
+                    isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
+                />
+            )}
 
             {/* Mobile Sidebar Overlay */}
             {isSidebarOpen && (
@@ -2987,19 +3033,22 @@ export default function App() {
                     <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(28,28,28,0.06)]">
                         <div className="flex items-center gap-4">
                             {/* Mobile Menu Toggle */}
-                            <button
-                                onClick={() => setIsSidebarOpen(true)}
-                                className="p-2 md:hidden hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
-                            >
-                                <LayoutGrid size={20} className="text-[#1C1C1C]" />
-                            </button>
+                            {isAuthenticated && (
+                                <button
+                                    onClick={() => setIsSidebarOpen(true)}
+                                    className="p-2 md:hidden hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
+                                >
+                                    <LayoutGrid size={20} className="text-[#1C1C1C]" />
+                                </button>
+                            )}
 
                             <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-1.5 text-[9px] font-bold text-[rgba(28,28,28,0.25)] uppercase tracking-widest hidden sm:flex">
-                                    <span className="hover:text-[rgba(28,28,28,0.5)] cursor-pointer transition-colors" onClick={() => setCurrentView('dashboard')}>Connect-X</span>
+                                    <span className="hover:text-[rgba(28,28,28,0.5)] cursor-pointer transition-colors" onClick={() => setCurrentView(isAuthenticated ? 'dashboard' : 'home')}>Connect-X</span>
                                     <span>/</span>
                                     <span className="text-[rgba(28,28,28,0.5)]">{
                                         selectedDevice ? 'Device Terminal' :
+                                            currentView === 'home' ? 'Home' :
                                             currentView === 'dashboard' ? 'Overview' :
                                                 currentView === 'host' ? 'Host Device' :
                                                     currentView === 'devices' ? 'All Devices' :
@@ -3015,6 +3064,7 @@ export default function App() {
                                 </div>
                                 <h1 className="text-base md:text-xl font-bold text-[#1C1C1C] tracking-tight truncate max-w-[140px] md:max-w-none">
                                     {selectedDevice ? selectedDevice.device_name :
+                                        currentView === 'home' ? 'Home' :
                                         currentView === 'dashboard' ? 'Overview' :
                                             currentView === 'host' ? 'Host This Device' :
                                                 currentView === 'devices' ? 'All Devices' :
@@ -3031,7 +3081,8 @@ export default function App() {
                         </div>
 
                         <div className="flex items-center gap-2 md:gap-4">
-                            <div className="hidden sm:flex items-center bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] pl-3.5 pr-1 py-1 transition-all w-44 md:w-60 h-9 focus-within:bg-white focus-within:border-[rgba(28,28,28,0.2)]">
+                            {isAuthenticated && (
+                                <div className="hidden sm:flex items-center bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] pl-3.5 pr-1 py-1 transition-all w-44 md:w-60 h-9 focus-within:bg-white focus-within:border-[rgba(28,28,28,0.2)]">
                                 <Search className="w-3.5 h-3.5 text-[rgba(28,28,28,0.3)] mr-2 flex-shrink-0" />
                                 <input
                                     type="text"
@@ -3040,18 +3091,22 @@ export default function App() {
                                     onChange={e => setSearchQuery(e.target.value)}
                                     className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[rgba(28,28,28,0.25)]"
                                 />
-                            </div>
+                                </div>
+                            )}
 
-                            <button onClick={pollDevices} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[rgba(28,28,28,0.35)] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.06)]" title="Refresh">
-                                <RefreshCw className="w-4 h-4" />
-                            </button>
+                            {isAuthenticated && (
+                                <button onClick={pollDevices} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[rgba(28,28,28,0.35)] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.06)]" title="Refresh">
+                                    <RefreshCw className="w-4 h-4" />
+                                </button>
+                            )}
 
                             {/* User Avatar */}
-                            <button
-                                onClick={() => setCurrentView('profile')}
-                                className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-[rgba(28,28,28,0.04)] transition-colors group"
-                                title="View Profile"
-                            >
+                            {isAuthenticated ? (
+                                <button
+                                    onClick={() => setCurrentView('profile')}
+                                    className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-[rgba(28,28,28,0.04)] transition-colors group"
+                                    title="View Profile"
+                                >
                                 <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
                                     {(() => {
                                         const name = user?.name || user?.email || '';
@@ -3064,12 +3119,56 @@ export default function App() {
                                     <span className="text-[11px] font-bold text-[#1C1C1C] leading-none truncate max-w-[100px]">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
                                     <span className="text-[9px] font-bold text-[rgba(28,28,28,0.35)] uppercase tracking-wider mt-0.5">{user?.role?.replace('_', ' ') || 'Member'}</span>
                                 </div>
-                            </button>
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => { setShowAuthModal(true); setAuthMode('login'); }}
+                                    className="px-4 py-2 rounded-xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                >
+                                    Sign In
+                                </button>
+                            )}
                         </div>
                     </header>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8">
-                        {selectedDevice ? (
+                        {!isAuthenticated || currentView === 'home' ? (
+                            <div className="w-full pt-4 animate-in fade-in duration-700">
+                                <SnowHome
+                                    localAuthKey={localAuthKey}
+                                    hostStatus={hostStatus}
+                                    devicePassword={devicePassword}
+                                    isAutoHostEnabled={isAutoHostEnabled}
+                                    onCopyAccessKey={copyAccessKey}
+                                    onToggleAutoHost={() => {
+                                        const nextValue = !isAutoHostEnabled;
+                                        setIsAutoHostEnabled(nextValue);
+                                        localStorage.setItem('is_auto_host_enabled', String(nextValue));
+                                    }}
+                                    onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
+                                    onStartHosting={handleStartHosting}
+                                    onStopHosting={handleStopHosting}
+                                    isElectron={isElectron}
+                                    isAuthenticated={isAuthenticated}
+                                    connectStep={viewerStep}
+                                    sessionCode={sessionCode}
+                                    accessPassword={accessPassword}
+                                    connectError={viewerError || null}
+                                    connectStatus={viewerStatus}
+                                    targetDeviceName={targetDeviceName}
+                                    lockoutSeconds={lockoutSeconds}
+                                    onSessionCodeChange={setSessionCode}
+                                    onAccessPasswordChange={setAccessPassword}
+                                    onFindDevice={handleFindDevice}
+                                    onConnectToHost={handleConnectToHost}
+                                    onBackToStep1={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); setLockoutSeconds(0); }}
+                                    onSignIn={() => { setShowAuthModal(true); setAuthMode('login'); }}
+                                    formatCode={formatCode}
+                                    user={user}
+                                    isRegistered={isLocalHostRegistered}
+                                />
+                            </div>
+                        ) : selectedDevice ? (
                             /* --- INDIVIDUAL DEVICE PREVIEW VIEW --- */
                             <div className="max-w-4xl mx-auto min-h-full py-12 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-500 font-inter">
                                 <div className="relative mb-6">
