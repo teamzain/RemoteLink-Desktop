@@ -345,12 +345,12 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.password) {
-      return reply.code(401).send({ error: 'Invalid credentials' });
+      return reply.code(401).send({ error: 'Account does not exist in the system' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return reply.code(401).send({ error: 'Invalid credentials' });
+      return reply.code(401).send({ error: 'Incorrect password' });
     }
 
     if ((user as any).is2FAEnabled) {

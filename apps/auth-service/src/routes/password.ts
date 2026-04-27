@@ -46,8 +46,7 @@ export default async function passwordRoutes(fastify: FastifyInstance) {
 
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
 
-    // Always respond the same to avoid user enumeration
-    if (!user) return reply.send({ message: 'If that email exists, a reset code has been sent.' });
+    if (!user) return reply.code(404).send({ error: 'Account does not exist in the system' });
 
     const code = makeCode();
     const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
@@ -63,7 +62,7 @@ export default async function passwordRoutes(fastify: FastifyInstance) {
       console.error('[Password-Reset] Email send failed:', err.message);
     }
 
-    return reply.send({ message: 'If that email exists, a reset code has been sent.' });
+    return reply.send({ message: 'A reset code has been sent to your email.' });
   });
 
   // POST /api/auth/password/reset

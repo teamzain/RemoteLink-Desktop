@@ -403,7 +403,7 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
               </div>
             </div>
             <p className="text-xs text-[rgba(28,28,28,0.6)] leading-relaxed mb-6">
-              This will permanently delete your organization, all team members, all registered devices, and all session history. You cannot undo this.
+              This will permanently delete your organization, all team members and subordinate accounts, all registered devices, and all session history. You cannot undo this.
             </p>
             {closeAccountError && (
               <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl border border-red-100 mb-4">
