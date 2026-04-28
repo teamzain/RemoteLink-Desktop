@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-04-28T09:11:12.334Z",
+  "generatedAt": "2026-04-28T09:47:23.140Z",
   "releases": [
     {
       "version": "1.0.0",
       "tag": "v1.0.0",
-      "publishedAt": "2026-04-28T09:11:12.260Z",
-      "notes": "Desktop release 1.0.0",
+      "publishedAt": "2026-04-28T09:47:23.061Z",
+      "notes": "Fix node-datachannel native module",
       "assets": [
         {
           "name": "Connect-X Setup 1.0.0.exe",
-          "size": 89458825,
-          "sha256": "0182ef0842319c846c22d3cc46184a0ecb0d3e819b32b38deeba2152e56a24c1",
+          "size": 91831735,
+          "sha256": "81cea8769950de01e8afadc79c7c0866e68a6b76a975af83da2567422231f737",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/Connect-X.Setup.1.0.0.exe"
         },
         {
           "name": "Connect-X Setup 1.0.0.exe.blockmap",
-          "size": 93588,
-          "sha256": "78d9236f1b60f0f70c2f6de886a45973d4785e6fab6473cea3e57bafd7bb6c4e",
+          "size": 97143,
+          "sha256": "830011b735924a48c28fe81605e8e354abe664b15837592682174401bc96bb4c",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/Connect-X.Setup.1.0.0.exe.blockmap"
         },
         {
           "name": "latest.yml",
           "size": 346,
-          "sha256": "4ab326814e3a1c46ab07558b399860891ae3b96c8088bbdbab2fe38ddb0e378d",
+          "sha256": "0826caa1f9ff28f31e49f3c0551b2743da88cb5c21f326360b24b49a061eb4f2",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/latest.yml"
         }
       ]

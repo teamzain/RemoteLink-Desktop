@@ -15,16 +15,14 @@
       --grad:      linear-gradient(153.01deg, #00F0FF 12.03%, #0066FF 101%);
       --grad-text: linear-gradient(91.74deg, #FFFFFF 7.74%, #427DD5 101.07%);
       --cyan:      #00F0FF;
-      --blue:      #0066FF;
       --text:      #FFFFFF;
-      --muted:     rgba(255,255,255,0.5);
-      --card:      linear-gradient(180deg, rgba(255,255,255,0.077) 0%, rgba(255,255,255,0.037) 100%);
-      --border:    rgba(255,255,255,0.06);
+      --muted:     rgba(255,255,255,0.45);
+      --card:      linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.035) 100%);
+      --border:    rgba(255,255,255,0.07);
       --font:      'Inter', system-ui, sans-serif;
     }
 
     html { scroll-behavior: smooth; }
-
     body {
       font-family: var(--font);
       background: var(--bg);
@@ -33,540 +31,374 @@
       overflow-x: hidden;
     }
 
-    /* ── Background glow (matches Figma Ellipse 96) ── */
-    .glow-ellipse {
+    /* Central glow */
+    .glow {
       position: fixed;
-      width: 320px; height: 300px;
-      left: calc(50% - 160px);
-      top: calc(50% - 200px);
+      width: 360px; height: 320px;
+      left: calc(50% - 180px);
+      top: calc(50% - 240px);
       background: var(--grad);
       border-radius: 50%;
-      filter: blur(90px);
-      opacity: 0.28;
+      filter: blur(100px);
+      opacity: 0.22;
       pointer-events: none;
       z-index: 0;
     }
 
-    /* ── Nav (matches Figma Header) ── */
+    /* Nav — logo only */
     nav {
       position: relative; z-index: 10;
-      display: flex; align-items: center; justify-content: space-between;
-      max-width: 1240px; margin: 0 auto;
-      padding: 40px 20px 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 36px 24px 0;
     }
-
     .nav-logo {
-      display: flex; align-items: center; gap: 10px;
-      text-decoration: none; flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+      text-decoration: none;
     }
-    .nav-logo-mark {
-      width: 50px; height: 50px; border-radius: 12px;
-      background: var(--grad);
-      display: grid; place-items: center;
+    .nav-logo img {
+      width: 44px; height: 44px;
+      border-radius: 12px;
+      object-fit: cover;
     }
-    .nav-logo-mark svg { width: 28px; height: 28px; }
     .nav-logo-name {
-      font-size: 24px; font-weight: 600;
-      letter-spacing: -0.005em; color: var(--text);
+      font-size: 22px; font-weight: 600;
+      letter-spacing: -0.02em; color: var(--text);
     }
 
-    .nav-links {
-      display: flex; align-items: center; gap: 41px;
-      list-style: none;
-    }
-    .nav-links a {
-      font-size: 20px; font-weight: 400;
-      letter-spacing: -0.005em;
-      color: var(--muted); text-decoration: none;
-      transition: color .15s;
-    }
-    .nav-links a:hover,
-    .nav-links a.active { color: var(--text); }
-
-    /* ── Hero ── */
+    /* Hero — centered, minimal */
     .hero {
       position: relative; z-index: 1;
       display: flex; flex-direction: column;
-      align-items: center; gap: 16px;
+      align-items: center; gap: 20px;
       text-align: center;
-      padding: 72px 24px 0;
-      max-width: 1240px; margin: 0 auto;
+      padding: 56px 24px 0;
     }
 
-    /* Badge row (matches Figma Frame 33720) */
     .hero-badge {
-      display: flex; align-items: center; gap: 12px;
-      font-size: 20px; font-weight: 400;
-      letter-spacing: -0.005em; color: var(--text);
-      position: relative;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      letter-spacing: 0.02em;
     }
-    .hero-badge-glow {
-      position: absolute;
-      inset: -8px -24px;
-      background: radial-gradient(ellipse at center, rgba(0,102,255,0.35) 0%, transparent 70%);
-      filter: blur(14px);
-      border-radius: 22px;
-      pointer-events: none;
+    .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 8px var(--cyan);
+      animation: pulse 2s ease-in-out infinite;
     }
-    .badge-icon { width: 24px; height: 24px; flex-shrink: 0; }
+    @keyframes pulse {
+      0%,100% { opacity:1; } 50% { opacity:.4; }
+    }
 
-    /* Main heading (matches Figma gradient heading) */
     .hero-title {
-      font-size: clamp(36px, 5vw, 58px);
+      font-size: clamp(38px, 6vw, 64px);
       font-weight: 700;
-      line-height: 1.2;
-      letter-spacing: -0.005em;
-      text-transform: capitalize;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
       background: var(--grad-text);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      max-width: 900px;
+      max-width: 800px;
     }
 
-    .hero-subtitle {
-      font-size: clamp(16px, 2vw, 20px);
-      font-weight: 400;
-      line-height: 1.5;
-      letter-spacing: -0.005em;
-      color: var(--text);
-      max-width: 680px;
-    }
-
-    /* Download button (matches Figma Frame 33723 "Join Us" button) */
-    .btn-wrap { position: relative; }
+    /* Download button */
+    .btn-wrap { position: relative; margin-top: 4px; }
     .btn-glow {
-      position: absolute;
-      inset: -6px;
-      background: radial-gradient(ellipse at center, rgba(0,102,255,0.6) 0%, transparent 70%);
-      filter: blur(14px);
-      border-radius: 18px;
-      pointer-events: none;
+      position: absolute; inset: -8px;
+      background: radial-gradient(ellipse at center, rgba(0,102,255,0.5) 0%, transparent 70%);
+      filter: blur(16px); border-radius: 20px; pointer-events: none;
     }
     .btn-dl {
       position: relative;
-      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-      background: var(--grad);
-      color: #fff; font-family: var(--font);
-      font-size: 20px; font-weight: 600;
-      letter-spacing: -0.005em;
-      padding: 17px 48px; min-width: 235px; height: 58px;
-      border-radius: 12px; border: none; cursor: pointer;
-      text-decoration: none;
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--grad); color: #fff;
+      font-family: var(--font); font-size: 17px; font-weight: 600;
+      padding: 15px 44px; border-radius: 12px; border: none;
+      cursor: pointer; text-decoration: none;
       transition: opacity .15s, transform .1s;
+      white-space: nowrap;
     }
     .btn-dl:hover { opacity: .88; color: #fff; transform: translateY(-1px); }
     .btn-dl:active { transform: translateY(0); }
 
-    /* Version / SHA row below button */
-    .version-row {
-      display: flex; align-items: center; gap: 16px;
+    /* Meta row */
+    .meta-row {
+      display: flex; align-items: center; gap: 14px;
       flex-wrap: wrap; justify-content: center;
-      font-size: 14px; color: var(--muted);
+      font-size: 13px; color: var(--muted);
     }
     .vtag {
       background: rgba(255,255,255,.07);
-      border: 1px solid rgba(255,255,255,.14);
-      border-radius: 999px; padding: 4px 14px;
-      font-size: 13px; font-weight: 600; color: var(--text);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px; padding: 3px 12px;
+      font-size: 12px; font-weight: 600; color: var(--text);
     }
     .hash-val {
       font-family: 'Courier New', monospace;
-      font-size: 12px; color: var(--muted);
+      font-size: 11.5px; color: var(--muted);
       background: rgba(255,255,255,.04);
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 6px; padding: 3px 10px;
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 6px; padding: 3px 9px;
       cursor: pointer; letter-spacing: .03em;
       transition: color .15s, border-color .15s;
     }
-    .hash-val:hover { color: var(--cyan); border-color: rgba(0,240,255,.35); }
-    .hash-val.copied { color: var(--cyan); border-color: rgba(0,240,255,.5); }
-    .copy-hint { font-size: 12px; color: var(--muted); }
+    .hash-val:hover { color: var(--cyan); border-color: rgba(0,240,255,.3); }
+    .hash-val.copied { color: var(--cyan); border-color: rgba(0,240,255,.45); }
 
-    /* ── Download detail card (glassmorphism, matches Figma Rectangle 5466) ── */
-    .dl-card-wrap {
+    /* Detail card */
+    .card-wrap {
       position: relative; z-index: 1;
-      max-width: 860px; margin: 48px auto 0; padding: 0 24px;
+      max-width: 640px; width: 100%;
+      margin: 44px auto 0; padding: 0 24px;
     }
     .dl-card {
       background: var(--card);
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 20px;
-      padding: 28px 36px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 28px;
       display: flex; align-items: center; justify-content: space-between;
-      gap: 20px; flex-wrap: wrap;
+      gap: 16px; flex-wrap: wrap;
     }
-    .dl-card-left {}
     .dl-card-platform {
-      display: flex; align-items: center; gap: 7px;
-      font-size: 11px; font-weight: 700; letter-spacing: .1em;
-      text-transform: uppercase; color: var(--muted);
-      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
     }
-    .dl-card-filename {
-      font-size: 17px; font-weight: 600; color: var(--text);
-      margin-bottom: 4px;
-    }
-    .dl-card-meta { font-size: 13px; color: var(--muted); }
-    .dl-card-date { font-size: 12px; color: var(--muted); }
+    .dl-card-name { font-size: 15px; font-weight: 600; color: var(--text); }
+    .dl-card-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .dl-card-date { font-size: 12px; color: var(--muted); flex-shrink: 0; }
 
-    /* ── Glowing cyan line divider ── */
-    .glow-line {
-      position: relative;
-      max-width: 860px; margin: 40px auto 0;
-      height: 1px;
-    }
-    .glow-line::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: rgba(255,255,255,.06);
-    }
-    .glow-line-dot {
-      position: absolute; left: 0; top: 50%;
-      transform: translateY(-50%);
-      width: 3px; height: 100%;
-      background: var(--cyan);
-      box-shadow: 0 0 12px 2px var(--cyan);
-      animation: scanline 3s ease-in-out infinite;
-    }
-    @keyframes scanline {
-      0%   { left: 0%; opacity: 1; }
-      100% { left: 100%; opacity: 0; }
+    /* Divider */
+    .divider {
+      position: relative; z-index: 1;
+      max-width: 640px; margin: 36px auto 0;
+      border: none; border-top: 1px solid var(--border);
     }
 
-    /* ── Previous releases ── */
+    /* Previous releases */
     .prev-wrap {
       position: relative; z-index: 1;
-      max-width: 860px; margin: 0 auto;
-      padding: 32px 24px 80px;
+      max-width: 640px; margin: 0 auto;
+      padding: 28px 24px 72px;
     }
     .sec-label {
-      font-size: 11px; font-weight: 700;
-      letter-spacing: .1em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 14px;
+      font-size: 10px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
     }
-    .rel-list { display: grid; gap: 8px; }
-
+    .rel-list { display: grid; gap: 7px; }
     .rel-card {
-      background: linear-gradient(180deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.02) 100%);
-      border: 1px solid var(--border);
-      border-radius: 14px; overflow: hidden;
+      background: linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.02) 100%);
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
       transition: border-color .15s;
     }
     .rel-card:hover { border-color: rgba(255,255,255,.12); }
     .rel-hdr {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 20px; cursor: pointer; user-select: none;
+      padding: 12px 18px; cursor: pointer; user-select: none;
     }
-    .rel-hdr-l { display: flex; align-items: center; gap: 12px; }
-    .rel-ver { font-size: .93rem; font-weight: 700; }
-    .rel-date { font-size: .78rem; color: var(--muted); }
+    .rel-hdr-l { display: flex; align-items: center; gap: 10px; }
+    .rel-ver { font-size: .9rem; font-weight: 700; }
+    .rel-date { font-size: .77rem; color: var(--muted); }
     .chevron { color: var(--muted); transition: transform .2s; }
     .rel-card.open .chevron { transform: rotate(180deg); }
-    .rel-body { display: none; padding: 0 20px 20px; border-top: 1px solid var(--border); }
+    .rel-body { display: none; padding: 0 18px 18px; border-top: 1px solid var(--border); }
     .rel-card.open .rel-body { display: block; }
-    .rel-notes { font-size: .87rem; color: var(--muted); padding: 12px 0 14px; }
-
-    .asset-grid { display: grid; gap: 7px; }
+    .rel-notes { font-size: .85rem; color: var(--muted); padding: 10px 0 12px; }
+    .asset-grid { display: grid; gap: 6px; }
     .asset-row {
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      padding: 9px 13px;
-      background: rgba(255,255,255,.03); border: 1px solid var(--border);
-      border-radius: 10px; text-decoration: none; color: inherit;
-      transition: border-color .15s;
+      padding: 8px 12px; background: rgba(255,255,255,.03);
+      border: 1px solid var(--border); border-radius: 9px;
+      text-decoration: none; color: inherit; transition: border-color .15s;
     }
-    a.asset-row:hover { border-color: rgba(0,240,255,.25); }
+    a.asset-row:hover { border-color: rgba(0,240,255,.22); }
     .asset-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .asset-name { font-size: .85rem; color: var(--muted); word-break: break-all; }
+    .asset-name { font-size: .83rem; color: var(--muted); word-break: break-all; }
     a.asset-row .asset-name { color: var(--cyan); }
-    .asset-r { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-    .asset-sz { font-size: .77rem; color: var(--muted); white-space: nowrap; }
+    .asset-r { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .asset-sz { font-size: .76rem; color: var(--muted); white-space: nowrap; }
     .asset-hash { font-family: 'Courier New', monospace; font-size: 10px; color: var(--muted); cursor: pointer; transition: color .15s; }
     .asset-hash:hover, .asset-hash.copied { color: var(--cyan); }
 
-    /* ── States ── */
-    .empty { text-align: center; padding: 52px 20px; color: var(--muted); }
-    @keyframes shimmer {
-      0%   { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
+    /* States */
+    .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+    @keyframes shimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
     .skel {
-      background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.09) 50%, rgba(255,255,255,.04) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s infinite; border-radius: 10px;
+      background: linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 10px;
     }
 
-    /* ── Footer ── */
+    /* Footer */
     footer {
       position: relative; z-index: 1;
       border-top: 1px solid var(--border);
-      text-align: center; padding: 22px;
+      text-align: center; padding: 20px;
       font-size: 12px; color: var(--muted);
     }
-    footer a { color: var(--muted); }
-    footer a:hover { color: var(--text); }
 
-    @media (max-width: 640px) {
-      nav { padding: 24px 16px 0; }
-      .nav-links { display: none; }
-      .hero { padding: 52px 16px 0; }
-      .hero-badge { font-size: 16px; }
-      .btn-dl { font-size: 16px; padding: 14px 32px; min-width: 0; height: auto; }
-      .dl-card { padding: 20px; }
-      .dl-card-wrap, .prev-wrap { padding-left: 16px; padding-right: 16px; }
+    @media (max-width: 560px) {
+      .hero { padding: 44px 16px 0; }
+      .btn-dl { font-size: 15px; padding: 13px 32px; }
+      .card-wrap, .prev-wrap { padding-left: 16px; padding-right: 16px; }
+      .dl-card { padding: 18px 20px; }
     }
   </style>
 </head>
 <body>
 
-<!-- Background glow ellipse (Figma: Ellipse 96) -->
-<div class="glow-ellipse"></div>
+<div class="glow"></div>
 
-<!-- Nav (Figma: Header) -->
 <nav>
   <a class="nav-logo" href="#">
-    <div class="nav-logo-mark">
-      <!-- RemoteLink icon -->
-      <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="14" cy="14" r="5" fill="white" opacity="0.9"/>
-        <circle cx="14" cy="14" r="10" stroke="white" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.6"/>
-        <circle cx="14" cy="14" r="13" stroke="white" stroke-width="1" opacity="0.3"/>
-      </svg>
-    </div>
+    <img src="./logo.png" alt="RemoteLink" />
     <span class="nav-logo-name">RemoteLink</span>
   </a>
-
-  <ul class="nav-links">
-    <li><a href="#">Home</a></li>
-    <li><a href="#" class="active">Downloads</a></li>
-    <li><a href="https://github.com/teamzain/RemoteLink-Desktop" target="_blank" rel="noopener">GitHub</a></li>
-  </ul>
 </nav>
 
-<!-- Hero (Figma: Frame 33724) -->
 <section class="hero" id="hero">
-  <!-- Skeleton while loading -->
-  <div class="skel" style="height:24px;width:180px;border-radius:999px;"></div>
-  <div class="skel" style="height:72px;width:560px;max-width:90vw;margin-top:4px;border-radius:14px;"></div>
-  <div class="skel" style="height:18px;width:420px;max-width:85vw;border-radius:8px;"></div>
-  <div class="skel" style="height:58px;width:235px;border-radius:12px;margin-top:4px;"></div>
+  <div class="skel" style="height:16px;width:140px;border-radius:999px;"></div>
+  <div class="skel" style="height:72px;width:520px;max-width:88vw;border-radius:12px;margin-top:4px;"></div>
+  <div class="skel" style="height:52px;width:220px;border-radius:12px;margin-top:4px;"></div>
 </section>
 
-<div class="dl-card-wrap" id="dl-card-wrap" hidden>
+<div class="card-wrap" id="card-wrap" hidden>
   <div class="dl-card" id="dl-card"></div>
 </div>
 
-<div class="glow-line" id="glow-line" hidden>
-  <div class="glow-line-dot"></div>
-</div>
-
+<hr class="divider" id="divider" hidden />
 <div class="prev-wrap" id="prev-wrap" hidden></div>
 
 <footer id="footer" hidden>
-  © <span id="yr"></span> RemoteLink &nbsp;·&nbsp;
-  <a href="https://github.com/teamzain/RemoteLink-Desktop" target="_blank" rel="noopener">GitHub</a>
+  © <span id="yr"></span> RemoteLink
 </footer>
 
 <script>
 "use strict";
 
-/* ── Utils ── */
-function fmtDate(iso) {
-  const d = new Date(iso);
-  return isNaN(d) ? (iso||'') : d.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
-}
-function fmtSize(b) {
-  if (typeof b!=='number'||b<0) return '';
-  const u=['B','KB','MB','GB']; let i=0,n=b;
-  while(n>=1024&&i<u.length-1){n/=1024;i++;}
-  return `${n.toFixed(i===0?0:1)} ${u[i]}`;
-}
-function trunc(h){ return h?h.slice(0,16)+'…':''; }
-async function doCopy(text,el,prev){
-  try{ await navigator.clipboard.writeText(text); }catch{ return; }
-  el.textContent='Copied!'; el.classList.add('copied');
-  setTimeout(()=>{ el.textContent=prev; el.classList.remove('copied'); },1800);
-}
-function userAssets(a){ return (a||[]).filter(x=>!x.name.endsWith('.blockmap')&&x.name!=='latest.yml'); }
-function primary(a){ const u=userAssets(a); return u.find(x=>x.name.endsWith('.exe'))||u[0]||null; }
+function fmtDate(iso){const d=new Date(iso);return isNaN(d)?(iso||''):d.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});}
+function fmtSize(b){if(typeof b!=='number'||b<0)return '';const u=['B','KB','MB','GB'];let i=0,n=b;while(n>=1024&&i<u.length-1){n/=1024;i++;}return `${n.toFixed(i===0?0:1)} ${u[i]}`;}
+function trunc(h){return h?h.slice(0,16)+'…':'';}
+async function doCopy(text,el,prev){try{await navigator.clipboard.writeText(text);}catch{return;}el.textContent='Copied!';el.classList.add('copied');setTimeout(()=>{el.textContent=prev;el.classList.remove('copied');},1800);}
+function userAssets(a){return(a||[]).filter(x=>!x.name.endsWith('.blockmap')&&x.name!=='latest.yml');}
+function primary(a){const u=userAssets(a);return u.find(x=>x.name.endsWith('.exe'))||u[0]||null;}
 
-/* ── Icons ── */
-const WIN_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.25 6.5 1.4v5.6H0V2.25zM7.2 1.3 16 0v7H7.2V1.3zM0 7.7h6.5V13.7L0 12.8V7.7zM7.2 7.7H16V16L7.2 14.7V7.7z"/></svg>`;
-const DL_ICON  = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 16h14"/></svg>`;
-const CHV_ICON = `<svg class="chevron" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>`;
-const SPARKLE  = `<svg class="badge-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L13.8 9.2L21 11L13.8 12.8L12 20L10.2 12.8L3 11L10.2 9.2L12 2Z" fill="white"/></svg>`;
+const WIN=`<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.25 6.5 1.4v5.6H0V2.25zM7.2 1.3 16 0v7H7.2V1.3zM0 7.7h6.5V13.7L0 12.8V7.7zM7.2 7.7H16V16L7.2 14.7V7.7z"/></svg>`;
+const DL=`<svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 16h14"/></svg>`;
+const CHV=`<svg class="chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>`;
 
-/* ── Render hero ── */
-function renderHero(r) {
-  const p = primary(r.assets);
-  const heroEl = document.getElementById('hero');
-  heroEl.innerHTML = '';
+function renderHero(r){
+  const p=primary(r.assets);
+  const el=document.getElementById('hero');
+  el.innerHTML='';
 
-  // Badge (Figma: Frame 33720 — AI Integration row)
-  const badge = document.createElement('div');
-  badge.className = 'hero-badge';
-  badge.innerHTML = `<div class="hero-badge-glow"></div>${SPARKLE} Latest Release · v${r.version||'?'}`;
-  heroEl.appendChild(badge);
+  const badge=document.createElement('div');
+  badge.className='hero-badge';
+  badge.innerHTML=`<span class="badge-dot"></span> v${r.version||'?'} &nbsp;·&nbsp; ${fmtDate(r.publishedAt)}`;
+  el.appendChild(badge);
 
-  // Title (Figma: gradient heading)
-  const title = document.createElement('h1');
-  title.className = 'hero-title';
-  title.textContent = 'Remote Desktop Access, Reimagined.';
-  heroEl.appendChild(title);
+  const title=document.createElement('h1');
+  title.className='hero-title';
+  title.textContent='Remote Desktop Access, Reimagined.';
+  el.appendChild(title);
 
-  // Subtitle
-  const sub = document.createElement('p');
-  sub.className = 'hero-subtitle';
-  sub.textContent = 'Fast, secure desktop sharing for Windows. One installer, instant connection.';
-  heroEl.appendChild(sub);
-
-  // Download button (Figma: Frame 33723 gradient button)
-  if (p) {
-    const wrap = document.createElement('div');
-    wrap.className = 'btn-wrap';
-    wrap.innerHTML = `<div class="btn-glow"></div>`;
-    const btn = document.createElement('a');
-    btn.className = 'btn-dl';
-    btn.href = p.url;
-    btn.target = '_blank';
-    btn.rel = 'noopener';
-    btn.innerHTML = `${DL_ICON} Download for Windows`;
+  if(p){
+    const wrap=document.createElement('div');
+    wrap.className='btn-wrap';
+    wrap.innerHTML='<div class="btn-glow"></div>';
+    const btn=document.createElement('a');
+    btn.className='btn-dl';
+    btn.href=p.url; btn.target='_blank'; btn.rel='noopener';
+    btn.innerHTML=`${DL} Download for Windows`;
     wrap.appendChild(btn);
-    heroEl.appendChild(wrap);
+    el.appendChild(wrap);
   }
 
-  // Version + SHA row
-  const row = document.createElement('div');
-  row.className = 'version-row';
-  const vt = document.createElement('span');
-  vt.className = 'vtag';
-  vt.textContent = `v${r.version||'?'}`;
-  row.appendChild(vt);
+  const meta=document.createElement('div');
+  meta.className='meta-row';
+  const vt=document.createElement('span');
+  vt.className='vtag'; vt.textContent=`v${r.version||'?'}`;
+  meta.appendChild(vt);
 
-  const dt = document.createElement('span');
-  dt.textContent = fmtDate(r.publishedAt);
-  row.appendChild(dt);
-
-  if (p && p.sha256) {
-    const lbl = document.createElement('span');
-    lbl.textContent = 'SHA-256';
-    const hv = document.createElement('code');
-    hv.className = 'hash-val';
-    const t = trunc(p.sha256);
-    hv.textContent = t;
-    hv.title = 'Click to copy full hash';
-    hv.addEventListener('click', ()=>doCopy(p.sha256,hv,t));
-    const hint = document.createElement('span');
-    hint.className = 'copy-hint';
-    hint.textContent = 'click to copy';
-    row.append(lbl, hv, hint);
+  if(p&&p.sha256){
+    const lbl=document.createElement('span');lbl.textContent='SHA-256';
+    const hv=document.createElement('code');
+    hv.className='hash-val';
+    const t=trunc(p.sha256);hv.textContent=t;hv.title='Click to copy';
+    hv.addEventListener('click',()=>doCopy(p.sha256,hv,t));
+    meta.append(lbl,hv);
   }
-  heroEl.appendChild(row);
+  el.appendChild(meta);
 }
 
-/* ── Render detail card ── */
-function renderCard(r) {
-  const p = primary(r.assets);
-  if (!p) return;
-  const card = document.getElementById('dl-card');
-  card.innerHTML = `
-    <div class="dl-card-left">
-      <div class="dl-card-platform">${WIN_ICON} Windows x64 Installer</div>
-      <div class="dl-card-filename">${p.name}</div>
-      <div class="dl-card-meta">${fmtSize(p.size)}${r.notes ? ' · ' + r.notes : ''}</div>
+function renderCard(r){
+  const p=primary(r.assets);
+  if(!p)return;
+  document.getElementById('dl-card').innerHTML=`
+    <div>
+      <div class="dl-card-platform">${WIN} Windows x64</div>
+      <div class="dl-card-name">${p.name}</div>
+      <div class="dl-card-meta">${fmtSize(p.size)}</div>
     </div>
     <div class="dl-card-date">${fmtDate(r.publishedAt)}</div>
   `;
-  document.getElementById('dl-card-wrap').hidden = false;
+  document.getElementById('card-wrap').hidden=false;
 }
 
-/* ── Render previous releases ── */
-function renderOlder(releases) {
-  const wrap = document.getElementById('prev-wrap');
-  wrap.innerHTML = `<p class="sec-label">Previous Releases</p>`;
-  const list = document.createElement('div');
-  list.className = 'rel-list';
-
-  releases.forEach(r => {
-    const ua = userAssets(r.assets);
-    const card = document.createElement('article');
-    card.className = 'rel-card';
-
-    const hdr = document.createElement('div');
-    hdr.className = 'rel-hdr';
-    hdr.innerHTML = `<div class="rel-hdr-l"><span class="rel-ver">v${r.version||'?'}</span><span class="rel-date">${fmtDate(r.publishedAt)}</span></div>${CHV_ICON}`;
-    hdr.addEventListener('click', ()=>card.classList.toggle('open'));
+function renderOlder(releases){
+  const wrap=document.getElementById('prev-wrap');
+  wrap.innerHTML=`<p class="sec-label">Previous Releases</p>`;
+  const list=document.createElement('div');
+  list.className='rel-list';
+  releases.forEach(r=>{
+    const ua=userAssets(r.assets);
+    const card=document.createElement('article');
+    card.className='rel-card';
+    const hdr=document.createElement('div');
+    hdr.className='rel-hdr';
+    hdr.innerHTML=`<div class="rel-hdr-l"><span class="rel-ver">v${r.version||'?'}</span><span class="rel-date">${fmtDate(r.publishedAt)}</span></div>${CHV}`;
+    hdr.addEventListener('click',()=>card.classList.toggle('open'));
     card.appendChild(hdr);
-
-    const body = document.createElement('div');
-    body.className = 'rel-body';
-    if (r.notes) body.innerHTML = `<p class="rel-notes">${r.notes}</p>`;
-
-    const grid = document.createElement('div');
-    grid.className = 'asset-grid';
-
-    ua.forEach(asset => {
-      const isExe = asset.name.endsWith('.exe');
-      const row = document.createElement(isExe?'a':'div');
-      row.className = 'asset-row';
-      if (isExe){ row.href=asset.url; row.target='_blank'; row.rel='noopener'; }
-      const ht = asset.sha256 ? trunc(asset.sha256) : '';
-      row.innerHTML = `
-        <div class="asset-l">
-          <span class="asset-name">${asset.name}</span>
-          ${asset.sha256?`<span class="asset-hash">${ht}</span>`:''}
-        </div>
-        <div class="asset-r">
-          <span class="asset-sz">${fmtSize(asset.size)}</span>
-          ${isExe?`<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:#00F0FF"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 16h14"/></svg>`:''}
-        </div>`;
-      if (asset.sha256) {
-        const hEl = row.querySelector('.asset-hash');
-        hEl.addEventListener('click', e=>{e.preventDefault();e.stopPropagation();doCopy(asset.sha256,hEl,ht);});
-      }
+    const body=document.createElement('div');
+    body.className='rel-body';
+    if(r.notes)body.innerHTML=`<p class="rel-notes">${r.notes}</p>`;
+    const grid=document.createElement('div');
+    grid.className='asset-grid';
+    ua.forEach(asset=>{
+      const isExe=asset.name.endsWith('.exe');
+      const row=document.createElement(isExe?'a':'div');
+      row.className='asset-row';
+      if(isExe){row.href=asset.url;row.target='_blank';row.rel='noopener';}
+      const ht=asset.sha256?trunc(asset.sha256):'';
+      row.innerHTML=`<div class="asset-l"><span class="asset-name">${asset.name}</span>${asset.sha256?`<span class="asset-hash">${ht}</span>`:''}</div><div class="asset-r"><span class="asset-sz">${fmtSize(asset.size)}</span>${isExe?`<svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:#00F0FF"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 16h14"/></svg>`:''}</div>`;
+      if(asset.sha256){const hEl=row.querySelector('.asset-hash');hEl.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();doCopy(asset.sha256,hEl,ht);});}
       grid.appendChild(row);
     });
-
     body.appendChild(grid);
     card.appendChild(body);
     list.appendChild(card);
   });
-
   wrap.appendChild(list);
-  wrap.hidden = false;
+  wrap.hidden=false;
 }
 
-/* ── Boot ── */
-async function boot() {
-  document.getElementById('yr').textContent = new Date().getFullYear();
-
+async function boot(){
+  document.getElementById('yr').textContent=new Date().getFullYear();
   let data;
-  try {
-    const res = await fetch('./releases.json',{cache:'no-store'});
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    data = await res.json();
-  } catch(e) {
-    document.getElementById('hero').innerHTML =
-      `<div class="empty">Could not load releases.<br><small>${e.message}</small></div>`;
+  try{
+    const res=await fetch('./releases.json',{cache:'no-store'});
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    data=await res.json();
+  }catch(e){
+    document.getElementById('hero').innerHTML=`<div class="empty">Could not load releases.<br><small>${e.message}</small></div>`;
     return;
   }
-
-  const releases = Array.isArray(data.releases) ? data.releases : [];
-  if (!releases.length) {
-    document.getElementById('hero').innerHTML = `<div class="empty">No releases yet.</div>`;
-    return;
-  }
-
-  const [latest, ...older] = releases;
+  const releases=Array.isArray(data.releases)?data.releases:[];
+  if(!releases.length){document.getElementById('hero').innerHTML=`<div class="empty">No releases yet.</div>`;return;}
+  const[latest,...older]=releases;
   renderHero(latest);
   renderCard(latest);
-
-  if (older.length) {
-    document.getElementById('glow-line').hidden = false;
-    renderOlder(older);
-  }
-
-  document.getElementById('footer').hidden = false;
+  if(older.length){document.getElementById('divider').hidden=false;renderOlder(older);}
+  document.getElementById('footer').hidden=false;
 }
 
 boot();
