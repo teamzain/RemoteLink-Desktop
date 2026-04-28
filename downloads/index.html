@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RemoteLink — Downloads</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:           #080d18;
+      --surface:      #0e1524;
+      --surface-2:    #111d32;
+      --border:       #1c2d50;
+      --border-hover: #2e4a80;
+      --muted:        #7a90b8;
+      --text:         #dde8ff;
+      --text-dim:     #a8bce0;
+      --accent:       #4f8ef7;
+      --accent-hover: #6da3ff;
+      --accent-fg:    #020d22;
+      --green:        #3fd49a;
+      --green-border: #1f6048;
+      --mono:         "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      background: var(--bg);
+      color: var(--text);
+      /* subtle radial glow */
+      background-image: radial-gradient(ellipse 80% 40% at 50% -10%, #0d2760 0%, transparent 70%);
+      background-attachment: fixed;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); }
+
+    /* ── Layout ── */
+    .page { max-width: 860px; margin: 0 auto; padding: 48px 20px 80px; }
+
+    /* ── Header ── */
+    .header { margin-bottom: 40px; }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), #2257c5);
+      border-radius: 10px;
+      display: grid; place-items: center;
+      font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -1px;
+    }
+    .logo-name { font-size: 1.15rem; font-weight: 600; color: var(--text); }
+    h1 { margin: 0 0 6px; font-size: 1.85rem; letter-spacing: -0.5px; }
+    .tagline { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+    /* ── Status bar ── */
+    #status { margin: 16px 0 0; color: var(--muted); font-size: 0.88rem; min-height: 1.2em; }
+
+    /* ── Latest hero ── */
+    .latest-hero {
+      margin-top: 32px;
+      background: linear-gradient(135deg, #0d1e42 0%, #091630 100%);
+      border: 1px solid #1f3670;
+      border-radius: 18px;
+      padding: 28px 28px 24px;
+    }
+
+    .latest-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(79, 142, 247, 0.12);
+      border: 1px solid rgba(79, 142, 247, 0.3);
+      border-radius: 999px;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em;
+      color: var(--accent);
+      padding: 3px 10px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .latest-label::before { content: "●"; font-size: 0.6rem; }
+
+    .latest-version {
+      font-size: 2rem; font-weight: 800; letter-spacing: -1px;
+      margin: 0 0 4px;
+    }
+
+    .latest-meta {
+      font-size: 0.85rem; color: var(--muted); margin: 0 0 14px;
+    }
+
+    .latest-notes {
+      font-size: 0.93rem; color: var(--text-dim);
+      margin: 0 0 22px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.2);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+    }
+
+    .dl-row {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    }
+
+    /* ── Primary download button ── */
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent);
+      color: var(--accent-fg);
+      font-weight: 700; font-size: 0.95rem;
+      padding: 11px 20px; border-radius: 12px;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--accent-hover); color: var(--accent-fg); }
+    .btn-primary svg { flex-shrink: 0; }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--text-dim); font-size: 0.85rem;
+      border: 1px solid var(--border);
+      padding: 8px 14px; border-radius: 10px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--border-hover); color: var(--text); }
+
+    /* ── Platform badge ── */
+    .platform-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.78rem; color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 10px;
+    }
+
+    /* ── Hash row ── */
+    .hash-row {
+      margin-top: 14px;
+      display: flex; align-items: center; gap: 8px;
+      flex-wrap: wrap;
+    }
+    .hash-label { font-size: 0.78rem; color: var(--muted); }
+    .hash-value {
+      font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim);
+      background: rgba(0,0,0,0.3); border-radius: 6px;
+      padding: 3px 8px; letter-spacing: 0.02em;
+      cursor: pointer; border: 1px solid transparent;
+      transition: border-color 0.15s;
+      word-break: break-all;
+    }
+    .hash-value:hover { border-color: var(--border); }
+    .hash-value.copied { color: var(--green); border-color: var(--green-border); }
+    .copy-hint { font-size: 0.7rem; color: var(--muted); }
+
+    /* ── Older releases ── */
+    .section-title {
+      margin: 48px 0 16px;
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-title::after {
+      content: ""; flex: 1; height: 1px; background: var(--border);
+    }
+
+    .release-list { display: grid; gap: 10px; }
+
+    .release-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .release-header {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; padding: 14px 18px; cursor: pointer;
+      user-select: none;
+    }
+    .release-header:hover { background: var(--surface-2); }
+
+    .release-header-left { display: flex; align-items: center; gap: 10px; }
+    .release-ver { font-weight: 700; font-size: 1rem; }
+    .release-date { font-size: 0.82rem; color: var(--muted); }
+
+    .chevron {
+      color: var(--muted); transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+    .release-card.open .chevron { transform: rotate(180deg); }
+
+    .release-body {
+      display: none;
+      padding: 0 18px 18px;
+      border-top: 1px solid var(--border);
+    }
+    .release-card.open .release-body { display: block; }
+
+    .release-notes-old {
+      font-size: 0.9rem; color: var(--text-dim);
+      margin: 14px 0 16px;
+    }
+
+    /* ── Asset table ── */
+    .asset-list { display: grid; gap: 8px; }
+    .asset-row {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      background: rgba(0,0,0,0.15);
+      transition: border-color 0.15s;
+      text-decoration: none; color: inherit;
+    }
+    a.asset-row:hover { border-color: var(--border-hover); }
+
+    .asset-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .asset-name { font-size: 0.88rem; color: var(--text-dim); word-break: break-all; }
+    .asset-name-link { color: var(--accent); }
+    .asset-hash {
+      font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+      cursor: pointer; width: fit-content;
+    }
+    .asset-hash:hover { color: var(--text-dim); }
+    .asset-hash.copied { color: var(--green); }
+
+    .asset-right {
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+    .asset-size { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+    .asset-dl-icon { color: var(--accent); }
+
+    /* ── Empty / error states ── */
+    .empty-state {
+      margin-top: 28px;
+      text-align: center; padding: 40px 20px;
+      border: 1px dashed var(--border);
+      border-radius: 14px; color: var(--muted);
+    }
+
+    /* ── Skeleton loader ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+      height: 14px;
+    }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-hero {
+      margin-top: 32px; border-radius: 18px; height: 200px;
+    }
+
+    @media (max-width: 540px) {
+      h1 { font-size: 1.5rem; }
+      .latest-version { font-size: 1.5rem; }
+      .latest-hero { padding: 20px 16px 18px; }
+      .dl-row { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<main class="page">
+
+  <header class="header">
+    <div class="logo">
+      <div class="logo-mark">RL</div>
+      <span class="logo-name">RemoteLink</span>
+    </div>
+    <h1>Desktop Downloads</h1>
+    <p class="tagline">Install the latest release or grab any previous version.</p>
+    <p id="status"></p>
+  </header>
+
+  <div id="app"></div>
+
+</main>
+
+<script>
+"use strict";
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso || '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function formatSize(bytes) {
+  if (typeof bytes !== 'number' || bytes < 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0, n = bytes;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function truncateHash(h) {
+  return h ? h.slice(0, 16) + '…' : '';
+}
+
+async function copyText(text, el) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const prev = el.textContent;
+    el.textContent = 'Copied!';
+    el.classList.add('copied');
+    setTimeout(() => { el.textContent = prev; el.classList.remove('copied'); }, 1800);
+  } catch { /* ignore */ }
+}
+
+// Ignore .blockmap — it's for electron-updater, not end users.
+function userAssets(assets) {
+  return (assets || []).filter(a => !a.name.endsWith('.blockmap') && a.name !== 'latest.yml');
+}
+
+function primaryAsset(assets) {
+  const ua = userAssets(assets);
+  return ua.find(a => a.name.endsWith('.exe')) || ua[0] || null;
+}
+
+// ── SVG icons (inline, zero deps) ─────────────────────────────────────────────
+
+const ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 13h12"/></svg>`;
+const ICON_WINDOWS  = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.25 6.5 1.4v5.6H0V2.25zM7.2 1.3 16 0v7H7.2V1.3zM0 7.7h6.5V13.7L0 12.8V7.7zM7.2 7.7H16V16L7.2 14.7V7.7z"/></svg>`;
+const ICON_CHEVRON  = `<svg class="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>`;
+
+// ── Render: featured latest ────────────────────────────────────────────────────
+
+function renderLatest(release) {
+  const primary = primaryAsset(release.assets);
+  const ua = userAssets(release.assets);
+
+  const hashRow = primary && primary.sha256 ? `
+    <div class="hash-row">
+      <span class="hash-label">SHA-256</span>
+      <code class="hash-value" title="Click to copy full hash">${truncateHash(primary.sha256)}</code>
+      <span class="copy-hint">click to copy</span>
+    </div>` : '';
+
+  const extra = ua.filter(a => a !== primary).map(a => `
+    <a class="btn-secondary" href="${a.url}" target="_blank" rel="noopener">
+      ${ICON_DOWNLOAD} ${a.name}
+    </a>`).join('');
+
+  const hero = document.createElement('section');
+  hero.className = 'latest-hero';
+  hero.innerHTML = `
+    <div class="latest-label">Latest Release</div>
+    <p class="latest-version">${release.version || 'unknown'}</p>
+    <p class="latest-meta">Released ${formatDate(release.publishedAt)}</p>
+    ${release.notes ? `<p class="latest-notes">${release.notes}</p>` : ''}
+    <div class="dl-row">
+      ${primary ? `
+        <a class="btn-primary" href="${primary.url}" target="_blank" rel="noopener">
+          ${ICON_DOWNLOAD} Download for Windows
+        </a>` : ''}
+      ${extra}
+      <span class="platform-badge">${ICON_WINDOWS} Windows x64</span>
+    </div>
+    ${hashRow}
+  `;
+
+  // Wire up hash copy
+  const hashEl = hero.querySelector('.hash-value');
+  if (hashEl && primary && primary.sha256) {
+    hashEl.addEventListener('click', () => copyText(primary.sha256, hashEl));
+  }
+
+  return hero;
+}
+
+// ── Render: older release card ─────────────────────────────────────────────────
+
+function renderOlderRelease(release) {
+  const ua = userAssets(release.assets);
+
+  const assetsHtml = ua.map(asset => {
+    const isExe = asset.name.endsWith('.exe');
+    const tag = isExe
+      ? `<a class="asset-row" href="${asset.url}" target="_blank" rel="noopener">`
+      : `<div class="asset-row">`;
+    const endTag = isExe ? '</a>' : '</div>';
+
+    const hashSnippet = asset.sha256
+      ? `<span class="asset-hash" title="${asset.sha256}">${truncateHash(asset.sha256)}</span>`
+      : '';
+
+    return `
+      ${tag}
+        <div class="asset-left">
+          <span class="asset-name ${isExe ? 'asset-name-link' : ''}">${asset.name}</span>
+          ${hashSnippet}
+        </div>
+        <div class="asset-right">
+          <span class="asset-size">${formatSize(asset.size)}</span>
+          ${isExe ? `<span class="asset-dl-icon">${ICON_DOWNLOAD}</span>` : ''}
+        </div>
+      ${endTag}`;
+  }).join('');
+
+  const card = document.createElement('article');
+  card.className = 'release-card';
+  card.innerHTML = `
+    <div class="release-header">
+      <div class="release-header-left">
+        <span class="release-ver">${release.version || 'unknown'}</span>
+        <span class="release-date">${formatDate(release.publishedAt)}</span>
+      </div>
+      ${ICON_CHEVRON}
+    </div>
+    <div class="release-body">
+      ${release.notes ? `<p class="release-notes-old">${release.notes}</p>` : ''}
+      <div class="asset-list">${assetsHtml || '<div class="asset-row"><div class="asset-name">No assets recorded</div></div>'}</div>
+    </div>
+  `;
+
+  // Toggle expand
+  card.querySelector('.release-header').addEventListener('click', () => {
+    card.classList.toggle('open');
+  });
+
+  // Wire up hash copy for older cards
+  card.querySelectorAll('.asset-hash').forEach((el) => {
+    const full = el.title;
+    if (full) el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); copyText(full, el); });
+  });
+
+  return card;
+}
+
+// ── Main load ──────────────────────────────────────────────────────────────────
+
+async function loadReleases() {
+  const appEl   = document.getElementById('app');
+  const statusEl = document.getElementById('status');
+
+  // Show skeleton while loading
+  appEl.innerHTML = `<div class="skeleton skeleton-hero"></div>`;
+  statusEl.textContent = 'Loading releases…';
+
+  let releases;
+  try {
+    const res = await fetch('./releases.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    releases = Array.isArray(data.releases) ? data.releases : [];
+  } catch (err) {
+    appEl.innerHTML = `<div class="empty-state">Failed to load release manifest.<br><small>${err.message}</small></div>`;
+    statusEl.textContent = '';
+    return;
+  }
+
+  appEl.innerHTML = '';
+
+  if (!releases.length) {
+    appEl.innerHTML = `<div class="empty-state">No releases published yet. Check back soon.</div>`;
+    statusEl.textContent = '';
+    return;
+  }
+
+  const [latest, ...older] = releases;
+  statusEl.textContent = `${releases.length} release${releases.length !== 1 ? 's' : ''} available`;
+
+  appEl.appendChild(renderLatest(latest));
+
+  if (older.length) {
+    const title = document.createElement('h2');
+    title.className = 'section-title';
+    title.textContent = 'Previous Releases';
+    appEl.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'release-list';
+    older.forEach(r => list.appendChild(renderOlderRelease(r)));
+    appEl.appendChild(list);
+  }
+}
+
+loadReleases();
+</script>
+</body>
+</html>
