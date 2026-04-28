@@ -29,7 +29,13 @@
       color: var(--text);
       min-height: 100vh;
       overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
     }
+
+    #prev-wrap, .card-wrap, .divider { flex-shrink: 0; }
+
+    footer { margin-top: auto; }
 
     /* Central glow */
     .glow {
