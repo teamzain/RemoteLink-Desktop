@@ -164,12 +164,17 @@ function buildReleaseEntry({ version, tag, repoSlug, notes, files }) {
     tag,
     publishedAt: new Date().toISOString(),
     notes: notes || `Release ${version}`,
-    assets: files.map((fullPath) => ({
-      name: path.basename(fullPath),
-      size: statSync(fullPath).size,
-      sha256: sha256(fullPath),
-      url: `https://github.com/${repoSlug}/releases/download/${tag}/${path.basename(fullPath)}`,
-    })),
+    assets: files.map((fullPath) => {
+      const localName = path.basename(fullPath);
+      // GitHub replaces spaces with dots in release asset URLs.
+      const githubName = localName.replace(/ /g, '.');
+      return {
+        name: localName,
+        size: statSync(fullPath).size,
+        sha256: sha256(fullPath),
+        url: `https://github.com/${repoSlug}/releases/download/${tag}/${githubName}`,
+      };
+    }),
   };
 }
 

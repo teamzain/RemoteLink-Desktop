@@ -11,13 +11,13 @@
           "name": "Connect-X Setup 1.0.0.exe",
           "size": 89458825,
           "sha256": "0182ef0842319c846c22d3cc46184a0ecb0d3e819b32b38deeba2152e56a24c1",
-          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/Connect-X Setup 1.0.0.exe"
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/Connect-X.Setup.1.0.0.exe"
         },
         {
           "name": "Connect-X Setup 1.0.0.exe.blockmap",
           "size": 93588,
           "sha256": "78d9236f1b60f0f70c2f6de886a45973d4785e6fab6473cea3e57bafd7bb6c4e",
-          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/Connect-X Setup 1.0.0.exe.blockmap"
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.0.0/Connect-X.Setup.1.0.0.exe.blockmap"
         },
         {
           "name": "latest.yml",
