@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-04-28T08:53:43.460Z",
+  "generatedAt": "2026-04-28T09:11:12.334Z",
   "releases": [
     {
       "version": "1.0.0",
       "tag": "v1.0.0",
-      "publishedAt": "2026-04-28T08:53:43.388Z",
+      "publishedAt": "2026-04-28T09:11:12.260Z",
       "notes": "Desktop release 1.0.0",
       "assets": [
         {

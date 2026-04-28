@@ -30,29 +30,31 @@ const MANIFEST_PATH = path.join(DOWNLOADS_DIR, 'releases.json');
 
 // ─── Shell helpers ────────────────────────────────────────────────────────────
 
-// On Windows, .cmd files (npm, npx) can't be spawned directly — they need a
-// shell. Instead of shell:true (which triggers DEP0190 when args is an array),
-// we use cmd.exe as the explicit executable. git and gh are plain .exe files
-// and work the same way on both platforms.
-function spawnTarget(cmd, args) {
-  if (process.platform === 'win32') {
-    return { exe: 'cmd.exe', argv: ['/c', cmd, ...args] };
-  }
-  return { exe: cmd, argv: args };
+// On Windows, npm/npx are .cmd shell scripts and can't be spawned without a
+// shell. We use shell:true but pass a single pre-quoted command string (empty
+// args array) so Node never triggers DEP0190, which fires only when args is
+// non-empty alongside shell:true. Args with spaces are double-quoted manually.
+function buildWinCmd(cmd, args) {
+  const quoted = args.map((a) =>
+    /[\s&|<>^"']/.test(a) ? `"${a.replace(/"/g, '""')}"` : a
+  );
+  return [cmd, ...quoted].join(' ');
 }
 
 function run(cmd, args, options = {}) {
-  const { exe, argv } = spawnTarget(cmd, args);
   console.log(`\n  > ${cmd} ${args.join(' ')}`);
-  const result = spawnSync(exe, argv, { stdio: 'inherit', ...options });
+  const result = process.platform === 'win32'
+    ? spawnSync(buildWinCmd(cmd, args), [], { stdio: 'inherit', shell: true, ...options })
+    : spawnSync(cmd, args, { stdio: 'inherit', ...options });
   if (result.status !== 0) {
     throw new Error(`Command failed (exit ${result.status}): ${cmd} ${args.join(' ')}`);
   }
 }
 
 function runRead(cmd, args, options = {}) {
-  const { exe, argv } = spawnTarget(cmd, args);
-  const result = spawnSync(exe, argv, { encoding: 'utf-8', ...options });
+  const result = process.platform === 'win32'
+    ? spawnSync(buildWinCmd(cmd, args), [], { encoding: 'utf-8', shell: true, ...options })
+    : spawnSync(cmd, args, { encoding: 'utf-8', ...options });
   if (result.status !== 0) {
     throw new Error((result.stderr || '').trim() || `Command failed: ${cmd} ${args.join(' ')}`);
   }
@@ -60,8 +62,9 @@ function runRead(cmd, args, options = {}) {
 }
 
 function commandExists(cmd) {
-  const { exe, argv } = spawnTarget(cmd, ['--version']);
-  const result = spawnSync(exe, argv, { stdio: 'ignore' });
+  const result = process.platform === 'win32'
+    ? spawnSync(buildWinCmd(cmd, ['--version']), [], { stdio: 'ignore', shell: true })
+    : spawnSync(cmd, ['--version'], { stdio: 'ignore' });
   return result.status === 0;
 }
 
@@ -179,8 +182,10 @@ function updateManifest(newEntry) {
 }
 
 function releaseExists(tag) {
-  const { exe, argv } = spawnTarget('gh', ['release', 'view', tag]);
-  return spawnSync(exe, argv, { encoding: 'utf-8' }).status === 0;
+  const result = process.platform === 'win32'
+    ? spawnSync(buildWinCmd('gh', ['release', 'view', tag]), [], { encoding: 'utf-8', shell: true })
+    : spawnSync('gh', ['release', 'view', tag], { encoding: 'utf-8' });
+  return result.status === 0;
 }
 
 // ─── Steps ────────────────────────────────────────────────────────────────────

@@ -3,485 +3,441 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RemoteLink — Downloads</title>
+  <title>RemoteLink — Download</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet" />
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      color-scheme: dark;
-      --bg:           #080d18;
-      --surface:      #0e1524;
-      --surface-2:    #111d32;
-      --border:       #1c2d50;
-      --border-hover: #2e4a80;
-      --muted:        #7a90b8;
-      --text:         #dde8ff;
-      --text-dim:     #a8bce0;
-      --accent:       #4f8ef7;
-      --accent-hover: #6da3ff;
-      --accent-fg:    #020d22;
-      --green:        #3fd49a;
-      --green-border: #1f6048;
-      --mono:         "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+      --bg:           #04080f;
+      --surface:      #0b1628;
+      --surface-2:    #0f1e38;
+      --border:       #162844;
+      --border-2:     #1e3660;
+      --accent:       #3b7eff;
+      --accent-glow:  rgba(59,126,255,.25);
+      --accent-dim:   rgba(59,126,255,.08);
+      --accent-h:     #628fff;
+      --green:        #1fd89e;
+      --green-bg:     rgba(31,216,158,.08);
+      --green-border: rgba(31,216,158,.3);
+      --text:         #e6eeff;
+      --text-2:       #aabcdc;
+      --muted:        #5a7299;
+      --font:         'Lato', system-ui, sans-serif;
     }
 
-    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
 
     body {
-      margin: 0;
-      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
-      font-size: 15px;
-      line-height: 1.5;
-      background: var(--bg);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
       color: var(--text);
-      /* subtle radial glow */
-      background-image: radial-gradient(ellipse 80% 40% at 50% -10%, #0d2760 0%, transparent 70%);
+      background: var(--bg);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse 110% 55% at 50% -8%, #0b2566 0%, transparent 65%),
+        radial-gradient(ellipse 55%  35% at 85% 15%, #041638 0%, transparent 55%),
+        radial-gradient(ellipse 45%  30% at 8%  25%, #030e24 0%, transparent 55%);
       background-attachment: fixed;
     }
 
     a { color: var(--accent); text-decoration: none; }
-    a:hover { color: var(--accent-hover); }
+    a:hover { color: var(--accent-h); }
 
-    /* ── Layout ── */
-    .page { max-width: 860px; margin: 0 auto; padding: 48px 20px 80px; }
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 60px;
+      background: rgba(4,8,15,.8);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
 
-    /* ── Header ── */
-    .header { margin-bottom: 40px; }
-    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .logo-mark {
-      width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent), #2257c5);
-      border-radius: 10px;
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo-mark {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: linear-gradient(135deg, #3b7eff 0%, #1a4fcf 100%);
       display: grid; place-items: center;
-      font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -1px;
+      font-size: 13px; font-weight: 900; color: #fff; letter-spacing: -.5px;
+      box-shadow: 0 0 18px rgba(59,126,255,.4);
     }
-    .logo-name { font-size: 1.15rem; font-weight: 600; color: var(--text); }
-    h1 { margin: 0 0 6px; font-size: 1.85rem; letter-spacing: -0.5px; }
-    .tagline { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    .nav-logo-name { font-size: 15px; font-weight: 700; color: var(--text); }
 
-    /* ── Status bar ── */
-    #status { margin: 16px 0 0; color: var(--muted); font-size: 0.88rem; min-height: 1.2em; }
-
-    /* ── Latest hero ── */
-    .latest-hero {
-      margin-top: 32px;
-      background: linear-gradient(135deg, #0d1e42 0%, #091630 100%);
-      border: 1px solid #1f3670;
-      border-radius: 18px;
-      padding: 28px 28px 24px;
+    .nav-gh {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 13px; font-weight: 700; color: var(--text-2);
+      border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px;
+      transition: color .15s, border-color .15s;
     }
+    .nav-gh:hover { color: var(--text); border-color: var(--border-2); }
 
-    .latest-label {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(79, 142, 247, 0.12);
-      border: 1px solid rgba(79, 142, 247, 0.3);
-      border-radius: 999px;
-      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em;
-      color: var(--accent);
-      padding: 3px 10px;
-      text-transform: uppercase;
-      margin-bottom: 14px;
-    }
-    .latest-label::before { content: "●"; font-size: 0.6rem; }
-
-    .latest-version {
-      font-size: 2rem; font-weight: 800; letter-spacing: -1px;
-      margin: 0 0 4px;
+    /* ── Hero ── */
+    .hero {
+      max-width: 680px; margin: 0 auto;
+      padding: 72px 24px 52px;
+      text-align: center;
     }
 
-    .latest-meta {
-      font-size: 0.85rem; color: var(--muted); margin: 0 0 14px;
-    }
-
-    .latest-notes {
-      font-size: 0.93rem; color: var(--text-dim);
-      margin: 0 0 22px;
-      padding: 12px 14px;
-      background: rgba(0,0,0,0.2);
-      border-left: 3px solid var(--accent);
-      border-radius: 0 8px 8px 0;
-    }
-
-    .dl-row {
-      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-    }
-
-    /* ── Primary download button ── */
-    .btn-primary {
+    .badge {
       display: inline-flex; align-items: center; gap: 8px;
-      background: var(--accent);
-      color: var(--accent-fg);
-      font-weight: 700; font-size: 0.95rem;
-      padding: 11px 20px; border-radius: 12px;
-      transition: background 0.15s;
+      background: var(--green-bg); border: 1px solid var(--green-border);
+      color: var(--green); font-size: 11px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase;
+      padding: 5px 14px; border-radius: 999px; margin-bottom: 28px;
     }
-    .btn-primary:hover { background: var(--accent-hover); color: var(--accent-fg); }
-    .btn-primary svg { flex-shrink: 0; }
-
-    .btn-secondary {
-      display: inline-flex; align-items: center; gap: 6px;
-      color: var(--text-dim); font-size: 0.85rem;
-      border: 1px solid var(--border);
-      padding: 8px 14px; border-radius: 10px;
-      transition: border-color 0.15s, color 0.15s;
+    .badge-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
     }
-    .btn-secondary:hover { border-color: var(--border-hover); color: var(--text); }
-
-    /* ── Platform badge ── */
-    .platform-badge {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 0.78rem; color: var(--muted);
-      border: 1px solid var(--border);
-      border-radius: 999px; padding: 3px 10px;
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.5; transform:scale(.75); }
     }
 
-    /* ── Hash row ── */
-    .hash-row {
-      margin-top: 14px;
-      display: flex; align-items: center; gap: 8px;
-      flex-wrap: wrap;
+    .hero-version {
+      font-size: clamp(3.8rem, 12vw, 6.5rem);
+      font-weight: 900; letter-spacing: -4px; line-height: 1;
+      background: linear-gradient(155deg, #ffffff 25%, #7aaaff 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
     }
-    .hash-label { font-size: 0.78rem; color: var(--muted); }
-    .hash-value {
-      font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim);
-      background: rgba(0,0,0,0.3); border-radius: 6px;
-      padding: 3px 8px; letter-spacing: 0.02em;
-      cursor: pointer; border: 1px solid transparent;
-      transition: border-color 0.15s;
-      word-break: break-all;
+    .hero-label {
+      font-size: 1rem; font-weight: 300; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--text-2); margin-bottom: 6px;
     }
-    .hash-value:hover { border-color: var(--border); }
-    .hash-value.copied { color: var(--green); border-color: var(--green-border); }
-    .copy-hint { font-size: 0.7rem; color: var(--muted); }
+    .hero-date { font-size: .87rem; color: var(--muted); margin-bottom: 28px; }
 
-    /* ── Older releases ── */
-    .section-title {
-      margin: 48px 0 16px;
-      font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--muted);
-      display: flex; align-items: center; gap: 10px;
-    }
-    .section-title::after {
-      content: ""; flex: 1; height: 1px; background: var(--border);
+    .hero-notes {
+      display: inline-block; text-align: left;
+      font-size: .93rem; color: var(--text-2);
+      background: var(--accent-dim);
+      border: 1px solid rgba(59,126,255,.14);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      padding: 10px 18px; margin-bottom: 36px;
+      max-width: 460px; width: 100%;
     }
 
-    .release-list { display: grid; gap: 10px; }
-
-    .release-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
+    /* ── Download card ── */
+    .dl-card {
+      background: linear-gradient(160deg, #0e2044 0%, #081327 100%);
+      border: 1px solid var(--border-2); border-radius: 22px;
+      padding: 28px; text-align: left; position: relative; overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(59,126,255,.07) inset, 0 28px 72px rgba(0,0,0,.5);
+    }
+    .dl-card::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 80% 55% at 50% -15%, rgba(59,126,255,.14), transparent);
     }
 
-    .release-header {
-      display: flex; justify-content: space-between; align-items: center;
-      gap: 10px; padding: 14px 18px; cursor: pointer;
-      user-select: none;
+    .dl-top {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px; margin-bottom: 22px;
     }
-    .release-header:hover { background: var(--surface-2); }
-
-    .release-header-left { display: flex; align-items: center; gap: 10px; }
-    .release-ver { font-weight: 700; font-size: 1rem; }
-    .release-date { font-size: 0.82rem; color: var(--muted); }
-
-    .chevron {
-      color: var(--muted); transition: transform 0.2s;
-      flex-shrink: 0;
+    .platform-pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 12px; font-weight: 700; color: var(--text-2);
+      background: rgba(255,255,255,.04); border: 1px solid var(--border);
+      border-radius: 999px; padding: 5px 13px;
     }
-    .release-card.open .chevron { transform: rotate(180deg); }
+    .file-sz { font-size: 12px; color: var(--muted); }
 
-    .release-body {
-      display: none;
-      padding: 0 18px 18px;
+    .btn-dl {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; background: var(--accent); color: #fff;
+      font-family: var(--font); font-size: 1.02rem; font-weight: 700;
+      padding: 15px 24px; border-radius: 13px; border: none; cursor: pointer;
+      text-decoration: none; letter-spacing: .01em;
+      box-shadow: 0 0 36px var(--accent-glow);
+      transition: background .15s, box-shadow .15s, transform .1s;
+      margin-bottom: 18px;
+    }
+    .btn-dl:hover {
+      background: var(--accent-h); color: #fff;
+      box-shadow: 0 0 52px rgba(59,126,255,.45);
+      transform: translateY(-1px);
+    }
+    .btn-dl:active { transform: translateY(0); }
+
+    .hash-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .hash-lbl { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+    .hash-val {
+      font-family: 'Courier New', monospace; font-size: 11.5px; color: var(--text-2);
+      background: rgba(0,0,0,.35); border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 9px; cursor: pointer; letter-spacing: .03em;
+      word-break: break-all; transition: border-color .15s, color .15s;
+    }
+    .hash-val:hover { border-color: var(--accent); }
+    .hash-val.copied { color: var(--green); border-color: var(--green-border); }
+    .copy-hint { font-size: 11px; color: var(--muted); }
+
+    /* ── Divider ── */
+    .divider {
+      max-width: 680px; margin: 0 auto;
+      border: none; border-top: 1px solid var(--border);
+    }
+
+    /* ── Previous releases ── */
+    .prev { max-width: 680px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    .sec-label {
+      font-size: 11px; font-weight: 900; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+    }
+
+    .rel-list { display: grid; gap: 8px; }
+
+    .rel-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden; transition: border-color .15s;
+    }
+    .rel-card:hover { border-color: var(--border-2); }
+
+    .rel-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 18px; cursor: pointer; user-select: none; gap: 12px;
+    }
+    .rel-hdr-l { display: flex; align-items: center; gap: 12px; }
+    .rel-ver { font-size: .93rem; font-weight: 700; }
+    .rel-date { font-size: .78rem; color: var(--muted); }
+    .chevron { color: var(--muted); flex-shrink:0; transition: transform .2s; }
+    .rel-card.open .chevron { transform: rotate(180deg); }
+
+    .rel-body {
+      display: none; padding: 0 18px 18px;
       border-top: 1px solid var(--border);
     }
-    .release-card.open .release-body { display: block; }
+    .rel-card.open .rel-body { display: block; }
+    .rel-notes { font-size: .87rem; color: var(--text-2); padding: 12px 0 14px; }
 
-    .release-notes-old {
-      font-size: 0.9rem; color: var(--text-dim);
-      margin: 14px 0 16px;
-    }
-
-    /* ── Asset table ── */
-    .asset-list { display: grid; gap: 8px; }
+    .asset-grid { display: grid; gap: 7px; }
     .asset-row {
-      display: flex; justify-content: space-between; align-items: center;
-      gap: 10px;
-      border: 1px solid var(--border);
-      border-radius: 10px; padding: 10px 14px;
-      background: rgba(0,0,0,0.15);
-      transition: border-color 0.15s;
-      text-decoration: none; color: inherit;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 9px 13px; background: rgba(0,0,0,.2); border: 1px solid var(--border);
+      border-radius: 10px; text-decoration: none; color: inherit; transition: border-color .15s;
     }
-    a.asset-row:hover { border-color: var(--border-hover); }
-
-    .asset-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .asset-name { font-size: 0.88rem; color: var(--text-dim); word-break: break-all; }
-    .asset-name-link { color: var(--accent); }
+    a.asset-row:hover { border-color: var(--border-2); }
+    .asset-l { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .asset-name { font-size: .85rem; color: var(--text-2); word-break: break-all; }
+    a.asset-row .asset-name { color: var(--accent); }
+    .asset-r { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .asset-sz { font-size: .77rem; color: var(--muted); white-space: nowrap; }
     .asset-hash {
-      font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
-      cursor: pointer; width: fit-content;
+      font-family: 'Courier New', monospace; font-size: 10px; color: var(--muted);
+      margin-top: 1px; cursor: pointer; transition: color .15s;
     }
-    .asset-hash:hover { color: var(--text-dim); }
+    .asset-hash:hover { color: var(--text-2); }
     .asset-hash.copied { color: var(--green); }
 
-    .asset-right {
-      display: flex; align-items: center; gap: 10px;
-      flex-shrink: 0;
-    }
-    .asset-size { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
-    .asset-dl-icon { color: var(--accent); }
+    /* ── States ── */
+    .empty { text-align: center; padding: 52px 20px; color: var(--muted); font-size: .95rem; }
 
-    /* ── Empty / error states ── */
-    .empty-state {
-      margin-top: 28px;
-      text-align: center; padding: 40px 20px;
-      border: 1px dashed var(--border);
-      border-radius: 14px; color: var(--muted);
-    }
-
-    /* ── Skeleton loader ── */
-    .skeleton {
-      background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: 8px;
-      height: 14px;
-    }
     @keyframes shimmer {
       0%   { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-    .skeleton-hero {
-      margin-top: 32px; border-radius: 18px; height: 200px;
+    .skel {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+      background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 10px;
     }
 
-    @media (max-width: 540px) {
-      h1 { font-size: 1.5rem; }
-      .latest-version { font-size: 1.5rem; }
-      .latest-hero { padding: 20px 16px 18px; }
-      .dl-row { flex-direction: column; align-items: flex-start; }
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      text-align: center; padding: 22px;
+      font-size: 12px; color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text-2); }
+
+    @media (max-width: 520px) {
+      nav { padding: 0 16px; }
+      .hero { padding: 48px 16px 36px; }
+      .dl-card { padding: 20px 16px; border-radius: 16px; }
+      .prev { padding: 32px 16px 60px; }
     }
   </style>
 </head>
 <body>
-<main class="page">
 
-  <header class="header">
-    <div class="logo">
-      <div class="logo-mark">RL</div>
-      <span class="logo-name">RemoteLink</span>
-    </div>
-    <h1>Desktop Downloads</h1>
-    <p class="tagline">Install the latest release or grab any previous version.</p>
-    <p id="status"></p>
-  </header>
+<nav>
+  <a class="nav-logo" href="#">
+    <div class="nav-logo-mark">RL</div>
+    <span class="nav-logo-name">RemoteLink</span>
+  </a>
+  <a class="nav-gh" id="gh-link" href="https://github.com/teamzain/RemoteLink-Desktop" target="_blank" rel="noopener">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
 
-  <div id="app"></div>
+<section class="hero" id="hero">
+  <div class="skel" style="height:26px;width:130px;margin:0 auto 28px;border-radius:999px;"></div>
+  <div class="skel" style="height:88px;width:220px;margin:0 auto 12px;border-radius:12px;"></div>
+  <div class="skel" style="height:14px;width:160px;margin:0 auto 6px;"></div>
+  <div class="skel" style="height:14px;width:130px;margin:0 auto 28px;"></div>
+  <div class="skel" style="height:180px;border-radius:22px;"></div>
+</section>
 
-</main>
+<hr class="divider" id="divider" hidden />
+<section class="prev" id="prev" hidden></section>
+<footer id="footer" hidden>
+  © <span id="yr"></span> RemoteLink &nbsp;·&nbsp;
+  <a href="https://github.com/teamzain/RemoteLink-Desktop" target="_blank" rel="noopener">GitHub</a>
+</footer>
 
 <script>
 "use strict";
 
-// ── Utilities ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso) {
+function fmtDate(iso) {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso || '';
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  return isNaN(d) ? (iso||'') : d.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
+}
+function fmtSize(b) {
+  if (typeof b!=='number'||b<0) return '';
+  const u=['B','KB','MB','GB']; let i=0,n=b;
+  while(n>=1024&&i<u.length-1){n/=1024;i++;}
+  return `${n.toFixed(i===0?0:1)} ${u[i]}`;
+}
+function trunc(h){ return h?h.slice(0,16)+'…':''; }
+
+async function doCopy(text,el,prev){
+  try{ await navigator.clipboard.writeText(text); }catch{ return; }
+  el.textContent='Copied!'; el.classList.add('copied');
+  setTimeout(()=>{ el.textContent=prev; el.classList.remove('copied'); },1800);
 }
 
-function formatSize(bytes) {
-  if (typeof bytes !== 'number' || bytes < 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0, n = bytes;
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
-  return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-}
+function userAssets(a){ return (a||[]).filter(x=>!x.name.endsWith('.blockmap')&&x.name!=='latest.yml'); }
+function primary(a){ const u=userAssets(a); return u.find(x=>x.name.endsWith('.exe'))||u[0]||null; }
 
-function truncateHash(h) {
-  return h ? h.slice(0, 16) + '…' : '';
-}
+const DL_ICON = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 16h14"/></svg>`;
+const WIN_ICON = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.25 6.5 1.4v5.6H0V2.25zM7.2 1.3 16 0v7H7.2V1.3zM0 7.7h6.5V13.7L0 12.8V7.7zM7.2 7.7H16V16L7.2 14.7V7.7z"/></svg>`;
+const CHV_ICON = `<svg class="chevron" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>`;
 
-async function copyText(text, el) {
-  try {
-    await navigator.clipboard.writeText(text);
-    const prev = el.textContent;
-    el.textContent = 'Copied!';
-    el.classList.add('copied');
-    setTimeout(() => { el.textContent = prev; el.classList.remove('copied'); }, 1800);
-  } catch { /* ignore */ }
-}
-
-// Ignore .blockmap — it's for electron-updater, not end users.
-function userAssets(assets) {
-  return (assets || []).filter(a => !a.name.endsWith('.blockmap') && a.name !== 'latest.yml');
-}
-
-function primaryAsset(assets) {
-  const ua = userAssets(assets);
-  return ua.find(a => a.name.endsWith('.exe')) || ua[0] || null;
-}
-
-// ── SVG icons (inline, zero deps) ─────────────────────────────────────────────
-
-const ICON_DOWNLOAD = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M5 7l3 3 3-3"/><path d="M2 13h12"/></svg>`;
-const ICON_WINDOWS  = `<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2.25 6.5 1.4v5.6H0V2.25zM7.2 1.3 16 0v7H7.2V1.3zM0 7.7h6.5V13.7L0 12.8V7.7zM7.2 7.7H16V16L7.2 14.7V7.7z"/></svg>`;
-const ICON_CHEVRON  = `<svg class="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg>`;
-
-// ── Render: featured latest ────────────────────────────────────────────────────
-
-function renderLatest(release) {
-  const primary = primaryAsset(release.assets);
-  const ua = userAssets(release.assets);
-
-  const hashRow = primary && primary.sha256 ? `
-    <div class="hash-row">
-      <span class="hash-label">SHA-256</span>
-      <code class="hash-value" title="Click to copy full hash">${truncateHash(primary.sha256)}</code>
-      <span class="copy-hint">click to copy</span>
-    </div>` : '';
-
-  const extra = ua.filter(a => a !== primary).map(a => `
-    <a class="btn-secondary" href="${a.url}" target="_blank" rel="noopener">
-      ${ICON_DOWNLOAD} ${a.name}
-    </a>`).join('');
-
-  const hero = document.createElement('section');
-  hero.className = 'latest-hero';
-  hero.innerHTML = `
-    <div class="latest-label">Latest Release</div>
-    <p class="latest-version">${release.version || 'unknown'}</p>
-    <p class="latest-meta">Released ${formatDate(release.publishedAt)}</p>
-    ${release.notes ? `<p class="latest-notes">${release.notes}</p>` : ''}
-    <div class="dl-row">
-      ${primary ? `
-        <a class="btn-primary" href="${primary.url}" target="_blank" rel="noopener">
-          ${ICON_DOWNLOAD} Download for Windows
-        </a>` : ''}
-      ${extra}
-      <span class="platform-badge">${ICON_WINDOWS} Windows x64</span>
-    </div>
-    ${hashRow}
-  `;
-
-  // Wire up hash copy
-  const hashEl = hero.querySelector('.hash-value');
-  if (hashEl && primary && primary.sha256) {
-    hashEl.addEventListener('click', () => copyText(primary.sha256, hashEl));
-  }
-
-  return hero;
-}
-
-// ── Render: older release card ─────────────────────────────────────────────────
-
-function renderOlderRelease(release) {
-  const ua = userAssets(release.assets);
-
-  const assetsHtml = ua.map(asset => {
-    const isExe = asset.name.endsWith('.exe');
-    const tag = isExe
-      ? `<a class="asset-row" href="${asset.url}" target="_blank" rel="noopener">`
-      : `<div class="asset-row">`;
-    const endTag = isExe ? '</a>' : '</div>';
-
-    const hashSnippet = asset.sha256
-      ? `<span class="asset-hash" title="${asset.sha256}">${truncateHash(asset.sha256)}</span>`
-      : '';
-
-    return `
-      ${tag}
-        <div class="asset-left">
-          <span class="asset-name ${isExe ? 'asset-name-link' : ''}">${asset.name}</span>
-          ${hashSnippet}
-        </div>
-        <div class="asset-right">
-          <span class="asset-size">${formatSize(asset.size)}</span>
-          ${isExe ? `<span class="asset-dl-icon">${ICON_DOWNLOAD}</span>` : ''}
-        </div>
-      ${endTag}`;
-  }).join('');
-
-  const card = document.createElement('article');
-  card.className = 'release-card';
-  card.innerHTML = `
-    <div class="release-header">
-      <div class="release-header-left">
-        <span class="release-ver">${release.version || 'unknown'}</span>
-        <span class="release-date">${formatDate(release.publishedAt)}</span>
+function renderHero(r) {
+  const p = primary(r.assets);
+  const el = document.getElementById('hero');
+  el.innerHTML = `
+    <div class="badge"><span class="badge-dot"></span> Latest Release</div>
+    <div class="hero-version">v${r.version||'?'}</div>
+    <p class="hero-label">RemoteLink Desktop</p>
+    <p class="hero-date">Released ${fmtDate(r.publishedAt)}</p>
+    ${r.notes?`<p class="hero-notes">${r.notes}</p>`:''}
+    <div class="dl-card">
+      <div class="dl-top">
+        <span class="platform-pill">${WIN_ICON} Windows x64</span>
+        <span class="file-sz">${p?fmtSize(p.size):''}</span>
       </div>
-      ${ICON_CHEVRON}
-    </div>
-    <div class="release-body">
-      ${release.notes ? `<p class="release-notes-old">${release.notes}</p>` : ''}
-      <div class="asset-list">${assetsHtml || '<div class="asset-row"><div class="asset-name">No assets recorded</div></div>'}</div>
+      ${p?`<a class="btn-dl" href="${p.url}" target="_blank" rel="noopener">${DL_ICON} Download for Windows</a>`:''}
+      ${p&&p.sha256?`
+        <div class="hash-row">
+          <span class="hash-lbl">SHA-256</span>
+          <code class="hash-val" id="main-hash">${trunc(p.sha256)}</code>
+          <span class="copy-hint">click to copy</span>
+        </div>`:''}
     </div>
   `;
-
-  // Toggle expand
-  card.querySelector('.release-header').addEventListener('click', () => {
-    card.classList.toggle('open');
-  });
-
-  // Wire up hash copy for older cards
-  card.querySelectorAll('.asset-hash').forEach((el) => {
-    const full = el.title;
-    if (full) el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); copyText(full, el); });
-  });
-
-  return card;
+  if (p&&p.sha256) {
+    const hEl = document.getElementById('main-hash');
+    const t = trunc(p.sha256);
+    hEl.addEventListener('click', ()=>doCopy(p.sha256, hEl, t));
+  }
 }
 
-// ── Main load ──────────────────────────────────────────────────────────────────
+function renderOlder(releases) {
+  const sec = document.getElementById('prev');
+  const list = document.createElement('div');
+  list.className = 'rel-list';
 
-async function loadReleases() {
-  const appEl   = document.getElementById('app');
-  const statusEl = document.getElementById('status');
+  releases.forEach(r => {
+    const ua = userAssets(r.assets);
+    const card = document.createElement('article');
+    card.className = 'rel-card';
 
-  // Show skeleton while loading
-  appEl.innerHTML = `<div class="skeleton skeleton-hero"></div>`;
-  statusEl.textContent = 'Loading releases…';
+    const hdr = document.createElement('div');
+    hdr.className = 'rel-hdr';
+    hdr.innerHTML = `<div class="rel-hdr-l"><span class="rel-ver">v${r.version||'?'}</span><span class="rel-date">${fmtDate(r.publishedAt)}</span></div>${CHV_ICON}`;
+    hdr.addEventListener('click', ()=>card.classList.toggle('open'));
+    card.appendChild(hdr);
 
-  let releases;
+    const body = document.createElement('div');
+    body.className = 'rel-body';
+    if (r.notes) body.innerHTML = `<p class="rel-notes">${r.notes}</p>`;
+
+    const grid = document.createElement('div');
+    grid.className = 'asset-grid';
+
+    (ua.length?ua:[]).forEach(asset=>{
+      const isExe = asset.name.endsWith('.exe');
+      const row = document.createElement(isExe?'a':'div');
+      row.className = 'asset-row';
+      if (isExe){ row.href=asset.url; row.target='_blank'; row.rel='noopener'; }
+      const ht = asset.sha256 ? trunc(asset.sha256) : '';
+      row.innerHTML = `
+        <div class="asset-l">
+          <span class="asset-name">${asset.name}</span>
+          ${asset.sha256?`<span class="asset-hash">${ht}</span>`:''}
+        </div>
+        <div class="asset-r">
+          <span class="asset-sz">${fmtSize(asset.size)}</span>
+          ${isExe?`<svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><path d="M10 3v10M6 9l4 4 4-4"/><path d="M3 16h14"/></svg>`:''}
+        </div>`;
+      if (asset.sha256) {
+        const hEl = row.querySelector('.asset-hash');
+        hEl.addEventListener('click', e=>{e.preventDefault();e.stopPropagation();doCopy(asset.sha256,hEl,ht);});
+      }
+      grid.appendChild(row);
+    });
+
+    body.appendChild(grid);
+    card.appendChild(body);
+    list.appendChild(card);
+  });
+
+  sec.innerHTML = `<p class="sec-label">Previous Releases</p>`;
+  sec.appendChild(list);
+}
+
+async function boot() {
+  document.getElementById('yr').textContent = new Date().getFullYear();
+  let data;
   try {
-    const res = await fetch('./releases.json', { cache: 'no-store' });
+    const res = await fetch('./releases.json',{cache:'no-store'});
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    releases = Array.isArray(data.releases) ? data.releases : [];
-  } catch (err) {
-    appEl.innerHTML = `<div class="empty-state">Failed to load release manifest.<br><small>${err.message}</small></div>`;
-    statusEl.textContent = '';
+    data = await res.json();
+  } catch(e) {
+    document.getElementById('hero').innerHTML =
+      `<div class="empty">Could not load releases.<br><small style="color:var(--muted)">${e.message}</small></div>`;
     return;
   }
 
-  appEl.innerHTML = '';
-
-  if (!releases.length) {
-    appEl.innerHTML = `<div class="empty-state">No releases published yet. Check back soon.</div>`;
-    statusEl.textContent = '';
+  const releases = Array.isArray(data.releases)?data.releases:[];
+  if (!releases.length){
+    document.getElementById('hero').innerHTML=`<div class="empty">No releases yet.</div>`;
     return;
   }
 
-  const [latest, ...older] = releases;
-  statusEl.textContent = `${releases.length} release${releases.length !== 1 ? 's' : ''} available`;
+  const [latest,...older] = releases;
+  renderHero(latest);
 
-  appEl.appendChild(renderLatest(latest));
-
-  if (older.length) {
-    const title = document.createElement('h2');
-    title.className = 'section-title';
-    title.textContent = 'Previous Releases';
-    appEl.appendChild(title);
-
-    const list = document.createElement('div');
-    list.className = 'release-list';
-    older.forEach(r => list.appendChild(renderOlderRelease(r)));
-    appEl.appendChild(list);
+  if (older.length){
+    document.getElementById('divider').hidden=false;
+    const prev = document.getElementById('prev');
+    prev.hidden=false;
+    renderOlder(older);
   }
+
+  document.getElementById('footer').hidden=false;
 }
 
-loadReleases();
+boot();
 </script>
 </body>
 </html>
