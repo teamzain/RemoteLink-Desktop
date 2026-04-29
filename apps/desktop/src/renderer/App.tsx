@@ -1647,6 +1647,7 @@ export default function App() {
 
 
     const [deviceId, setDeviceId] = useState('');
+    const [pendingViewerRequest, setPendingViewerRequest] = useState<{ viewerId: string; countdown: number } | null>(null);
     const [viewerStep, setViewerStep] = useState<1 | 2>(1);
     const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
     const [lockoutSeconds, setLockoutSeconds] = useState(0);
@@ -1692,6 +1693,33 @@ export default function App() {
         });
         return () => unsub();
     }, [isElectron]);
+
+    // --- Viewer access-request dialog ---
+    useEffect(() => {
+        if (!isElectron || isViewerWindow) return;
+        const eAPI = (window as any).electronAPI;
+        const unsubReq = eAPI.onViewerRequest?.((data: { viewerId: string }) => {
+            setPendingViewerRequest({ viewerId: data.viewerId, countdown: 30 });
+            playUISound('connect');
+        });
+        const unsubCancel = eAPI.onViewerRequestCancelled?.((data: { viewerId: string }) => {
+            setPendingViewerRequest(prev => prev?.viewerId === data.viewerId ? null : prev);
+        });
+        return () => { unsubReq?.(); unsubCancel?.(); };
+    }, [isElectron, isViewerWindow]);
+
+    useEffect(() => {
+        if (!pendingViewerRequest) return;
+        if (pendingViewerRequest.countdown <= 0) {
+            (window as any).electronAPI?.denyViewer(pendingViewerRequest.viewerId);
+            setPendingViewerRequest(null);
+            return;
+        }
+        const t = setTimeout(() => {
+            setPendingViewerRequest(prev => prev ? { ...prev, countdown: prev.countdown - 1 } : null);
+        }, 1000);
+        return () => clearTimeout(t);
+    }, [pendingViewerRequest]);
 
     const fetchBillingInfo = async () => {
         try {
@@ -1800,12 +1828,51 @@ export default function App() {
         }
     }, [isAuthenticated, user?.role, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
 
+    // --- Guest Auto-Host: start hosting once self-register completes, no login needed ---
     useEffect(() => {
-        if (isElectron && (window as any).electronAPI?.getDeterministicKey) {
-            (window as any).electronAPI.getDeterministicKey().then((k: string | null) => {
-                if (k) setLocalAuthKey(k);
-            });
-        }
+        if (isAuthenticated) return; // authenticated path handled above
+        if (!hostAccessKey || !devicePassword) return;
+        if (hasAutoStartedHost.current || manuallyStoppedHost.current) return;
+        if (hostStatus !== 'idle' && hostStatus !== '') return;
+        console.log('[Auto-Host] Guest identity ready, starting host automatically...');
+        hasAutoStartedHost.current = true;
+        handleStartHosting();
+    }, [isAuthenticated, hostAccessKey, devicePassword, hostStatus]);
+
+    useEffect(() => {
+        if (!isElectron || !(window as any).electronAPI?.getDeterministicKey) return;
+        (async () => {
+            const k = await (window as any).electronAPI.getDeterministicKey();
+            if (!k) return;
+            setLocalAuthKey(k);
+
+            // Register this machine in the DB without requiring a login so that
+            // viewers can look it up via access key even before the host signs in.
+            try {
+                const machineName = (window as any).electronAPI.getMachineName
+                    ? await (window as any).electronAPI.getMachineName()
+                    : 'Unknown Machine';
+
+                const storedPwd = localStorage.getItem('device_password') || '';
+                const { data } = await api.post('/api/devices/self-register', {
+                    accessKey: k,
+                    name: machineName,
+                    password: storedPwd || undefined,
+                });
+
+                setHostAccessKey(data.access_key);
+                setDeviceId(data.id);
+                setIsLocalHostRegistered(true);
+
+                // If the server auto-generated a password, persist it locally
+                if (data.auto_password) {
+                    setDevicePassword(data.auto_password);
+                    localStorage.setItem('device_password', data.auto_password);
+                }
+            } catch (e: any) {
+                console.warn('[Self-Register] Could not register device:', e.message);
+            }
+        })();
     }, []);
 
     useEffect(() => {
@@ -1850,6 +1917,12 @@ export default function App() {
         const removeSignalingListener = isElectron ? (window as any).electronAPI.onSignalingMessage(async (data: any) => {
             if (isElectron) {
                 (window as any).electronAPI.log(`[Renderer] Received signaling FROM MAIN: ${data.type}`);
+            }
+            if (data.type === 'joined' && !data.success) {
+                // Host denied the connection or timed out
+                setViewerStatus('error');
+                setViewerError(data.error || 'Connection was denied by the host.');
+                return;
             }
             if (data.type === 'offer') {
                 if (isElectron) (window as any).electronAPI.log('[Renderer] Handling OFFER from host...');
@@ -2188,12 +2261,8 @@ export default function App() {
         setHostStatus('connecting');
         setHostError('');
         try {
-            // 1. Get Auth Credentials
-            const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
-            if (!creds?.token) throw new Error('Please sign in first');
-
             if (!hostAccessKey) {
-                throw new Error('Permanent identity not loaded. Please wait or re-sign in.');
+                throw new Error('Device not yet initialized. Please wait a moment.');
             }
 
             if (!devicePassword) {
@@ -2201,15 +2270,14 @@ export default function App() {
                 setHostStatus('idle');
                 return;
             }
-            if (!deviceId) {
-                throw new Error('Please wait for your device identity to load or restart the app.');
+
+            // Sync password to auth service only when logged in (guest devices
+            // already have the password set via /self-register).
+            if (isAuthenticated && deviceId) {
+                localStorage.setItem('device_password', devicePassword);
+                await api.post('/api/devices/set-password', { deviceId, password: devicePassword });
             }
 
-            // 2. Set/Sync Password
-            localStorage.setItem('device_password', devicePassword);
-            await api.post('/api/devices/set-password', { deviceId, password: devicePassword });
-
-            // 3. Start Signaling with permanent Access Key
             if (!isElectron) {
                 showError('Browser Limitation', 'Hosting features require the native desktop application.');
                 setHostStatus('error');
@@ -3022,6 +3090,54 @@ export default function App() {
                         showDiagnostics={showDiagnostics}
                         setShowDiagnostics={setShowDiagnostics}
                     />
+                </div>
+            )}
+
+            {/* ── Viewer Access Request Dialog ── */}
+            {pendingViewerRequest && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-white rounded-[28px] border border-[rgba(28,28,28,0.08)] shadow-2xl p-8 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
+                            <Monitor className="text-blue-600 w-8 h-8" />
+                        </div>
+                        <div className="text-center">
+                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">Connection Request</h2>
+                            <p className="text-sm font-medium text-[rgba(28,28,28,0.5)] leading-relaxed">
+                                Someone wants to view your screen.<br />Do you want to allow this connection?
+                            </p>
+                        </div>
+                        <div className="w-full flex flex-col items-center gap-1">
+                            <div className="w-full bg-[#F8F9FA] rounded-2xl h-2 overflow-hidden">
+                                <div
+                                    className="h-full bg-blue-500 transition-all duration-1000 ease-linear"
+                                    style={{ width: `${(pendingViewerRequest.countdown / 30) * 100}%` }}
+                                />
+                            </div>
+                            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest">
+                                Auto-denying in {pendingViewerRequest.countdown}s
+                            </p>
+                        </div>
+                        <div className="flex gap-3 w-full">
+                            <button
+                                onClick={() => {
+                                    (window as any).electronAPI?.denyViewer(pendingViewerRequest.viewerId);
+                                    setPendingViewerRequest(null);
+                                }}
+                                className="flex-1 py-3.5 rounded-2xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest text-[rgba(28,28,28,0.5)] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                            >
+                                Deny
+                            </button>
+                            <button
+                                onClick={() => {
+                                    (window as any).electronAPI?.approveViewer(pendingViewerRequest.viewerId);
+                                    setPendingViewerRequest(null);
+                                }}
+                                className="flex-1 py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all"
+                            >
+                                Allow
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

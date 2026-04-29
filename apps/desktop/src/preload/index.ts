@@ -58,6 +58,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('host:stats', listener);
   },
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+  approveViewer: (viewerId: string) => ipcRenderer.send('host:approve-viewer', viewerId),
+  denyViewer: (viewerId: string) => ipcRenderer.send('host:deny-viewer', viewerId),
+  onViewerRequest: (callback: (data: { viewerId: string; viewerClientId?: string }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('host:viewer-request', listener);
+    return () => ipcRenderer.removeListener('host:viewer-request', listener);
+  },
+  onViewerRequestCancelled: (callback: (data: { viewerId: string }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('host:viewer-request-cancelled', listener);
+    return () => ipcRenderer.removeListener('host:viewer-request-cancelled', listener);
+  },
   saveFileLocally: (name: string, data: Uint8Array) => ipcRenderer.invoke('host:save-file-locally', name, data),
   sendFileToViewer: () => ipcRenderer.send('host:send-file'),
   getScreens: () => ipcRenderer.invoke('host:get-screens'),

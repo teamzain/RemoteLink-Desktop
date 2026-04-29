@@ -188,6 +188,18 @@ ipcMain.handle('host:stop', () => {
   return true;
 });
 
+ipcMain.on('host:approve-viewer', (_event: any, viewerId: string) => {
+  if (hostSignalingWs?.readyState === WebSocket.OPEN) {
+    hostSignalingWs.send(JSON.stringify({ type: 'join-approve', viewerId }));
+  }
+});
+
+ipcMain.on('host:deny-viewer', (_event: any, viewerId: string) => {
+  if (hostSignalingWs?.readyState === WebSocket.OPEN) {
+    hostSignalingWs.send(JSON.stringify({ type: 'join-deny', viewerId }));
+  }
+});
+
 ipcMain.handle('host:get-screens', () => {
   const displays = screen.getAllDisplays();
   return displays.map((d: any) => ({
@@ -940,6 +952,14 @@ function setupSignalingHandlers(ws: WebSocket) {
     if (data.type === 'registered') {
       currentHostSessionId = data.sessionId;
       mainWindow?.webContents.send('host:status', `Online: ${data.sessionId}`);
+    } else if (data.type === 'viewer-request') {
+      // Forward the approval dialog request to the renderer
+      mainWindow?.webContents.send('host:viewer-request', {
+        viewerId: data.viewerId,
+        viewerClientId: data.viewerClientId,
+      });
+    } else if (data.type === 'viewer-request-cancelled') {
+      mainWindow?.webContents.send('host:viewer-request-cancelled', { viewerId: data.viewerId });
     } else if (data.type === 'viewer-joined' || data.type === 'request-offer') {
       const viewerId = data.viewerId || data.senderId;
       const now = Date.now();

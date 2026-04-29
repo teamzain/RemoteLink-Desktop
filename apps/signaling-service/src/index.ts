@@ -16,6 +16,8 @@ const localClients = new Map<string, WebSocket>();
 const sessionRegistry = new Map<string, string>(); // sessionId -> hostConnectionId
 const reverseRegistry = new Map<string, string>(); // hostConnectionId -> sessionId
 const viewerRegistry = new Map<string, string>(); // viewerConnectionId -> sessionId
+// Pending connections waiting for host approval
+const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
 
 // --- STARTUP CLEANUP ---
 // Clear all stale presence keys on service restart to prevent ghost online status
@@ -141,7 +143,7 @@ async function startServer() {
             // console.log(`[Signaling] Pong from ${connectionId}`);
             break;
 
-          case 'join':
+          case 'join': {
             let targetSessionId = data.sessionId;
             if (targetSessionId) targetSessionId = String(targetSessionId).replace(/\s/g, '').toLowerCase();
             const token = data.token;
@@ -149,32 +151,86 @@ async function startServer() {
             console.log(`[Signaling] Join attempt for session: ${targetSessionId}`);
 
             if (!token) {
-              return ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Authentication token required' }));
+              ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Authentication token required' }));
+              break;
             }
 
             const decoded = verifyToken(token);
             if (!decoded || decoded.type !== 'remote-access') {
-              return ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Invalid or expired access token' }));
+              ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Invalid or expired access token' }));
+              break;
             }
 
             const hostId = sessionRegistry.get(targetSessionId);
-            if (hostId) {
-              viewerRegistry.set(connectionId, targetSessionId);
-              ws.send(JSON.stringify({ type: 'joined', success: true }));
-
-              const hostWs = localClients.get(hostId);
-              if (hostWs && hostWs.readyState === WebSocket.OPEN) {
-                hostWs.send(JSON.stringify({
-                  type: 'viewer-joined',
-                  viewerId: connectionId,
-                  viewerClientId: data.viewerClientId || connectionId // Use clientId if provided, fallback to socketId
-                }));
-              }
-              broadcastGlobalStats();
-            } else {
+            if (!hostId) {
               ws.send(JSON.stringify({ type: 'joined', success: false, error: 'Session not found' }));
+              break;
+            }
+
+            // Hold the join — ask the host to approve first.
+            // Auto-deny after 30 s if the host doesn't respond.
+            const requestTimeout = setTimeout(() => {
+              if (!pendingJoins.has(connectionId)) return;
+              pendingJoins.delete(connectionId);
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'joined', success: false, error: 'The host did not respond. Try again.' }));
+              }
+            }, 30000);
+
+            pendingJoins.set(connectionId, {
+              sessionId: targetSessionId,
+              viewerClientId: data.viewerClientId,
+              timeout: requestTimeout,
+            });
+
+            const hostWs = localClients.get(hostId);
+            if (hostWs && hostWs.readyState === WebSocket.OPEN) {
+              hostWs.send(JSON.stringify({
+                type: 'viewer-request',
+                viewerId: connectionId,
+                viewerClientId: data.viewerClientId || connectionId,
+              }));
             }
             break;
+          }
+
+          case 'join-approve': {
+            const pendingViewerId = data.viewerId;
+            const pending = pendingJoins.get(pendingViewerId);
+            if (!pending) break;
+
+            clearTimeout(pending.timeout);
+            pendingJoins.delete(pendingViewerId);
+
+            const viewerWs = localClients.get(pendingViewerId);
+            if (viewerWs && viewerWs.readyState === WebSocket.OPEN) {
+              viewerRegistry.set(pendingViewerId, pending.sessionId);
+              viewerWs.send(JSON.stringify({ type: 'joined', success: true }));
+              // Now tell the host to kick off WebRTC
+              ws.send(JSON.stringify({
+                type: 'viewer-joined',
+                viewerId: pendingViewerId,
+                viewerClientId: pending.viewerClientId || pendingViewerId,
+              }));
+              broadcastGlobalStats();
+            }
+            break;
+          }
+
+          case 'join-deny': {
+            const pendingViewerId = data.viewerId;
+            const pending = pendingJoins.get(pendingViewerId);
+            if (!pending) break;
+
+            clearTimeout(pending.timeout);
+            pendingJoins.delete(pendingViewerId);
+
+            const viewerWs = localClients.get(pendingViewerId);
+            if (viewerWs && viewerWs.readyState === WebSocket.OPEN) {
+              viewerWs.send(JSON.stringify({ type: 'joined', success: false, error: 'Connection request was denied by the host.' }));
+            }
+            break;
+          }
 
           case 'unregister':
             const unregSessionId = reverseRegistry.get(connectionId);
@@ -219,6 +275,21 @@ async function startServer() {
       localClients.delete(connectionId);
       presenceSubscriptions.delete(connectionId);
       orgSubscriptions.delete(connectionId);
+
+      // If this viewer disconnected while still pending approval, cancel the request
+      if (pendingJoins.has(connectionId)) {
+        const pending = pendingJoins.get(connectionId)!;
+        clearTimeout(pending.timeout);
+        pendingJoins.delete(connectionId);
+        const hostId = sessionRegistry.get(pending.sessionId);
+        if (hostId) {
+          const hostWs = localClients.get(hostId);
+          if (hostWs && hostWs.readyState === WebSocket.OPEN) {
+            hostWs.send(JSON.stringify({ type: 'viewer-request-cancelled', viewerId: connectionId }));
+          }
+        }
+      }
+
       const sessionId = reverseRegistry.get(connectionId);
       if (sessionId) {
         if (sessionRegistry.get(sessionId) === connectionId) {

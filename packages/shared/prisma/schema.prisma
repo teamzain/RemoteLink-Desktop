@@ -139,14 +139,14 @@ model Device {
   name               String?
   deviceType         DeviceType      @default(WINDOWS)
   status             String          @default("OFFLINE")
-  ownerId            String
+  ownerId            String?
   organizationId     String?
   departmentId       String?
   tags               String[]        @default([])
   lastSeenAt         DateTime        @default(now())
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
-  owner              User            @relation(fields: [ownerId], references: [id])
+  owner              User?           @relation(fields: [ownerId], references: [id])
   organization       Organization?   @relation(fields: [organizationId], references: [id])
   department         Department?     @relation(fields: [departmentId], references: [id])
   savedByUsers       SavedDevice[]

@@ -634,5 +634,51 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     return reply.send({ exists: true, online: true, name: device.name });
   });
 
+  // POST /self-register — unauthenticated host bootstrap
+  // Registers this machine in the DB so viewers can look it up.
+  // Idempotent: safe to call on every app start.
+  fastify.post('/self-register', async (request: FastifyRequest, reply: FastifyReply) => {
+    let { accessKey, name, password } = request.body as any;
+    if (!accessKey) return reply.code(400).send({ error: 'accessKey required' });
+    accessKey = String(accessKey).replace(/\s/g, '');
+    const machineName = String(name || 'Unknown Machine').slice(0, 64);
+
+    const existing = await prisma.device.findUnique({ where: { accessKey } });
+    if (existing) {
+      const updateData: any = {};
+      if (machineName && machineName !== existing.name) updateData.name = machineName;
+      // Only set password if device has none — don't overwrite a user-configured one
+      if (password && !existing.accessPasswordHash) {
+        updateData.accessPasswordHash = await bcrypt.hash(password, 10);
+      }
+      const updated = Object.keys(updateData).length > 0
+        ? await prisma.device.update({ where: { id: existing.id }, data: updateData })
+        : existing;
+      return reply.send({
+        id: updated.id,
+        access_key: updated.accessKey,
+        name: updated.name,
+        has_password: !!updated.accessPasswordHash,
+      });
+    }
+
+    // New device — auto-generate password if caller didn't supply one
+    const autoPassword = password || Math.random().toString(36).slice(-8).toUpperCase() +
+      Math.floor(Math.random() * 10);
+    const passwordHash = await bcrypt.hash(autoPassword, 10);
+
+    const device = await prisma.device.create({
+      data: { accessKey, name: machineName, accessPasswordHash: passwordHash },
+    });
+
+    return reply.code(201).send({
+      id: device.id,
+      access_key: device.accessKey,
+      name: device.name,
+      has_password: true,
+      // Only returned on first registration so the app can display it to the user
+      auto_password: !password ? autoPassword : undefined,
+    });
+  });
 
 }
