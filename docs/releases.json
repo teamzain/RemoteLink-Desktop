@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-04-29T14:54:27.566Z",
+  "generatedAt": "2026-04-29T15:11:36.336Z",
   "releases": [
     {
       "version": "1.1.0",
       "tag": "v1.1.0",
-      "publishedAt": "2026-04-29T14:54:27.488Z",
-      "notes": "Guest mode, auto-hosting, approval dialog",
+      "publishedAt": "2026-04-29T15:11:36.260Z",
+      "notes": "Fix black screen: align H264 SDP profile with NVENC encoder output (High Profile L5.2)",
       "assets": [
         {
           "name": "Connect-X Setup 1.1.0.exe",
-          "size": 91829420,
-          "sha256": "acddde7d73fc1fde4bf757af0675b2da4fb4edeb6987480ae29aaad30d5fe578",
+          "size": 91829635,
+          "sha256": "731eb285e01957f566dfe382e5720a477ba8e3c3f0eac0d5e91a1a7903d89800",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/Connect-X.Setup.1.1.0.exe"
         },
         {
           "name": "Connect-X Setup 1.1.0.exe.blockmap",
-          "size": 96990,
-          "sha256": "3ad2f86f5341d791c9070c520f62681bf322dbb6fdef510d33b74d4740566ec7",
+          "size": 96655,
+          "sha256": "ad94f36778e11e29647bbf173ce1d2743dcdacc0e33334feb399190b0490b51c",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/Connect-X.Setup.1.1.0.exe.blockmap"
         },
         {
           "name": "latest.yml",
           "size": 346,
-          "sha256": "99e6840e5a14fe5ecac04809a34ab333f040f98bec9ab3be700c6669fc253464",
+          "sha256": "4aeeba8828524b60a073d8f871e34a9c50f4a0e83668da3f406c16ba0835677d",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/latest.yml"
         }
       ]
