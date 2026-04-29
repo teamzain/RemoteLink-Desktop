@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-04-29T19:40:05.194Z",
+  "generatedAt": "2026-04-29T20:22:40.300Z",
   "releases": [
+    {
+      "version": "1.1.3",
+      "tag": "v1.1.3",
+      "publishedAt": "2026-04-29T20:22:40.223Z",
+      "notes": "Fix Guest Connect: Auto-approval for unattended machines and optimized video stream initialization.",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.3.exe",
+          "size": 91829757,
+          "sha256": "d8109888520a5186acf7f9cfe78a6f8224627a7748fc5b49542f31d4f9d210a3",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.3/Connect-X.Setup.1.1.3.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.3.exe.blockmap",
+          "size": 96876,
+          "sha256": "c4cc54b90803fe6523150b033f904faf6c5fb8ad299e9eb1d273772e52c31947",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.3/Connect-X.Setup.1.1.3.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 346,
+          "sha256": "bd65b68eecfd0510522c35bf8837dfb4e1cf29483aed88f8bc371b4f650e06de",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.3/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.2",
       "tag": "v1.1.2",
