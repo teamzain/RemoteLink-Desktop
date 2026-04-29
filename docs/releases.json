@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-04-29T10:56:56.917Z",
+  "generatedAt": "2026-04-29T14:54:27.566Z",
   "releases": [
     {
       "version": "1.1.0",
       "tag": "v1.1.0",
-      "publishedAt": "2026-04-29T10:56:56.846Z",
-      "notes": "Guest connection mode, host approval dialog, auto-hosting on launch",
+      "publishedAt": "2026-04-29T14:54:27.488Z",
+      "notes": "Guest mode, auto-hosting, approval dialog",
       "assets": [
         {
-          "name": "Connect-X Setup 1.0.0.exe",
-          "size": 91831735,
-          "sha256": "81cea8769950de01e8afadc79c7c0866e68a6b76a975af83da2567422231f737",
-          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/Connect-X.Setup.1.0.0.exe"
+          "name": "Connect-X Setup 1.1.0.exe",
+          "size": 91829420,
+          "sha256": "acddde7d73fc1fde4bf757af0675b2da4fb4edeb6987480ae29aaad30d5fe578",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/Connect-X.Setup.1.1.0.exe"
         },
         {
-          "name": "Connect-X Setup 1.0.0.exe.blockmap",
-          "size": 97143,
-          "sha256": "830011b735924a48c28fe81605e8e354abe664b15837592682174401bc96bb4c",
-          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/Connect-X.Setup.1.0.0.exe.blockmap"
+          "name": "Connect-X Setup 1.1.0.exe.blockmap",
+          "size": 96990,
+          "sha256": "3ad2f86f5341d791c9070c520f62681bf322dbb6fdef510d33b74d4740566ec7",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/Connect-X.Setup.1.1.0.exe.blockmap"
         },
         {
           "name": "latest.yml",
           "size": 346,
-          "sha256": "0826caa1f9ff28f31e49f3c0551b2743da88cb5c21f326360b24b49a061eb4f2",
+          "sha256": "99e6840e5a14fe5ecac04809a34ab333f040f98bec9ab3be700c6669fc253464",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.0/latest.yml"
         }
       ]
