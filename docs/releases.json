@@ -8,18 +8,6 @@
       "notes": "Fix black screen: H264 High Profile SDP alignment; auto-host on launch; guest mode; host approval dialog",
       "assets": [
         {
-          "name": "Connect-X Setup 1.1.0.exe",
-          "size": 91829635,
-          "sha256": "731eb285e01957f566dfe382e5720a477ba8e3c3f0eac0d5e91a1a7903d89800",
-          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/Connect-X.Setup.1.1.0.exe"
-        },
-        {
-          "name": "Connect-X Setup 1.1.0.exe.blockmap",
-          "size": 96655,
-          "sha256": "ad94f36778e11e29647bbf173ce1d2743dcdacc0e33334feb399190b0490b51c",
-          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/Connect-X.Setup.1.1.0.exe.blockmap"
-        },
-        {
           "name": "Connect-X Setup 1.1.1.exe",
           "size": 91829573,
           "sha256": "1134f08b67b3bdba6f9f72daea226b57cd1504a1e7195c24fa0245e59921dc37",
