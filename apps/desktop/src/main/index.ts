@@ -371,7 +371,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-c:v', 'h264_nvenc',
         '-preset', 'p4',           // P4 = Balanced (Safe for all NVENC GPUs)
         '-tune', 'ull',            // Ultra-low latency
-        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-profile:v', 'high',      // high = matches SDP; NVENC ignores baseline with -tune ull
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',       // Small buffer for instant delivery
@@ -386,7 +386,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
       return [
         '-c:v', 'h264_amf',
         '-usage', 'ultlowlatency',
-        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-profile:v', 'high',      // high = matches SDP declaration
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',
@@ -399,7 +399,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
       return [
         '-c:v', 'h264_qsv',
         '-preset', 'veryfast',
-        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-profile:v', 'high',      // high = matches SDP declaration
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',
@@ -413,7 +413,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
-        '-profile:v', 'baseline',  // Mandated for universal Mobile WebRTC support
+        '-profile:v', 'high',      // high = matches SDP declaration
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',
@@ -767,8 +767,8 @@ function initiateHostWebRTC(viewerId: string) {
   });
 
   const video = new datachannel.Video("0", "SendOnly");
-  // 42e01f = Baseline profile, which is most compatible with browsers
-  video.addH264Codec(96, "profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1");
+  // 640034 = High Profile L5.2 — matches actual NVENC/AMF/QSV output (hardware encoders silently ignore baseline)
+  video.addH264Codec(96, "profile-level-id=640034;level-asymmetry-allowed=1;packetization-mode=1");
   // node-datachannel: (ssrc, cname, payloadType, clockRate)
   videoRtpConfig = new datachannel.RtpPacketizationConfig(1, "video", 96, 90000);
   const packetizer = new datachannel.H264RtpPacketizer("StartSequence", videoRtpConfig);
