@@ -146,7 +146,15 @@ function getReleaseFiles() {
 
   const files = readdirSync(RELEASE_DIR)
     .map((name) => path.join(RELEASE_DIR, name))
-    .filter((p) => statSync(p).isFile() && wanted(path.basename(p)));
+    .filter((p) => statSync(p).isFile() && wanted(path.basename(p)))
+    // Only include artifacts for the current version to avoid leftover files from prior builds
+    .filter((p) => {
+      const name = path.basename(p);
+      if (name === 'latest.yml') return true;
+      if (name.endsWith('.blockmap')) return name.includes(version);
+      if (name.endsWith('.exe'))     return name.includes(version);
+      return true;
+    });
 
   if (!files.length) {
     throw new Error('No release artifacts found in apps/desktop/release/');
