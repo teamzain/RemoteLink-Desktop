@@ -1,6 +1,44 @@
 {
-  "generatedAt": "2026-04-29T15:11:36.336Z",
+  "generatedAt": "2026-04-29T15:16:34.122Z",
   "releases": [
+    {
+      "version": "1.1.1",
+      "tag": "v1.1.1",
+      "publishedAt": "2026-04-29T15:16:33.968Z",
+      "notes": "Fix black screen: H264 High Profile SDP alignment; auto-host on launch; guest mode; host approval dialog",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.0.exe",
+          "size": 91829635,
+          "sha256": "731eb285e01957f566dfe382e5720a477ba8e3c3f0eac0d5e91a1a7903d89800",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/Connect-X.Setup.1.1.0.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.0.exe.blockmap",
+          "size": 96655,
+          "sha256": "ad94f36778e11e29647bbf173ce1d2743dcdacc0e33334feb399190b0490b51c",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/Connect-X.Setup.1.1.0.exe.blockmap"
+        },
+        {
+          "name": "Connect-X Setup 1.1.1.exe",
+          "size": 91829573,
+          "sha256": "1134f08b67b3bdba6f9f72daea226b57cd1504a1e7195c24fa0245e59921dc37",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/Connect-X.Setup.1.1.1.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.1.exe.blockmap",
+          "size": 96658,
+          "sha256": "61ecc54b018dc018a8bccfbe7e0c4124cb38fcdd7dd433a3111b61f0e4936532",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/Connect-X.Setup.1.1.1.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 346,
+          "sha256": "49ae529cf8db0b52050eba2ea2e8910a8e9b7ec26273c5076a33ddc745fb7829",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.1/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.0",
       "tag": "v1.1.0",
