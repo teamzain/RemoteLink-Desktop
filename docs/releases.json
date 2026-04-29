@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-04-29T15:16:34.122Z",
+  "generatedAt": "2026-04-29T19:40:05.194Z",
   "releases": [
+    {
+      "version": "1.1.2",
+      "tag": "v1.1.2",
+      "publishedAt": "2026-04-29T19:40:05.120Z",
+      "notes": "Fix black screen: revert SDP to Baseline (fixes MUTED track); add dump_extra BSF so SPS+PPS precedes every IDR; fix pre-buffer flush race condition",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.2.exe",
+          "size": 91829483,
+          "sha256": "6a6afda23f8c3a42bd9830f725e530fba1965621a98deb7fdf2c7222ebeda4df",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.2/Connect-X.Setup.1.1.2.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.2.exe.blockmap",
+          "size": 97276,
+          "sha256": "9993c9999804daed8d2c788462a4df14a0e07029bf703308c068e2771338b68e",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.2/Connect-X.Setup.1.1.2.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 346,
+          "sha256": "cb5188c65c233d05c14fa7d1269c0613829579ee72e19ec70f2ddbfe1380194f",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.2/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.1",
       "tag": "v1.1.1",
