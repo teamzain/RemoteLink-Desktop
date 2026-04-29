@@ -429,6 +429,6 @@
     "target_platform": "win32",
     "update_binary": "true",
     "userconfig": "C:\\Users\\Zain Ul Abidden\\.npmrc",
-    "user_agent": "npm/11.12.1 node/v24.15.0 win32 x64 workspaces/false"
+    "user_agent": "npm/11.12.1 node/v24.15.0 win32 x64 workspaces/true"
   }
 }

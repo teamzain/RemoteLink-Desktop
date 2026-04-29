@@ -20,7 +20,12 @@
       "Bash(npm --version)",
       "Bash(gh release *)",
       "Bash(npm_config_ignore_scripts=false node -e \"require\\('child_process'\\).execSync\\('npm run install', {stdio:'inherit', shell:true, cwd: process.cwd\\(\\)}\\)\")",
-      "Bash(ls build/Release/)"
+      "Bash(ls build/Release/)",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\('version:', p['version']\\)\")",
+      "PowerShell(Get-Process -Name \"electron\",\"Connect-X\",\"connect-x\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(Rename-Item \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\\\\win-unpacked\" \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\\\\win-unpacked-old\" -ErrorAction SilentlyContinue; Write-Host \"Renamed: $?\")",
+      "PowerShell(Add-MpPreference -ExclusionPath \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\" -ErrorAction SilentlyContinue)"
     ],
     "additionalDirectories": [
       "d:\\Work\\RemoteLink-Desktop\\downloads"
