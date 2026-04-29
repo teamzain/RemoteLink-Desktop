@@ -24,7 +24,7 @@ import { spawnSync } from 'node:child_process';
 
 const ROOT         = process.cwd();
 const DESKTOP_DIR  = path.join(ROOT, 'apps', 'desktop');
-const RELEASE_DIR  = path.join(DESKTOP_DIR, 'release2');
+const RELEASE_DIR  = path.join(DESKTOP_DIR, 'release3');
 const DOWNLOADS_DIR = path.join(ROOT, 'docs');
 const MANIFEST_PATH = path.join(DOWNLOADS_DIR, 'releases.json');
 
@@ -134,7 +134,7 @@ function readManifest() {
   return JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'));
 }
 
-function getReleaseFiles() {
+function getReleaseFiles(version) {
   if (!existsSync(RELEASE_DIR)) {
     throw new Error(`Release directory not found: ${RELEASE_DIR}\nRun without --skip-build to build first.`);
   }
@@ -260,7 +260,7 @@ async function main() {
 
   // Step: collect artifacts
   step(++stepN, TOTAL_STEPS, 'Collecting release artifacts');
-  const files = getReleaseFiles();
+  const files = getReleaseFiles(version);
   console.log(`  Found: ${files.map((f) => path.basename(f)).join(', ')}`);
 
   // Step: publish to GitHub

@@ -371,7 +371,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-c:v', 'h264_nvenc',
         '-preset', 'p4',           // P4 = Balanced (Safe for all NVENC GPUs)
         '-tune', 'ull',            // Ultra-low latency
-        '-profile:v', 'high',      // high = matches SDP; NVENC ignores baseline with -tune ull
+        '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',       // Small buffer for instant delivery
@@ -379,33 +379,34 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-bf', '0',
         '-rc-lookahead', '0',
         '-zerolatency', '1',
-        '-bsf:v', 'h264_metadata=aud=insert',
+        // dump_extra forces SPS+PPS before every IDR so the browser decoder can always init
+        '-bsf:v', 'dump_extra,h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
     case 'h264_amf':
       return [
         '-c:v', 'h264_amf',
         '-usage', 'ultlowlatency',
-        '-profile:v', 'high',      // high = matches SDP declaration
+        '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',
         '-g', gop,
         '-bf', '0',
-        '-bsf:v', 'h264_metadata=aud=insert',
+        '-bsf:v', 'dump_extra,h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
     case 'h264_qsv':
       return [
         '-c:v', 'h264_qsv',
         '-preset', 'veryfast',
-        '-profile:v', 'high',      // high = matches SDP declaration
+        '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',
         '-g', gop,
         '-bf', '0',
-        '-bsf:v', 'h264_metadata=aud=insert',
+        '-bsf:v', 'dump_extra,h264_metadata=aud=insert',
         '-f', 'h264', '-'
       ];
     default: // libx264 â€” CPU fallback
@@ -413,12 +414,13 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
-        '-profile:v', 'high',      // high = matches SDP declaration
+        '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
         '-bufsize', '1000k',
         '-g', gop,
         '-x264-params', `keyint=${gop}:bframes=0:aud=1`,
+        '-bsf:v', 'dump_extra',
         '-f', 'h264', '-'
       ];
   }
@@ -767,8 +769,8 @@ function initiateHostWebRTC(viewerId: string) {
   });
 
   const video = new datachannel.Video("0", "SendOnly");
-  // 640034 = High Profile L5.2 — matches actual NVENC/AMF/QSV output (hardware encoders silently ignore baseline)
-  video.addH264Codec(96, "profile-level-id=640034;level-asymmetry-allowed=1;packetization-mode=1");
+  // 42e01f = Constrained Baseline L3.1 — required by node-datachannel's RTP sender
+  video.addH264Codec(96, "profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1");
   // node-datachannel: (ssrc, cname, payloadType, clockRate)
   videoRtpConfig = new datachannel.RtpPacketizationConfig(1, "video", 96, 90000);
   const packetizer = new datachannel.H264RtpPacketizer("StartSequence", videoRtpConfig);
@@ -783,7 +785,11 @@ function initiateHostWebRTC(viewerId: string) {
 
   videoTrack.onOpen(() => {
     log.info('[Host] Video track open callback triggered.');
-    if (isPreBuffering) {
+    // Only flush pre-buffer if the peer connection is already 'connected'.
+    // If not, leave isPreBuffering=true so onStateChange('connected') handles it —
+    // prevents sendFrame() from silently dropping the first SPS+PPS+IDR due to the
+    // state check inside sendFrame.
+    if (isPreBuffering && peerConnection?.state() === 'connected') {
       isPreBuffering = false;
       if (ffmpegPreChunks.length > 0) {
         const combined = Buffer.concat(ffmpegPreChunks);
