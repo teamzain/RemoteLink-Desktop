@@ -21,13 +21,12 @@ import analyticsRoutes from './routes/analytics';
 
 const server = Fastify({ logger: true });
 
-// CORS is handled by the reverse proxy (Caddy)
-// server.register(cors, {
-//   origin: true,
-//   credentials: true,
-//   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: ['Content-Type', 'Authorization']
-// });
+server.register(cors, {
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+});
 
 server.addHook('onRequest', async (request, reply) => {
   console.log(`[Auth-Service] ${request.method} ${request.url}`);

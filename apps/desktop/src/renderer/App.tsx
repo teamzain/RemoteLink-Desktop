@@ -2273,17 +2273,34 @@ export default function App() {
         try {
             const cleanKey = sessionCode.replace(/\s/g, '');
             let lookupData: any = null;
-            try {
-                // New guest lookup endpoint (preferred)
-                const { data } = await api.post('/api/devices/connect/lookup', { accessKey: cleanKey });
-                lookupData = data;
-            } catch (lookupErr: any) {
-                // Backward compatibility for older servers that only expose /status
-                if (lookupErr?.response?.status !== 404) {
-                    throw lookupErr;
+            const attempts = [
+                { method: 'post', url: '/api/devices/connect/lookup', body: { accessKey: cleanKey } },
+                { method: 'get', url: `/api/devices/status?key=${cleanKey}` },
+                // Extra compatibility for deployments where API prefixing differs
+                { method: 'post', url: '/devices/connect/lookup', body: { accessKey: cleanKey } },
+                { method: 'get', url: `/devices/status?key=${cleanKey}` }
+            ] as const;
+
+            let lastErr: any = null;
+            for (const attempt of attempts) {
+                try {
+                    const response = attempt.method === 'post'
+                        ? await api.post(attempt.url, attempt.body)
+                        : await api.get(attempt.url);
+                    lookupData = response.data;
+                    break;
+                } catch (err: any) {
+                    lastErr = err;
+                    const status = err?.response?.status;
+                    // Only fail fast on definitive server errors (not 404, not CORS/network with no response).
+                    if (status && status !== 404) {
+                        throw err;
+                    }
                 }
-                const { data } = await api.get(`/api/devices/status?key=${cleanKey}`);
-                lookupData = data;
+            }
+
+            if (!lookupData && lastErr) {
+                throw lastErr;
             }
 
             if (!lookupData?.exists) throw new Error('No machine found with that access key. Check and try again.');
@@ -2309,10 +2326,23 @@ export default function App() {
                 password: accessPassword
             });
 
-            // 2. Connect to Signaling with One-Time Token
+            // 2. Open a dedicated viewer window — this registers the session in
+            //    viewerWindows so the main process can forward WebRTC signaling.
             if (isElectron) {
-                await (window as any).electronAPI.connectToHost(sessionCode.replace(/\s/g, ''), serverIP, authData.token);
-                setViewerStatus('connected');
+                await (window as any).electronAPI.openViewerWindow(
+                    sessionCode.replace(/\s/g, ''),
+                    serverIP,
+                    authData.token,
+                    targetDeviceName || sessionCode,
+                    'desktop'
+                );
+                // Reset state — the session lives in the viewer window now.
+                setViewerStatus('idle');
+                setViewerStep(1);
+                setSessionCode('');
+                setAccessPassword('');
+                setTargetDeviceName(null);
+                setShowAuthModal(false);
             } else {
                 showError('Browser Limitation', 'Remote viewer connections require the native desktop application.');
                 setViewerStatus('error');

@@ -16,7 +16,14 @@
       "Bash(git commit -m 'fix: non-null assertion on Google OAuth user after transaction *)",
       "Bash(git push *)",
       "Bash(npx tsc *)",
-      "Bash(grep -v \"^.*//.*\\\\|import\\\\|fetch\\\\|api\\\\.\")"
+      "Bash(grep -v \"^.*//.*\\\\|import\\\\|fetch\\\\|api\\\\.\")",
+      "Bash(npm --version)",
+      "Bash(gh release *)",
+      "Bash(npm_config_ignore_scripts=false node -e \"require\\('child_process'\\).execSync\\('npm run install', {stdio:'inherit', shell:true, cwd: process.cwd\\(\\)}\\)\")",
+      "Bash(ls build/Release/)"
+    ],
+    "additionalDirectories": [
+      "d:\\Work\\RemoteLink-Desktop\\downloads"
     ]
   }
 }

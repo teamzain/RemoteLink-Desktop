@@ -8,6 +8,7 @@ import { WebSocket } from 'ws';
 import * as os from 'os';
 import * as datachannel from 'node-datachannel';
 import * as input from '@remotelink/native-input';
+import * as crypto from 'crypto';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -112,12 +113,11 @@ ipcMain.handle('system:getDeterministicKey', () => {
   for (const key of Object.keys(interfaces)) {
     const list = interfaces[key];
     if (list) {
-      const valid = list.find(i => !i.internal && i.mac !== '00:00:00:00:00:00');
+      const valid = list.find((i: any) => !i.internal && i.mac !== '00:00:00:00:00:00');
       if (valid) { mac = valid.mac; break; }
     }
   }
   if (!mac) mac = os.hostname();
-  const crypto = require('crypto');
   const hash = crypto.createHash('sha256').update(mac).digest('hex');
   return (BigInt('0x' + hash.substring(0, 12)) % 1000000000n).toString().padStart(9, '0');
 });
@@ -130,74 +130,74 @@ ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
 ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
 ipcMain.handle('update:quitAndInstall', () => autoUpdater.quitAndInstall());
 
-autoUpdater.on('update-available', (info) => {
+autoUpdater.on('update-available', (info: any) => {
   log.info('[Updater] Update available:', info.version);
   mainWindow?.webContents.send('update:available', info);
 });
 
-autoUpdater.on('update-not-available', (info) => {
+autoUpdater.on('update-not-available', (info: any) => {
   log.info('[Updater] Update not available:', info.version);
   mainWindow?.webContents.send('update:not-available');
 });
 
-autoUpdater.on('download-progress', (progressObj) => {
+autoUpdater.on('download-progress', (progressObj: any) => {
   mainWindow?.webContents.send('update:download-progress', progressObj);
 });
 
-autoUpdater.on('update-downloaded', (info) => {
+autoUpdater.on('update-downloaded', (info: any) => {
   log.info('[Updater] Update downloaded:', info.version);
   mainWindow?.webContents.send('update:downloaded', info);
 });
 
-autoUpdater.on('error', (err) => {
+autoUpdater.on('error', (err: any) => {
   log.error('[Updater] Error:', err);
   mainWindow?.webContents.send('update:error', err.message);
 });
 
 ipcMain.handle('system:getMachineName', () => os.hostname());
 ipcMain.handle('system:isPackaged', () => app.isPackaged);
-ipcMain.handle('system:openPath', (_event, path) => shell.openPath(path));
-ipcMain.handle('system:log', (_event, msg, level) => {
+ipcMain.handle('system:openPath', (_event: any, path: any) => shell.openPath(path));
+ipcMain.handle('system:log', (_event: any, msg: any, level: any) => {
   const l = level as 'info' | 'warn' | 'error';
   (log as any)[l]?.(msg);
 });
 ipcMain.handle('auth:getToken', () => getAuthTokens());
-ipcMain.handle('auth:setToken', (_event, t, r) => setAuthTokens(t, r));
+ipcMain.handle('auth:setToken', (_event: any, t: any, r: any) => setAuthTokens(t, r));
 ipcMain.handle('auth:deleteToken', () => fs.unlink(AUTH_STORE_PATH).then(() => true).catch(() => false));
-ipcMain.handle('shell:openExternal', (_event, url) => shell.openExternal(url));
+ipcMain.handle('shell:openExternal', (_event: any, url: any) => shell.openExternal(url));
 ipcMain.handle('host:getStatus', async () => {
   if (hostSignalingWs && hostSignalingWs.readyState === 1) return { status: 'status', sessionId: currentHostSessionId };
   return { status: 'idle' };
 });
-ipcMain.handle('host:start', async (_, accessKey) => {
+ipcMain.handle('host:start', async (_: any, accessKey: any) => {
   const { token } = await getAuthTokens();
   const serverIP = process.env.CONNECT_X_SERVER_IP || '159.65.84.190';
-  
+
   // Ensure encoder is detected before starting host signaling
   if (!encoderDetected) await detectBestEncoder();
-  
+
   isManualHostStop = false;
   connectHostSignaling(serverIP, token || '', accessKey || '');
   return true;
 
 });
-ipcMain.handle('host:stop', () => { 
+ipcMain.handle('host:stop', () => {
   isManualHostStop = true;
-  cleanUpWebRTC(); 
-  hostSignalingWs?.close(); 
-  return true; 
+  cleanUpWebRTC();
+  hostSignalingWs?.close();
+  return true;
 });
 
 ipcMain.handle('host:get-screens', () => {
   const displays = screen.getAllDisplays();
-  return displays.map(d => ({
+  return displays.map((d: any) => ({
     id: d.id,
     label: `${d.label || 'Display'} (${d.bounds.width}x${d.bounds.height})`,
     bounds: d.bounds
   }));
 });
 
-ipcMain.handle('host:set-capture-screen', (_, displayId) => {
+ipcMain.handle('host:set-capture-screen', (_: any, displayId: any) => {
   log.info(`[Host] Switching capture screen to: ${displayId}`);
   selectedDisplayId = displayId;
   if (videoTrack && peerConnection?.state() === 'connected') {
@@ -206,8 +206,8 @@ ipcMain.handle('host:set-capture-screen', (_, displayId) => {
   return true;
 });
 ipcMain.handle('clipboard:readText', () => clipboard.readText());
-ipcMain.handle('clipboard:writeText', (_event, text) => { lastClipboardText = text; clipboard.writeText(text); });
-ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, deviceName, deviceType) => {
+ipcMain.handle('clipboard:writeText', (_event: any, text: any) => { lastClipboardText = text; clipboard.writeText(text); });
+ipcMain.handle('viewer:open-window', (_event: any, sessionId: any, serverIP: any, token: any, deviceName: any, deviceType: any) => {
   if (viewerWindows.has(sessionId)) {
     viewerWindows.get(sessionId)?.focus();
     return true;
@@ -232,24 +232,24 @@ ipcMain.handle('viewer:open-window', (_event, sessionId, serverIP, token, device
   } else {
     viewerWin.loadFile(join(__dirname, '../../dist/index.html'), { query: { view: 'viewer', sessionId, serverIP, token, deviceName: deviceName || '', deviceType: deviceType || '' } });
   }
-  
+
   viewerWin.on('closed', () => {
     viewerWindows.delete(sessionId);
     const ws = viewerSignalingSockets.get(sessionId);
     if (ws) { ws.close(); viewerSignalingSockets.delete(sessionId); }
   });
-  
+
   viewerWindows.set(sessionId, viewerWin);
   return true;
 });
 
-ipcMain.handle('viewer:connect', async (_event, sessionId, serverIP, token, viewerClientId) => {
+ipcMain.handle('viewer:connect', async (_event: any, sessionId: any, serverIP: any, token: any, viewerClientId: any) => {
   log.info(`[Viewer] Connecting to session: ${sessionId} at ${serverIP}`);
   connectViewerSignaling(sessionId, serverIP || '159.65.84.190', token || '', viewerClientId);
   return true;
 });
 
-ipcMain.on('viewer:send-signaling', (_event, msg) => {
+ipcMain.on('viewer:send-signaling', (_event: any, msg: any) => {
   const sessionId = msg.sessionId || msg.targetId;
   if (!sessionId) return;
   const ws = viewerSignalingSockets.get(sessionId);
@@ -259,8 +259,8 @@ ipcMain.on('viewer:send-signaling', (_event, msg) => {
 });
 // --- Utility Functions ---
 const getFFmpegPath = () => {
-    if (app.isPackaged) return join(process.resourcesPath, 'ffmpeg.exe');
-    return join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe');
+  if (app.isPackaged) return join(process.resourcesPath, 'ffmpeg.exe');
+  return join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe');
 };
 
 async function getAuthTokens() {
@@ -290,35 +290,35 @@ async function setAuthTokens(token: string, refresh: string) {
 function cleanUpWebRTC() {
   log.info('[Host] Cleaning up WebRTC resources...');
   stopStreaming();
-  
-  if (dataChannel) { 
-    try { 
+
+  if (dataChannel) {
+    try {
       // Ensure we only close if still open to avoid native crashes
-      if (typeof dataChannel.close === 'function') dataChannel.close(); 
-    } catch (err) { 
+      if (typeof dataChannel.close === 'function') dataChannel.close();
+    } catch (err) {
       log.warn('[Host] Error closing dataChannel:', err);
-    } 
-    dataChannel = null; 
+    }
+    dataChannel = null;
   }
-  
-  if (videoTrack) { 
-    try { 
-      if (typeof videoTrack.close === 'function') videoTrack.close(); 
+
+  if (videoTrack) {
+    try {
+      if (typeof videoTrack.close === 'function') videoTrack.close();
     } catch (err) {
       log.warn('[Host] Error closing videoTrack:', err);
     }
-    videoTrack = null; 
+    videoTrack = null;
   }
-  
-  if (peerConnection) { 
-    try { 
-      if (typeof peerConnection.close === 'function') peerConnection.close(); 
+
+  if (peerConnection) {
+    try {
+      if (typeof peerConnection.close === 'function') peerConnection.close();
     } catch (err) {
       log.warn('[Host] Error closing peerConnection:', err);
     }
-    peerConnection = null; 
+    peerConnection = null;
   }
-  
+
   iceCandidatesQueue = [];
   hasRemoteDescription = false;
   currentViewerId = null;
@@ -422,9 +422,9 @@ function probeEncoder(ffmpegPath: string, encoder: string): Promise<boolean> {
         '-f', 'lavfi', '-i', 'color=black:s=64x64:r=1:d=0.1',
         '-c:v', encoder, '-f', 'null', '-'
       ]);
-      p.on('close', (code) => finish(code === 0));
+      p.on('close', (code: any) => finish(code === 0));
       p.on('error', () => finish(false));
-      setTimeout(() => { try { p.kill(); } catch {} finish(false); }, 2000);
+      setTimeout(() => { try { p.kill(); } catch { } finish(false); }, 2000);
     } catch { finish(false); }
   });
 }
@@ -459,20 +459,20 @@ function drainNALBuffer() {
   while (offset < bufferAccumulator.length - 4) {
     // Check for 3-byte or 4-byte start codes
     const is4 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 &&
-                bufferAccumulator[offset + 2] === 0 && bufferAccumulator[offset + 3] === 1;
+      bufferAccumulator[offset + 2] === 0 && bufferAccumulator[offset + 3] === 1;
     const is3 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 &&
-                bufferAccumulator[offset + 2] === 1;
+      bufferAccumulator[offset + 2] === 1;
 
     if (is4 || is3) {
       if (offset > 0) {
         const nalUnit = bufferAccumulator.subarray(0, offset);
-        
+
         // Group SPS/PPS with next IDR for frame atomicity
         let headerIdx = 0;
         while (headerIdx < nalUnit.length && nalUnit[headerIdx] === 0) headerIdx++;
         if (headerIdx < nalUnit.length && nalUnit[headerIdx] === 1) headerIdx++;
         const nalType = (headerIdx < nalUnit.length) ? (nalUnit[headerIdx] & 0x1F) : 0;
-        
+
         // AUD (9) or SPS (7) indicates the clear start of a new Access Unit (frame).
         const isNewFrame = (nalType === 9 || nalType === 7);
         const isSlice = (nalType === 1 || nalType === 5);
@@ -499,7 +499,7 @@ function drainNALBuffer() {
 // --- Video Handlers ---
 function startStreaming() {
   const displays = screen.getAllDisplays();
-  const selectedDisplay = displays.find(d => d.id === selectedDisplayId) || screen.getPrimaryDisplay();
+  const selectedDisplay = displays.find((d: any) => d.id === selectedDisplayId) || screen.getPrimaryDisplay();
   const { width, height } = selectedDisplay.bounds;
   const isPrimary = selectedDisplay.id === screen.getPrimaryDisplay().id;
 
@@ -577,7 +577,7 @@ function startStreaming() {
       }
 
       if (lastFrameBuffer) {
-        try { ffmpegProcess.stdin.write(lastFrameBuffer); } 
+        try { ffmpegProcess.stdin.write(lastFrameBuffer); }
         catch (err: any) { if (captureInterval) { clearInterval(captureInterval); captureInterval = null; } }
       }
     }, frameInterval);
@@ -590,10 +590,10 @@ function startStreaming() {
         const nx = Math.max(0, Math.min(1, (x - selectedDisplay.bounds.x) / selectedDisplay.bounds.width));
         const ny = Math.max(0, Math.min(1, (y - selectedDisplay.bounds.y) / selectedDisplay.bounds.height));
         dataChannel.sendMessage(JSON.stringify({ type: 'cursor', x: nx, y: ny, visible: true }));
-      } catch (err) {}
+      } catch (err) { }
     }, 33);
 
-    ffmpegProcess.stdin?.on('error', (err) => {
+    ffmpegProcess.stdin?.on('error', (err: any) => {
       if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
     });
 
@@ -604,12 +604,12 @@ function startStreaming() {
       drainNALBuffer();
     });
 
-    ffmpegProcess.stderr?.on('data', (data) => {
+    ffmpegProcess.stderr?.on('data', (data: any) => {
       const str = data.toString().trim();
       if (!str.includes('kB time=') && !str.includes('fps=')) log.info(`[Host-FFmpeg] ${str}`);
     });
 
-    ffmpegProcess.on('exit', (code, signal) => {
+    ffmpegProcess.on('exit', (code: any, signal: any) => {
       if (code !== 0 && code !== null && signal !== 'SIGTERM') {
         log.warn(`[Host-FFmpeg] Exited with code ${code}. Restarting in 1s...`);
         setTimeout(() => { if (videoTrack) startStreaming(); }, 1000);
@@ -623,7 +623,7 @@ function startStreaming() {
 
 function sendFrame(frame: Buffer) {
   if (!videoTrack || !videoRtpConfig || !peerConnection) return;
-  
+
   // Track and Connection MUST be open/connected
   try {
     if (peerConnection.state() !== 'connected') {
@@ -643,7 +643,7 @@ function sendFrame(frame: Buffer) {
     totalBytesSent += frame.length;
     videoTrack.sendMessageBinary(frame, videoRtpConfig);
     frameCount++;
-    
+
     const now = Date.now();
     if (now - lastLogTime > 5000) {
       const duration = (now - lastLogTime) / 1000;
@@ -676,7 +676,7 @@ function initiateHostWebRTC(viewerId: string) {
   log.info('[Host] Pre-starting FFmpeg to eliminate cold-start lag...');
   isPreBuffering = true;
   ffmpegPreChunks = [];
-  
+
   // Handover delay to ensure network stack is fully initialized
   setTimeout(() => {
     if (currentViewerId === viewerId) {
@@ -687,10 +687,10 @@ function initiateHostWebRTC(viewerId: string) {
   // Simplified ICE Servers for stability. 
   // Custom RelayType objects in libdatachannel can cause 0xC0000005 if types mismatch.
   const iceServers: datachannel.IceServer[] = [
-      { hostname: "stun.l.google.com", port: 19302 },
-      { hostname: "stun1.l.google.com", port: 19302 },
-      { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnUdp" },
-      { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnTcp" }
+    { hostname: "stun.l.google.com", port: 19302 },
+    { hostname: "stun1.l.google.com", port: 19302 },
+    { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnUdp" },
+    { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnTcp" }
   ];
 
   peerConnection = new datachannel.PeerConnection("Host", {
@@ -713,18 +713,18 @@ function initiateHostWebRTC(viewerId: string) {
 
   peerConnection.onLocalCandidate((candidate: string, mid: string) => {
     const mLineIndex = (mid === '0' || mid === 'video') ? 0 : 1;
-    hostSignalingWs?.send(JSON.stringify({ 
-      type: 'ice-candidate', candidate, sdpMid: mid, sdpMLineIndex: mLineIndex, targetId: currentViewerId 
+    hostSignalingWs?.send(JSON.stringify({
+      type: 'ice-candidate', candidate, sdpMid: mid, sdpMLineIndex: mLineIndex, targetId: currentViewerId
     }));
   });
 
   peerConnection.onStateChange((state: string) => {
     log.info(`[Host] WebRTC State: ${state}`);
     mainWindow?.webContents.send('host:status', `WebRTC: ${state}`);
-    
+
     if (state === 'connected') {
       log.info(`[Host] WebRTC connected! Session active.`);
-      
+
       // Prevent "Inception" infinite recursion naturally by hiding the Host UI
       if (mainWindow && !mainWindow.isDestroyed()) {
         log.info('[Host] Auto-minimizing Host window to prevent capture recursion.');
@@ -744,7 +744,7 @@ function initiateHostWebRTC(viewerId: string) {
     } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
       log.warn(`[Host] Remote session ended (${state}). Triggering cleanup...`);
       cleanUpWebRTC();
-      
+
       // Restore the Dashboard UI naturally
       if (mainWindow && !mainWindow.isDestroyed()) {
         log.info('[Host] Restoring Host window after session close.');
@@ -760,7 +760,7 @@ function initiateHostWebRTC(viewerId: string) {
   // node-datachannel: (ssrc, cname, payloadType, clockRate)
   videoRtpConfig = new datachannel.RtpPacketizationConfig(1, "video", 96, 90000);
   const packetizer = new datachannel.H264RtpPacketizer("StartSequence", videoRtpConfig);
-  
+
   firstFrameSent = false;
   frameCount = 0;
   lastLogTime = Date.now();
@@ -786,7 +786,7 @@ function initiateHostWebRTC(viewerId: string) {
   dataChannel = peerConnection.createDataChannel("control");
   dataChannel.onOpen(() => {
     log.info('[Host] Control DataChannel open. Starting Heartbeat & Clipboard loops...');
-    
+
     // 1. Start Ping Heartbeat (1s)
     if (pingInterval) clearInterval(pingInterval);
     pingInterval = setInterval(() => {
@@ -799,19 +799,19 @@ function initiateHostWebRTC(viewerId: string) {
     if (clipboardInterval) clearInterval(clipboardInterval);
     lastClipboardText = clipboard.readText();
     log.info(`[Host] Initialized clipboard sync. Current text length: ${lastClipboardText?.length || 0}`);
-    
+
     clipboardInterval = setInterval(() => {
-       try {
-         if (!dataChannel || !dataChannel.isOpen()) return;
-         const text = clipboard.readText();
-         if (text && text !== lastClipboardText) {
-            lastClipboardText = text;
-            log.info(`[Host] Local clipboard changed. Syncing to viewer... (${text.substring(0, 20)}...)`);
-            dataChannel.sendMessage(JSON.stringify({ type: 'clipboard', text }));
-         }
-       } catch (err: any) {
-         log.error(`[Host] Clipboard poll failed: ${err.message}`);
-       }
+      try {
+        if (!dataChannel || !dataChannel.isOpen()) return;
+        const text = clipboard.readText();
+        if (text && text !== lastClipboardText) {
+          lastClipboardText = text;
+          log.info(`[Host] Local clipboard changed. Syncing to viewer... (${text.substring(0, 20)}...)`);
+          dataChannel.sendMessage(JSON.stringify({ type: 'clipboard', text }));
+        }
+      } catch (err: any) {
+        log.error(`[Host] Clipboard poll failed: ${err.message}`);
+      }
     }, 500);
   });
   dataChannel.onMessage((msg: any) => handleControlMessage(msg));
@@ -831,13 +831,13 @@ function handleControlMessage(msg: any) {
       const chunk = msg.slice(4 + headerLen);
 
       if (header.type === 'file-chunk') {
-        log.info(`[Diagnostic] Reassembler: Received chunk ${header.chunkIndex+1}/${header.totalChunks} for ${header.name}`);
+        log.info(`[Diagnostic] Reassembler: Received chunk ${header.chunkIndex + 1}/${header.totalChunks} for ${header.name}`);
         let transfer = fileTransfers.get(header.name);
         if (!transfer) {
           transfer = { chunks: new Array(header.totalChunks).fill(null), received: 0, total: header.totalChunks };
           fileTransfers.set(header.name, transfer);
         }
-        
+
         if (!transfer.chunks[header.chunkIndex]) {
           transfer.chunks[header.chunkIndex] = chunk;
           transfer.received++;
@@ -850,13 +850,13 @@ function handleControlMessage(msg: any) {
           fs.writeFile(filePath, finalBuffer).then(() => {
             log.info(`[Host] File transfer complete: ${header.name} -> ${filePath}`);
             new Notification({ title: 'Payload Delivered', body: `Saved ${header.name} to Downloads` }).show();
-            
+
             // Inform the viewer exactly where it was stored
             if (dataChannel) {
               log.info(`[Diagnostic] Sending file-sent confirmation back to viewer for ${header.name}`);
               dataChannel.sendMessage(JSON.stringify({ type: 'file-sent', name: header.name, path: filePath }));
             }
-          }).catch(err => {
+          }).catch((err: any) => {
             log.error(`[Host] Failed to write file: ${err.message}`);
           });
           fileTransfers.delete(header.name);
@@ -869,8 +869,8 @@ function handleControlMessage(msg: any) {
     const event = JSON.parse(msg.toString());
 
     switch (event.type) {
-      case 'mousemove': 
-        input.injectMouseMove(event.x, event.y); 
+      case 'mousemove':
+        input.injectMouseMove(event.x, event.y);
         break;
       case 'mousedown': case 'mouseup':
         // Sync movement before click to ensure accuracy
@@ -889,9 +889,9 @@ function handleControlMessage(msg: any) {
         break;
       case 'clipboard':
         if (event.text && event.text !== lastClipboardText) {
-           log.info(`[Host] Received clipboard update from viewer: ${event.text.substring(0, 20)}...`);
-           lastClipboardText = event.text;
-           clipboard.writeText(event.text);
+          log.info(`[Host] Received clipboard update from viewer: ${event.text.substring(0, 20)}...`);
+          lastClipboardText = event.text;
+          clipboard.writeText(event.text);
         }
         break;
       case 'typeText':
@@ -930,12 +930,12 @@ function handleControlMessage(msg: any) {
         }
         break;
     }
-  } catch {}
+  } catch { }
 }
 
 // --- Signaling & App Setup ---
 function setupSignalingHandlers(ws: WebSocket) {
-  ws.on('message', (message) => {
+  ws.on('message', (message: any) => {
     const data = JSON.parse(message.toString());
     if (data.type === 'registered') {
       currentHostSessionId = data.sessionId;
@@ -943,23 +943,23 @@ function setupSignalingHandlers(ws: WebSocket) {
     } else if (data.type === 'viewer-joined' || data.type === 'request-offer') {
       const viewerId = data.viewerId || data.senderId;
       const now = Date.now();
-      
+
       // Debounce frequent join requests to prevent signaling loops
       if (viewerId === lastViewerJoinId && (now - lastViewerJoinTime) < 500) {
         log.info(`[Host] Ignoring duplicate join request for: ${viewerId}`);
         return;
       }
-      
+
       lastViewerJoinId = viewerId;
       lastViewerJoinTime = now;
       initiateHostWebRTC(viewerId);
     } else if (data.type === 'answer') {
       try {
         log.info(`[Host] Applying remote answer (len: ${data.sdp.length})...`);
-        log.info(`[Host] Full Answer SDP:\n${data.sdp}`); 
+        log.info(`[Host] Full Answer SDP:\n${data.sdp}`);
         peerConnection?.setRemoteDescription(data.sdp, 'answer');
         hasRemoteDescription = true;
-        
+
         log.info(`[Host] Remote answer applied. Processing ${iceCandidatesQueue.length} queued candidates.`);
         iceCandidatesQueue.forEach(c => peerConnection?.addRemoteCandidate(c.candidate, c.mid));
         iceCandidatesQueue = [];
@@ -1002,12 +1002,12 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
   log.info(`[Host] Connecting to signaling server at ${wsUrl}...`);
   hostSignalingWs = new WebSocket(wsUrl);
   setupSignalingHandlers(hostSignalingWs);
-  
+
   hostSignalingWs.on('open', () => {
     log.info('[Host] Signaling socket open. Registering host...');
     isReconnectScheduled = false;
     hostSignalingWs?.send(JSON.stringify({ type: 'register', token, role: 'host', accessKey }));
-    
+
     // Start heartbeat to keep the session alive in Redis
     if (hostHeartbeatInterval) clearInterval(hostHeartbeatInterval);
     hostHeartbeatInterval = setInterval(() => {
@@ -1021,7 +1021,7 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
   hostSignalingWs.on('close', () => {
     log.warn('[Host] Signaling connection closed.');
     if (hostHeartbeatInterval) { clearInterval(hostHeartbeatInterval); hostHeartbeatInterval = null; }
-    
+
     // Automatic reconnection logic
     if (!isReconnectScheduled && !isManualHostStop) {
       isReconnectScheduled = true;
@@ -1036,11 +1036,11 @@ function connectHostSignaling(serverIP: string, token: string, accessKey: string
     }
   });
 
-  hostSignalingWs.on('error', (err) => {
+  hostSignalingWs.on('error', (err: any) => {
     log.error(`[Host] Signaling error: ${err.message}`);
     // Reuse the close logic for reconnection
     if (!isReconnectScheduled) {
-       hostSignalingWs?.close(); 
+      hostSignalingWs?.close();
     }
   });
 }
@@ -1055,15 +1055,15 @@ function handleDeepLink(url: string) {
         log.info('[DeepLink] Received onboarding token:', token);
         mainWindow?.webContents.send('auth:onboarding-token', token);
         if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
         }
       }
     }
 
     if (parsed.host === 'auth' && parsed.pathname === '/callback') {
-      const accessToken  = parsed.searchParams.get('accessToken');
+      const accessToken = parsed.searchParams.get('accessToken');
       const refreshToken = parsed.searchParams.get('refreshToken');
       if (accessToken && refreshToken) {
         setAuthTokens(accessToken, refreshToken).then(() => {
@@ -1078,9 +1078,9 @@ function handleDeepLink(url: string) {
         log.info('[DeepLink] Received 2FA temp token');
         mainWindow?.webContents.send('auth:temp-2fa-token', tempToken);
         if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.show();
-            mainWindow.focus();
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
         }
       }
     }
@@ -1090,7 +1090,7 @@ function handleDeepLink(url: string) {
 }
 
 // macOS: register open-url before whenReady
-app.on('open-url', (event, url) => {
+app.on('open-url', (event: any, url: any) => {
   event.preventDefault();
   handleDeepLink(url);
 });
@@ -1110,10 +1110,10 @@ if (!gotSingleInstanceLock) {
   app.quit();
   process.exit(0);
 } else {
-  app.on('second-instance', (_event, argv) => {
+  app.on('second-instance', (_event: any, argv: any) => {
     log.info('[Host] Second instance detected. Restoring main window.');
     // The deep-link URL is the last element on Windows
-    const url = argv.find((a) => a.startsWith(`${PROTOCOL}://`));
+    const url = argv.find((a: any) => a.startsWith(`${PROTOCOL}://`));
     if (url) handleDeepLink(url);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -1129,10 +1129,10 @@ function createWindow() {
     mainWindow = new BrowserWindow({
       width: 1200, height: 800,
       show: false, // Create hidden, then show once content is ready
-      webPreferences: { 
-        preload: join(__dirname, '../preload/index.js'), 
-        contextIsolation: true, 
-        sandbox: false 
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        contextIsolation: true,
+        sandbox: false
       }
     });
 
@@ -1145,7 +1145,7 @@ function createWindow() {
       }
     });
 
-    mainWindow.on('close', (event) => {
+    mainWindow.on('close', (event: any) => {
       if (!isQuitting) {
         event.preventDefault();
         mainWindow?.hide();
@@ -1164,33 +1164,33 @@ function createWindow() {
     log.info('[Host] BrowserWindow object created.');
 
     mainWindow.webContents.on('did-finish-load', () => log.info('[Host] Renderer: did-finish-load'));
-    mainWindow.webContents.on('did-fail-load', (e, code, desc) => log.error(`[Host] Renderer: did-fail-load (${code}): ${desc}`));
+    mainWindow.webContents.on('did-fail-load', (e: any, code: any, desc: any) => log.error(`[Host] Renderer: did-fail-load (${code}): ${desc}`));
     mainWindow.webContents.on('crashed', () => log.error('[Host] Renderer process CRASHED'));
 
     if (process.env.VITE_DEV_SERVER_URL) {
       const url = process.env.VITE_DEV_SERVER_URL.replace('localhost', '127.0.0.1');
       log.info(`[Host] Loading URL: ${url}`);
-      mainWindow.loadURL(url).catch(e => log.error(`[Host] loadURL failed: ${e.message}`));
+      mainWindow.loadURL(url).catch((e: any) => log.error(`[Host] loadURL failed: ${e.message}`));
     } else {
       log.info('[Host] Loading local production file...');
-      mainWindow.loadFile(join(__dirname, '../../dist/index.html')).catch(e => log.error(`[Host] loadFile failed: ${e.message}`));
+      mainWindow.loadFile(join(__dirname, '../../dist/index.html')).catch((e: any) => log.error(`[Host] loadFile failed: ${e.message}`));
     }
   } catch (err: any) {
     log.error(`[Host] CRITICAL ERROR in createWindow: ${err.message}\n${err.stack}`);
   }
 }
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', (err: any) => {
   log.error(`[Host] UNCAUGHT EXCEPTION: ${err.message}\n${err.stack}`);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason: any, promise: any) => {
   log.error('[Host] UNHANDLED REJECTION:', reason);
 });
 
 app.whenReady().then(() => {
   log.info('[Host] App is ready. Initializing subsystems...');
-  
+
   // Force auto-launch for seamless reconnects on restart
   if (app.isPackaged) {
     app.setLoginItemSettings({
@@ -1199,27 +1199,29 @@ app.whenReady().then(() => {
       path: app.getPath('exe')
     });
   }
-  
+
   // Tray Initialization
-  const iconPath = app.isPackaged 
+  const iconPath = app.isPackaged
     ? join(process.resourcesPath, 'app.asar.unpacked/resources/logo.png') // Path in build
     : join(__dirname, '../../src/renderer/assets/logo.png'); // Path in dev
-  
+
   try {
     tray = new Tray(iconPath);
     const contextMenu = Menu.buildFromTemplate([
       { label: 'Show RemoteLink', click: () => mainWindow?.show() },
       { type: 'separator' },
-      { label: 'Restart App', click: () => {
+      {
+        label: 'Restart App', click: () => {
           isQuitting = true;
           app.relaunch();
           app.exit();
-        } 
+        }
       },
-      { label: 'Quit RemoteLink', click: () => {
+      {
+        label: 'Quit RemoteLink', click: () => {
           isQuitting = true;
           app.quit();
-        } 
+        }
       }
     ]);
     tray.setToolTip('RemoteLink Node');
@@ -1239,7 +1241,7 @@ app.whenReady().then(() => {
   } catch (e) {
     log.error('[Host] Failed to initialize Tray:', e);
   }
-  
+
   // Initialize paths that require app to be ready
   AUTH_STORE_PATH = join(app.getPath('userData'), 'connectx_auth.json');
   log.info(`[Host] Auth store path: ${AUTH_STORE_PATH}`);
@@ -1253,21 +1255,21 @@ app.whenReady().then(() => {
 
 
   // Handle startup deep link: when the app was launched fresh by a remotelink:// URL
-  const startupUrl = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`));
+  const startupUrl = process.argv.find((a: any) => a.startsWith(`${PROTOCOL}://`));
   if (startupUrl) {
     mainWindow?.webContents.once('did-finish-load', () => {
-       log.info(`[Host] Processing startup deep link: ${startupUrl}`);
-       handleDeepLink(startupUrl);
+      log.info(`[Host] Processing startup deep link: ${startupUrl}`);
+      handleDeepLink(startupUrl);
     });
   }
 
   // Check for updates on startup
   if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch(e => log.error('[Updater] Failed initial check:', e));
+    autoUpdater.checkForUpdatesAndNotify().catch((e: any) => log.error('[Updater] Failed initial check:', e));
   }
 });
 
-ipcMain.handle('host:save-file-locally', async (_event, name: string, data: Uint8Array) => {
+ipcMain.handle('host:save-file-locally', async (_event: any, name: string, data: Uint8Array) => {
   const downloadsPath = app.getPath('downloads');
   const filePath = join(downloadsPath, name);
   await fs.writeFile(filePath, Buffer.from(data));
@@ -1275,56 +1277,56 @@ ipcMain.handle('host:save-file-locally', async (_event, name: string, data: Uint
 });
 
 ipcMain.handle('system:getHistory', async () => {
-    try {
-        const path = join(app.getPath('userData'), 'connectx_history.json');
-        const data = await fs.readFile(path, 'utf-8');
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
+  try {
+    const path = join(app.getPath('userData'), 'connectx_history.json');
+    const data = await fs.readFile(path, 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
 });
 
-ipcMain.handle('system:saveHistory', async (_event, history: any[]) => {
-    try {
-        const path = join(app.getPath('userData'), 'connectx_history.json');
-        await fs.writeFile(path, JSON.stringify(history));
-        return true;
-    } catch {
-        return false;
-    }
+ipcMain.handle('system:saveHistory', async (_event: any, history: any[]) => {
+  try {
+    const path = join(app.getPath('userData'), 'connectx_history.json');
+    await fs.writeFile(path, JSON.stringify(history));
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 ipcMain.on('host:send-file', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile']
   });
-  
+
   if (!result.canceled && result.filePaths.length > 0 && dataChannel) {
     const filePath = result.filePaths[0];
     const fileName = basename(filePath);
     const stats = await fs.stat(filePath);
     const totalSize = stats.size;
-    
+
     // Chunking 16KB
     const CHUNK_SIZE = 16 * 1024;
     const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
     const fd = await fs.open(filePath, 'r');
-    
+
     for (let i = 0; i < totalChunks; i++) {
-        const buffer = Buffer.alloc(CHUNK_SIZE);
-        const { bytesRead } = await fd.read(buffer, 0, CHUNK_SIZE, i * CHUNK_SIZE);
-        const chunk = buffer.slice(0, bytesRead);
-        
-        const header = JSON.stringify({ type: 'file-chunk', name: fileName, totalSize, chunkIndex: i, totalChunks });
-        const headerBuffer = Buffer.from(header);
-        const fullBuffer = Buffer.alloc(4 + headerBuffer.length + chunk.length);
-        fullBuffer.writeUInt32LE(headerBuffer.length, 0);
-        headerBuffer.copy(fullBuffer, 4);
-        chunk.copy(fullBuffer, 4 + headerBuffer.length);
-        
-        dataChannel.sendMessageBinary(fullBuffer);
-        // Small delay to prevent saturation
-        if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
+      const buffer = Buffer.alloc(CHUNK_SIZE);
+      const { bytesRead } = await fd.read(buffer, 0, CHUNK_SIZE, i * CHUNK_SIZE);
+      const chunk = buffer.slice(0, bytesRead);
+
+      const header = JSON.stringify({ type: 'file-chunk', name: fileName, totalSize, chunkIndex: i, totalChunks });
+      const headerBuffer = Buffer.from(header);
+      const fullBuffer = Buffer.alloc(4 + headerBuffer.length + chunk.length);
+      fullBuffer.writeUInt32LE(headerBuffer.length, 0);
+      headerBuffer.copy(fullBuffer, 4);
+      chunk.copy(fullBuffer, 4 + headerBuffer.length);
+
+      dataChannel.sendMessageBinary(fullBuffer);
+      // Small delay to prevent saturation
+      if (i % 5 === 0) await new Promise(r => setTimeout(r, 10));
     }
     await fd.close();
   }
@@ -1335,26 +1337,26 @@ let lastCpuStats = os.cpus();
 function startStatsMonitoring() {
   if (statsInterval) clearInterval(statsInterval);
   let prevBytes = 0;
-  
+
   statsInterval = setInterval(() => {
     if (!mainWindow) return;
-    
+
     const currentBytes = totalBytesSent;
     const bps = currentBytes - prevBytes;
     prevBytes = currentBytes;
-    
+
     const mbps = (bps * 8) / (1024 * 1024);
     const activePeers = (peerConnection && peerConnection.state() === 'connected') ? 1 : 0;
-    
+
     // CPU Load
     const currentCpuStats = os.cpus();
     let totalDelta = 0;
     let idleDelta = 0;
     for (let i = 0; i < currentCpuStats.length; i++) {
-        const prev = lastCpuStats[i].times;
-        const curr = currentCpuStats[i].times;
-        totalDelta += (curr.user + curr.nice + curr.sys + curr.idle + curr.irq) - (prev.user + prev.nice + prev.sys + prev.idle + prev.irq);
-        idleDelta += curr.idle - prev.idle;
+      const prev = lastCpuStats[i].times;
+      const curr = currentCpuStats[i].times;
+      totalDelta += (curr.user + curr.nice + curr.sys + curr.idle + curr.irq) - (prev.user + prev.nice + prev.sys + prev.idle + prev.irq);
+      idleDelta += curr.idle - prev.idle;
     }
     const cpuLoad = totalDelta === 0 ? 0 : (1 - idleDelta / totalDelta) * 100;
     lastCpuStats = currentCpuStats;
@@ -1364,8 +1366,8 @@ function startStatsMonitoring() {
     const freeMem = os.freemem();
     const memUsage = ((totalMem - freeMem) / totalMem) * 100;
 
-    mainWindow.webContents.send('host:stats', { 
-      bandwidth: mbps.toFixed(2), 
+    mainWindow.webContents.send('host:stats', {
+      bandwidth: mbps.toFixed(2),
       activeUsers: activePeers,
       cpu: cpuLoad.toFixed(1),
       memory: memUsage.toFixed(1)
@@ -1401,7 +1403,7 @@ function connectViewerSignaling(sessionId: string, serverIP: string, token: stri
     ws.send(JSON.stringify({ type: 'join', sessionId, token, viewerClientId }));
   });
 
-  ws.on('message', (data) => {
+  ws.on('message', (data: any) => {
     try {
       const msg = JSON.parse(data.toString());
       // Handle ping/pong at the main-process level so the signaling server

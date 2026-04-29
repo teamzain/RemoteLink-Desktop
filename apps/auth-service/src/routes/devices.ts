@@ -9,58 +9,58 @@ function generateAccessKey(): string {
 }
 
 async function mapDevice(device: any, userId: string): Promise<any> {
-    const cleanKey = String(device.accessKey).replace(/\s/g, '');
-    const presence = await redisPublisher.get(`presence:${cleanKey}`);
-    
-    // Handle nested organization info if present (from includes)
-    const org = device.organization || device.owner?.organization || null;
+  const cleanKey = String(device.accessKey).replace(/\s/g, '');
+  const presence = await redisPublisher.get(`presence:${cleanKey}`);
 
-    return {
-      id: device.id,
-      device_name: device.name,
-      device_type: (device.deviceType || 'DESKTOP').toLowerCase(),
-      access_key: device.accessKey,
-      last_seen_at: device.lastSeenAt,
-      is_online: presence === 'online',
-      is_owned: device.ownerId === userId,
-      has_password: !!device.accessPasswordHash,
-      tags: device.tags || [],
-      org_name: org?.name || null,
-      org_slug: org?.slug || null,
-      org_id: org?.id || null
-    };
+  // Handle nested organization info if present (from includes)
+  const org = device.organization || device.owner?.organization || null;
+
+  return {
+    id: device.id,
+    device_name: device.name,
+    device_type: (device.deviceType || 'DESKTOP').toLowerCase(),
+    access_key: device.accessKey,
+    last_seen_at: device.lastSeenAt,
+    is_online: presence === 'online',
+    is_owned: device.ownerId === userId,
+    has_password: !!device.accessPasswordHash,
+    tags: device.tags || [],
+    org_name: org?.name || null,
+    org_slug: org?.slug || null,
+    org_id: org?.id || null
+  };
 }
 
 // Helper to check device access based on role/tags/deviceIds
 function hasDevicePermission(user: any, device: any): boolean {
-    if (user.role === 'SUPER_ADMIN') return true;
-    if (user.organizationId !== device.organizationId) return false;
-    if (user.role === 'SUB_ADMIN') return true;
+  if (user.role === 'SUPER_ADMIN') return true;
+  if (user.organizationId !== device.organizationId) return false;
+  if (user.role === 'SUB_ADMIN') return true;
 
-    // Full org access granted explicitly
-    if (user.allowedDeviceIds?.includes('__all__')) return true;
+  // Full org access granted explicitly
+  if (user.allowedDeviceIds?.includes('__all__')) return true;
 
-    // Tag-based access
-    if (user.allowedTags?.length > 0) {
-        if (user.allowedTags.some((tag: string) => device.tags.includes(tag))) return true;
-    }
+  // Tag-based access
+  if (user.allowedTags?.length > 0) {
+    if (user.allowedTags.some((tag: string) => device.tags.includes(tag))) return true;
+  }
 
-    // Specific device access
-    if (user.allowedDeviceIds?.length > 0) {
-        if (user.allowedDeviceIds.includes(device.id)) return true;
-    }
+  // Specific device access
+  if (user.allowedDeviceIds?.length > 0) {
+    if (user.allowedDeviceIds.includes(device.id)) return true;
+  }
 
-    // No access granted — default deny
-    return false;
+  // No access granted — default deny
+  return false;
 }
 
 export default async function deviceRoutes(fastify: FastifyInstance) {
-  
+
   // 0. Add Existing Device (Moved to top for matching priority)
   fastify.post('/add-existing', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -75,7 +75,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       console.log(`[Device-Debug] Device not found in DB for key: ${accessKey}`);
       return reply.code(404).send({ error: 'Device not found' });
     }
-    
+
     if (!device.accessPasswordHash) {
       console.log(`[Device-Debug] Device found but has no accessPasswordHash: ${accessKey}`);
       return reply.code(404).send({ error: 'Device has no access password set yet' });
@@ -101,7 +101,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const mapped = await mapDevice(device, decoded.userId);
     return reply.send({ success: true, device: mapped });
   });
-  
+
   // 1. Verify access key + password and return 60s JWT (Viewer Step 2)
   fastify.post('/verify-access', async (request: FastifyRequest, reply: FastifyReply) => {
     let { accessKey, password } = request.body as any;
@@ -114,7 +114,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       console.log(`[Device-Debug] verify-access: Device not found in DB for key: ${accessKey}`);
       return reply.code(404).send({ error: 'Device not found' });
     }
-    
+
     if (!device.accessPasswordHash) {
       console.log(`[Device-Debug] verify-access: Device found but has no accessPasswordHash: ${accessKey}`);
       return reply.code(404).send({ error: 'Device has no access password set yet. Go to host settings and set one.' });
@@ -126,14 +126,14 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       const token = authHeader.split(' ')[1];
       const decodedUser = verifyToken(token);
       if (decodedUser) {
-          if (decodedUser.role === 'VIEWER') {
-              return reply.code(403).send({ error: 'Viewer accounts are not allowed to connect to devices' });
-          }
-          // Scoping check for Operators
-          const fullUser = await prisma.user.findUnique({ where: { id: decodedUser.userId } });
-          if (fullUser && !hasDevicePermission(fullUser, device)) {
-              return reply.code(403).send({ error: 'You do not have permission to connect to this device' });
-          }
+        if (decodedUser.role === 'VIEWER') {
+          return reply.code(403).send({ error: 'Viewer accounts are not allowed to connect to devices' });
+        }
+        // Scoping check for Operators
+        const fullUser = await prisma.user.findUnique({ where: { id: decodedUser.userId } });
+        if (fullUser && !hasDevicePermission(fullUser, device)) {
+          return reply.code(403).send({ error: 'You do not have permission to connect to this device' });
+        }
       }
     }
 
@@ -197,26 +197,26 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const accessJWT = generateToken({ 
-      type: 'remote-access', 
-      deviceId: device.id, 
-      accessKey: device.accessKey 
+    const accessJWT = generateToken({
+      type: 'remote-access',
+      deviceId: device.id,
+      accessKey: device.accessKey
     }, '5m');
 
     return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted } });
   });
-  
+
   // 1. Register a new device for the current user or organization
   fastify.post('/register', { preHandler: [checkPlanLimit('maxDevices')] }, async (request: FastifyRequest, reply: FastifyReply) => {
     console.log(`[Device-Debug] Registration attempt received`);
     try {
       const authHeader = request.headers.authorization;
       if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-      
+
       const token = authHeader.split(' ')[1];
       const decoded = verifyToken(token);
       if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
-      
+
       const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
       if (!user) return reply.code(401).send({ error: 'User not found' });
 
@@ -232,7 +232,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         const et = await prisma.enrollmentToken.findUnique({ where: { token: enrollmentToken } });
         if (!et) return reply.code(400).send({ error: 'Invalid enrollment token' });
         if (et.expiresAt && et.expiresAt < new Date()) return reply.code(400).send({ error: 'Enrollment token expired' });
-        
+
         organizationId = et.organizationId;
         departmentId = et.departmentId || departmentId;
         console.log(`[Device-Debug] Enrolling device into Org: ${organizationId}`);
@@ -240,9 +240,9 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
       let accessKey = (request.body as any)?.accessKey;
       if (accessKey) accessKey = String(accessKey).replace(/\s/g, ''); // Standardize
-      
+
       let password = (request.body as any)?.password;
- 
+
       let existing = null;
       if (accessKey) {
         existing = await prisma.device.findUnique({ where: { accessKey } });
@@ -261,7 +261,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
           existing = null; // Proceed as if not found to generate a new key
         } else {
           let updateData: any = {};
-          
+
           // Always sync the name if provided and different
           if (deviceName && deviceName !== existing.name) {
             updateData.name = deviceName;
@@ -273,14 +273,13 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
             if (!clash) updateData.accessKey = accessKey;
           }
           if (password) {
-            const bcrypt = require('bcrypt');
             updateData.accessPasswordHash = await bcrypt.hash(password, 10);
           }
-          
+
           if (Object.keys(updateData).length > 0) {
             existing = await prisma.device.update({ where: { id: existing.id }, data: updateData });
           }
-          
+
           const mapped = await mapDevice(existing, decoded.userId);
           return reply.code(200).send(mapped);
         }
@@ -316,7 +315,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.get('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -336,14 +335,14 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     let orgDevices: any[] = [];
     if (user.role === 'SUPER_ADMIN') {
-        orgDevices = await prisma.device.findMany({ include: deviceInclude });
+      orgDevices = await prisma.device.findMany({ include: deviceInclude });
     } else if (user.organizationId) {
-        // Find devices in org that match user's permissions
-        const allOrgDevices = await prisma.device.findMany({
-            where: { organizationId: user.organizationId },
-            include: deviceInclude
-        });
-        orgDevices = allOrgDevices.filter((d: any) => hasDevicePermission(user, d));
+      // Find devices in org that match user's permissions
+      const allOrgDevices = await prisma.device.findMany({
+        where: { organizationId: user.organizationId },
+        include: deviceInclude
+      });
+      orgDevices = allOrgDevices.filter((d: any) => hasDevicePermission(user, d));
     }
 
     // 2. Fetch devices personally owned (legacy/personal fallback)
@@ -355,7 +354,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     // Fetch saved devices
     const savedRelations = await prisma.savedDevice.findMany({
       where: { userId: decoded.userId },
-      include: { 
+      include: {
         device: {
           include: deviceInclude
         }
@@ -372,7 +371,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     [...savedDevices].forEach(d => {
       if (!allDevicesMap.has(d.id)) allDevicesMap.set(d.id, { ...d, _isOwned: false });
     });
-    
+
     let allDevices = Array.from(allDevicesMap.values());
 
     // Look up redis presence
@@ -413,11 +412,11 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       orderBy: { lastSeenAt: 'desc' }
     });
 
-    const enrichedDevices = await Promise.all(devices.map(async (device) => {
+    const enrichedDevices = await Promise.all(devices.map(async (device: any) => {
       return mapDevice(device, decoded.userId);
     }));
 
-    enrichedDevices.sort((a, b) => {
+    enrichedDevices.sort((a: any, b: any) => {
       if (a.is_online && !b.is_online) return -1;
       if (!a.is_online && b.is_online) return 1;
       return 0;
@@ -430,7 +429,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -445,19 +444,19 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.patch('/:id/name', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
     const { id } = request.params as { id: string };
     const { device_name } = request.body as any;
-    
+
     if (!device_name) return reply.code(400).send({ error: 'device_name is required' });
 
     const device = await prisma.device.findUnique({ where: { id } });
     if (!device) return reply.code(404).send({ error: 'Not found' });
-    
+
     // Check if owner
     if (device.ownerId === decoded.userId) {
       const updated = await prisma.device.update({
@@ -474,7 +473,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.delete('/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -502,7 +501,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.post('/:id/trust', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -529,13 +528,13 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.delete('/:id/trust', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
     const { id } = request.params as { id: string };
-    
+
     await prisma.trustedDevice.deleteMany({
       where: { viewerUserId: decoded.userId, hostDeviceId: id }
     });
@@ -547,7 +546,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.post('/regenerate-key', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
@@ -575,7 +574,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.post('/set-password', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
-    
+
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
     const { deviceId, password } = request.body as any;

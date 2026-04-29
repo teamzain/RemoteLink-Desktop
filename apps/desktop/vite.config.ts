@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '127.0.0.1',
+    proxy: {
+      '/api': { target: 'http://159.65.84.190', changeOrigin: true },
+      '/devices': { target: 'http://159.65.84.190', changeOrigin: true },
+    },
   },
   plugins: [
     react(),

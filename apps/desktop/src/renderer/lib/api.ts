@@ -8,9 +8,11 @@ const getBaseURL = async () => {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl;
 
-  const serverIP = '159.65.84.190';
-  // Connect to production server at 159.65.84.190 for end-to-end testing
-  return `http://${serverIP}`;
+  // In Vite dev mode requests go through the dev server proxy (vite.config.ts),
+  // so use a relative base to avoid CORS. In packaged Electron use the real IP.
+  if (import.meta.env.DEV) return '';
+
+  return 'http://159.65.84.190';
 };
 
 const api = axios.create();
