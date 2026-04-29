@@ -25,7 +25,16 @@
       "PowerShell(Get-Process -Name \"electron\",\"Connect-X\",\"connect-x\" -ErrorAction SilentlyContinue)",
       "PowerShell(Stop-Process -Force)",
       "PowerShell(Rename-Item \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\\\\win-unpacked\" \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\\\\win-unpacked-old\" -ErrorAction SilentlyContinue; Write-Host \"Renamed: $?\")",
-      "PowerShell(Add-MpPreference -ExclusionPath \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\" -ErrorAction SilentlyContinue)"
+      "PowerShell(Add-MpPreference -ExclusionPath \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release\" -ErrorAction SilentlyContinue)",
+      "Bash(ssh root@159.65.84.190 \"find / -name 'deploy.sh' 2>/dev/null; echo '---'; ls /opt/ 2>/dev/null; echo '---'; ls /root/ 2>/dev/null\")",
+      "Bash(ssh root@159.65.84.190 \"cd /root/RemoteLink-Desktop && git log --oneline -5\")",
+      "Bash(git log *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://159.65.84.190/api/devices/self-register -H \"Content-Type: application/json\" -d '{\"accessKey\":\"000000001\",\"name\":\"test\"}')",
+      "Bash(curl -s -X POST http://159.65.84.190/api/devices/self-register -H \"Content-Type: application/json\" -d '{\"accessKey\":\"000000001\",\"name\":\"test\"}')",
+      "Bash(tasklist)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "PowerShell(Get-Process | Where-Object { $_.Name -match 'electron|Connect' } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force \"d:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release2\\\\win-unpacked\" -ErrorAction SilentlyContinue; Write-Host \"done\")"
     ],
     "additionalDirectories": [
       "d:\\Work\\RemoteLink-Desktop\\downloads"

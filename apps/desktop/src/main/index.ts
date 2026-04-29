@@ -1,4 +1,4 @@
-﻿import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
+import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { join, basename, resolve } from 'path';
@@ -469,44 +469,46 @@ async function detectBestEncoder(): Promise<void> {
 /** Simple Annex-B Scanner (Round 4).
  *  Finds 00 00 01 boundaries and returns complete NAL units. */
 function drainNALBuffer() {
-  let offset = 0;
-  while (offset < bufferAccumulator.length - 4) {
-    // Check for 3-byte or 4-byte start codes
-    const is4 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 &&
-      bufferAccumulator[offset + 2] === 0 && bufferAccumulator[offset + 3] === 1;
-    const is3 = bufferAccumulator[offset] === 0 && bufferAccumulator[offset + 1] === 0 &&
-      bufferAccumulator[offset + 2] === 1;
+  while (true) {
+    // Find next Annex-B start code (00 00 01)
+    const syncPos = bufferAccumulator.indexOf(Buffer.from([0, 0, 1]), 1);
+    if (syncPos === -1) break;
 
-    if (is4 || is3) {
-      if (offset > 0) {
-        const nalUnit = bufferAccumulator.subarray(0, offset);
-
-        // Group SPS/PPS with next IDR for frame atomicity
-        let headerIdx = 0;
-        while (headerIdx < nalUnit.length && nalUnit[headerIdx] === 0) headerIdx++;
-        if (headerIdx < nalUnit.length && nalUnit[headerIdx] === 1) headerIdx++;
-        const nalType = (headerIdx < nalUnit.length) ? (nalUnit[headerIdx] & 0x1F) : 0;
-
-        // AUD (9) or SPS (7) indicates the clear start of a new Access Unit (frame).
-        const isNewFrame = (nalType === 9 || nalType === 7);
-        const isSlice = (nalType === 1 || nalType === 5);
-
-        if (isNewFrame && accessUnitBuffer.length > 0 && hasVcl) {
-          sendFrame(accessUnitBuffer);
-          accessUnitBuffer = Buffer.alloc(0);
-          hasVcl = false;
-        }
-
-        if (isSlice) hasVcl = true;
-        accessUnitBuffer = Buffer.concat([accessUnitBuffer, nalUnit]);
-        bufferAccumulator = bufferAccumulator.subarray(offset);
-        offset = 0;
-        continue;
-      }
-      offset += (is4 ? 4 : 3);
-    } else {
-      offset++;
+    let nalUnitEnd = syncPos;
+    // Adjust for 4-byte start code (00 00 00 01)
+    if (syncPos > 0 && bufferAccumulator[syncPos - 1] === 0) {
+      nalUnitEnd--;
     }
+
+    if (nalUnitEnd > 0) {
+      const nalUnit = bufferAccumulator.subarray(0, nalUnitEnd);
+      
+      // Parse NAL type
+      let headerIdx = 0;
+      while (headerIdx < nalUnit.length && nalUnit[headerIdx] === 0) headerIdx++;
+      if (headerIdx < nalUnit.length && nalUnit[headerIdx] === 1) headerIdx++;
+      const nalType = (headerIdx < nalUnit.length) ? (nalUnit[headerIdx] & 0x1F) : 0;
+
+      const isNewFrame = (nalType === 9 || nalType === 7); // AUD or SPS
+      const isSlice = (nalType === 1 || nalType === 5); // VCL slices
+
+      if (isNewFrame && accessUnitBuffer.length > 0 && hasVcl) {
+        if (isPreBuffering) {
+          ffmpegPreChunks.push(accessUnitBuffer);
+          // Keep pre-buffer small to minimize latency spike on flush
+          if (ffmpegPreChunks.length > 30) ffmpegPreChunks.shift();
+        } else {
+          sendFrame(accessUnitBuffer);
+        }
+        accessUnitBuffer = Buffer.alloc(0);
+        hasVcl = false;
+      }
+
+      if (isSlice) hasVcl = true;
+      accessUnitBuffer = Buffer.concat([accessUnitBuffer, nalUnit]);
+    }
+
+    bufferAccumulator = bufferAccumulator.subarray(syncPos);
   }
 }
 
@@ -612,8 +614,6 @@ function startStreaming() {
     });
 
     ffmpegProcess.stdout?.on('data', (chunk: Buffer) => {
-      if (isPreBuffering) { ffmpegPreChunks.push(chunk); return; }
-      if (!videoTrack) return;
       bufferAccumulator = Buffer.concat([bufferAccumulator, chunk]);
       drainNALBuffer();
     });

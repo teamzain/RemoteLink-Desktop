@@ -24,7 +24,7 @@ api.interceptors.request.use(async (config) => {
   let token;
   if (isElectron) {
     const result = await (window as any).electronAPI.getToken();
-    token = result?.token;
+    token = result?.token || localStorage.getItem('viewer_token');
   } else {
     token = localStorage.getItem('access_token');
   }

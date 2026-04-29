@@ -1345,6 +1345,7 @@ export default function App() {
             setSessionCode(sid);
             setServerIP(sip);
             setAuth({ id: 'viewer', email: 'node.viewer@connect-x.io', name: 'Viewer', plan: 'FREE', role: 'VIEWER', organizationId: null, avatar: null }, tok, '', false);
+            if (isElectron) localStorage.setItem('viewer_token', tok);
             setWindowDeviceName(dname);
             setWindowDeviceType(dtype);
 
@@ -1354,7 +1355,8 @@ export default function App() {
             setViewerStatus('connecting');
             if (isElectron) {
                 (window as any).electronAPI.connectToHost(sid, sip, tok, viewerClientId).then(() => {
-                    setViewerStatus('connected');
+                    // We wait for the 'joined' signaling message before setting connected status
+                    console.log('[Viewer] Signaling link established. Waiting for session join confirmation...');
                 }).catch((e: any) => {
                     viewerConnectedRef.current = false; // Allow retry on error
                     showError('Mesh Fault', e.message || 'The secure connection could not be established.');
@@ -1699,6 +1701,14 @@ export default function App() {
         if (!isElectron || isViewerWindow) return;
         const eAPI = (window as any).electronAPI;
         const unsubReq = eAPI.onViewerRequest?.((data: { viewerId: string }) => {
+            // AUTO-APPROVE: If host is not authenticated (Guest Mode), automatically approve.
+            // This is essential for unattended access via Access Key/PIN.
+            if (!isAuthenticated) {
+                console.log(`[Host] Guest Mode: Auto-approving connection request from ${data.viewerId}`);
+                eAPI.approveViewer(data.viewerId);
+                return;
+            }
+
             setPendingViewerRequest({ viewerId: data.viewerId, countdown: 30 });
             playUISound('connect');
         });
@@ -1706,7 +1716,7 @@ export default function App() {
             setPendingViewerRequest(prev => prev?.viewerId === data.viewerId ? null : prev);
         });
         return () => { unsubReq?.(); unsubCancel?.(); };
-    }, [isElectron, isViewerWindow]);
+    }, [isElectron, isViewerWindow, isAuthenticated]);
 
     useEffect(() => {
         if (!pendingViewerRequest) return;
@@ -1918,10 +1928,15 @@ export default function App() {
             if (isElectron) {
                 (window as any).electronAPI.log(`[Renderer] Received signaling FROM MAIN: ${data.type}`);
             }
-            if (data.type === 'joined' && !data.success) {
-                // Host denied the connection or timed out
-                setViewerStatus('error');
-                setViewerError(data.error || 'Connection was denied by the host.');
+            if (data.type === 'joined') {
+                if (data.success) {
+                    console.log('[Viewer] Successfully joined session. Ready for stream.');
+                    setViewerStatus('connected');
+                } else {
+                    // Host denied the connection or timed out
+                    setViewerStatus('error');
+                    setViewerError(data.error || 'Connection was denied by the host.');
+                }
                 return;
             }
             if (data.type === 'offer') {
