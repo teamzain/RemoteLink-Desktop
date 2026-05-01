@@ -1,9 +1,9 @@
-﻿{
+{
     "appId":  "com.connectx.desktop",
     "productName":  "Connect-X",
     "electronVersion":  "28.3.3",
     "directories":  {
-                        "output":  "release3"
+                        "output":  "release4"
                     },
     "files":  [
                   "dist/**/*",

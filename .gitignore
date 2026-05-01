@@ -10,6 +10,9 @@ coverage/
 dist/
 dist-electron/
 release/
+release2/
+release3/
+release4/
 build/
 !packages/native-input/build/
 *.exe

@@ -111,7 +111,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
       let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
 
       if (!user) {
-        // SaaS ONBOARDING: Create Org + User as SUB_ADMIN
+        // SaaS ONBOARDING: Create Org + User as SUPER_ADMIN
         const result = await prisma.$transaction(async (tx: any) => {
           const orgSlug = googleUser.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.random().toString(36).substring(2, 5);
           const org = await tx.organization.create({
@@ -125,7 +125,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
             data: {
               email: googleUser.email,
               name: googleUser.name || googleUser.email.split('@')[0],
-              role: 'SUB_ADMIN',
+              role: 'SUPER_ADMIN',
               organizationId: org.id
             }
           });
@@ -154,7 +154,7 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
             return await tx.user.update({
               where: { id: user!.id },
               data: {
-                role: 'SUB_ADMIN',
+                role: 'SUPER_ADMIN',
                 organizationId: org.id
               }
             });

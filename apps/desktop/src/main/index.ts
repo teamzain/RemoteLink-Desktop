@@ -272,7 +272,25 @@ ipcMain.on('viewer:send-signaling', (_event: any, msg: any) => {
 // --- Utility Functions ---
 const getFFmpegPath = () => {
   if (app.isPackaged) return join(process.resourcesPath, 'ffmpeg.exe');
-  return join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe');
+  
+  // Dev mode: try common monorepo and local paths
+  const paths = [
+    join(app.getAppPath(), '../../node_modules/ffmpeg-static/ffmpeg.exe'),
+    join(app.getAppPath(), 'node_modules/ffmpeg-static/ffmpeg.exe'),
+  ];
+  
+  const fs = require('fs');
+  for (const p of paths) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  // Fallback to module resolution
+  try {
+    const staticPath = require('ffmpeg-static');
+    if (staticPath && fs.existsSync(staticPath)) return staticPath;
+  } catch (e) {}
+
+  return 'ffmpeg'; // System PATH fallback
 };
 
 async function getAuthTokens() {
@@ -468,11 +486,33 @@ async function detectBestEncoder(): Promise<void> {
 
 /** Simple Annex-B Scanner (Round 4).
  *  Finds 00 00 01 boundaries and returns complete NAL units. */
+let flushTimeout: NodeJS.Timeout | null = null;
+
 function drainNALBuffer() {
+  if (flushTimeout) {
+    clearTimeout(flushTimeout);
+    flushTimeout = null;
+  }
+
   while (true) {
     // Find next Annex-B start code (00 00 01)
     const syncPos = bufferAccumulator.indexOf(Buffer.from([0, 0, 1]), 1);
-    if (syncPos === -1) break;
+    if (syncPos === -1) {
+      // No more complete NAL units in this chunk.
+      // If we have a pending Access Unit that already has a VCL slice (a frame),
+      // set a timeout to flush it proactively if no new data arrives soon.
+      // This ensures the VERY first frame is sent even if FFmpeg hasn't started the second one yet.
+      if (accessUnitBuffer.length > 0 && hasVcl) {
+        flushTimeout = setTimeout(() => {
+          if (accessUnitBuffer.length > 0 && hasVcl) {
+            sendFrame(accessUnitBuffer);
+            accessUnitBuffer = Buffer.alloc(0);
+            hasVcl = false;
+          }
+        }, 100);
+      }
+      break;
+    }
 
     let nalUnitEnd = syncPos;
     // Adjust for 4-byte start code (00 00 00 01)
@@ -493,13 +533,8 @@ function drainNALBuffer() {
       const isSlice = (nalType === 1 || nalType === 5); // VCL slices
 
       if (isNewFrame && accessUnitBuffer.length > 0 && hasVcl) {
-        if (isPreBuffering) {
-          ffmpegPreChunks.push(accessUnitBuffer);
-          // Keep pre-buffer small to minimize latency spike on flush
-          if (ffmpegPreChunks.length > 30) ffmpegPreChunks.shift();
-        } else {
-          sendFrame(accessUnitBuffer);
-        }
+        log.info(`[Host] Assembled frame: ${accessUnitBuffer.length} bytes. Sending...`);
+        sendFrame(accessUnitBuffer);
         accessUnitBuffer = Buffer.alloc(0);
         hasVcl = false;
       }
@@ -574,6 +609,10 @@ function startStreaming() {
     const args = [...captureArgs, ...encoderArgs];
 
     ffmpegProcess = spawn(ffmpegPath, args);
+    ffmpegProcess.on('error', (err) => {
+      log.error(`[Host] FFmpeg failed to start: ${err.message}`);
+      stopStreaming();
+    });
     bufferAccumulator = Buffer.alloc(0);
 
     // Capture Loop
@@ -636,9 +675,16 @@ function startStreaming() {
 
 
 function sendFrame(frame: Buffer) {
-  if (!videoTrack || !videoRtpConfig || !peerConnection) return;
+  if (isPreBuffering) {
+    ffmpegPreChunks.push(frame);
+    if (ffmpegPreChunks.length > 60) ffmpegPreChunks.shift();
+    return;
+  }
 
-  // Track and Connection MUST be open/connected
+  if (!videoTrack || !videoRtpConfig || !peerConnection) {
+    return;
+  }
+
   try {
     if (peerConnection.state() !== 'connected') {
       return;
@@ -675,6 +721,19 @@ function sendFrame(frame: Buffer) {
     } else {
       log.error(`[Host] Error sending frame: ${err?.message}`);
     }
+  }
+}
+
+function flushPreBuffer() {
+  if (!isPreBuffering) return;
+  log.info(`[Host] Flushing ${ffmpegPreChunks.length} pre-buffered frames to track...`);
+  isPreBuffering = false;
+  
+  const chunks = [...ffmpegPreChunks];
+  ffmpegPreChunks = [];
+  
+  for (const chunk of chunks) {
+    sendFrame(chunk);
   }
 }
 
@@ -746,14 +805,7 @@ function initiateHostWebRTC(viewerId: string) {
       }
 
       if (isPreBuffering) {
-        log.info('[Host] Flushing pre-buffered frames to track...');
-        isPreBuffering = false;
-        if (ffmpegPreChunks.length > 0) {
-          const combined = Buffer.concat(ffmpegPreChunks);
-          ffmpegPreChunks = [];
-          bufferAccumulator = Buffer.concat([bufferAccumulator, combined]);
-          drainNALBuffer();
-        }
+        flushPreBuffer();
       }
     } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
       log.warn(`[Host] Remote session ended (${state}). Triggering cleanup...`);
@@ -790,13 +842,7 @@ function initiateHostWebRTC(viewerId: string) {
     // prevents sendFrame() from silently dropping the first SPS+PPS+IDR due to the
     // state check inside sendFrame.
     if (isPreBuffering && peerConnection?.state() === 'connected') {
-      isPreBuffering = false;
-      if (ffmpegPreChunks.length > 0) {
-        const combined = Buffer.concat(ffmpegPreChunks);
-        ffmpegPreChunks = [];
-        bufferAccumulator = Buffer.concat([bufferAccumulator, combined]);
-        drainNALBuffer();
-      }
+      flushPreBuffer();
     }
   });
 

@@ -55,7 +55,7 @@ const PLAN_META: Record<string, { label: string; color: string; bg: string; icon
 };
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string }> = {
-  SUB_ADMIN:   { label: 'Admin',    color: 'text-purple-700', bg: 'bg-purple-50' },
+  SUPER_ADMIN: { label: 'Admin',    color: 'text-purple-700', bg: 'bg-purple-50' },
   OPERATOR:    { label: 'Operator', color: 'text-blue-700',   bg: 'bg-blue-50'   },
   VIEWER:      { label: 'Viewer',   color: 'text-slate-600',  bg: 'bg-slate-100' },
   USER:        { label: 'User',     color: 'text-slate-500',  bg: 'bg-slate-50'  },
@@ -147,7 +147,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
       setSelectedOrg(data);
       
       // Fetch billing info for the org's admin
-      const admin = data.users?.find((u: any) => u.role === 'SUB_ADMIN');
+      const admin = data.users?.find((u: any) => u.role === 'SUPER_ADMIN');
       if (admin) {
         fetchOrgBilling(admin.id);
       } else {
@@ -188,8 +188,8 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
 
   const handleAssignPlan = async (plan: string) => {
     if (!selectedOrg) return;
-    // Find the SUB_ADMIN of this org to assign the plan to
-    const admin = selectedOrg.users.find(u => u.role === 'SUB_ADMIN');
+    // Find the SUPER_ADMIN of this org to assign the plan to
+    const admin = selectedOrg.users.find((u: any) => u.role === 'SUPER_ADMIN');
     if (!admin) return;
     setShowPlanDropdown(false);
     setPlanSwitching(true);

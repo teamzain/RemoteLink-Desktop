@@ -646,7 +646,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         const isInMockup = isMobileDevice && zoomMode === 'fit';
 
         const videoProps = {
-            className: `transition-opacity duration-300 select-none w-full h-full object-contain ${(!hasReceivedKeyframe && !remoteStream) ? 'opacity-0' : 'opacity-100'}`,
+            className: `transition-opacity duration-700 select-none w-full h-full object-contain cursor-none ${(!hasReceivedKeyframe) ? 'opacity-0' : 'opacity-100'}`,
             style: { backgroundColor: '#000', outline: 'none' },
             onMouseMove: (e: React.MouseEvent) => handleMouseEvent(e, 'mousemove'),
             onMouseDown: (e: React.MouseEvent) => handleMouseEvent(e, 'mousedown'),
@@ -656,7 +656,15 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         };
 
         const contentNode = remoteStream ? (
-            <div className="relative w-full h-full group flex items-center justify-center bg-[#0a0a0c] overflow-hidden">
+            <div className="relative w-full h-full group flex items-center justify-center bg-[#0a0a0c] overflow-hidden cursor-none">
+                {!hasReceivedKeyframe && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in duration-700">
+                        <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 animate-pulse">
+                            <img src="/logo.png" className="w-10 h-10 opacity-100 grayscale" alt="" />
+                        </div>
+                        <h2 className="text-sm font-bold tracking-[0.2em] text-white/80 uppercase">Establishing Link...</h2>
+                    </div>
+                )}
                 <div className={`relative transition-all duration-700 ease-out shadow-[0_40px_100px_rgba(0,0,0,0.8)] ${!isInMockup && isMobileDevice ? 'h-full aspect-[9/19.5] rounded-[3rem] border-[12px] border-[#1a1a1c] bg-black overflow-hidden' : 'w-full h-full'}`}>
                     <video
                         ref={videoRef}
@@ -664,15 +672,19 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         muted
                         playsInline
                         onLoadedMetadata={(e) => {
-                            e.currentTarget.play().then(() => {
-                                setIsAutoPlayBlocked(false);
-                            }).catch((err: any) => {
-                                console.warn('[VideoPlayer] Play failed on metatada:', err);
-                                if (err.name !== 'AbortError') {
-                                    setIsAutoPlayBlocked(true);
-                                }
-                            });
-                            setHasReceivedKeyframe(true);
+                            const video = e.currentTarget;
+                            if (video.videoWidth > 0 && video.videoHeight > 0) {
+                                console.log(`[VideoPlayer] Decoder ACTIVE: ${video.videoWidth}x${video.videoHeight}`);
+                                setHasReceivedKeyframe(true);
+                                video.play().then(() => {
+                                    setIsAutoPlayBlocked(false);
+                                }).catch((err: any) => {
+                                    console.warn('[VideoPlayer] Play failed on metadata:', err);
+                                    if (err.name !== 'AbortError') {
+                                        setIsAutoPlayBlocked(true);
+                                    }
+                                });
+                            }
                         }}
                         onMouseEnter={() => { }}
                         onMouseLeave={() => setLocalMouse(null)}
@@ -683,7 +695,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 {/* Auto-play recovery overlay */}
                 {isAutoPlayBlocked && (
                     <div
-                        className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm cursor-pointer"
+                        className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm cursor-none"
                         onClick={() => {
                             videoRef.current?.play().then(() => setIsAutoPlayBlocked(false)).catch(console.error);
                         }}
@@ -704,7 +716,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                                 <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
                                     <Command size={16} className="text-blue-400" /> System Shortcuts
                                 </h3>
-                                <button onClick={() => setShowShortcutsHUD(false)} className="text-white/20 hover:text-white"><X size={20} /></button>
+                                <button onClick={() => setShowShortcutsHUD(false)} className="text-white/80 hover:text-white"><X size={20} /></button>
                             </div>
                             <div className="space-y-4">
                                 {[
@@ -715,7 +727,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                                     { k: 'Mouse Top', v: 'Hold top for 1s to view Status' }
                                 ].map((s, i) => (
                                     <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{s.v}</span>
+                                        <span className="text-[10px] font-bold text-white/95 uppercase tracking-widest">{s.v}</span>
                                         <span className="px-2 py-1 bg-white/10 rounded-md text-[10px] font-mono text-blue-400 font-bold">{s.k}</span>
                                     </div>
                                 ))}
@@ -734,7 +746,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                             transform: 'translate(-3px, -3px)'
                         }}
                     >
-                        <div className="w-1.5 h-1.5 rounded-full bg-white border border-black shadow-sm" />
+                        <MousePointer2 size={20} className="text-white fill-[#1C1C1C] drop-shadow-md" />
                     </div>
                 )}
 
@@ -742,7 +754,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 <div className="absolute top-4 right-4 z-[110] flex flex-col gap-2">
                     <button
                         onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
-                        className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+                        className="w-8 h-8 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/95 hover:text-white/80 transition-colors"
                     >
                         <Info size={14} />
                     </button>
@@ -751,23 +763,23 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         <div className="p-4 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Resolution</span>
+                                    <span className="text-[10px] font-bold text-white/95 uppercase tracking-widest">Resolution</span>
                                     <span className="text-xs font-mono text-blue-400 font-bold">
                                         {videoRef.current?.videoWidth || 0} x {videoRef.current?.videoHeight || 0}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Track Status</span>
+                                    <span className="text-[10px] font-bold text-white/95 uppercase tracking-widest">Track Status</span>
                                     <span className={`text-[10px] font-bold uppercase ${remoteStream?.getVideoTracks()[0]?.enabled ? 'text-emerald-400' : 'text-red-400'}`}>
                                         {remoteStream?.getVideoTracks()[0]?.enabled ? 'Active' : 'Muted'}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Decoder</span>
+                                    <span className="text-[10px] font-bold text-white/95 uppercase tracking-widest">Decoder</span>
                                     <span className="text-[10px] font-bold text-white/80">Hardware/NVENC</span>
                                 </div>
                                 <div className="h-px bg-white/5 w-full" />
-                                <div className="text-[9px] text-white/30 italic text-center">
+                                <div className="text-[9px] text-white/30 italic text-[#000000]enter">
                                     NAL units are aggregated for sync.
                                 </div>
                             </div>
@@ -786,7 +798,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                         {/* Logo mark */}
                         <div className="relative mb-8 z-10">
-                            <div className="w-20 h-20 rounded-[28px] bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-2xl overflow-hidden">
+                            <div className="w-20 h-20 rounded-[28px] bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-2xl overflow-hidden cursor-none">
                                 <img src={logo} alt="Connect-X" className="w-12 h-12 object-contain opacity-70" />
                             </div>
                             {/* Orbiting ring */}
@@ -794,16 +806,16 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         </div>
 
                         <span className="text-[13px] font-bold text-white/60 tracking-[0.35em] uppercase z-10 mb-2">Establishing Link</span>
-                        <span className="text-[10px] text-white/20 font-medium z-10 mb-8">Negotiating secure P2P channel...</span>
+                        <span className="text-[10px] text-white/80 font-medium z-10 mb-8">Negotiating secure P2P channel...</span>
 
                         {/* Step indicators */}
                         <div className="flex items-center gap-3 z-10 mb-10">
                             {['ICE', 'DTLS', 'STREAM'].map((step, i) => {
-                                const active = (packetsReceived > 0 && i === 2) || (i < 2);
+                                const active = (hasReceivedKeyframe && i === 2) || (i < 2);
                                 return (
                                     <React.Fragment key={step}>
                                         <div className="flex flex-col items-center gap-1.5">
-                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${active ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${active ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-white/80'}`}>
                                                 {active ? <CheckCircle2 size={12} /> : <div className="w-1.5 h-1.5 rounded-full bg-white/20" />}
                                             </div>
                                             <span className={`text-[8px] font-bold uppercase tracking-widest ${active ? 'text-blue-400/60' : 'text-white/15'}`}>{step}</span>
@@ -818,7 +830,9 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         <div className="flex items-center gap-5 px-5 py-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl z-10">
                             <div className="flex flex-col items-center gap-0.5">
                                 <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Packets</span>
-                                <span className="text-sm font-mono text-blue-400/80 font-bold tabular-nums">{packetsReceived}</span>
+                                <span className="text-sm font-mono text-blue-400/80 font-bold tabular-nums">
+                                    {packetsReceived}
+                                </span>
                             </div>
                             <div className="w-px h-8 bg-white/[0.06]" />
                             <div className="flex flex-col items-center gap-0.5">
@@ -828,7 +842,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                             <div className="w-px h-8 bg-white/[0.06]" />
                             <div className="flex flex-col items-center gap-0.5">
                                 <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Signal</span>
-                                <span className={`text-sm font-bold uppercase ${lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'text-emerald-400/80' : 'text-white/20'}`}>
+                                <span className={`text-sm font-bold uppercase ${lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'text-emerald-400/80' : 'text-white/80'}`}>
                                     {lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'HOT' : '—'}
                                 </span>
                             </div>
@@ -917,10 +931,10 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 {/* Controls */}
                 <div className="flex items-center gap-0.5">
-                    <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10'}`}>
+                    <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
                         <Search size={13} />
                     </button>
-                    <button onClick={() => { if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullScreen(true); } else { document.exitFullscreen(); setIsFullScreen(false); } }} title="Fullscreen" className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all">
+                    <button onClick={() => { if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullScreen(true); } else { document.exitFullscreen(); setIsFullScreen(false); } }} title="Fullscreen" className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
                         <Maximize size={13} />
                     </button>
                 </div>
@@ -945,7 +959,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                                     onControlEvent({ type: 'action', action });
                                 }
                             }} title={title}
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
                                 <Icon size={13} />
                             </button>
                         ))
@@ -959,7 +973,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                             { icon: Power, action: 'shutdown', title: 'Shutdown', color: 'hover:text-red-400 hover:bg-red-500/10' },
                         ].map(({ icon: Icon, action, title, color }) => (
                             <button key={action} onClick={() => onControlEvent({ type: 'action', action })} title={title}
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/40 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
+                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
                                 <Icon size={13} />
                             </button>
                         ))
@@ -1043,8 +1057,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     <>
                         <div className="w-px h-5 bg-white/[0.06] mx-1" />
                         <div className="flex items-center gap-2 px-2">
-                            <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider max-w-[80px] truncate">{transferProgress.name}</span>
-                            <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden">
+                            <span className="text-[9px] font-bold text-white/95 uppercase tracking-wider max-w-[80px] truncate">{transferProgress.name}</span>
+                            <div className="w-20 h-1 bg-white/10 rounded-full overflow-hidden cursor-none">
                                 <div className="h-full bg-blue-400 transition-all duration-300 rounded-full" style={{ width: `${transferProgress.p}%` }} />
                             </div>
                             <span className="text-[9px] font-mono text-blue-400">{transferProgress.p}%</span>
@@ -1828,8 +1842,8 @@ export default function App() {
     useEffect(() => {
         // If all required identity info is loaded and auto-host is enabled, start hosting.
         // hostStatus "" or "idle" means it hasn't started yet.
-        // BYPASS: SUPER_ADMIN and SUB_ADMIN must always host manually as per request.
-        const isBypassRole = user?.role === 'SUPER_ADMIN' || user?.role === 'SUB_ADMIN';
+        // BYPASS: SUPER_ADMIN and DEPARTMENT_MANAGER must always host manually as per request.
+        const isBypassRole = user?.role === 'SUPER_ADMIN' || user?.role === 'DEPARTMENT_MANAGER' || user?.role === 'PLATFORM_OWNER';
 
         if (isAuthenticated && !isBypassRole && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
             console.log('[Auto-Host] Identity ready, initiating automatic start...');
@@ -1891,12 +1905,23 @@ export default function App() {
         if (!isElectron) return;
 
         // Listen for Google OAuth deep link success
-        const unsubDeepLink = (window as any).electronAPI.onAuthDeepLinkSuccess?.(async (tokens: any) => {
+        const removeAuthSuccess = (window as any).electronAPI.onAuthDeepLinkSuccess?.(async (tokens: any) => {
             console.log('[Auth] Deep link success received in renderer');
             // Store tokens first so the API interceptor can use them
             await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', role: 'USER', organizationId: null, avatar: null }, tokens.accessToken, tokens.refreshToken);
             // Then fetch real user data from /me
             checkAuth();
+        });
+
+        // Listen for Onboarding deep link
+        const removeOnboarding = (window as any).electronAPI.onOnboardingToken?.((token: string) => {
+            console.log('[Auth] Onboarding token received in renderer:', token);
+            setOnboardingToken(token);
+        });
+
+        // Listen for 2FA token
+        const removeTemp2fa = (window as any).electronAPI.onTemp2faToken?.((token: string) => {
+            setTemp2faToken(token);
         });
 
         if (isElectron) {
@@ -1912,14 +1937,7 @@ export default function App() {
                     setHostStatus('status');
                 }
             });
-
-            // Listen for Onboarding deep link
-            (window as any).electronAPI.onOnboardingToken?.((token: string) => {
-                console.log('[Auth] Onboarding token received in renderer:', token);
-                setOnboardingToken(token);
-            });
         }
-
         const removeHostListener = isElectron ? (window as any).electronAPI.onHostStatus((status: string) => {
             setHostMessage(status);
         }) : () => { };
@@ -2172,7 +2190,9 @@ export default function App() {
 
         return () => {
             if (isElectron) {
-                if (unsubDeepLink) unsubDeepLink();
+                removeAuthSuccess?.();
+                removeOnboarding?.();
+                removeTemp2fa?.();
                 removeHostListener();
                 removeSignalingListener();
                 if (removeSignalingDisconnected) removeSignalingDisconnected();
@@ -2460,14 +2480,14 @@ export default function App() {
     // --- V8 ABSOLUTE PRIORITY ROUTING: Bypass EVERYTHING for Viewer Windows ---
     if (isViewerWindow || viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connection_lost') {
         return (
-            <div className="h-screen bg-white flex flex-col relative overflow-hidden">
+            <div className="h-screen bg-white flex flex-col relative overflow-hidden cursor-none">
                 {viewerStatus === 'connection_lost' && (
                     <div className="absolute inset-0 z-[100] bg-white/95 backdrop-blur-2xl flex flex-col items-center justify-center animate-in fade-in duration-700">
                         <div className="w-24 h-24 bg-red-50 rounded-[32px] flex items-center justify-center mb-8 border border-red-100 shadow-2xl">
                             <MonitorOff className="text-red-500 w-10 h-10" />
                         </div>
                         <h2 className="text-4xl font-black text-[#1C1C1C] mb-4 uppercase tracking-tighter">Connection Fault</h2>
-                        <p className="text-[10px] text-[rgba(28,28,28,0.4)] mb-12 tracking-[0.2em] font-black uppercase">The remote node has severed the secure link</p>
+                        <p className="text-[10px] text-[#1C1C1C] mb-12 tracking-[0.2em] font-black uppercase">The remote node has severed the secure link</p>
                         <div className="flex gap-4">
                             <button
                                 onClick={isViewerWindow ? () => window.close() : handleDisconnect}
@@ -2535,12 +2555,12 @@ export default function App() {
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
-                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Verification Required</span>
+                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#1C1C1C] mt-1">Verification Required</span>
                             </div>
                         </div>
 
                         <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Two-Factor Auth</h1>
-                        <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+                        <p className="text-sm font-medium text-[#1C1C1C] mb-8 leading-relaxed">
                             Open your authenticator app and enter the 6-digit verification code.
                         </p>
 
@@ -2551,7 +2571,7 @@ export default function App() {
                                     type="text"
                                     maxLength={6}
                                     placeholder="000 000"
-                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[24px] px-4 py-5 text-center text-3xl font-mono font-bold tracking-[0.2em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.1)]"
+                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[24px] px-4 py-5 text-[#000000]enter text-3xl font-mono font-bold tracking-[0.2em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#000000]"
                                     value={totpCode}
                                     onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 />
@@ -2572,7 +2592,7 @@ export default function App() {
                             <button
                                 type="button"
                                 onClick={() => setTemp2faToken(null)}
-                                className="w-full text-xs font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
+                                className="w-full text-xs font-bold text-[#1C1C1C] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
                             >
                                 Back to Sign In
                             </button>
@@ -2595,7 +2615,7 @@ export default function App() {
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
-                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Desktop Auth</span>
+                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#1C1C1C] mt-1">Desktop Auth</span>
                             </div>
                         </div>
                         <button
@@ -2605,7 +2625,7 @@ export default function App() {
                                 setAuthMode('login');
                                 setAuthError(null);
                             }}
-                            className="mb-6 text-[11px] font-bold text-[rgba(28,28,28,0.45)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
+                            className="mb-6 text-[11px] font-bold text-[#000000] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
                         >
                             ← Back to Home
                         </button>
@@ -2625,7 +2645,7 @@ export default function App() {
                                             setViewerError(''); setViewerStatus('idle');
                                         }
                                     }}
-                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[rgba(28,28,28,0.3)] hover:text-[rgba(28,28,28,0.6)]'}`}
+                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[#1C1C1C] hover:text-[#000000]'}`}
                                 >
                                     {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Register' : 'Connect'}
                                 </button>
@@ -2636,23 +2656,23 @@ export default function App() {
                             /* --- GUEST CONNECT FLOW --- */
                             <div className="animate-in fade-in duration-300">
                                 <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
-                                <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+                                <p className="text-sm font-medium text-[#1C1C1C] mb-8 leading-relaxed">
                                     Enter the device access key and password to connect without an account.
                                 </p>
 
                                 {viewerStep === 1 ? (
                                     <div className="space-y-4">
                                         <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Access Key</label>
+                                            <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Access Key</label>
                                             <div className="relative group">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                     <Monitor size={16} />
                                                 </div>
                                                 <input
                                                     autoFocus
                                                     type="text"
                                                     placeholder="000 000 000"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-center focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-[#000000]enter focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                     value={sessionCode}
                                                     onChange={e => setSessionCode(formatCode(e.target.value))}
                                                     onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
@@ -2685,23 +2705,23 @@ export default function App() {
                                                 <Monitor size={14} className="text-white" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest">Target Device</p>
+                                                <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">Target Device</p>
                                                 <p className="text-sm font-bold text-[#1C1C1C] font-mono">{formatCode(sessionCode)}</p>
                                             </div>
                                             <div className="w-2.5 h-2.5 bg-[#71DD8C] rounded-full animate-pulse" />
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Password</label>
+                                            <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Password</label>
                                             <div className="relative group">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                     <Lock size={16} />
                                                 </div>
                                                 <input
                                                     autoFocus
                                                     type={showManualPassword ? 'text' : 'password'}
                                                     placeholder="••••••••"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                     value={accessPassword}
                                                     onChange={e => setAccessPassword(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
@@ -2709,7 +2729,7 @@ export default function App() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowManualPassword(!showManualPassword)}
-                                                    className="absolute inset-y-0 right-4 flex items-center text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                                                    className="absolute inset-y-0 right-4 flex items-center text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors"
                                                 >
                                                     {showManualPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                                 </button>
@@ -2736,7 +2756,7 @@ export default function App() {
                                         <button
                                             type="button"
                                             onClick={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); }}
-                                            className="w-full text-xs font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
+                                            className="w-full text-xs font-bold text-[#1C1C1C] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
                                         >
                                             ← Change Device
                                         </button>
@@ -2749,7 +2769,7 @@ export default function App() {
                                     <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
                                         {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
                                     </h1>
-                                    <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] mb-8 leading-relaxed">
+                                    <p className="text-sm font-medium text-[#1C1C1C] mb-8 leading-relaxed">
                                         {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the Connect-X mesh.'}
                                     </p>
 
@@ -2769,28 +2789,28 @@ export default function App() {
                                     </button>
 
                                     <div className="relative flex items-center justify-center mb-6">
-                                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.06)]" /></div>
-                                        <span className="relative z-10 bg-white px-4 text-[10px] text-[rgba(28,28,28,0.2)] uppercase tracking-widest font-bold">or with email</span>
+                                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.15)]" /></div>
+                                        <span className="relative z-10 bg-white px-4 text-[10px] text-[#1C1C1C] uppercase tracking-widest font-bold">or with email</span>
                                     </div>
 
                                     <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
                                         {authMode === 'signup' && isAwaitingVerification ? (
                                             <div className="space-y-1.5 animate-in fade-in">
-                                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Verification Code</label>
+                                                <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Verification Code</label>
                                                 <div className="relative group">
-                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                         <ShieldCheck size={16} />
                                                     </div>
                                                     <input
                                                         type="text"
                                                         required
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                         value={verificationCode}
                                                         placeholder="123456"
                                                         onChange={(e) => setVerificationCode(e.target.value)}
                                                     />
                                                 </div>
-                                                <p className="text-[10px] text-center text-[rgba(28,28,28,0.4)] mt-2">
+                                                <p className="text-[10px] text-[#000000]enter text-[#1C1C1C] mt-2">
                                                     Code sent to <strong className="text-[#1C1C1C]">{email}</strong>
                                                 </p>
                                             </div>
@@ -2798,15 +2818,15 @@ export default function App() {
                                             <>
                                                 {authMode === 'signup' && (
                                                     <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Display Name</label>
+                                                        <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Display Name</label>
                                                         <div className="relative group">
-                                                            <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                            <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                                 <User size={16} />
                                                             </div>
                                                             <input
                                                                 type="text"
                                                                 required
-                                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                                 value={signupName}
                                                                 placeholder="Your name"
                                                                 onChange={(e) => setSignupName(e.target.value)}
@@ -2816,15 +2836,15 @@ export default function App() {
                                                 )}
 
                                                 <div className="space-y-1.5">
-                                                    <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Email Address</label>
+                                                    <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Email Address</label>
                                                     <div className="relative group">
-                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                             <Mail size={16} />
                                                         </div>
                                                         <input
                                                             type="email"
                                                             required
-                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                             value={email}
                                                             placeholder="name@company.com"
                                                             onChange={(e) => setEmail(e.target.value)}
@@ -2834,22 +2854,22 @@ export default function App() {
 
                                                 <div className="space-y-1.5">
                                                     <div className="flex items-center justify-between ml-1">
-                                                        <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Password</label>
+                                                        <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider">Password</label>
                                                         {authMode === 'login' && <button type="button" onClick={() => { setResetEmail(email); setResetMsg(''); setAuthMode('forgot'); }} className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
                                                     </div>
                                                     <div className="relative group">
-                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                             <Lock size={16} />
                                                         </div>
                                                         <input
                                                             type={showLoginPassword ? "text" : "password"}
                                                             required
-                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                             value={password}
                                                             placeholder="••••••••"
                                                             onChange={(e) => setPassword(e.target.value)}
                                                         />
-                                                        <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
+                                                        <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
                                                             {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                                         </button>
                                                     </div>
@@ -2875,11 +2895,11 @@ export default function App() {
                                 {/* ── Forgot Password ── */}
                                 {authMode === 'forgot' && (
                                     <div className="animate-in fade-in duration-300">
-                                        <button onClick={() => setAuthMode('login')} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
+                                        <button onClick={() => setAuthMode('login')} className="flex items-center gap-1.5 text-[11px] font-bold text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors mb-6">
                                             <ChevronLeft size={14} /> Back to Sign In
                                         </button>
                                         <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Forgot Password</h2>
-                                        <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Enter your email and we'll send a 6-character reset code.</p>
+                                        <p className="text-xs text-[#1C1C1C] mb-6">Enter your email and we'll send a 6-character reset code.</p>
                                         <form onSubmit={async (e) => {
                                             e.preventDefault();
                                             setLoading(true);
@@ -2892,13 +2912,13 @@ export default function App() {
                                             } finally { setLoading(false); }
                                         }} className="space-y-4">
                                             <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><Mail size={16} /></div>
                                                 <input
                                                     type="email" required
                                                     value={resetEmail}
                                                     onChange={e => setResetEmail(e.target.value)}
                                                     placeholder="name@company.com"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                 />
                                             </div>
                                             {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
@@ -2906,7 +2926,7 @@ export default function App() {
                                                 {loading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
                                                 SEND RESET CODE
                                             </button>
-                                            <button type="button" onClick={() => setAuthMode('reset')} className="w-full text-center text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
+                                            <button type="button" onClick={() => setAuthMode('reset')} className="w-full text-[#000000]enter text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
                                                 Already have a code?
                                             </button>
                                         </form>
@@ -2916,11 +2936,11 @@ export default function App() {
                                 {/* ── Reset Password ── */}
                                 {authMode === 'reset' && (
                                     <div className="animate-in fade-in duration-300">
-                                        <button onClick={() => { setAuthMode('forgot'); setResetMsg(''); }} className="flex items-center gap-1.5 text-[11px] font-bold text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-colors mb-6">
+                                        <button onClick={() => { setAuthMode('forgot'); setResetMsg(''); }} className="flex items-center gap-1.5 text-[11px] font-bold text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors mb-6">
                                             <ChevronLeft size={14} /> Back
                                         </button>
                                         <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Enter Reset Code</h2>
-                                        <p className="text-xs text-[rgba(28,28,28,0.4)] mb-6">Check your email for the 6-character code, then set a new password.</p>
+                                        <p className="text-xs text-[#1C1C1C] mb-6">Check your email for the 6-character code, then set a new password.</p>
                                         <form onSubmit={async (e) => {
                                             e.preventDefault();
                                             setLoading(true);
@@ -2937,27 +2957,27 @@ export default function App() {
                                             } finally { setLoading(false); }
                                         }} className="space-y-4">
                                             <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Mail size={16} /></div>
-                                                <input type="email" required value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="Your email" className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]" />
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><Mail size={16} /></div>
+                                                <input type="email" required value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="Your email" className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]" />
                                             </div>
                                             <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><KeyRound size={16} /></div>
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><KeyRound size={16} /></div>
                                                 <input
                                                     type="text" required maxLength={6}
                                                     value={resetCode}
                                                     onChange={e => setResetCode(e.target.value.toUpperCase())}
                                                     placeholder="XXXXXX"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-black tracking-[0.3em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)] placeholder:tracking-normal"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-black tracking-[0.3em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C] placeholder:tracking-normal"
                                                 />
                                             </div>
                                             <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)]"><Lock size={16} /></div>
+                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><Lock size={16} /></div>
                                                 <input
                                                     type="password" required minLength={8}
                                                     value={resetNewPassword}
                                                     onChange={e => setResetNewPassword(e.target.value)}
                                                     placeholder="New password (min 8 chars)"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                 />
                                             </div>
                                             {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
@@ -2973,7 +2993,7 @@ export default function App() {
 
                     </div>
 
-                    <div className="mt-8 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.3em]">
+                    <div className="mt-8 text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.3em]">
                         Team Zain • Connect-X Engine v1.0
                     </div>
                 </div>
@@ -3026,8 +3046,8 @@ export default function App() {
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-4 bg-blue-500/20 blur-xl rounded-full" />
                         </div>
 
-                        <h2 className="text-2xl font-extrabold text-white tracking-tight mb-1 text-center">This Machine</h2>
-                        <p className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] mb-8 text-center">Share these credentials to allow remote access</p>
+                        <h2 className="text-2xl font-extrabold text-white tracking-tight mb-1 text-[#000000]enter">This Machine</h2>
+                        <p className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] mb-8 text-[#000000]enter">Share these credentials to allow remote access</p>
 
                         {/* Server IP */}
                         <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 mb-3 flex items-center gap-4">
@@ -3050,7 +3070,7 @@ export default function App() {
                                 {localAuthKey ? (
                                     <p className="text-sm font-mono font-bold text-white tracking-[0.15em]">{formatCode(localAuthKey)}</p>
                                 ) : (
-                                    <p className="text-sm font-bold text-white/20 italic">Not registered</p>
+                                    <p className="text-sm font-bold text-white/80 italic">Not registered</p>
                                 )}
                             </div>
                         </div>
@@ -3065,7 +3085,7 @@ export default function App() {
                                 {devicePassword ? (
                                     <p className="text-sm font-mono font-bold text-white/70 tracking-[0.3em]">{'•'.repeat(Math.min(devicePassword.length, 10))}</p>
                                 ) : (
-                                    <p className="text-sm font-bold text-white/20 italic">Not configured</p>
+                                    <p className="text-sm font-bold text-white/80 italic">Not configured</p>
                                 )}
                             </div>
                         </div>
@@ -3115,20 +3135,20 @@ export default function App() {
                         <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
                             <Monitor className="text-blue-600 w-8 h-8" />
                         </div>
-                        <div className="text-center">
+                        <div className="text-[#000000]enter">
                             <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">Connection Request</h2>
-                            <p className="text-sm font-medium text-[rgba(28,28,28,0.5)] leading-relaxed">
+                            <p className="text-sm font-medium text-[#000000] leading-relaxed">
                                 Someone wants to view your screen.<br />Do you want to allow this connection?
                             </p>
                         </div>
                         <div className="w-full flex flex-col items-center gap-1">
-                            <div className="w-full bg-[#F8F9FA] rounded-2xl h-2 overflow-hidden">
+                            <div className="w-full bg-[#F8F9FA] rounded-2xl h-2 overflow-hidden cursor-none">
                                 <div
                                     className="h-full bg-blue-500 transition-all duration-1000 ease-linear"
                                     style={{ width: `${(pendingViewerRequest.countdown / 30) * 100}%` }}
                                 />
                             </div>
-                            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest">
+                            <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">
                                 Auto-denying in {pendingViewerRequest.countdown}s
                             </p>
                         </div>
@@ -3138,7 +3158,7 @@ export default function App() {
                                     (window as any).electronAPI?.denyViewer(pendingViewerRequest.viewerId);
                                     setPendingViewerRequest(null);
                                 }}
-                                className="flex-1 py-3.5 rounded-2xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest text-[rgba(28,28,28,0.5)] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                className="flex-1 py-3.5 rounded-2xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest text-[#000000] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                             >
                                 Deny
                             </button>
@@ -3157,7 +3177,7 @@ export default function App() {
             )}
 
             {globalError && (
-                <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-center py-3 text-xs font-bold z-[50] flex justify-between px-6 items-center shadow-lg">
+                <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-[#000000]enter py-3 text-xs font-bold z-[50] flex justify-between px-6 items-center shadow-lg">
                     <span>{globalError}</span>
                     <button onClick={() => setGlobalError('')} className="bg-white/20 p-1 rounded-md hover:bg-white/30 transition-colors"><X className="w-4 h-4" /></button>
                 </div>
@@ -3191,7 +3211,9 @@ export default function App() {
             <div className={`flex-1 flex overflow-hidden transition-all duration-300 relative ${isAuthenticated ? 'md:ml-[212px]' : ''}`}>
                 <main className="flex-1 flex flex-col overflow-hidden relative bg-white">
                     {/* Workspace Header */}
-                    <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(28,28,28,0.06)]">
+                    {/* Workspace Header - Hidden on Guest Home */}
+                    {(isAuthenticated || (currentView as any) !== 'home') && (
+                        <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(28,28,28,0.15)]">
                         <div className="flex items-center gap-4">
                             {/* Mobile Menu Toggle */}
                             {isAuthenticated && (
@@ -3204,10 +3226,10 @@ export default function App() {
                             )}
 
                             <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-[rgba(28,28,28,0.25)] uppercase tracking-widest hidden sm:flex">
-                                    <span className="hover:text-[rgba(28,28,28,0.5)] cursor-pointer transition-colors" onClick={() => setCurrentView(isAuthenticated ? 'dashboard' : 'home')}>Connect-X</span>
+                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#000000] uppercase tracking-widest hidden sm:flex">
+                                    <span className="hover:text-[#000000] cursor-pointer transition-colors" onClick={() => setCurrentView(isAuthenticated ? 'dashboard' : 'home')}>Connect-X</span>
                                     <span>/</span>
-                                    <span className="text-[rgba(28,28,28,0.5)]">{
+                                    <span className="text-[#000000]">{
                                         selectedDevice ? 'Device Terminal' :
                                             currentView === 'home' ? 'Home' :
                                             currentView === 'dashboard' ? 'Overview' :
@@ -3243,20 +3265,20 @@ export default function App() {
 
                         <div className="flex items-center gap-2 md:gap-4">
                             {isAuthenticated && (
-                                <div className="hidden sm:flex items-center bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] pl-3.5 pr-1 py-1 transition-all w-44 md:w-60 h-9 focus-within:bg-white focus-within:border-[rgba(28,28,28,0.2)]">
-                                <Search className="w-3.5 h-3.5 text-[rgba(28,28,28,0.3)] mr-2 flex-shrink-0" />
+                                <div className="hidden sm:flex items-center bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.15)] pl-3.5 pr-1 py-1 transition-all w-44 md:w-60 h-9 focus-within:bg-white focus-within:border-[rgba(28,28,28,0.2)]">
+                                <Search className="w-3.5 h-3.5 text-[#1C1C1C] mr-2 flex-shrink-0" />
                                 <input
                                     type="text"
                                     placeholder="Search devices..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[rgba(28,28,28,0.25)]"
+                                    className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[#000000]"
                                 />
                                 </div>
                             )}
 
                             {isAuthenticated && (
-                                <button onClick={pollDevices} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[rgba(28,28,28,0.35)] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.06)]" title="Refresh">
+                                <button onClick={pollDevices} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.15)]" title="Refresh">
                                     <RefreshCw className="w-4 h-4" />
                                 </button>
                             )}
@@ -3278,7 +3300,7 @@ export default function App() {
                                 </div>
                                 <div className="hidden md:flex flex-col items-start">
                                     <span className="text-[11px] font-bold text-[#1C1C1C] leading-none truncate max-w-[100px]">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
-                                    <span className="text-[9px] font-bold text-[rgba(28,28,28,0.35)] uppercase tracking-wider mt-0.5">{user?.role?.replace('_', ' ') || 'Member'}</span>
+                                    <span className="text-[9px] font-bold text-[#1C1C1C] uppercase tracking-wider mt-0.5">{user?.role?.replace('_', ' ') || 'Member'}</span>
                                 </div>
                                 </button>
                             ) : (
@@ -3290,9 +3312,10 @@ export default function App() {
                                 </button>
                             )}
                         </div>
-                    </header>
+                        </header>
+                    )}
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8">
+                    <div className={`flex-1 overflow-y-auto custom-scrollbar ${(isAuthenticated || (currentView as any) !== 'home') ? 'px-8 pb-8' : ''}`}>
                         {!isAuthenticated || currentView === 'home' ? (
                             <div className="w-full pt-4 animate-in fade-in duration-700">
                                 <SnowHome
@@ -3343,7 +3366,7 @@ export default function App() {
                                 </div>
 
                                 <h2 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2 uppercase">{selectedDevice.device_name}</h2>
-                                <div className="flex items-center gap-3 text-[rgba(28,28,28,0.4)] text-[11px] font-bold mb-10 tracking-widest uppercase">
+                                <div className="flex items-center gap-3 text-[#1C1C1C] text-[11px] font-bold mb-10 tracking-widest uppercase">
                                     <span className="bg-[rgba(28,28,28,0.05)] px-2 py-1 rounded-lg font-mono text-[#1C1C1C]">#{selectedDevice.access_key}</span>
                                     <div className="w-1.5 h-1.5 rounded-full bg-[rgba(28,28,28,0.1)]" />
                                     <span>Secure Link Ready</span>
@@ -3352,7 +3375,7 @@ export default function App() {
                                 <div className="flex gap-4 w-full max-w-sm">
                                     <button
                                         onClick={() => setSelectedDevice(null)}
-                                        className="flex-1 py-3.5 rounded-2xl font-bold text-[11px] uppercase tracking-widest text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] bg-white border border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] transition shadow-sm"
+                                        className="flex-1 py-3.5 rounded-2xl font-bold text-[11px] uppercase tracking-widest text-[#1C1C1C] hover:text-[#1C1C1C] bg-white border border-[rgba(28,28,28,0.15)] hover:border-[rgba(28,28,28,0.2)] transition shadow-sm"
                                     >
                                         Go Back
                                     </button>
@@ -3403,13 +3426,13 @@ export default function App() {
                                         </div>
                                         <div className="flex flex-col text-left">
                                             <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
-                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[rgba(28,28,28,0.2)] mt-1">Direct Link</span>
+                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#1C1C1C] mt-1">Direct Link</span>
                                         </div>
                                     </div>
 
-                                    <div className="text-center mb-8">
+                                    <div className="text-[#000000]enter mb-8">
                                         <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
-                                        <p className="text-sm font-medium text-[rgba(28,28,28,0.4)] leading-relaxed">
+                                        <p className="text-sm font-medium text-[#1C1C1C] leading-relaxed">
                                             Enter the device access key and password to connect directly to a remote node.
                                         </p>
                                     </div>
@@ -3417,16 +3440,16 @@ export default function App() {
                                     {viewerStep === 1 ? (
                                         <div className="space-y-4">
                                             <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Access Key</label>
+                                                <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Access Key</label>
                                                 <div className="relative group">
-                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                         <Monitor size={16} />
                                                     </div>
                                                     <input
                                                         autoFocus
                                                         type="text"
                                                         placeholder="000 000 000"
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-center focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-[#000000]enter focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                         value={sessionCode}
                                                         onChange={e => setSessionCode(formatCode(e.target.value))}
                                                         onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
@@ -3459,23 +3482,23 @@ export default function App() {
                                                     <Monitor size={14} className="text-white" />
                                                 </div>
                                                 <div className="flex-1 min-w-0 text-left">
-                                                    <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest">Target Device</p>
+                                                    <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">Target Device</p>
                                                     <p className="text-sm font-bold text-[#1C1C1C] font-mono">{formatCode(sessionCode)}</p>
                                                 </div>
                                                 <div className="w-2.5 h-2.5 bg-[#71DD8C] rounded-full animate-pulse" />
                                             </div>
 
                                             <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider block ml-1">Device Password</label>
+                                                <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Password</label>
                                                 <div className="relative group">
-                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[rgba(28,28,28,0.2)] group-focus-within:text-[#1C1C1C] transition-colors">
+                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
                                                         <Lock size={16} />
                                                     </div>
                                                     <input
                                                         autoFocus
                                                         type={showManualPassword ? 'text' : 'password'}
                                                         placeholder="••••••••"
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.06)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[rgba(28,28,28,0.2)]"
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                         value={accessPassword}
                                                         onChange={e => setAccessPassword(e.target.value)}
                                                         onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
@@ -3483,7 +3506,7 @@ export default function App() {
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowManualPassword(!showManualPassword)}
-                                                        className="absolute inset-y-0 right-4 flex items-center text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors"
+                                                        className="absolute inset-y-0 right-4 flex items-center text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors"
                                                     >
                                                         {showManualPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                                                     </button>
@@ -3510,7 +3533,7 @@ export default function App() {
                                             <button
                                                 type="button"
                                                 onClick={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); }}
-                                                className="w-full text-xs font-bold text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
+                                                className="w-full text-xs font-bold text-[#1C1C1C] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
                                             >
                                                 ← Change Device
                                             </button>
@@ -3521,24 +3544,24 @@ export default function App() {
                         ) : (currentView as any) === 'sessions' ? (
                             /* --- ACTIVE SESSIONS VIEW --- */
                             <div className="w-full pt-8 animate-in fade-in duration-700">
-                                <div className="bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
+                                <div className="bg-white rounded-[32px] border border-[rgba(28,28,28,0.15)] p-8 shadow-sm">
                                     <div className="flex items-center gap-4 mb-8">
                                         <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
                                             <Activity className="text-blue-600" size={24} />
                                         </div>
                                         <div>
                                             <h2 className="text-xl font-bold text-[#1C1C1C]">Active Remote Sessions</h2>
-                                            <p className="text-sm text-[rgba(28,28,28,0.4)]">Real-time connections to your fleet</p>
+                                            <p className="text-sm text-[#1C1C1C]">Real-time connections to your fleet</p>
                                         </div>
                                     </div>
 
                                     {activeSessionCount === 0 ? (
-                                        <div className="py-20 flex flex-col items-center justify-center text-center">
+                                        <div className="py-20 flex flex-col items-center justify-center text-[#000000]enter">
                                             <div className="w-20 h-20 bg-[#F8F9FA] rounded-[32px] flex items-center justify-center mb-6">
-                                                <Radio className="text-[rgba(28,28,28,0.1)] w-10 h-10" />
+                                                <Radio className="text-[#000000] w-10 h-10" />
                                             </div>
                                             <h3 className="text-lg font-bold text-[#1C1C1C] mb-2">No Active Streams</h3>
-                                            <p className="text-sm text-[rgba(28,28,28,0.4)] max-w-xs">You don't have any active remote control sessions at the moment.</p>
+                                            <p className="text-sm text-[#1C1C1C] max-w-xs">You don't have any active remote control sessions at the moment.</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
@@ -3552,7 +3575,7 @@ export default function App() {
                                                         <span className="text-sm font-bold text-[#1C1C1C]">Encrypted P2P Link</span>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                                            <span className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase">Active Now</span>
+                                                            <span className="text-[10px] font-bold text-[#1C1C1C] uppercase">Active Now</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -3681,16 +3704,16 @@ export default function App() {
                                         logout={storeLogout}
                                     />
 
-                                    {(user?.role === 'SUB_ADMIN' || user?.role === 'SUPER_ADMIN') && (
-                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.06)]">
-                                            <h2 className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] mb-8 ml-1">Organization Control</h2>
+                                    {(user?.role === 'DEPARTMENT_MANAGER' || user?.role === 'SUPER_ADMIN' || user?.role === 'PLATFORM_OWNER') && (
+                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.15)]">
+                                            <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1">Organization Control</h2>
                                             <SnowOrgSettings />
                                         </div>
                                     )}
 
-                                    {user?.role === 'SUPER_ADMIN' && (
-                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.06)]">
-                                            <h2 className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em] mb-8 ml-1">Platform Control</h2>
+                                    {user?.role === 'PLATFORM_OWNER' && (
+                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.15)]">
+                                            <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1">Platform Control</h2>
                                             <SnowAdminSettings />
                                         </div>
                                     )}
@@ -3708,25 +3731,25 @@ export default function App() {
             {/* Set Password Before Hosting Modal */}
             {showSetPasswordModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-sm bg-white p-8 rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300">
+                    <div className="w-full max-w-sm bg-white p-8 rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-orange-50 rounded-2xl flex items-center justify-center"><Shield size={18} className="text-orange-500" /></div>
                                 <div>
                                     <h3 className="text-sm font-bold text-[#1C1C1C]">Set Access Password</h3>
-                                    <p className="text-[10px] text-[rgba(28,28,28,0.4)]">Required before this device can host</p>
+                                    <p className="text-[10px] text-[#1C1C1C]">Required before this device can host</p>
                                 </div>
                             </div>
-                            <button onClick={() => { setShowSetPasswordModal(false); setSetupPassword(''); setSetupPasswordConfirm(''); setSetupPasswordError(''); }} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] rounded-xl hover:bg-[#F9F9FA] transition-colors"><X className="w-4 h-4" /></button>
+                            <button onClick={() => { setShowSetPasswordModal(false); setSetupPassword(''); setSetupPasswordConfirm(''); setSetupPasswordError(''); }} className="p-2 text-[#1C1C1C] hover:text-[#1C1C1C] rounded-xl hover:bg-[#F9F9FA] transition-colors"><X className="w-4 h-4" /></button>
                         </div>
-                        <p className="text-xs text-[rgba(28,28,28,0.5)] mb-5 leading-relaxed">Viewers will need this password to connect to your device. Choose something secure.</p>
+                        <p className="text-xs text-[#000000] mb-5 leading-relaxed">Viewers will need this password to connect to your device. Choose something secure.</p>
                         <div className="space-y-3 mb-5">
                             <input
                                 type="password"
                                 placeholder="Create password"
                                 value={setupPassword}
                                 onChange={e => { setSetupPassword(e.target.value); setSetupPasswordError(''); }}
-                                className="w-full px-4 py-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.06)] text-sm text-[#1C1C1C] font-mono outline-none"
+                                className="w-full px-4 py-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.15)] text-sm text-[#1C1C1C] font-mono outline-none"
                                 autoFocus
                             />
                             <input
@@ -3734,7 +3757,7 @@ export default function App() {
                                 placeholder="Confirm password"
                                 value={setupPasswordConfirm}
                                 onChange={e => { setSetupPasswordConfirm(e.target.value); setSetupPasswordError(''); }}
-                                className="w-full px-4 py-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.06)] text-sm text-[#1C1C1C] font-mono outline-none"
+                                className="w-full px-4 py-3 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.15)] text-sm text-[#1C1C1C] font-mono outline-none"
                             />
                             {setupPasswordError && (
                                 <p className="text-[11px] text-red-500 font-medium px-1">{setupPasswordError}</p>
@@ -3754,7 +3777,7 @@ export default function App() {
                                 setTimeout(() => handleStartHosting(), 100);
                             }}
                             disabled={!setupPassword || !setupPasswordConfirm}
-                            className="w-full py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-sm font-bold disabled:opacity-40 hover:opacity-90 transition-all"
+                            className="w-full py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-sm font-bold disabled:opacity-100 hover:opacity-90 transition-all"
                         >
                             Set Password & Start Hosting
                         </button>
@@ -3765,10 +3788,10 @@ export default function App() {
             {/* Password Prompt Modal */}
             {showPasswordPrompt && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-md bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300">
+                    <div className="w-full max-w-md bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
                         <div className="flex justify-between items-center mb-8">
                             <h3 className="text-xl font-bold text-[#1C1C1C] tracking-tight uppercase">Authentication Required</h3>
-                            <button onClick={() => setShowPasswordPrompt(null)} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-xl transition-colors"><X className="w-5 h-5" /></button>
+                            <button onClick={() => setShowPasswordPrompt(null)} className="p-2 text-[#1C1C1C] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-xl transition-colors"><X className="w-5 h-5" /></button>
                         </div>
                         <div className="relative mb-8">
                             <input
@@ -3776,16 +3799,16 @@ export default function App() {
                                 placeholder="Network Hardware Key"
                                 value={promptPassword}
                                 onChange={e => setPromptPassword(e.target.value)}
-                                className="purity-input font-mono text-center text-2xl tracking-[0.2em] pr-12"
+                                className="purity-input font-mono text-[#000000]enter text-2xl tracking-[0.2em] pr-12"
                                 autoFocus
                             />
-                            <button onClick={() => setShowPromptPassword(!showPromptPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
+                            <button onClick={() => setShowPromptPassword(!showPromptPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
                                 {showPromptPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
                         </div>
                         <label className="flex items-center gap-3 cursor-pointer mb-8 p-4 rounded-2xl bg-[#F8F9FA] border border-[rgba(28,28,28,0.04)] hover:border-[rgba(28,28,28,0.1)] transition-all">
                             <input type="checkbox" checked={promptRemember} onChange={e => setPromptRemember(e.target.checked)} className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-[#1C1C1C] focus:ring-[#1C1C1C]" />
-                            <span className="text-xs font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest">Remember this machine</span>
+                            <span className="text-xs font-bold text-[#1C1C1C] uppercase tracking-widest">Remember this machine</span>
                         </label>
                         <button onClick={submitPasswordPrompt} disabled={!promptPassword || viewerStatus === 'connecting'} className="snow-btn w-full">ESTABLISH SECURE LINK</button>
                     </div>
@@ -3795,7 +3818,7 @@ export default function App() {
             {/* Add Device Modal */}
             {showAddModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-md bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300">
+                    <div className="w-full max-w-md bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
                         <div className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-[#F8F9FA] rounded-[18px] flex items-center justify-center text-[#1C1C1C] shadow-sm border border-[rgba(28,28,28,0.04)]">
@@ -3803,19 +3826,19 @@ export default function App() {
                                 </div>
                                 <h3 className="text-lg font-bold text-[#1C1C1C] tracking-tight uppercase">Import Node</h3>
                             </div>
-                            <button onClick={() => setShowAddModal(false)} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-xl transition-colors"><X className="w-5 h-5" /></button>
+                            <button onClick={() => setShowAddModal(false)} className="p-2 text-[#1C1C1C] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-xl transition-colors"><X className="w-5 h-5" /></button>
                         </div>
 
                         <div className="space-y-6 mb-10">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] ml-1">Network ID</label>
-                                <input type="text" placeholder="000 000 000" value={addKey} onChange={e => setAddKey(formatCode(e.target.value))} className="purity-input font-mono text-center tracking-[0.2em]" />
+                                <label className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] ml-1">Network ID</label>
+                                <input type="text" placeholder="000 000 000" value={addKey} onChange={e => setAddKey(formatCode(e.target.value))} className="purity-input font-mono text-[#000000]enter tracking-[0.2em]" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-[0.2em] ml-1">Security Token</label>
+                                <label className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] ml-1">Security Token</label>
                                 <div className="relative">
-                                    <input type={showAddPassword ? "text" : "password"} placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="purity-input font-mono text-center pr-12" />
-                                    <button onClick={() => setShowAddPassword(!showAddPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] transition-colors">
+                                    <input type={showAddPassword ? "text" : "password"} placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="purity-input font-mono text-[#000000]enter pr-12" />
+                                    <button onClick={() => setShowAddPassword(!showAddPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
                                         {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
                                 </div>
@@ -3829,14 +3852,14 @@ export default function App() {
             {/* Device Action Modal */}
             {actionModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-sm bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300">
-                        <div className="mb-8 text-center">
+                    <div className="w-full max-w-sm bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
+                        <div className="mb-8 text-[#000000]enter">
                             <h3 className="text-xl font-black text-[#1C1C1C] mb-2 tracking-tight uppercase">
                                 {actionModal.type === 'rename' ? 'Modify Identity' :
                                     actionModal.type === 'password' ? 'Hardware Key' :
                                         actionModal.type === 'remove' ? 'Sever Connection' : ''}
                             </h3>
-                            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] leading-relaxed uppercase tracking-[0.2em]">
+                            <p className="text-[10px] font-bold text-[#1C1C1C] leading-relaxed uppercase tracking-[0.2em]">
                                 {actionModal.type === 'rename' ? 'Set a persistent nickname for this machine.' :
                                     actionModal.type === 'password' ? 'Update the hardware access credentials.' :
                                         actionModal.type === 'remove' ? `Unlink ${actionModal.device.device_name} from your account?` : ''}
@@ -3849,7 +3872,7 @@ export default function App() {
                                     autoFocus
                                     type={actionModal.type === 'password' ? 'password' : 'text'}
                                     placeholder={actionModal.type === 'password' ? 'Secure Crypt Key' : 'e.g. Workstation Alpha'}
-                                    className="purity-input w-full font-mono text-center tracking-widest"
+                                    className="purity-input w-full font-mono text-[#000000]enter tracking-widest"
                                     value={actionValue}
                                     onChange={e => setActionValue(e.target.value)}
                                 />
@@ -3881,20 +3904,20 @@ export default function App() {
             {/* File Received Modal */}
             {fileReceivedModal && (
                 <div className="fixed inset-0 z-[300] bg-[#1C1C1C]/20 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in duration-300">
-                    <div className="bg-white border border-[rgba(28,28,28,0.06)] shadow-2xl rounded-[32px] p-10 w-[500px] max-w-full flex flex-col items-center text-center relative">
+                    <div className="bg-white border border-[rgba(28,28,28,0.15)] shadow-2xl rounded-[32px] p-10 w-[500px] max-w-full flex flex-col items-center text-[#000000]enter relative">
                         <div className={`w-20 h-20 rounded-[24px] flex items-center justify-center mb-8 shadow-sm border ${fileReceivedModal.isRemote ? 'bg-blue-50 text-blue-500 border-blue-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'}`}>
                             <DownloadCloud className="w-10 h-10" />
                         </div>
                         <h3 className="text-2xl font-black text-[#1C1C1C] mb-1 uppercase tracking-tighter">
                             {fileReceivedModal.isRemote ? 'Payload Deployed' : 'Payload Received'}
                         </h3>
-                        <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] mb-8 uppercase tracking-[0.2em]">
+                        <p className="text-[10px] font-bold text-[#1C1C1C] mb-8 uppercase tracking-[0.2em]">
                             Successfully stored in {fileReceivedModal.isRemote ? 'Host' : 'Viewer'} storage
                         </p>
 
-                        <div className="w-full bg-[#F8F9FA] rounded-2xl p-5 border border-[rgba(28,28,28,0.04)] mb-10 text-left overflow-hidden">
+                        <div className="w-full bg-[#F8F9FA] rounded-2xl p-5 border border-[rgba(28,28,28,0.04)] mb-10 text-left overflow-hidden cursor-none">
                             <div className="flex flex-col gap-1.5">
-                                <span className="text-[8px] font-black text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Absolute Destination Path</span>
+                                <span className="text-[8px] font-black text-[#1C1C1C] uppercase tracking-widest">Absolute Destination Path</span>
                                 <p className="text-[11px] font-mono font-bold text-[#1C1C1C] break-all leading-relaxed" title={fileReceivedModal.path}>
                                     {fileReceivedModal.path}
                                 </p>
@@ -3927,12 +3950,12 @@ export default function App() {
             {/* Global Error Modal */}
             {errorModal && errorModal.show && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-[#1C1C1C]/40 backdrop-blur-xl animate-in fade-in duration-300">
-                    <div className="w-full max-w-md bg-white p-10 rounded-[32px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border border-[rgba(28,28,28,0.06)] animate-in zoom-in-95 duration-300 text-center">
+                    <div className="w-full max-w-md bg-white p-10 rounded-[32px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300 text-[#000000]enter">
                         <div className="w-20 h-20 bg-red-50 rounded-[28px] flex items-center justify-center text-red-500 mx-auto mb-8 border border-red-100">
                             <ShieldOff className="w-10 h-10" />
                         </div>
                         <h3 className="text-2xl font-black text-[#1C1C1C] mb-3 tracking-tighter uppercase">{errorModal.title}</h3>
-                        <p className="text-xs font-bold text-[rgba(28,28,28,0.4)] leading-relaxed uppercase tracking-[0.1em] mb-10">
+                        <p className="text-xs font-bold text-[#1C1C1C] leading-relaxed uppercase tracking-[0.1em] mb-10">
                             {errorModal.message}
                         </p>
                         <button

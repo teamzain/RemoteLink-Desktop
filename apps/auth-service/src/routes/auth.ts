@@ -134,13 +134,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
       });
 
-      // 2. Create User as SUB_ADMIN of that Org
+      // 2. Create User as SUPER_ADMIN of that Org
       const user = await tx.user.create({
         data: {
           email,
           password: hashedPassword,
           name,
-          role: 'SUB_ADMIN',
+          role: 'SUPER_ADMIN',
           organizationId: org.id
         }
       });
@@ -303,7 +303,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             data: {
               email,
               name: name || email.split('@')[0],
-              role: 'SUB_ADMIN',
+              role: 'SUPER_ADMIN',
               organizationId: org.id,
             }
           });
@@ -567,9 +567,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         if (!user) throw new Error('User not found');
 
-        // 1. If user is a SUB_ADMIN, they might own an organization.
-        // If they are the only admin or we want to delete the whole workspace:
-        if (user.role === 'SUB_ADMIN' && user.organizationId) {
+        // 1. If user is a SUPER_ADMIN, they might own an organization.
+        // We delete the org and everything cascades
+        if (user.role === 'SUPER_ADMIN' && user.organizationId) {
           const orgId = user.organizationId;
 
           // Dissociate other users first (standard cleanup)
@@ -642,8 +642,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         // 3. Delete the User
         await tx.user.delete({ where: { id: userId } });
 
-        // 4. Finally delete the Org if they were a SUB_ADMIN
-        if (user.role === 'SUB_ADMIN' && user.organizationId) {
+        // 4. Finally delete the Org if they were a SUPER_ADMIN
+        if (user.role === 'SUPER_ADMIN' && user.organizationId) {
           await tx.organization.delete({ where: { id: user.organizationId } });
         }
       });

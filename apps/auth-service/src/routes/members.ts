@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer';
 
 export default async function memberRoutes(fastify: FastifyInstance) {
 
-  // Helper to verify Org Admin (SUB_ADMIN) and Plan permission
+  // Helper to verify Org Admin (SUPER_ADMIN or DEPARTMENT_MANAGER) and Plan permission
   const requireOrgAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) {
@@ -16,7 +16,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
 
-    if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
+    if (!decoded || (decoded.role !== 'SUPER_ADMIN' && decoded.role !== 'DEPARTMENT_MANAGER' && decoded.role !== 'PLATFORM_OWNER')) {
       reply.code(403).send({ error: 'Org Admin access required' });
       return null;
     }
@@ -27,12 +27,12 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     // Check plan for Sub Admins (Org Managers)
     const sub = await prisma.subscription.findUnique({ where: { userId: decoded.userId } });
 
-    // If the SUB_ADMIN making the request doesn't have a plan, check if the ORG owner does
+    // If the DEPARTMENT_MANAGER making the request doesn't have a plan, check if the ORG owner does
     let plan = sub?.plan;
 
     if (!plan && decoded.orgId) {
       const orgOwner = await prisma.user.findFirst({
-        where: { organizationId: decoded.orgId, role: 'SUB_ADMIN' },
+        where: { organizationId: decoded.orgId, role: 'SUPER_ADMIN' },
         include: { subscription: true },
         orderBy: { createdAt: 'asc' }
       });
@@ -52,7 +52,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     return decoded;
   };
 
-  // 1. Invite a Member (SUB_ADMIN ONLY)
+  // 1. Invite a Member (SUPER_ADMIN / DEPARTMENT_MANAGER ONLY)
   fastify.post('/invite', async (request: FastifyRequest, reply: FastifyReply) => {
     const decoded = await requireOrgAdmin(request, reply);
     if (!decoded) return;
@@ -149,7 +149,7 @@ export default async function memberRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // 2. List all Members (SUB_ADMIN ONLY)
+  // 2. List all Members (SUPER_ADMIN / DEPARTMENT_MANAGER ONLY)
   fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const decoded = await requireOrgAdmin(request, reply);
     if (!decoded) return;

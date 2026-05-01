@@ -33,9 +33,9 @@ async function mapDevice(device: any, userId: string): Promise<any> {
 
 // Helper to check device access based on role/tags/deviceIds
 function hasDevicePermission(user: any, device: any): boolean {
-  if (user.role === 'SUPER_ADMIN') return true;
+  if (user.role === 'PLATFORM_OWNER') return true;
   if (user.organizationId !== device.organizationId) return false;
-  if (user.role === 'SUB_ADMIN') return true;
+  if (user.role === 'SUPER_ADMIN') return true;
 
   // Full org access granted explicitly
   if (user.allowedDeviceIds?.includes('__all__')) return true;

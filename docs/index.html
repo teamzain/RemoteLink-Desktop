@@ -245,9 +245,29 @@
     @media (max-width: 560px) {
       .hero { padding: 44px 16px 0; }
       .btn-dl { font-size: 15px; padding: 13px 32px; }
-      .card-wrap, .prev-wrap { padding-left: 16px; padding-right: 16px; }
+      .card-wrap, .prev-wrap, .faq-wrap { padding-left: 16px; padding-right: 16px; }
       .dl-card { padding: 18px 20px; }
     }
+
+    /* FAQ / Security */
+    .faq-wrap {
+      position: relative; z-index: 1;
+      max-width: 640px; margin: 44px auto 0; padding: 0 24px;
+    }
+    .faq-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: 18px; padding: 24px 28px;
+    }
+    .faq-title {
+      font-size: 14px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .faq-q { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .faq-a { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+    .faq-a:last-child { margin-bottom: 0; }
+    .faq-a code { background: rgba(255,255,255,0.05); padding: 2px 5px; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -272,6 +292,24 @@
 </div>
 
 <hr class="divider" id="divider" hidden />
+
+<div class="faq-wrap">
+  <div class="faq-card">
+    <div class="faq-title">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--cyan)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Trusted Installation
+    </div>
+    <div class="faq-q">Why does Windows say this is a virus?</div>
+    <div class="faq-a">
+      RemoteLink is currently in <b>Beta</b>. Because it is a new application and not yet "Code Signed" with a commercial certificate, Windows SmartScreen may flag it as "Unknown" or "Suspicious". This is a standard security precaution for new software.
+    </div>
+    <div class="faq-q">How do I install it safely?</div>
+    <div class="faq-a">
+      When the Windows blue popup appears, click <b>"More info"</b> and then select <b>"Run anyway"</b>. This will proceed with the installation normally. Our builds are automated and verified for safety.
+    </div>
+  </div>
+</div>
+
 <div class="prev-wrap" id="prev-wrap" hidden></div>
 
 <footer id="footer" hidden>

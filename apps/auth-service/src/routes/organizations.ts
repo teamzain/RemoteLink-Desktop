@@ -101,14 +101,14 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
 
     if (!org) return reply.code(404).send({ error: 'Organization not found' });
 
-    // Derive plan from the org owner (SUB_ADMIN) subscription
-    const admin = org.users.find((u: any) => u.role === 'SUB_ADMIN');
+    // Derive plan from the org owner (SUPER_ADMIN) subscription
+    const admin = org.users.find((u: any) => u.role === 'SUPER_ADMIN');
     const plan = (admin as any)?.subscription?.plan || 'TRIAL';
 
     return reply.send({ ...org, plan });
   });
 
-  // 6. Get my Org info (SUB_ADMIN / USER)
+  // 6. Get my Org info (SUPER_ADMIN / DEPARTMENT_MANAGER / USER)
   fastify.get('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
@@ -136,14 +136,14 @@ export default async function organizationRoutes(fastify: FastifyInstance) {
     return reply.send(user.organization);
   });
 
-  // 7. Update my Org settings (SUB_ADMIN ONLY)
+  // 7. Update my Org settings (SUPER_ADMIN ONLY)
   fastify.patch('/mine', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
 
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
-    if (!decoded || (decoded.role !== 'SUB_ADMIN' && decoded.role !== 'SUPER_ADMIN')) {
+    if (!decoded || (decoded.role !== 'SUPER_ADMIN' && decoded.role !== 'PLATFORM_OWNER')) {
       return reply.code(403).send({ error: 'Org Admin access required' });
     }
 

@@ -9,7 +9,7 @@ interface User {
   email: string;
   name: string;
   plan: string;
-  role: 'SUPER_ADMIN' | 'SUB_ADMIN' | 'OPERATOR' | 'VIEWER' | 'USER';
+  role: 'PLATFORM_OWNER' | 'PLATFORM_SUPPORT' | 'SUPER_ADMIN' | 'DEPARTMENT_MANAGER' | 'OPERATOR' | 'VIEWER' | 'USER';
   organizationId: string | null;
   avatar: string | null;
   is_2fa_enabled?: boolean;

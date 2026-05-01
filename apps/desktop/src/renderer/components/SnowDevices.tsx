@@ -131,7 +131,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
       
       {/* Table Title */}
       <div className="flex items-center justify-between mb-1 px-1">
-        <h2 className="text-sm font-semibold text-[#1C1C1C]">{user?.role === 'SUPER_ADMIN' ? 'All Devices' : 'Host Device List'}</h2>
+        <h2 className="text-sm font-semibold text-[#1C1C1C]">{user?.role === 'PLATFORM_OWNER' ? 'All Platform Devices' : 'Host Device List'}</h2>
         {selectedIds.length > 0 && (
           <button 
             onClick={() => {
@@ -236,7 +236,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                   Host Name <Filter size={12} className="opacity-40" />
                 </div>
               </th>
-              {user?.role === 'SUPER_ADMIN' && (
+              {user?.role === 'PLATFORM_OWNER' && (
                 <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Organization</th>
               )}
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Platform</th>
@@ -276,7 +276,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                       <span className="text-xs font-medium text-[#1C1C1C] truncate max-w-[120px]">{device.device_name || 'Unnamed Host'}</span>
                     </div>
                   </td>
-                  {user?.role === 'SUPER_ADMIN' && (
+                  {user?.role === 'PLATFORM_OWNER' && (
                     <td className="px-3 py-3">
                       {device.org_name ? (
                         <div className="flex items-center gap-1.5">

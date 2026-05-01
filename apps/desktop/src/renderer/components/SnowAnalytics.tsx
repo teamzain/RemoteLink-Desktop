@@ -35,7 +35,7 @@ interface RevenueData {
 
 const ROLE_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   SUPER_ADMIN: { bg: 'bg-red-50',    text: 'text-red-600',    dot: 'bg-red-500' },
-  SUB_ADMIN:   { bg: 'bg-violet-50', text: 'text-violet-600', dot: 'bg-violet-500' },
+  DEPARTMENT_MANAGER: { bg: 'bg-violet-50', text: 'text-violet-600', dot: 'bg-violet-500' },
   OPERATOR:    { bg: 'bg-blue-50',   text: 'text-blue-600',   dot: 'bg-blue-400' },
   VIEWER:      { bg: 'bg-slate-50',  text: 'text-slate-500',  dot: 'bg-slate-400' },
 };

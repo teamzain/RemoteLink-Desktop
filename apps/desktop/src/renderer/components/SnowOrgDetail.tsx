@@ -44,7 +44,7 @@ interface Props {
 
 const ROLE_STYLE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   SUPER_ADMIN: { bg: 'bg-red-50',    text: 'text-red-600',    dot: 'bg-red-500',    label: 'Super Admin' },
-  SUB_ADMIN:   { bg: 'bg-violet-50', text: 'text-violet-600', dot: 'bg-violet-500', label: 'Admin' },
+  DEPARTMENT_MANAGER: { bg: 'bg-violet-50', text: 'text-violet-600', dot: 'bg-violet-500', label: 'Manager' },
   OPERATOR:    { bg: 'bg-blue-50',   text: 'text-blue-600',   dot: 'bg-blue-400',   label: 'Operator' },
   VIEWER:      { bg: 'bg-slate-50',  text: 'text-slate-500',  dot: 'bg-slate-400',  label: 'Viewer' },
 };

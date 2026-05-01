@@ -59,8 +59,8 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   const userRole = user?.role || 'USER';
   const userPlan = user?.plan || 'TRIAL';
   const isRestricted = userPlan === 'TRIAL' || userPlan === 'SOLO' || userPlan === 'PRO';
-  const canManageTeam = (userRole === 'SUB_ADMIN' || userRole === 'SUPER_ADMIN') && !isRestricted;
-  const canManageOrgs = userRole === 'SUPER_ADMIN';
+  const canManageTeam = (userRole === 'SUPER_ADMIN' || userRole === 'DEPARTMENT_MANAGER') && !isRestricted;
+  const canManageOrgs = userRole === 'PLATFORM_OWNER';
 
   const navItemClass = (isActive: boolean) => `
     relative flex items-center w-full h-8 px-3 rounded-lg transition-all duration-200 group
@@ -215,7 +215,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
         <div className="flex flex-col gap-2">
           <span className="px-3 text-[10px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-[0.1em]">Account</span>
           <div className="flex flex-col gap-1">
-            {userRole === 'SUB_ADMIN' && (
+            {userRole === 'SUPER_ADMIN' && (
               <button
                 onClick={() => { setCurrentView('billing'); setSelectedDevice(null); }}
                 className={navItemClass(isBilling)}

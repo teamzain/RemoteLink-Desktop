@@ -66,7 +66,7 @@ export default async function billingRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, plan: sub.plan, userId });
   });
 
-  // PATCH /api/billing/my-plan — SUB_ADMIN self-serves plan change (test mode)
+  // PATCH /api/billing/my-plan — SUPER_ADMIN self-serves plan change (test mode)
   fastify.patch('/my-plan', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
     if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
