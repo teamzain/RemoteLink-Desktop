@@ -18,7 +18,7 @@ export async function getPlanLimits(userId: string) {
     include: { user: true }
   });
 
-  // 2. If missing, and user is in an organization, fall back to the organization's SUB_ADMIN subscription
+  // 2. If missing, and user is in an organization, fall back to the organization's SUPER_ADMIN subscription
   if (!sub) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -27,7 +27,7 @@ export async function getPlanLimits(userId: string) {
 
     if (user?.organizationId) {
       const owner = await prisma.user.findFirst({
-        where: { organizationId: user.organizationId, role: 'SUB_ADMIN' },
+        where: { organizationId: user.organizationId, role: 'SUPER_ADMIN' },
         include: { subscription: true },
         orderBy: { createdAt: 'asc' }
       });
