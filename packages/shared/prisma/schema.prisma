@@ -32,8 +32,12 @@ model User {
   notifySessionAlert    Boolean         @default(true)
   notifyDisconnectAlert Boolean         @default(true)
   notifySoundEffects    Boolean         @default(true)
-  language              String          @default("English")
+  language              String          @default("en")
   avatar                String?         @db.Text
+  darkMode              Boolean         @default(false)
+  searchBehavior        String          @default("Search for result")
+  useNewInterface       Boolean         @default(true)
+  marketingMessages     Boolean         @default(false)
   passwordResetToken    String?
   passwordResetExpires  DateTime?
   supportTickets       SupportTicket[]

@@ -17,6 +17,10 @@ interface User {
   notify_session_alert?: boolean;
   notify_disconnect_alert?: boolean;
   notify_sound_effects?: boolean;
+  darkMode?: boolean;
+  searchBehavior?: string;
+  useNewInterface?: boolean;
+  marketingMessages?: boolean;
 }
 
 interface AuthState {

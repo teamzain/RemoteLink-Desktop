@@ -451,7 +451,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
       is_2fa_enabled: (user as any).is2FAEnabled ?? false,
       notify_session_alert: (user as any).notifySessionAlert ?? true,
       notify_disconnect_alert: (user as any).notifyDisconnectAlert ?? true,
-      notify_sound_effects: (user as any).notifySoundEffects ?? true
+      notify_sound_effects: (user as any).notifySoundEffects ?? true,
+      darkMode: (user as any).darkMode ?? false,
+      searchBehavior: (user as any).searchBehavior || 'Search for result',
+      useNewInterface: (user as any).useNewInterface ?? true,
+      marketingMessages: (user as any).marketingMessages ?? false
     });
   });
 
@@ -505,7 +509,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
       notify_disconnect_alert,
       notify_sound_effects,
       language,
-      avatar
+      avatar,
+      darkMode,
+      searchBehavior,
+      useNewInterface,
+      marketingMessages
     } = request.body as any;
 
     const updateData: any = {};
@@ -517,6 +525,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (notify_sound_effects !== undefined) updateData.notifySoundEffects = notify_sound_effects;
     if (language) updateData.language = language;
     if (avatar) updateData.avatar = avatar;
+    if (darkMode !== undefined) updateData.darkMode = darkMode;
+    if (searchBehavior) updateData.searchBehavior = searchBehavior;
+    if (useNewInterface !== undefined) updateData.useNewInterface = useNewInterface;
+    if (marketingMessages !== undefined) updateData.marketingMessages = marketingMessages;
 
     if (password) {
       if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
@@ -549,6 +561,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         notify_session_alert: (updatedUser as any).notifySessionAlert ?? true,
         notify_disconnect_alert: (updatedUser as any).notifyDisconnectAlert ?? true,
         notify_sound_effects: (updatedUser as any).notifySoundEffects ?? true,
+        darkMode: (updatedUser as any).darkMode ?? false,
+        searchBehavior: (updatedUser as any).searchBehavior || 'Search for result',
+        useNewInterface: (updatedUser as any).useNewInterface ?? true,
+        marketingMessages: (updatedUser as any).marketingMessages ?? false
       }
     });
   });

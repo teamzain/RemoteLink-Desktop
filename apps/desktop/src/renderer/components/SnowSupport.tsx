@@ -16,6 +16,8 @@ import {
   Check,
   AlertCircle
 } from 'lucide-react';
+import { t } from '../lib/translations';
+import { useAuthStore } from '../store/authStore';
 
 interface Ticket {
   id: string;
@@ -24,17 +26,6 @@ interface Ticket {
   date: string;
 }
 
-const INITIAL_TICKETS: Ticket[] = [
-  { id: 'TIC-9821', subject: 'Device Latency in SEA Region', status: 'In Review', date: '2 hours ago' },
-  { id: 'TIC-9745', subject: 'Billing Discrepancy (Enterprise)', status: 'Closed', date: 'Last week' }
-];
-
-const commonTopics = [
-  { title: 'Global Device Optimization', icon: Globe, color: 'text-blue-500', bg: 'bg-blue-50/50', desc: 'Reduce latency and improve throughput across distributed devices.' },
-  { title: 'Identity & Access Keys', icon: ShieldCheck, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10', desc: 'Manage access keys, hardware passwords, and device permissions.' },
-  { title: 'P2P Signaling Over Relays', icon: Zap, color: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', desc: 'Troubleshoot relay fallback, ICE failures, and NAT traversal.' },
-];
-
 const STATUS_COLORS: Record<string, string> = {
   'Open': 'bg-blue-100 text-blue-600',
   'In Review': 'bg-[#71DD8C]/20 text-[#3aaa5c]',
@@ -42,8 +33,16 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export const SnowSupport: React.FC = () => {
+  const { user } = useAuthStore();
+  const lang = user?.language;
   const [query, setQuery] = useState('');
   const [tickets, setTickets] = useState<Ticket[]>([]);
+
+  const commonTopics = [
+    { title: t('global_device_optimization', lang), icon: Globe, color: 'text-blue-500', bg: 'bg-blue-50/50', desc: t('global_device_optimization_desc', lang) },
+    { title: t('identity_access_keys', lang), icon: ShieldCheck, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10', desc: t('identity_access_keys_desc', lang) },
+    { title: t('p2p_signaling_relays', lang), icon: Zap, color: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', desc: t('p2p_signaling_relays_desc', lang) },
+  ];
 
   useEffect(() => {
     api.get('/api/support/tickets').then(res => {
@@ -51,11 +50,12 @@ export const SnowSupport: React.FC = () => {
         id: t.displayId,
         subject: t.subject,
         status: t.status,
-        date: new Date(t.createdAt).toLocaleDateString()
+        date: new Date(t.createdAt).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US')
       }));
       setTickets(mapped);
     }).catch(err => console.error('Failed to fetch tickets', err));
-  }, []);
+  }, [lang]);
+
   const [showNewCase, setShowNewCase] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newDescription, setNewDescription] = useState('');
@@ -86,7 +86,7 @@ export const SnowSupport: React.FC = () => {
         id: data.displayId,
         subject: data.subject,
         status: data.status as any,
-        date: 'Just now'
+        date: t('just_now', lang)
       };
       setTickets(prev => [newTicket, ...prev]);
       setCaseStatus('submitted');
@@ -130,9 +130,9 @@ export const SnowSupport: React.FC = () => {
         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/20 blur-[100px] -mr-32 -mt-32 rounded-full" />
 
         <div className="relative z-10 max-w-xl">
-          <h1 className="text-4xl font-extrabold tracking-tight mb-4">How can we help?</h1>
+          <h1 className="text-4xl font-extrabold tracking-tight mb-4">{t('how_can_help', lang)}</h1>
           <p className="text-white/40 text-lg font-medium mb-8">
-            Our global support engineers are available 24/7 to solve your device connectivity and network scaling issues.
+            {t('support_hero_desc', lang)}
           </p>
 
           <div className="flex items-center bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 pl-5 pr-2 py-2 w-full focus-within:ring-2 focus-within:ring-white/20 transition-all">
@@ -140,7 +140,7 @@ export const SnowSupport: React.FC = () => {
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search help articles, tickets, devices..."
+              placeholder={t('search_help_placeholder', lang)}
               className="bg-transparent border-none outline-none text-sm text-white placeholder:text-white/20 w-full"
             />
             {query && (
@@ -148,7 +148,7 @@ export const SnowSupport: React.FC = () => {
                 <X size={14} />
               </button>
             )}
-            <button className="px-5 py-2 bg-white text-[#1C1C1C] rounded-xl text-xs font-bold hover:opacity-90 transition-all shrink-0">Search</button>
+            <button className="px-5 py-2 bg-white text-[#1C1C1C] rounded-xl text-xs font-bold hover:opacity-90 transition-all shrink-0">{t('search', lang)}</button>
           </div>
         </div>
       </div>
@@ -174,43 +174,43 @@ export const SnowSupport: React.FC = () => {
         <div className="flex-[2] bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-[#1C1C1C] tracking-tight flex items-center gap-3">
-              <History size={18} className="text-[rgba(28,28,28,0.2)]" /> Active Assistance Cases
+              <History size={18} className="text-[rgba(28,28,28,0.2)]" /> {t('active_assistance_cases', lang)}
             </h3>
             <button
               onClick={() => setShowNewCase(v => !v)}
               className="flex items-center gap-2 px-4 py-2 bg-[rgba(28,28,28,0.02)] hover:bg-[rgba(28,28,28,0.05)] text-[#1C1C1C] rounded-xl text-[10px] font-bold border border-[rgba(28,28,28,0.04)] transition-all"
             >
               {showNewCase ? <X size={14} /> : <Plus size={14} />}
-              {showNewCase ? 'Cancel' : 'New Case'}
+              {showNewCase ? t('cancel', lang) : t('new_case', lang)}
             </button>
           </div>
 
           {/* New Case Form */}
           {showNewCase && (
             <div className="mb-6 p-5 bg-[#F9F9FA] rounded-2xl border border-[rgba(28,28,28,0.06)] space-y-3 animate-in slide-in-from-top-2 duration-200">
-              <h4 className="text-xs font-bold text-[#1C1C1C] mb-3">New Support Case</h4>
+              <h4 className="text-xs font-bold text-[#1C1C1C] mb-3">{t('new_support_case', lang)}</h4>
               <select
                 value={newCategory}
                 onChange={e => setNewCategory(e.target.value)}
                 className="w-full px-3 py-2.5 bg-white rounded-xl border border-[rgba(28,28,28,0.08)] text-xs text-[#1C1C1C] outline-none"
               >
-                <option value="">Select a category…</option>
-                <option>Device Connectivity</option>
-                <option>Billing & Subscription</option>
-                <option>Authentication / Access Keys</option>
-                <option>Performance / Latency</option>
-                <option>Other</option>
+                <option value="">{t('select_category', lang)}</option>
+                <option value="Device Connectivity">{t('device_connectivity', lang)}</option>
+                <option value="Billing & Subscription">{t('billing_subscription', lang)}</option>
+                <option value="Authentication / Access Keys">{t('auth_access_keys', lang)}</option>
+                <option value="Performance / Latency">{t('performance_latency', lang)}</option>
+                <option value="Other">{t('other', lang)}</option>
               </select>
               <input
                 value={newSubject}
                 onChange={e => setNewSubject(e.target.value)}
-                placeholder="Brief subject (e.g. Device drops after 5 min)"
+                placeholder={t('subject_placeholder', lang)}
                 className="w-full px-3 py-2.5 bg-white rounded-xl border border-[rgba(28,28,28,0.08)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none"
               />
               <textarea
                 value={newDescription}
                 onChange={e => setNewDescription(e.target.value)}
-                placeholder="Describe the issue in detail…"
+                placeholder={t('desc_placeholder', lang)}
                 rows={3}
                 className="w-full px-3 py-2.5 bg-white rounded-xl border border-[rgba(28,28,28,0.08)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none resize-none"
               />
@@ -221,7 +221,7 @@ export const SnowSupport: React.FC = () => {
               >
                 {caseStatus === 'submitting' && <Loader2 size={13} className="animate-spin" />}
                 {caseStatus === 'submitted' && <Check size={13} />}
-                {caseStatus === 'submitted' ? 'Case Created!' : caseStatus === 'submitting' ? 'Submitting…' : 'Submit Case'}
+                {caseStatus === 'submitted' ? t('case_created', lang) : caseStatus === 'submitting' ? t('submitting', lang) : t('submit_case', lang)}
               </button>
             </div>
           )}
@@ -236,7 +236,7 @@ export const SnowSupport: React.FC = () => {
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-[#1C1C1C]">{ticket.subject}</span>
-                    <span className="text-[10px] text-[rgba(28,28,28,0.4)]">{ticket.id} • Last activity {ticket.date}</span>
+                    <span className="text-[10px] text-[rgba(28,28,28,0.4)]">{ticket.id} • {t('last_activity', lang)} {ticket.date}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -250,7 +250,7 @@ export const SnowSupport: React.FC = () => {
               <div className="text-center py-8 text-[rgba(28,28,28,0.3)]">
                 <LifeBuoy size={32} className="mx-auto mb-3 opacity-20" />
                 <p className="text-xs font-semibold">
-                  {q ? `No tickets matched "${query}"` : 'No open cases. You\'re all good!'}
+                  {q ? `${t('no_tickets_matched', lang)} "${query}"` : t('no_open_cases', lang)}
                 </p>
               </div>
             )}
@@ -263,15 +263,15 @@ export const SnowSupport: React.FC = () => {
             <div className="w-16 h-16 bg-blue-50 rounded-[20px] text-blue-500 flex items-center justify-center mb-6">
               <MessageCircle size={32} />
             </div>
-            <h3 className="text-sm font-bold text-[#1C1C1C] mb-2">Live Tech Support</h3>
+            <h3 className="text-sm font-bold text-[#1C1C1C] mb-2">{t('live_tech_support', lang)}</h3>
             <p className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium mb-6 leading-relaxed">
-              Start an encrypted P2P session with a Support Engineer for immediate triage.
+              {t('live_tech_support_desc', lang)}
             </p>
             <button
               onClick={() => setShowChatModal(true)}
               className="w-full py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold shadow-lg shadow-black/10 hover:opacity-95 transition-all"
             >
-              Start Chat Case
+              {t('start_chat_case', lang)}
             </button>
           </div>
 
@@ -279,15 +279,15 @@ export const SnowSupport: React.FC = () => {
             <div className="w-16 h-16 bg-[#10B981]/10 rounded-[20px] text-[#10B981] flex items-center justify-center mb-6">
               <Mail size={32} />
             </div>
-            <h3 className="text-sm font-bold text-[#1C1C1C] mb-2">Technical Ticketing</h3>
+            <h3 className="text-sm font-bold text-[#1C1C1C] mb-2">{t('technical_ticketing', lang)}</h3>
             <p className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium mb-6 leading-relaxed">
-              Submit a structured report for complex global networking bugs.
+              {t('technical_ticketing_desc', lang)}
             </p>
             <button
               onClick={() => setShowReportModal(true)}
               className="w-full py-3 bg-[#F9F9FA] text-[#1C1C1C] rounded-2xl text-xs font-bold border border-[rgba(28,28,28,0.04)] hover:border-[rgba(28,28,28,0.2)] transition-all"
             >
-              Send Report
+              {t('send_report', lang)}
             </button>
           </div>
         </div>
@@ -298,24 +298,24 @@ export const SnowSupport: React.FC = () => {
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.06)] p-8 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-base font-bold text-[#1C1C1C]">Live Tech Support</h3>
+              <h3 className="text-base font-bold text-[#1C1C1C]">{t('live_tech_support', lang)}</h3>
               <button onClick={() => setShowChatModal(false)} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] hover:bg-[#F9F9FA] rounded-xl transition-colors">
                 <X size={16} />
               </button>
             </div>
             <div className="flex items-center gap-3 p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 mb-6">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-              <p className="text-xs text-blue-700 font-medium">3 engineers available · Avg wait: ~2 min</p>
+              <p className="text-xs text-blue-700 font-medium">3 {t('engineers_available_short', lang)} · Avg wait: ~2 min</p>
             </div>
             <p className="text-xs text-[rgba(28,28,28,0.5)] mb-6 leading-relaxed">
-              You'll be connected to a support engineer via an encrypted P2P session. Have your Device ID ready for faster triage.
+              {t('chat_modal_desc', lang)}
             </p>
             <div className="flex gap-3">
               <button onClick={() => setShowChatModal(false)} className="flex-1 py-3 bg-[#F9F9FA] text-[#1C1C1C] rounded-2xl text-xs font-bold border border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] transition-all">
-                Cancel
+                {t('cancel', lang)}
               </button>
               <button onClick={() => setShowChatModal(false)} className="flex-1 py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold hover:opacity-90 transition-all">
-                Join Queue
+                {t('join_queue', lang)}
               </button>
             </div>
           </div>
@@ -327,7 +327,7 @@ export const SnowSupport: React.FC = () => {
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-200">
           <div className="w-full max-w-md bg-white rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.06)] p-8 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-base font-bold text-[#1C1C1C]">Send Technical Report</h3>
+              <h3 className="text-base font-bold text-[#1C1C1C]">{t('send_technical_report', lang)}</h3>
               <button onClick={() => { setShowReportModal(false); setReportStatus('idle'); }} className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#1C1C1C] hover:bg-[#F9F9FA] rounded-xl transition-colors">
                 <X size={16} />
               </button>
@@ -338,27 +338,27 @@ export const SnowSupport: React.FC = () => {
                 <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Check size={24} className="text-green-500" />
                 </div>
-                <h4 className="text-sm font-bold text-[#1C1C1C] mb-1">Report Sent!</h4>
-                <p className="text-xs text-[rgba(28,28,28,0.4)]">We'll respond within 24 hours.</p>
+                <h4 className="text-sm font-bold text-[#1C1C1C] mb-1">{t('report_sent', lang)}</h4>
+                <p className="text-xs text-[rgba(28,28,28,0.4)]">{t('report_sent_desc', lang)}</p>
               </div>
             ) : (
               <div className="space-y-3">
                 <input
                   value={reportSubject}
                   onChange={e => setReportSubject(e.target.value)}
-                  placeholder="Subject"
+                  placeholder={t('subject', lang)}
                   className="w-full px-3 py-2.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none"
                 />
                 <textarea
                   value={reportBody}
                   onChange={e => setReportBody(e.target.value)}
-                  placeholder="Describe the bug in detail. Include your Device ID, region, and steps to reproduce..."
+                  placeholder={t('report_desc_placeholder', lang)}
                   rows={5}
                   className="w-full px-3 py-2.5 bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.06)] text-xs text-[#1C1C1C] placeholder:text-[rgba(28,28,28,0.25)] outline-none resize-none"
                 />
                 <div className="flex gap-3">
                   <button onClick={() => setShowReportModal(false)} className="flex-1 py-3 bg-[#F9F9FA] text-[#1C1C1C] rounded-2xl text-xs font-bold border border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] transition-all">
-                    Cancel
+                    {t('cancel', lang)}
                   </button>
                   <button
                     onClick={handleSendReport}
@@ -366,7 +366,7 @@ export const SnowSupport: React.FC = () => {
                     className="flex-1 py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold disabled:opacity-40 flex items-center justify-center gap-2 hover:opacity-90 transition-all"
                   >
                     {reportStatus === 'sending' && <Loader2 size={13} className="animate-spin" />}
-                    {reportStatus === 'sending' ? 'Sending…' : 'Send Report'}
+                    {reportStatus === 'sending' ? t('sending', lang) : t('send_report', lang)}
                   </button>
                 </div>
               </div>

@@ -14,6 +14,8 @@ import {
   Trash2,
   Building2
 } from 'lucide-react';
+import { t } from '../lib/translations';
+import { useAuthStore } from '../store/authStore';
 
 interface Device {
   id: string;
@@ -52,6 +54,8 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   setShowAddModal,
   handleBulkDelete
 }) => {
+  const { user: authUser } = useAuthStore();
+  const lang = authUser?.language;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'online' | 'offline'>('all');
   const [sortOrder, setSortOrder] = useState<'name' | 'status' | 'last_seen'>('name');
@@ -127,11 +131,11 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500 font-lato">
       
       {/* Table Title */}
       <div className="flex items-center justify-between mb-1 px-1">
-        <h2 className="text-sm font-semibold text-[#1C1C1C]">{user?.role === 'PLATFORM_OWNER' ? 'All Platform Devices' : 'Host Device List'}</h2>
+        <h2 className="text-sm font-semibold text-[#1C1C1C]">{user?.role === 'PLATFORM_OWNER' ? t('all_platform_devices', lang) : t('host_device_list', lang)}</h2>
         {selectedIds.length > 0 && (
           <button 
             onClick={() => {
@@ -143,7 +147,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
             className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors border border-red-100"
           >
             <Trash2 size={12} />
-            Remove Selected ({selectedIds.length})
+            {t('remove_selected', lang)} ({selectedIds.length})
           </button>
         )}
       </div>
@@ -165,13 +169,13 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
             {showFilterMenu && (
                 <div className="absolute top-8 left-0 z-50 w-40 bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-xl p-1 animate-in fade-in zoom-in-95 duration-200">
                     <button onClick={() => { setFilterStatus('all'); setShowFilterMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${filterStatus === 'all' ? 'bg-blue-50 text-blue-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
-                        Show All {filterStatus === 'all' && <Check size={12} />}
+                        {t('show_all', lang)} {filterStatus === 'all' && <Check size={12} />}
                     </button>
                     <button onClick={() => { setFilterStatus('online'); setShowFilterMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${filterStatus === 'online' ? 'bg-blue-50 text-blue-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
-                        Online Only {filterStatus === 'online' && <Check size={12} />}
+                        {t('online_only', lang)} {filterStatus === 'online' && <Check size={12} />}
                     </button>
                     <button onClick={() => { setFilterStatus('offline'); setShowFilterMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${filterStatus === 'offline' ? 'bg-blue-50 text-blue-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
-                        Offline Only {filterStatus === 'offline' && <Check size={12} />}
+                        {t('offline_only', lang)} {filterStatus === 'offline' && <Check size={12} />}
                     </button>
                 </div>
             )}
@@ -188,13 +192,13 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
             {showSortMenu && (
                 <div className="absolute top-8 left-0 z-50 w-44 bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-xl p-1 animate-in fade-in zoom-in-95 duration-200">
                     <button onClick={() => { setSortOrder('name'); setShowSortMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${sortOrder === 'name' ? 'bg-purple-50 text-purple-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
-                        Name (A-Z) {sortOrder === 'name' && <Check size={12} />}
+                        {t('name_az', lang)} {sortOrder === 'name' && <Check size={12} />}
                     </button>
                     <button onClick={() => { setSortOrder('status'); setShowSortMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${sortOrder === 'status' ? 'bg-purple-50 text-purple-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
-                        Status (Online First) {sortOrder === 'status' && <Check size={12} />}
+                        {t('status_online_first', lang)} {sortOrder === 'status' && <Check size={12} />}
                     </button>
                     <button onClick={() => { setSortOrder('last_seen'); setShowSortMenu(false); }} className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-lg transition-colors ${sortOrder === 'last_seen' ? 'bg-purple-50 text-purple-600' : 'text-[#1C1C1C] hover:bg-[#F9F9FA]'}`}>
-                        Last Seen {sortOrder === 'last_seen' && <Check size={12} />}
+                        {t('last_sync', lang)} {sortOrder === 'last_seen' && <Check size={12} />}
                     </button>
                 </div>
             )}
@@ -205,7 +209,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.4)]" />
           <input 
             type="text" 
-            placeholder="Search Device..." 
+            placeholder={t('search_device', lang)} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-40 h-7 bg-white/80 border border-[rgba(0,0,0,0.1)] rounded-xl pl-9 pr-3 text-xs outline-none focus:border-[rgba(0,0,0,0.3)] transition-all font-lato"
@@ -228,21 +232,21 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
               </th>
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
                 <div className="flex items-center gap-2">
-                  Device ID <ArrowUpDown size={12} className="opacity-40" />
+                  {t('device_id', lang)} <ArrowUpDown size={12} className="opacity-40" />
                 </div>
               </th>
               <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">
                 <div className="flex items-center gap-2">
-                  Host Name <Filter size={12} className="opacity-40" />
+                  {t('host_name', lang)} <Filter size={12} className="opacity-40" />
                 </div>
               </th>
               {user?.role === 'PLATFORM_OWNER' && (
-                <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Organization</th>
+                <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">{t('organization', lang)}</th>
               )}
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Platform</th>
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Last Sync</th>
-              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">Status</th>
-              <th className="px-4 py-3 text-right text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">Actions</th>
+              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">{t('platform', lang)}</th>
+              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">{t('last_sync', lang)}</th>
+              <th className="px-3 py-3 text-left text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest text-nowrap">{t('status', lang)}</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-[rgba(28,28,28,0.2)] uppercase tracking-widest">{t('actions', lang)}</th>
             </tr>
           </thead>
           <tbody>
@@ -273,7 +277,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                       <div className="w-6 h-6 rounded-full bg-[rgba(28,28,28,0.04)] flex items-center justify-center p-1">
                         {getOsIcon(device.device_type)}
                       </div>
-                      <span className="text-xs font-medium text-[#1C1C1C] truncate max-w-[120px]">{device.device_name || 'Unnamed Host'}</span>
+                      <span className="text-xs font-medium text-[#1C1C1C] truncate max-w-[120px]">{device.device_name || t('unnamed_host', lang)}</span>
                     </div>
                   </td>
                   {user?.role === 'PLATFORM_OWNER' && (
@@ -291,10 +295,10 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     </td>
                   )}
                   <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.device_type || 'Windows/x64'}</td>
-                  <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.last_seen ? new Date(device.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}</td>
+                  <td className="px-3 py-3 text-xs text-[#1C1C1C] opacity-80">{device.last_seen ? new Date(device.last_seen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('just_now', lang)}</td>
                   <td className="px-3 py-3">
                     <span className={device.is_online ? 'badge-online' : 'badge-offline'}>
-                      {device.is_online ? 'CONNECTABLE' : 'OFFLINE'}
+                      {device.is_online ? t('connectable', lang) : t('offline', lang)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
@@ -303,7 +307,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                         <button
                           onClick={() => {
                             if (!canConnect) {
-                              alert('Your role is View-Only. You do not have permission to connect to devices.');
+                              alert(t('access_denied_viewer', lang));
                               return;
                             }
                             handleDeviceClick(device);
@@ -315,7 +319,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                               : 'bg-[rgba(28,28,28,0.06)] text-[rgba(28,28,28,0.25)] cursor-not-allowed'
                           }`}
                         >
-                          Connect
+                          {t('connect', lang)}
                         </button>
                       ) : (
                         <span className="text-[11px] text-[rgba(28,28,28,0.2)] font-medium px-3">—</span>
@@ -337,7 +341,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
         {filteredDevices.length === 0 && (
           <div className="py-20 flex flex-col items-center justify-center text-[rgba(28,28,28,0.4)] gap-2">
             <Monitor size={48} strokeWidth={1} />
-            <span className="text-xs">No devices found matching your criteria.</span>
+            <span className="text-xs">{t('no_devices_found', lang)}</span>
           </div>
         )}
       </div>

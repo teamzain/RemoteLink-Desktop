@@ -95,7 +95,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
         {!isCollapsed && (
           <button className="w-full flex items-center gap-4 px-4 py-2.5 rounded-md text-[rgba(255,255,255,0.7)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white transition-all group">
             <MoreHorizontal size={18} className="text-[rgba(255,255,255,0.6)]" />
-            <span className="text-sm font-medium">More solutions</span>
+            <span className="text-sm font-medium">{t('more_solutions', user?.language)}</span>
             <ChevronRight size={14} className="ml-auto opacity-40" />
           </button>
         )}
@@ -131,7 +131,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
         {!isCollapsed && (
           <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.05)] flex items-center gap-3 px-4">
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.5)]">Ready to connect</span>
+              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.5)]">{t('ready_to_connect', user?.language)}</span>
           </div>
         )}
         {isCollapsed && (

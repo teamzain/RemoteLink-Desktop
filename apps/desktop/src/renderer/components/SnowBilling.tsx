@@ -17,6 +17,7 @@ import {
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
 import CheckoutModal from './billing/CheckoutModal';
+import { t } from '../lib/translations';
 
 interface Plan {
   id: string;
@@ -48,6 +49,8 @@ const PLAN_ACCENT: Record<string, { color: string; bg: string; border: string }>
 };
 
 export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
+  const { user: authUser } = useAuthStore();
+  const lang = authUser?.language;
   const [plans, setPlans] = useState<Plan[]>([]);
   const [billingInfo, setBillingInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +75,6 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
 
       setPlans(plansData);
       setBillingInfo({ ...subRes.data, publishableKey: pubKey });
-      console.log('[Billing Debug] Received info from server:', { ...subRes.data, publishableKey: pubKey });
     } catch (err) {
       console.error('Failed to fetch billing info', err);
     } finally {
@@ -84,7 +86,6 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
     if (plan.id === billingInfo?.plan) return;
 
     if (plan.id === 'FREE') {
-      // Optional: Call downgrade endpoint
       return;
     }
 
@@ -100,7 +101,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
   const activePlan = billingInfo?.plan || 'FREE';
   const currentPlanData = Array.isArray(plans) ? plans.find(p => p.id === activePlan) : null;
   const renewalDate = billingInfo?.currentPeriodEnd
-    ? new Date(billingInfo.currentPeriodEnd).toLocaleDateString()
+    ? new Date(billingInfo.currentPeriodEnd).toLocaleDateString(lang === 'de' ? 'de-DE' : lang === 'fr' ? 'fr-FR' : lang === 'es' ? 'es-ES' : 'en-US')
     : 'N/A';
 
   const handleDownloadInvoice = (url: string) => {
@@ -118,9 +119,9 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
       <div className="flex items-center gap-3 px-5 py-3.5 bg-blue-50 border border-blue-200 rounded-2xl">
         <FlaskConical size={16} className="text-blue-600 flex-shrink-0" />
         <div>
-          <span className="text-xs font-bold text-blue-700">Billing Active — </span>
+          <span className="text-xs font-bold text-blue-700">{t('billing_active', lang)} — </span>
           <span className="text-xs text-blue-600 font-medium">
-            You are currently in a test environment. Use card 4242 4242 4242 4242 to test subscriptions.
+            {t('test_env_notice', lang)}
           </span>
         </div>
       </div>
@@ -130,27 +131,27 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 blur-[80px] -mr-32 -mt-32 rounded-full" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-2">Active Subscription</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-2">{t('active_subscription', lang)}</p>
             <div className="flex items-center gap-3 mb-1">
               <h2 className="text-3xl font-bold tracking-tight">
                 {loading ? '—' : (activePlan)}
               </h2>
               <span className="px-2 py-0.5 bg-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-white/60">
-                {loading ? '…' : (currentPlanData?.priceLabel || 'Free')}
+                {loading ? '…' : (currentPlanData?.priceLabel || t('free_label', lang))}
               </span>
             </div>
-            <p className="text-sm text-white/40 font-medium">Renews on {renewalDate}</p>
+            <p className="text-sm text-white/40 font-medium">{t('renews_on', lang)} {renewalDate}</p>
           </div>
           <div className="flex flex-wrap gap-5">
             <div className="flex flex-col items-center gap-1">
               <Monitor size={18} className="text-white/30" />
               <span className="text-lg font-bold text-white">{currentPlanData?.maxDevices ?? '∞'}</span>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Devices</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">{t('devices_label', lang)}</span>
             </div>
             <div className="flex flex-col items-center gap-1">
               <Users size={18} className="text-white/30" />
               <span className="text-lg font-bold text-white">{currentPlanData?.maxUsers ?? '∞'}</span>
-              <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Users</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">{t('users_label', lang)}</span>
             </div>
           </div>
         </div>
@@ -159,13 +160,13 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Payment Method */}
         <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 shadow-sm">
-          <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">Payment Method</h3>
+          <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">{t('payment_method', lang)}</h3>
           <div className="p-4 bg-[rgba(28,28,28,0.02)] rounded-[18px] border border-[rgba(28,28,28,0.04)] flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-6 bg-[#1C1C1C] rounded flex items-center justify-center text-white text-[8px] italic font-black">{billingInfo?.card_brand?.toUpperCase() || 'VISA'}</div>
               <div className="flex flex-col">
-                <span className="text-xs font-bold text-[#1C1C1C]">{billingInfo?.card_brand ? `${billingInfo.card_brand.charAt(0).toUpperCase() + billingInfo.card_brand.slice(1)} ending in ${billingInfo.card_last4}` : 'No card on file'}</span>
-                <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">{billingInfo?.card_exp_month ? `Expires ${billingInfo.card_exp_month}/${billingInfo.card_exp_year}` : 'Add a payment method below'}</span>
+                <span className="text-xs font-bold text-[#1C1C1C]">{billingInfo?.card_brand ? `${billingInfo.card_brand.charAt(0).toUpperCase() + billingInfo.card_brand.slice(1)} ending in ${billingInfo.card_last4}` : t('no_card_file', lang)}</span>
+                <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium">{billingInfo?.card_exp_month ? `${t('expires', lang)} ${billingInfo.card_exp_month}/${billingInfo.card_exp_year}` : t('add_payment_method', lang)}</span>
               </div>
             </div>
             {billingInfo?.card_brand && <CheckCircle2 size={16} className="text-emerald-500" />}
@@ -174,13 +175,13 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
 
         {/* Invoice History */}
         <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 shadow-sm overflow-hidden">
-          <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">Recent Invoices</h3>
+          <h3 className="text-sm font-bold text-[#1C1C1C] mb-4">{t('recent_invoices', lang)}</h3>
           <div className="space-y-3">
             {billingInfo?.invoices?.map((inv: any, idx: number) => (
               <div key={inv.id || idx} className="flex items-center justify-between py-2 border-b border-[rgba(0,0,0,0.02)] last:border-0">
                 <div className="flex flex-col">
                   <span className="text-[11px] font-bold text-[#1C1C1C]">{inv.number}</span>
-                  <span className="text-[9px] text-[rgba(28,28,28,0.4)] font-medium">{new Date(inv.created * 1000).toLocaleDateString()}</span>
+                  <span className="text-[9px] text-[rgba(28,28,28,0.4)] font-medium">{new Date(inv.created * 1000).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US')}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-bold text-[#1C1C1C]">${(inv.total / 100).toFixed(2)}</span>
@@ -195,7 +196,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
               </div>
             ))}
             {(!billingInfo?.invoices || billingInfo.invoices.length === 0) && (
-              <p className="text-[11px] text-[rgba(28,28,28,0.3)] italic text-center py-2">No invoices yet.</p>
+              <p className="text-[11px] text-[rgba(28,28,28,0.3)] italic text-center py-2">{t('no_invoices', lang)}</p>
             )}
           </div>
         </div>
@@ -204,7 +205,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
       {/* Plan Cards */}
       <div>
         <h3 className="text-sm font-bold text-[#1C1C1C] mb-4 px-1">
-          {loading ? 'Loading plans…' : 'Available Plans'}
+          {loading ? t('loading_plans', lang) : t('available_plans', lang)}
         </h3>
 
         {loading ? (
@@ -230,7 +231,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
                   {/* Active badge */}
                   {isActive && (
                     <div className={`absolute top-4 right-4 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider ${accent.bg} ${accent.color} border ${accent.border}`}>
-                      Current
+                      {t('current_label', lang)}
                     </div>
                   )}
 
@@ -258,14 +259,14 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
                   {/* Action button */}
                   {isActive ? (
                     <div className={`w-full py-2.5 rounded-xl text-xs font-bold text-center ${accent.color} ${accent.bg} border ${accent.border}`}>
-                      Active Plan
+                      {t('active_plan_btn', lang)}
                     </div>
                   ) : (
                     <button
                       onClick={() => handlePlanAction(plan)}
                       className="w-full py-2.5 rounded-xl text-xs font-bold bg-[#1C1C1C] text-white hover:opacity-90 transition-all flex items-center justify-center gap-2"
                     >
-                      Switch to {plan.name} <ArrowRight size={13} />
+                      {t('switch_to', lang)} {plan.name} <ArrowRight size={13} />
                     </button>
                   )}
                 </div>

@@ -2891,12 +2891,10 @@ export default function App() {
                     <div className="w-full max-w-sm bg-white rounded-[28px] border border-[rgba(28,28,28,0.08)] shadow-2xl p-8 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-200">
                         <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
                             <Monitor className="text-blue-600 w-8 h-8" />
-                        </div>
-                        <div className=" 
-">
-                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">Connection Request</h2>
+                                  <div className="text-center">
+                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">{t('new_connection_request', user?.language)}</h2>
                             <p className="text-sm font-medium text-[#000000] leading-relaxed">
-                                Someone wants to view your screen.<br />Do you want to allow this connection?
+                                {t('someone_wants_access', user?.language)}
                             </p>
                         </div>
                         <div className="w-full flex flex-col items-center gap-1">
@@ -2907,7 +2905,7 @@ export default function App() {
                                 />
                             </div>
                             <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">
-                                Auto-denying in {pendingViewerRequest.countdown}s
+                                {t('auto_denying', user?.language).replace('{seconds}', String(pendingViewerRequest.countdown))}
                             </p>
                         </div>
                         <div className="flex gap-3 w-full">
@@ -2918,7 +2916,7 @@ export default function App() {
                                 }}
                                 className="flex-1 py-3.5 rounded-2xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest text-[#000000] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                             >
-                                Deny
+                                {t('deny_btn', user?.language)}
                             </button>
                             <button
                                 onClick={() => {
@@ -2927,9 +2925,10 @@ export default function App() {
                                 }}
                                 className="flex-1 py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all"
                             >
-                                Allow
+                                {t('allow_btn', user?.language)}
                             </button>
                         </div>
+              </div>
                     </div>
                 </div>
             )}
@@ -2973,15 +2972,15 @@ export default function App() {
                                 <div className="flex items-center gap-12">
                                 <div className="flex items-center gap-6">
                                     <h1 className="text-base font-bold text-[#1C1C1C] tracking-tight min-w-[60px]">
-                                        {selectedDevice ? 'Terminal' :
-                                            (currentView === 'home' || currentView === 'dashboard') ? 'Home' :
-                                                currentView === 'host' ? 'Host' :
-                                                    currentView === 'devices' ? 'Devices' :
-                                                        currentView === 'settings' ? 'Settings' :
-                                                            currentView === 'billing' ? 'Billing' :
-                                                                currentView === 'profile' ? 'Profile' :
-                                                                    currentView === 'support' ? 'Support' :
-                                                                        currentView === 'documentation' ? 'Docs' : currentView}
+                                        {selectedDevice ? t('terminal_title', user?.language) :
+                                            (currentView === 'home' || currentView === 'dashboard') ? t('home_title', user?.language) :
+                                                currentView === 'host' ? t('host_title', user?.language) :
+                                                    currentView === 'devices' ? t('devices_title', user?.language) :
+                                                        currentView === 'settings' ? t('settings_title', user?.language) :
+                                                            currentView === 'billing' ? t('billing_title', user?.language) :
+                                                                currentView === 'profile' ? t('profile_title_nav', user?.language) :
+                                                                    currentView === 'support' ? t('support_title_nav', user?.language) :
+                                                                        currentView === 'documentation' ? t('docs_title_nav', user?.language) : currentView}
                                     </h1>
                                     
                                     <div className="flex items-center gap-4 text-[#757575]">
@@ -3010,7 +3009,7 @@ export default function App() {
                                     </div>
                                     <input
                                         type="text"
-                                        placeholder="Search and Connect"
+                                        placeholder={t('search_and_connect', user?.language)}
                                         className="w-full h-9 pl-11 pr-20 bg-white border border-[#D1D1D1] rounded-lg text-sm outline-none focus:border-blue-500 transition-all placeholder:text-[#757575]"
                                     />
                                     <div className="absolute inset-y-0 right-3 flex items-center">
@@ -3020,11 +3019,11 @@ export default function App() {
                             </div>
 
                             <div className="flex items-center gap-5 text-[#757575]">
-                                <button className="hover:text-[#1C1C1C] transition-colors" title="Documentation" onClick={() => setCurrentView('documentation')}><Book size={18} /></button>
-                                <button className="hover:text-[#1C1C1C] transition-colors" title="Settings" onClick={() => setCurrentView('settings')}><Settings size={18} /></button>
+                                <button className="hover:text-[#1C1C1C] transition-colors" title={t('documentation_tooltip', user?.language)} onClick={() => setCurrentView('documentation')}><Book size={18} /></button>
+                                <button className="hover:text-[#1C1C1C] transition-colors" title={t('settings_tooltip', user?.language)} onClick={() => setCurrentView('settings')}><Settings size={18} /></button>
                                 <button 
                                     className={`hover:text-[#1C1C1C] transition-colors relative ${showNotifications ? 'text-[#1C1C1C]' : ''}`} 
-                                    title="Notifications"
+                                    title={t('notifications_tooltip', user?.language)}
                                     onClick={() => setShowNotifications(!showNotifications)}
                                 >
                                     <Bell size={18} />
@@ -3073,7 +3072,7 @@ export default function App() {
                                                     <span className="text-sm font-semibold text-[#1C1C1C] leading-tight">{user?.name || 'User'}</span>
                                                     <span className="text-[11px] font-bold text-blue-600 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
                                                     <div className="flex items-center gap-1 mt-1 cursor-pointer hover:bg-gray-50 px-1.5 py-0.5 -ml-1.5 rounded transition-colors">
-                                                        <span className="text-xs text-[#757575]">Online</span>
+                                                        <span className="text-xs text-[#757575]">{t('online_status', user?.language)}</span>
                                                         <ChevronDown size={12} className="text-[#757575]" />
                                                     </div>
                                                 </div>
@@ -3087,18 +3086,18 @@ export default function App() {
                                                     onClick={() => { setCurrentView('settings'); setShowUserDropdown(false); }}
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    <span>Edit profile</span>
+                                                    <span>{t('edit_profile', user?.language)}</span>
                                                 </button>
                                                 <button 
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    <span>Management Console</span>
+                                                    <span>{t('management_console', user?.language)}</span>
                                                     <ExternalLink size={12} className="text-[#757575]" />
                                                 </button>
                                                 <button 
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    <span>Open Device Dock</span>
+                                                    <span>{t('open_device_dock', user?.language)}</span>
                                                 </button>
                                             </div>
 
@@ -3109,19 +3108,19 @@ export default function App() {
                                                 <button 
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    <span>Upgrade Plan</span>
+                                                    <span>{t('upgrade_plan', user?.language)}</span>
                                                     <ExternalLink size={12} className="text-[#757575]" />
                                                 </button>
                                                 <button 
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    <span>Customer Portal</span>
+                                                    <span>{t('customer_portal', user?.language)}</span>
                                                     <ExternalLink size={12} className="text-[#757575]" />
                                                 </button>
                                                 <button 
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    <span>Help</span>
+                                                    <span>{t('help_label', user?.language)}</span>
                                                     <ChevronRight size={12} className="text-[#757575]" />
                                                 </button>
                                             </div>
@@ -3134,7 +3133,7 @@ export default function App() {
                                                     onClick={() => { handleLogout(); setShowUserDropdown(false); }}
                                                     className="w-full flex items-center px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
-                                                    Sign out
+                                                    {t('sign_out', user?.language)}
                                                 </button>
                                             </div>
                                         </div>
@@ -3146,7 +3145,7 @@ export default function App() {
                             {/* License Banner */}
                             <div className="h-8 w-full flex items-center justify-center bg-[#EEF2FC] flex-shrink-0 font-sans border-b border-[rgba(0,0,0,0.03)]">
                                 <span className="text-[11px] text-[#4A4A4A]">
-                                    Free license (non-commercial use only) <button className="text-blue-600 hover:underline ml-1">Upgrade plan</button>
+                                    {t('free_license_banner', user?.language)} <button className="text-blue-600 hover:underline ml-1">{t('upgrade_plan', user?.language)}</button>
                                 </span>
                             </div>
                         </>

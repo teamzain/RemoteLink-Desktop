@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X, MoreHorizontal, ChevronDown, Inbox, Check, BellOff, Settings, Trash2 } from 'lucide-react';
+import { t } from '../lib/translations';
+import { useAuthStore } from '../store/authStore';
 
 interface SnowNotificationPanelProps {
   isOpen: boolean;
@@ -67,6 +69,8 @@ const AnimatedTray: React.FC = () => {
 export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ isOpen, onClose }) => {
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
   const [showMenu, setShowMenu] = useState(false);
+  const { user } = useAuthStore();
+  const lang = user?.language;
 
   return (
     <>
@@ -88,7 +92,7 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
               onClick={() => setFilter(filter === 'unread' ? 'all' : 'unread')}
               className="flex items-center gap-2.5 px-3 py-1.5 -ml-3 rounded-xl hover:bg-gray-50 transition-all group active:scale-95"
             >
-              <span className="text-[15px] font-bold text-[#1C1C1C] tracking-tight capitalize">{filter}</span>
+              <span className="text-[15px] font-bold text-[#1C1C1C] tracking-tight capitalize">{t(filter, lang)}</span>
               <ChevronDown size={16} className={`text-[#A0A0A0] transition-transform duration-300 ${filter === 'all' ? 'rotate-180' : ''}`} />
               <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.5)] animate-pulse" />
             </button>
@@ -109,16 +113,16 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-[rgba(0,0,0,0.06)] p-1.5 z-40 animate-in fade-in zoom-in-95 duration-200">
                     <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 text-[13px] font-medium text-[#1C1C1C] transition-colors">
                       <Check size={16} className="text-emerald-500" />
-                      Mark all as read
+                      {t('mark_all_read', lang)}
                     </button>
                     <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 text-[13px] font-medium text-[#1C1C1C] transition-colors">
                       <Settings size={16} className="text-[#757575]" />
-                      Notification settings
+                      {t('notification_settings', lang)}
                     </button>
                     <div className="h-px bg-[rgba(0,0,0,0.04)] my-1 mx-2" />
                     <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 text-[13px] font-medium text-red-600 transition-colors">
                       <Trash2 size={16} />
-                      Clear all
+                      {t('clear_all', lang)}
                     </button>
                   </div>
                 </>
@@ -140,13 +144,13 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
             <AnimatedTray />
 
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-              <h3 className="text-xl font-bold text-[#1C1C1C] tracking-tight">You're all caught up</h3>
+              <h3 className="text-xl font-bold text-[#1C1C1C] tracking-tight">{t('caught_up', lang)}</h3>
               <p className="text-[13px] text-[#8A8A8E] leading-relaxed font-medium">
-                When you receive new notifications, they will appear here. Enjoy your productive day!
+                {t('no_notifications_desc', lang)}
               </p>
               
               <button className="mt-8 px-6 py-2.5 bg-white border border-[rgba(0,0,0,0.08)] rounded-full text-[12px] font-bold text-[#1C1C1C] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-95">
-                Refresh Feed
+                {t('refresh_feed', lang)}
               </button>
             </div>
           </div>
@@ -156,7 +160,7 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
         <div className="p-6 border-t border-[rgba(0,0,0,0.04)] bg-white">
           <div className="flex items-center justify-center gap-2 text-[11px] font-bold text-[#A0A0A0] uppercase tracking-[0.1em]">
             <BellOff size={12} />
-            <span>End of notifications</span>
+            <span>{t('end_of_notifications', lang)}</span>
           </div>
         </div>
       </aside>

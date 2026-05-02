@@ -10,6 +10,7 @@ interface SnowPremiumSettingsProps {
 
 export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: initialUser, logout }) => {
   const { user, updateProfile, isLoading } = useAuthStore();
+  const lang = user?.language;
   const [activeTab, setActiveTab] = useState('Account');
   const [displayName, setDisplayName] = useState(user?.name || 'User');
   const [language, setLanguage] = useState(user?.language || 'en');
@@ -31,6 +32,10 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       setDisplayName(user.name || '');
       setLanguage(user.language || 'en');
       setIsRestricted(user.notify_session_alert ?? true);
+      setDarkMode(user.darkMode ?? false);
+      setSearchBehavior(user.searchBehavior || 'Search for result');
+      setUseNewInterface(user.useNewInterface ?? true);
+      setMarketingMessages(user.marketingMessages ?? false);
     }
   }, [user]);
 
@@ -63,23 +68,23 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
   };
 
   const profileItems = [
-    { id: 'Account', label: t('account', user?.language), icon: User },
-    { id: 'Licenses', label: 'Licenses', icon: CheckCircle2 },
-    { id: 'Active sign-ins', label: 'Active sign-ins', icon: Monitor },
-    { id: 'Connection reports', label: 'Connection reports', icon: Shield },
-    { id: 'Apps & Tokens', label: 'Apps & Tokens', icon: Package },
-    { id: 'Customization', label: 'Customization', icon: SettingsIcon },
+    { id: 'Account', label: t('account', lang), icon: User },
+    { id: 'Licenses', label: t('licenses', lang), icon: CheckCircle2 },
+    { id: 'Active sign-ins', label: t('active_sign_ins', lang), icon: Monitor },
+    { id: 'Connection reports', label: t('connection_reports', lang), icon: Shield },
+    { id: 'Apps & Tokens', label: t('apps_tokens', lang), icon: Package },
+    { id: 'Customization', label: t('customization', lang), icon: SettingsIcon },
   ];
 
   const deviceItems = [
-    { id: 'General', label: 'General', icon: SettingsIcon },
-    { id: 'Security', label: 'Security', icon: Shield },
-    { id: 'Network', label: 'Network', icon: Wifi },
-    { id: 'Remote control', label: 'Remote control', icon: Monitor },
-    { id: 'Audio and video', label: 'Audio and video', icon: Video },
-    { id: 'Device management', label: 'Device management', icon: Package },
-    { id: 'Advanced settings', label: 'Advanced settings', icon: SettingsIcon },
-    { id: 'Notifications', label: 'Notifications', icon: Bell },
+    { id: 'General', label: t('general', lang), icon: SettingsIcon },
+    { id: 'Security', label: t('security_label', lang), icon: Shield },
+    { id: 'Network', label: t('network_label', lang), icon: Wifi },
+    { id: 'Remote control', label: t('remote_control', lang), icon: Monitor },
+    { id: 'Audio and video', label: t('audio_video', lang), icon: Video },
+    { id: 'Device management', label: t('device_management_label', lang), icon: Package },
+    { id: 'Advanced settings', label: t('advanced_settings', lang), icon: SettingsIcon },
+    { id: 'Notifications', label: t('notifications_label', lang), icon: Bell },
   ];
 
   return (
@@ -96,7 +101,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       <div className="w-64 bg-white border-r border-[rgba(0,0,0,0.06)] flex flex-col overflow-y-auto">
         <div className="py-4">
           <div className="px-6 mb-2">
-            <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">Profile</span>
+            <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">{t('profile', lang)}</span>
           </div>
           {profileItems.map(item => {
             const Icon = item.icon;
@@ -118,7 +123,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
 
         <div className="py-2">
           <div className="px-6 mb-2">
-            <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">Device</span>
+            <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">{t('device', lang)}</span>
           </div>
           {deviceItems.map(item => {
             const Icon = item.icon;
@@ -156,12 +161,12 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('account', user?.language)}</h1>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('account', lang)}</h1>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-[#757575]">Set your basic settings for your Remote 365 account.</p>
+                    <p className="text-sm text-[#757575]">{t('account_desc', lang)}</p>
                     {(showSaved || isLoading) && (
                       <span className="text-xs text-emerald-500 font-medium animate-in fade-in slide-in-from-left-2 duration-300 flex items-center gap-1">
-                        {isLoading ? <Loader2 size={12} className="animate-spin" /> : '•'} {isLoading ? 'Saving...' : t('save_changes', user?.language)}
+                        {isLoading ? <Loader2 size={12} className="animate-spin" /> : '•'} {isLoading ? t('saving', lang) : t('save_changes', lang)}
                       </span>
                     )}
                   </div>
@@ -180,8 +185,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       )}
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">Profile picture</h3>
-                      <p className="text-sm text-[#757575]">The profile picture helps your Remote 365 contacts recognize you.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('profile_picture', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('profile_picture_desc', lang)}</p>
                     </div>
                   </div>
                   <button 
@@ -200,8 +205,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <User size={20} className="text-[#757575]" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">Name</h3>
-                      <p className="text-sm text-[#757575]">Choose the name you want to display - it can be your first name, full name, or a nickname.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('name_label', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('name_desc', lang)}</p>
                     </div>
                   </div>
                   {isEditingName ? (
@@ -229,7 +234,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       onClick={() => setIsEditingName(true)}
                       className="text-sm text-[#1C1C1C] cursor-pointer hover:bg-gray-50 px-2 py-1 rounded transition-colors border border-transparent hover:border-[rgba(0,0,0,0.05)]"
                     >
-                      {displayName || 'Set your name'}
+                      {displayName || t('set_name_placeholder', lang)}
                     </span>
                   )}
                 </div>
@@ -241,11 +246,11 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <Package size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">Email</h3>
-                      <p className="text-sm text-[#757575]">See the email address assigned to your Remote 365 account.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('email_label', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('email_desc', lang)}</p>
                     </div>
                   </div>
-                  <span className="text-sm text-[#757575] font-mono">{user?.email || 'No email assigned'}</span>
+                  <span className="text-sm text-[#757575] font-mono">{user?.email || t('no_email_assigned', lang)}</span>
                 </div>
 
                 {/* Display Language */}
@@ -255,8 +260,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('language', user?.language)}</h3>
-                      <p className="text-sm text-[#757575]">Remote 365 speaks many languages—choose your preferred one.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('language', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('language_desc', lang)}</p>
                     </div>
                   </div>
                   <select 
@@ -283,8 +288,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <Shield size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">Status and messaging restrictions</h3>
-                      <p className="text-sm text-[#757575]">Only users in your contact list can see your status and send you messages.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('status_restrictions', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('status_restrictions_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -310,12 +315,12 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <User size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">Delete account</h3>
-                      <p className="text-sm text-[#757575]">All the data related to your account will be deleted. After deleting it, you cannot go back.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('delete_account', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('delete_account_desc', lang)}</p>
                     </div>
                   </div>
                   <button className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors">
-                    Delete
+                    {t('delete_btn', lang)}
                   </button>
                 </div>
               </div>
@@ -327,8 +332,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                   <CheckCircle2 size={24} />
                 </div>
                 <div>
-                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">Licenses</h1>
-                  <p className="text-sm text-[#757575]">Upgrade to a license that best fits your needs.</p>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('licenses', lang)}</h1>
+                  <p className="text-sm text-[#757575]">{t('upgrade_license_desc', lang)}</p>
                 </div>
               </div>
 
@@ -336,17 +341,17 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 {/* Free */}
                 <div className="p-8 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between hover:bg-gray-50/30 transition-colors">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">Free</h3>
-                    <p className="text-xs text-[#757575]">0 channels</p>
+                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">{t('free_label', lang)}</h3>
+                    <p className="text-xs text-[#757575]">0 {t('channels_label', lang)}</p>
                   </div>
-                  <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">Upgrade license</button>
+                  <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">{t('upgrade_license_btn', lang)}</button>
                 </div>
 
                 {/* IoT Free */}
                 <div className="p-8 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between hover:bg-gray-50/30 transition-colors">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">IoT Free</h3>
-                    <p className="text-xs text-[#757575]">0 / 0 endpoints</p>
+                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">IoT {t('free_label', lang)}</h3>
+                    <p className="text-xs text-[#757575]">0 / 0 {t('endpoints_label', lang)}</p>
                   </div>
                 </div>
 
@@ -354,7 +359,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="p-8 flex items-center justify-between hover:bg-gray-50/30 transition-colors">
                   <div>
                     <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">Monitoring</h3>
-                    <p className="text-xs text-[#757575]">Trial - 14 days left</p>
+                    <p className="text-xs text-[#757575]">{t('trial_days_left', lang).replace('{days}', '14')}</p>
                   </div>
                 </div>
               </div>
@@ -366,8 +371,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                   <Monitor size={24} />
                 </div>
                 <div>
-                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">Customization</h1>
-                  <p className="text-sm text-[#757575]">Adjust your preferences and decide RemoteLink's look and feel.</p>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('customization', lang)}</h1>
+                  <p className="text-sm text-[#757575]">{t('customization_desc', lang)}</p>
                 </div>
               </div>
 
@@ -380,14 +385,18 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-medium text-[#1C1C1C]">Dark Mode</h3>
+                        <h3 className="text-sm font-medium text-[#1C1C1C]">{t('dark_mode', lang)}</h3>
                         <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded-md border border-blue-100">Beta</span>
                       </div>
-                      <p className="text-sm text-[#757575]">Switch to dark mode for eye-friendly app usage at night.</p>
+                      <p className="text-sm text-[#757575]">{t('dark_mode_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={darkMode} onChange={() => setDarkMode(!darkMode)} />
+                    <input type="checkbox" className="sr-only peer" checked={darkMode} onChange={() => {
+                      const next = !darkMode;
+                      setDarkMode(next);
+                      triggerSave({ darkMode: next });
+                    }} />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
@@ -399,17 +408,21 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">Search action behavior</h3>
-                      <p className="text-sm text-[#757575] max-w-lg">Choose what happens when you press Enter or click. The opposite action will automatically trigger when you use Alt+Enter.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">{t('search_behavior', lang)}</h3>
+                      <p className="text-sm text-[#757575] max-w-lg">{t('search_behavior_desc', lang)}</p>
                     </div>
                   </div>
                   <select 
                     value={searchBehavior}
-                    onChange={(e) => setSearchBehavior(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchBehavior(val);
+                      triggerSave({ searchBehavior: val });
+                    }}
                     className="bg-white border border-[#D1D1D1] text-[#1C1C1C] text-sm rounded-lg block p-2 outline-none cursor-pointer w-48"
                   >
-                    <option>Search for result</option>
-                    <option>Direct connect</option>
+                    <option value="Search for result">{t('search_for_result', lang)}</option>
+                    <option value="Direct connect">{t('direct_connect', lang)}</option>
                   </select>
                 </div>
 
@@ -420,12 +433,16 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">Use new RemoteLink interface</h3>
-                      <p className="text-sm text-[#757575] max-w-lg">Choose which RemoteLink interface you want to use – either the new and improved experience or the classic interface.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">{t('use_new_interface', lang)}</h3>
+                      <p className="text-sm text-[#757575] max-w-lg">{t('use_new_interface_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={useNewInterface} onChange={() => setUseNewInterface(!useNewInterface)} />
+                    <input type="checkbox" className="sr-only peer" checked={useNewInterface} onChange={() => {
+                      const next = !useNewInterface;
+                      setUseNewInterface(next);
+                      triggerSave({ useNewInterface: next });
+                    }} />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
@@ -437,12 +454,16 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">In-product marketing messages</h3>
-                      <p className="text-sm text-[#757575]">Receive updates about new products and features through in-app messages.</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">{t('marketing_messages', lang)}</h3>
+                      <p className="text-sm text-[#757575]">{t('marketing_messages_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={marketingMessages} onChange={() => setMarketingMessages(!marketingMessages)} />
+                    <input type="checkbox" className="sr-only peer" checked={marketingMessages} onChange={() => {
+                      const next = !marketingMessages;
+                      setMarketingMessages(next);
+                      triggerSave({ marketingMessages: next });
+                    }} />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
@@ -451,7 +472,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
           ) : (
             <div className="flex flex-col items-center justify-center h-64 text-[#757575] animate-in fade-in duration-300">
               <SettingsIcon size={48} className="mb-4 opacity-20" />
-              <p className="text-base font-medium">Settings for {activeTab} will be available soon.</p>
+              <p className="text-base font-medium">{t('settings_soon', lang).replace('{tab}', activeTab)}</p>
             </div>
           )}
         </div>
