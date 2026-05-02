@@ -3,7 +3,7 @@ import {
   Monitor, Copy, CheckCircle2, Lock, Eye, EyeOff, RefreshCw,
   Home, Laptop, MessageSquare, Settings, MoreHorizontal, HelpCircle,
   Search, ChevronRight, ChevronLeft, Plus, Clock, AlertTriangle,
-  Wifi, Globe, Bell,
+  Wifi, Globe, Bell, Network
 } from 'lucide-react';
 import { SnowAnalytics } from './SnowAnalytics';
 import { SnowRemoteSupport } from './SnowRemoteSupport';
@@ -43,10 +43,9 @@ interface SnowHomeProps {
 
 const NAV = [
   { id: 'home',    icon: Home,           label: 'Home' },
-  { id: 'remote',  icon: Monitor,        label: 'Remote Support' },
+  { id: 'remote',  icon: Network,        label: 'Remote Support' },
   { id: 'devices', icon: Laptop,         label: 'Devices',       arrow: true },
-  { id: 'chat',    icon: MessageSquare,  label: 'Chat' },
-  { id: 'more',    icon: MoreHorizontal, label: 'More solutions', arrow: true },
+  { id: 'chat',    icon: MessageSquare,  label: 'Chat' }
 ];
 
 const BOTTOM_NAV = [

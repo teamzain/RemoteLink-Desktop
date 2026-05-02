@@ -142,7 +142,7 @@ export const SnowChat: React.FC = () => {
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex justify-between items-center mb-0.5">
-                        <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{otherUser?.name || 'Unknown'}</span>
+                        <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{otherUser?.name || otherUser?.email || 'Unknown Contact'}</span>
                       </div>
                       <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
                     </div>
@@ -206,8 +206,8 @@ export const SnowChat: React.FC = () => {
                 )}
               </div>
               <div>
-                <h2 className="text-[22px] font-semibold text-[#111111] dark:text-[#F5F5F5] leading-tight">
-                  {activeParticipant?.name || activeConversation?.name || 'Chat'}
+                <h2 className="text-[20px] font-medium text-[#111111] dark:text-[#F5F5F5]">
+                  {activeParticipant?.name || activeParticipant?.email || activeConversation?.name || 'Chat'}
                 </h2>
                 <p className="text-[14px] text-gray-500 dark:text-[#A0A0A0]">
                   {activeParticipant?.email || 'Group members'}
