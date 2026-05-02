@@ -39,7 +39,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className={`fixed left-0 top-0 bottom-0 z-30 bg-[#00193F] text-white flex flex-col font-lato border-r border-[rgba(255,255,255,0.05)] transition-all duration-300 ${isCollapsed ? 'w-[80px]' : 'w-64'}`}>
+    <aside className={`fixed left-0 top-0 bottom-0 z-30 bg-[#00193F] dark:bg-[#080808] text-white flex flex-col font-lato border-r border-[rgba(255,255,255,0.05)] transition-all duration-300 ${isCollapsed ? 'w-[80px]' : 'w-64'}`}>
       {/* Brand Header */}
       <div className={`p-4 mb-2 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 px-6 py-6'}`}>
         <div className={`rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/5 overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-10 h-10' : 'w-8 h-8'}`}>
@@ -112,18 +112,6 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
             )}
           </button>
         ))}
-        
-        {!isCollapsed && (
-          <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.05)] flex items-center gap-3 px-4">
-              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.5)]">{t('ready_to_connect', user?.language)}</span>
-          </div>
-        )}
-        {isCollapsed && (
-          <div className="mt-4 flex justify-center">
-            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-          </div>
-        )}
       </div>
     </aside>
   );

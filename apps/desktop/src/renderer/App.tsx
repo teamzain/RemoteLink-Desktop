@@ -33,6 +33,8 @@ import { t } from './lib/translations';
 
 import { SnowAnalytics } from './components/SnowAnalytics';
 import { SnowHome } from './components/SnowHome';
+import { SnowRemoteSupport } from './components/SnowRemoteSupport';
+import { SnowChat } from './components/SnowChat';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
 import UpdateBanner from './components/UpdateBanner';
 import { playUISound, fireNotification } from './components/SnowUserSettings';
@@ -1094,6 +1096,10 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 export default function App() {
     const isElectron = !!(window as any).electronAPI;
 
+    const [loading, setLoading] = useState(true);
+    const [showSplash, setShowSplash] = useState(false);
+    const { user, accessToken, temp2faToken, login: storeLogin, verify2fa: storeVerify2fa, setTemp2faToken, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
+
     // --- Global Theme & Font Size ---
     useEffect(() => {
         if (user) {
@@ -1109,10 +1115,6 @@ export default function App() {
             document.documentElement.style.setProperty('--base-font-size', `${size}px`);
         }
     }, [user?.darkMode, user?.fontSize]);
-
-    const [loading, setLoading] = useState(true);
-    const [showSplash, setShowSplash] = useState(false);
-    const { user, accessToken, temp2faToken, login: storeLogin, verify2fa: storeVerify2fa, setTemp2faToken, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
     const isAuthenticated = !!accessToken;
     const [totpCode, setTotpCode] = useState('');
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
@@ -2975,15 +2977,15 @@ export default function App() {
                 />
             )}
 
-            <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 relative bg-[#F4F7F9] rounded-l-[24px] shadow-2xl shadow-black/10 ${isAuthenticated ? (isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-64') : ''}`}>
-                <main className="flex-1 flex flex-col overflow-hidden relative bg-[#F4F7F9]">
+            <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 relative bg-[#F4F7F9] dark:bg-[#0A0A0A] rounded-l-[24px] shadow-2xl shadow-black/10 ${isAuthenticated ? (isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-64') : ''}`}>
+                <main className="flex-1 flex flex-col overflow-hidden relative bg-[#F4F7F9] dark:bg-[#0A0A0A]">
                     {/* Workspace Header */}
                     {(isAuthenticated || ((currentView as any) !== 'home' && (currentView as any) !== 'settings')) && (
                         <>
-                            <header className="h-[56px] flex items-center justify-between px-6 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(0,0,0,0.06)] font-sans">
+                            <header className="h-[56px] flex items-center justify-between px-6 flex-shrink-0 z-10 w-full bg-white dark:bg-[#0F0F0F] border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.1)] font-sans">
                                 <div className="flex items-center gap-12">
                                 <div className="flex items-center gap-6">
-                                    <h1 className="text-base font-bold text-[#1C1C1C] tracking-tight min-w-[60px]">
+                                    <h1 className="text-base font-bold text-[#1C1C1C] dark:text-[#F5F5F5] tracking-tight min-w-[60px]">
                                         {selectedDevice ? t('terminal_title', user?.language) :
                                             (currentView === 'home' || currentView === 'dashboard') ? t('home_title', user?.language) :
                                                 currentView === 'host' ? t('host_title', user?.language) :
@@ -2995,18 +2997,18 @@ export default function App() {
                                                                         currentView === 'documentation' ? t('docs_title_nav', user?.language) : currentView}
                                     </h1>
                                     
-                                    <div className="flex items-center gap-4 text-[#757575]">
+                                    <div className="flex items-center gap-4 text-[#757575] dark:text-[#A0A0A0]">
                                         <button 
                                             onClick={handleBack}
                                             disabled={historyIndex === 0}
-                                            className={`transition-colors ${historyIndex > 0 ? 'hover:text-[#1C1C1C]' : 'opacity-30 cursor-not-allowed'}`}
+                                            className={`transition-colors ${historyIndex > 0 ? 'hover:text-[#1C1C1C] dark:hover:text-white' : 'opacity-30 cursor-not-allowed'}`}
                                         >
                                             <ChevronLeft size={18} />
                                         </button>
                                         <button 
                                             onClick={handleForward}
                                             disabled={historyIndex === history.length - 1}
-                                            className={`transition-colors ${historyIndex < history.length - 1 ? 'hover:text-[#1C1C1C]' : 'opacity-30 cursor-not-allowed'}`}
+                                            className={`transition-colors ${historyIndex < history.length - 1 ? 'hover:text-[#1C1C1C] dark:hover:text-white' : 'opacity-30 cursor-not-allowed'}`}
                                         >
                                             <ChevronRight size={18} />
                                         </button>
@@ -3016,25 +3018,25 @@ export default function App() {
 
                             <div className="flex-1 max-w-xl mx-8">
                                 <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#757575]">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#757575] dark:text-[#A0A0A0]">
                                         <Search size={16} />
                                     </div>
                                     <input
                                         type="text"
                                         placeholder={t('search_and_connect', user?.language)}
-                                        className="w-full h-9 pl-11 pr-20 bg-white border border-[#D1D1D1] rounded-lg text-sm outline-none focus:border-blue-500 transition-all placeholder:text-[#757575]"
+                                        className="w-full h-9 pl-11 pr-20 bg-white dark:bg-white/5 border border-[#D1D1D1] dark:border-white/10 rounded-lg text-sm outline-none focus:border-blue-500 transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
                                     />
                                     <div className="absolute inset-y-0 right-3 flex items-center">
-                                        <span className="text-[10px] font-medium text-[#757575] bg-[#F4F7F9] px-1.5 py-0.5 rounded border border-[#D1D1D1]">Ctrl + K</span>
+                                        <span className="text-[10px] font-medium text-[#757575] dark:text-[#A0A0A0] bg-[#F4F7F9] dark:bg-white/5 px-1.5 py-0.5 rounded border border-[#D1D1D1] dark:border-white/10">Ctrl + K</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-5 text-[#757575]">
-                                <button className="hover:text-[#1C1C1C] transition-colors" title={t('documentation_tooltip', user?.language)} onClick={() => setCurrentView('documentation')}><Book size={18} /></button>
-                                <button className="hover:text-[#1C1C1C] transition-colors" title={t('settings_tooltip', user?.language)} onClick={() => setCurrentView('settings')}><Settings size={18} /></button>
+                            <div className="flex items-center gap-5 text-[#757575] dark:text-[#A0A0A0]">
+                                <button className="hover:text-[#1C1C1C] dark:hover:text-white transition-colors" title={t('documentation_tooltip', user?.language)} onClick={() => setCurrentView('documentation')}><Book size={18} /></button>
+                                <button className="hover:text-[#1C1C1C] dark:hover:text-white transition-colors" title={t('settings_tooltip', user?.language)} onClick={() => setCurrentView('settings')}><Settings size={18} /></button>
                                 <button 
-                                    className={`hover:text-[#1C1C1C] transition-colors relative ${showNotifications ? 'text-[#1C1C1C]' : ''}`} 
+                                    className={`hover:text-[#1C1C1C] dark:hover:text-white transition-colors relative ${showNotifications ? 'text-[#1C1C1C] dark:text-white' : ''}`} 
                                     title={t('notifications_tooltip', user?.language)}
                                     onClick={() => setShowNotifications(!showNotifications)}
                                 >
@@ -3043,7 +3045,7 @@ export default function App() {
                                 </button>
 
                                 
-                                <div className="h-8 w-px bg-[rgba(0,0,0,0.06)] mx-1" />
+                                <div className="h-8 w-px bg-[rgba(0,0,0,0.06)] dark:bg-white/10 mx-1" />
                                 
                                 <div className="relative" ref={userDropdownRef}>
                                     <button 
@@ -3060,11 +3062,11 @@ export default function App() {
                                                 return name.slice(0, 2).toUpperCase();
                                             })()}
                                         </div>
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#71DD8C] rounded-full border-2 border-white" />
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#71DD8C] rounded-full border-2 border-white dark:border-[#0F0F0F]" />
                                     </button>
 
                                     {showUserDropdown && (
-                                        <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-xl border border-[rgba(0,0,0,0.08)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[100] font-sans">
+                                        <div className="absolute top-full right-0 mt-3 w-64 bg-white dark:bg-[#1A1A1A] rounded-xl border border-[rgba(0,0,0,0.08)] dark:border-white/10 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[100] font-sans">
                                             {/* Profile Header */}
                                             <div className="p-4 flex items-start gap-3">
                                                 <div className="relative">
@@ -3076,74 +3078,74 @@ export default function App() {
                                                             return name.slice(0, 2).toUpperCase();
                                                         })()}
                                                     </div>
-                                                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#71DD8C] rounded-full border-2 border-white flex items-center justify-center">
+                                                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#71DD8C] rounded-full border-2 border-white dark:border-[#1A1A1A] flex items-center justify-center">
                                                         <Check size={7} className="text-white" />
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-semibold text-[#1C1C1C] leading-tight">{user?.name || 'User'}</span>
-                                                    <span className="text-[11px] font-bold text-blue-600 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
-                                                    <div className="flex items-center gap-1 mt-1 cursor-pointer hover:bg-gray-50 px-1.5 py-0.5 -ml-1.5 rounded transition-colors">
-                                                        <span className="text-xs text-[#757575]">{t('online_status', user?.language)}</span>
-                                                        <ChevronDown size={12} className="text-[#757575]" />
+                                                    <span className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] leading-tight">{user?.name || 'User'}</span>
+                                                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
+                                                    <div className="flex items-center gap-1 mt-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 px-1.5 py-0.5 -ml-1.5 rounded transition-colors">
+                                                        <span className="text-xs text-[#757575] dark:text-[#A0A0A0]">{t('online_status', user?.language)}</span>
+                                                        <ChevronDown size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="h-px bg-[rgba(0,0,0,0.06)]" />
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)] dark:bg-white/10" />
                                             
                                             {/* Navigation Section 1 */}
                                             <div className="py-1">
                                                 <button 
                                                     onClick={() => { setCurrentView('settings'); setShowUserDropdown(false); }}
-                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     <span>{t('edit_profile', user?.language)}</span>
                                                 </button>
                                                 <button 
-                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     <span>{t('management_console', user?.language)}</span>
-                                                    <ExternalLink size={12} className="text-[#757575]" />
+                                                    <ExternalLink size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
                                                 </button>
                                                 <button 
-                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     <span>{t('open_device_dock', user?.language)}</span>
                                                 </button>
                                             </div>
 
-                                            <div className="h-px bg-[rgba(0,0,0,0.06)]" />
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)] dark:bg-white/10" />
 
                                             {/* Navigation Section 2 */}
                                             <div className="py-1">
                                                 <button 
-                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     <span>{t('upgrade_plan', user?.language)}</span>
-                                                    <ExternalLink size={12} className="text-[#757575]" />
+                                                    <ExternalLink size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
                                                 </button>
                                                 <button 
-                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     <span>{t('customer_portal', user?.language)}</span>
-                                                    <ExternalLink size={12} className="text-[#757575]" />
+                                                    <ExternalLink size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
                                                 </button>
                                                 <button 
-                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     <span>{t('help_label', user?.language)}</span>
-                                                    <ChevronRight size={12} className="text-[#757575]" />
+                                                    <ChevronRight size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
                                                 </button>
                                             </div>
 
-                                            <div className="h-px bg-[rgba(0,0,0,0.06)]" />
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)] dark:bg-white/10" />
                                             
                                             {/* Sign Out Section */}
                                             <div className="py-1">
                                                 <button 
                                                     onClick={() => { handleLogout(); setShowUserDropdown(false); }}
-                                                    className="w-full flex items-center px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                    className="w-full flex items-center px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
                                                 >
                                                     {t('sign_out', user?.language)}
                                                 </button>
@@ -3155,9 +3157,9 @@ export default function App() {
                             </header>
                             
                             {/* License Banner */}
-                            <div className="h-8 w-full flex items-center justify-center bg-[#EEF2FC] flex-shrink-0 font-sans border-b border-[rgba(0,0,0,0.03)]">
-                                <span className="text-[11px] text-[#4A4A4A]">
-                                    {t('free_license_banner', user?.language)} <button className="text-blue-600 hover:underline ml-1">{t('upgrade_plan', user?.language)}</button>
+                            <div className="h-8 w-full flex items-center justify-center bg-[#EEF2FC] dark:bg-blue-900/10 flex-shrink-0 font-sans border-b border-[rgba(0,0,0,0.03)] dark:border-white/5">
+                                <span className="text-[11px] text-[#4A4A4A] dark:text-[#A0A0A0]">
+                                    {t('free_license_banner', user?.language)} <button className="text-blue-600 dark:text-blue-400 hover:underline ml-1">{t('upgrade_plan', user?.language)}</button>
                                 </span>
                             </div>
                         </>
@@ -3266,132 +3268,16 @@ export default function App() {
                                 </div>
                             </div>
                         ) : currentView === 'connect' ? (
-                            /* --- QUICK CONNECT VIEW (AUTHENTICATED) --- */
-                            <div className="flex-1 flex flex-col items-center justify-center p-8 min-h-[80vh]">
-                                <div className="w-full max-w-sm animate-in fade-in zoom-in-95 duration-500">
-                                    <div className="flex items-center gap-3 mb-10 group cursor-default justify-center">
-                                        <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 transition-transform duration-300 overflow-hidden border border-white/5">
-                                            <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
-                                        </div>
-                                        <div className="flex flex-col text-left">
-                                            <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
-                                            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#1C1C1C] mt-1">Direct Link</span>
-                                        </div>
-                                    </div>
-
-                                    <div className=" 
- mb-8">
-                                        <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
-                                        <p className="text-sm font-medium text-[#1C1C1C] leading-relaxed">
-                                            Enter the device access key and password to connect directly to a remote node.
-                                        </p>
-                                    </div>
-
-                                    {viewerStep === 1 ? (
-                                        <div className="space-y-4">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Access Key</label>
-                                                <div className="relative group">
-                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                        <Monitor size={16} />
-                                                    </div>
-                                                    <input
-                                                        autoFocus
-                                                        type="text"
-                                                        placeholder="000 000 000"
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em]  
- focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                        value={sessionCode}
-                                                        onChange={e => setSessionCode(formatCode(e.target.value))}
-                                                        onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
-                                                        maxLength={11}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {viewerError && (
-                                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
-                                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
-                                                </div>
-                                            )}
-
-                                            <button
-                                                type="button"
-                                                onClick={handleFindDevice}
-                                                disabled={viewerStatus === 'connecting' || !sessionCode}
-                                                className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
-                                            >
-                                                {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                                                FIND DEVICE
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                                            <div className="flex items-center gap-3 p-4 bg-[#F8F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)] mb-2">
-                                                <div className="w-8 h-8 bg-[#1C1C1C] rounded-xl flex items-center justify-center flex-shrink-0">
-                                                    <Monitor size={14} className="text-white" />
-                                                </div>
-                                                <div className="flex-1 min-w-0 text-left">
-                                                    <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">Target Device</p>
-                                                    <p className="text-sm font-bold text-[#1C1C1C] font-mono">{formatCode(sessionCode)}</p>
-                                                </div>
-                                                <div className="w-2.5 h-2.5 bg-[#71DD8C] rounded-full animate-pulse" />
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Password</label>
-                                                <div className="relative group">
-                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                        <Lock size={16} />
-                                                    </div>
-                                                    <input
-                                                        autoFocus
-                                                        type={showManualPassword ? 'text' : 'password'}
-                                                        placeholder="••••••••"
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                        value={accessPassword}
-                                                        onChange={e => setAccessPassword(e.target.value)}
-                                                        onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowManualPassword(!showManualPassword)}
-                                                        className="absolute inset-y-0 right-4 flex items-center text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors"
-                                                    >
-                                                        {showManualPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {viewerError && (
-                                                <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
-                                                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                                                    <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
-                                                </div>
-                                            )}
-
-                                            <button
-                                                type="button"
-                                                onClick={handleConnectToHost}
-                                                disabled={viewerStatus === 'connecting' || !accessPassword}
-                                                className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
-                                            >
-                                                {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
-                                                ESTABLISH LINK
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); }}
-                                                className="w-full text-xs font-bold text-[#1C1C1C] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
-                                            >
-                                                ← Change Device
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                            <SnowRemoteSupport 
+                                localAuthKey={localAuthKey}
+                                devicePassword={devicePassword}
+                                onCopyAccessKey={copyAccessKey}
+                                onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
+                                onConnect={handleFindDevice}
+                                onStartHosting={handleStartHosting}
+                                onStopHosting={handleStopHosting}
+                                hostStatus={hostStatus}
+                            />
                         ) : (currentView as any) === 'sessions' ? (
                             /* --- ACTIVE SESSIONS VIEW --- */
                             <div className="w-full pt-8 animate-in fade-in duration-700">
@@ -3493,6 +3379,8 @@ export default function App() {
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
                                 <SnowSupport />
                             </div>
+                        ) : currentView === 'chat' ? (
+                            <SnowChat />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
                             <div className="w-full h-full animate-in fade-in duration-700 pt-2">

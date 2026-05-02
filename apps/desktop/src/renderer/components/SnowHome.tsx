@@ -5,6 +5,8 @@ import {
   Search, ChevronRight, ChevronLeft, Plus, Clock, AlertTriangle,
   Wifi, Globe, Bell,
 } from 'lucide-react';
+import { SnowAnalytics } from './SnowAnalytics';
+import { SnowRemoteSupport } from './SnowRemoteSupport';
 import logo from '../assets/logo.png';
 
 interface SnowHomeProps {
@@ -105,7 +107,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
-        className="flex flex-col bg-[#0D1B3D] text-white shrink-0 overflow-hidden transition-all duration-200 ease-in-out"
+        className="flex flex-col bg-[#0D1B3D] dark:bg-[#050505] text-white shrink-0 overflow-hidden transition-all duration-200 ease-in-out"
         style={{ width: collapsed ? 52 : 220 }}
       >
         {/* Logo row + collapse toggle */}
@@ -217,33 +219,33 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
       </aside>
 
       {/* ── Main ────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F0F2F5]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F0F2F5] dark:bg-[#080808] transition-colors duration-300">
 
         {/* Top bar */}
-        <header className="h-[56px] shrink-0 bg-white border-b border-gray-200 flex items-center px-5 gap-3">
+        <header className="h-[56px] shrink-0 bg-white dark:bg-[#0F0F0F] border-b border-gray-200 dark:border-white/10 flex items-center px-5 gap-3 transition-colors">
           <div className="flex-1 min-w-0">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest leading-none mb-0.5">
+            <div className="text-[10px] font-semibold text-gray-400 dark:text-[#A0A0A0] uppercase tracking-widest leading-none mb-0.5">
               REMOTELINK / OVERVIEW
             </div>
-            <div className="text-[16px] font-bold text-gray-800 leading-none">Overview</div>
+            <div className="text-[16px] font-bold text-gray-800 dark:text-[#F5F5F5] leading-none">Overview</div>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2 w-[200px]">
-              <Search size={13} className="text-gray-400 shrink-0" />
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 w-[200px] border border-transparent dark:border-white/5">
+              <Search size={13} className="text-gray-400 dark:text-[#A0A0A0] shrink-0" />
               <input
                 type="text"
                 placeholder="Search devices..."
-                className="flex-1 bg-transparent text-[12px] text-gray-600 placeholder:text-gray-400 outline-none min-w-0"
+                className="flex-1 bg-transparent text-[12px] text-gray-600 dark:text-[#F5F5F5] placeholder:text-gray-400 dark:placeholder:text-[#A0A0A0] outline-none min-w-0"
               />
             </div>
-            <button className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors">
+            <button className="p-1.5 text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors">
               <RefreshCw size={15} />
             </button>
-            <button className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors">
+            <button className="p-1.5 text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors">
               <Bell size={15} />
             </button>
-            <button onClick={props.onOpenSettings} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={props.onOpenSettings} className="p-1.5 text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors">
               <Settings size={15} />
             </button>
             <div className="flex items-center gap-2 cursor-pointer">
@@ -251,8 +253,8 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
                 {userInitials}
               </div>
               <div className="hidden lg:block leading-tight">
-                <div className="text-[12px] font-semibold text-gray-700 truncate max-w-[90px]">{userName}</div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wide">
+                <div className="text-[12px] font-semibold text-gray-700 dark:text-[#F5F5F5] truncate max-w-[90px]">{userName}</div>
+                <div className="text-[10px] text-gray-400 dark:text-[#A0A0A0] uppercase tracking-wide">
                   {props.user?.role || (props.isAuthenticated ? 'User' : 'Guest')}
                 </div>
               </div>
@@ -262,157 +264,167 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-6 space-y-5">
+          {activeNav === 'remote' ? (
+            <SnowRemoteSupport 
+              localAuthKey={props.localAuthKey}
+              devicePassword={props.devicePassword}
+              onCopyAccessKey={props.onCopyAccessKey}
+              onOpenSetPassword={props.onOpenSetPassword}
+              onConnect={props.onFindDevice}
+              onStartHosting={props.onStartHosting}
+              onStopHosting={props.onStopHosting}
+              hostStatus={props.hostStatus}
+            />
+          ) : (
+            <div className="p-6 space-y-5">
+              {/* Greeting */}
+              <div>
+                <h1 className="text-[20px] font-bold text-gray-800 dark:text-[#F5F5F5]">
+                  Hello, {firstName}
+                </h1>
+                <p className="text-[13px] text-gray-400 dark:text-[#A0A0A0] mt-0.5">Here's your activity overview.</p>
+              </div>
 
-            {/* Greeting */}
-            <div>
-              <h1 className="text-[20px] font-bold text-gray-800">
-                Hello, {firstName}
-              </h1>
-              <p className="text-[13px] text-gray-400 mt-0.5">Here's your activity overview.</p>
-            </div>
-
-            {/* Row 1: Getting started + Connect with ID */}
-            <div className="flex gap-4">
-
-              {/* Getting started — ~58% */}
-              <div className="flex-[58] bg-white rounded-xl border border-gray-200 p-7 shadow-sm min-w-0">
-                <h3 className="text-[16px] font-bold text-gray-800">Getting started</h3>
-                <div className="mt-1 mb-5">
-                  <div className="text-[12.5px] text-gray-400 mb-2">{tasksCompleted} of 3 tasks completed</div>
-                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#1D6DF5] rounded-full transition-all duration-500"
-                      style={{ width: `${(tasksCompleted / 3) * 100}%` }}
-                    />
+              {/* Row 1: Getting started + Connect with ID */}
+              <div className="flex gap-4">
+                {/* Getting started — ~58% */}
+                <div className="flex-[58] bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-white/5 p-7 shadow-sm min-w-0 transition-colors">
+                  <h3 className="text-[16px] font-bold text-gray-800 dark:text-[#F5F5F5]">Getting started</h3>
+                  <div className="mt-1 mb-5">
+                    <div className="text-[12.5px] text-gray-400 dark:text-[#A0A0A0] mb-2">{tasksCompleted} of 3 tasks completed</div>
+                    <div className="h-1 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#1D6DF5] rounded-full transition-all duration-500"
+                        style={{ width: `${(tasksCompleted / 3) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-5">
+                    {[
+                      { label: 'Sign in to RemoteLink',               done: !!props.isAuthenticated,   action: props.onSignIn },
+                      { label: 'Register this device',                done: !!props.isRegistered,       action: undefined },
+                      { label: 'Set up remote access on this device', done: !!props.isAutoHostEnabled,  action: props.onToggleAutoHost },
+                    ].map((t, i) => (
+                      <button key={i} onClick={!t.done ? t.action : undefined}
+                        className="w-full flex items-center gap-4 text-left group">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                          t.done ? 'border-[#1D6DF5] bg-[#1D6DF5]' : 'border-gray-300 dark:border-white/20 group-hover:border-[#1D6DF5]/50'
+                        }`}>
+                          {t.done && <CheckCircle2 size={13} className="text-white" />}
+                        </div>
+                        <span className={`text-[13.5px] ${t.done ? 'line-through text-gray-400 dark:text-[#555555]' : 'text-gray-700 dark:text-[#D1D1D1]'}`}>
+                          {t.label}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="space-y-5">
-                  {[
-                    { label: 'Sign in to RemoteLink',               done: !!props.isAuthenticated,   action: props.onSignIn },
-                    { label: 'Register this device',                done: !!props.isRegistered,       action: undefined },
-                    { label: 'Set up remote access on this device', done: !!props.isAutoHostEnabled,  action: props.onToggleAutoHost },
-                  ].map((t, i) => (
-                    <button key={i} onClick={!t.done ? t.action : undefined}
-                      className="w-full flex items-center gap-4 text-left group">
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                        t.done ? 'border-[#1D6DF5] bg-[#1D6DF5]' : 'border-gray-300 group-hover:border-[#1D6DF5]/50'
-                      }`}>
-                        {t.done && <CheckCircle2 size={13} className="text-white" />}
+
+                {/* Connect with ID — ~42% */}
+                <div className="flex-[42] bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-white/5 p-7 shadow-sm min-w-0 flex flex-col transition-colors">
+                  <h3 className="text-[16px] font-bold text-gray-800 dark:text-[#F5F5F5]">Connect with ID</h3>
+                  <p className="text-[12.5px] text-gray-400 dark:text-[#A0A0A0] mt-0.5 mb-5">
+                    Your ID and password to share with the supporter.
+                  </p>
+
+                  {/* ID + Password */}
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 p-4 mb-4 transition-colors">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-[10px] font-semibold text-gray-400 dark:text-[#A0A0A0] uppercase tracking-widest mb-1">Your ID</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[16px] font-bold text-gray-800 dark:text-[#F5F5F5] tracking-wider">
+                            {fmt(props.localAuthKey || '')}
+                          </span>
+                          <button onClick={copyId} className="text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors shrink-0">
+                            {copiedId ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                          </button>
+                        </div>
                       </div>
-                      <span className={`text-[13.5px] ${t.done ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                        {t.label}
-                      </span>
+                      <div>
+                        <div className="text-[10px] font-semibold text-gray-400 dark:text-[#A0A0A0] uppercase tracking-widest mb-1">Password</div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[14px] font-bold text-gray-800 dark:text-[#F5F5F5] tracking-wider">
+                            {showPwd ? (props.devicePassword || '--------') : '••••••••'}
+                          </span>
+                          <button onClick={() => setShowPwd(v => !v)} className="text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors shrink-0">
+                            {showPwd ? <EyeOff size={12} /> : <Eye size={12} />}
+                          </button>
+                          <button onClick={copyPwd} className="text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors shrink-0">
+                            {copiedPwd ? <CheckCircle2 size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                          </button>
+                          <button onClick={props.onOpenSetPassword} className="text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors shrink-0">
+                            <RefreshCw size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0] mb-3">
+                    Connect via ID to remotely access and control a device.
+                  </p>
+
+                  <div className="flex gap-2 mt-auto">
+                    <input
+                      type="text"
+                      placeholder="Partner ID"
+                      value={props.sessionCode || ''}
+                      onChange={e => props.onSessionCodeChange?.(props.formatCode(e.target.value))}
+                      onKeyDown={e => { if (e.key === 'Enter') props.onFindDevice?.(); }}
+                      className="flex-1 min-w-0 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 rounded-lg px-3 py-2.5 text-[13px] text-gray-700 dark:text-[#F5F5F5] placeholder:text-gray-400 dark:placeholder:text-[#A0A0A0] outline-none focus:border-[#1D6DF5] transition-colors"
+                    />
+                    <button
+                      onClick={props.onFindDevice}
+                      disabled={!props.sessionCode || props.sessionCode.replace(/\s/g, '').length < 9 || props.connectStatus === 'connecting'}
+                      className="px-4 py-2.5 text-[13px] font-medium text-gray-500 dark:text-[#A0A0A0] hover:text-[#1D6DF5] dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {props.connectStatus === 'connecting'
+                        ? <Clock size={14} className="animate-spin" />
+                        : 'Connect'}
+                    </button>
+                  </div>
+
+                  {props.connectError && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[11.5px] text-red-500">
+                      <AlertTriangle size={11} className="shrink-0" />
+                      {props.connectError}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2: Remote actions */}
+              <div>
+                <h3 className="text-[14px] font-semibold text-gray-600 dark:text-[#A0A0A0] mb-3">Remote actions</h3>
+                <div className="grid grid-cols-4 gap-4">
+                  {ACTIONS.map(action => (
+                    <button
+                      key={action.key}
+                      onClick={() => handleAction(action.key)}
+                      className="bg-white dark:bg-[#111111] rounded-xl border border-gray-200 dark:border-white/5 p-5 text-left hover:border-[#1D6DF5]/30 hover:shadow-md transition-all shadow-sm"
+                    >
+                      <div className={`w-11 h-11 ${action.bg} rounded-xl flex items-center justify-center mb-4`}>
+                        <action.icon size={20} className="text-white" />
+                      </div>
+                      <div className="text-[13.5px] font-bold text-gray-800 dark:text-[#F5F5F5] mb-1">{action.label}</div>
+                      <div className="text-[12px] text-gray-400 dark:text-[#A0A0A0] leading-relaxed">{action.sub}</div>
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Connect with ID — ~42% */}
-              <div className="flex-[42] bg-white rounded-xl border border-gray-200 p-7 shadow-sm min-w-0 flex flex-col">
-                <h3 className="text-[16px] font-bold text-gray-800">Connect with ID</h3>
-                <p className="text-[12.5px] text-gray-400 mt-0.5 mb-5">
-                  Your ID and password to share with the supporter.
-                </p>
-
-                {/* ID + Password */}
-                <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 mb-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Your ID</div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[16px] font-bold text-gray-800 tracking-wider">
-                          {fmt(props.localAuthKey || '')}
-                        </span>
-                        <button onClick={copyId} className="text-gray-400 hover:text-gray-600 transition-colors shrink-0">
-                          {copiedId ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-1">Password</div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-[14px] font-bold text-gray-800 tracking-wider">
-                          {showPwd ? (props.devicePassword || '--------') : '••••••••'}
-                        </span>
-                        <button onClick={() => setShowPwd(v => !v)} className="text-gray-400 hover:text-gray-600 transition-colors shrink-0">
-                          {showPwd ? <EyeOff size={12} /> : <Eye size={12} />}
-                        </button>
-                        <button onClick={copyPwd} className="text-gray-400 hover:text-gray-600 transition-colors shrink-0">
-                          {copiedPwd ? <CheckCircle2 size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                        </button>
-                        <button onClick={props.onOpenSetPassword} className="text-gray-400 hover:text-gray-600 transition-colors shrink-0">
-                          <RefreshCw size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[12px] text-gray-400 mb-3">
-                  Connect via ID to remotely access and control a device.
-                </p>
-
-                <div className="flex gap-2 mt-auto">
-                  <input
-                    type="text"
-                    placeholder="Partner ID"
-                    value={props.sessionCode || ''}
-                    onChange={e => props.onSessionCodeChange?.(props.formatCode(e.target.value))}
-                    onKeyDown={e => { if (e.key === 'Enter') props.onFindDevice?.(); }}
-                    className="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2.5 text-[13px] text-gray-700 placeholder:text-gray-400 outline-none focus:border-[#1D6DF5] transition-colors"
-                  />
-                  <button
-                    onClick={props.onFindDevice}
-                    disabled={!props.sessionCode || props.sessionCode.replace(/\s/g, '').length < 9 || props.connectStatus === 'connecting'}
-                    className="px-4 py-2.5 text-[13px] font-medium text-gray-500 hover:text-[#1D6DF5] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {props.connectStatus === 'connecting'
-                      ? <Clock size={14} className="animate-spin" />
-                      : 'Connect'}
-                  </button>
-                </div>
-
-                {props.connectError && (
-                  <div className="mt-2 flex items-center gap-1.5 text-[11.5px] text-red-500">
-                    <AlertTriangle size={11} className="shrink-0" />
-                    {props.connectError}
-                  </div>
-                )}
-              </div>
             </div>
-
-            {/* Row 2: Remote actions */}
-            <div>
-              <h3 className="text-[14px] font-semibold text-gray-600 mb-3">Remote actions</h3>
-              <div className="grid grid-cols-4 gap-4">
-                {ACTIONS.map(action => (
-                  <button
-                    key={action.key}
-                    onClick={() => handleAction(action.key)}
-                    className="bg-white rounded-xl border border-gray-200 p-5 text-left hover:border-[#1D6DF5]/30 hover:shadow-md transition-all shadow-sm"
-                  >
-                    <div className={`w-11 h-11 ${action.bg} rounded-xl flex items-center justify-center mb-4`}>
-                      <action.icon size={20} className="text-white" />
-                    </div>
-                    <div className="text-[13.5px] font-bold text-gray-800 mb-1">{action.label}</div>
-                    <div className="text-[12px] text-gray-400 leading-relaxed">{action.sub}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-          </div>
+          )}
         </main>
       </div>
 
       {/* ── Password modal ──────────────────────────────────── */}
       {props.connectStep === 2 && (
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200 shadow-2xl p-8 space-y-5">
+          <div className="w-full max-w-sm bg-white dark:bg-[#1A1A1A] rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl p-8 space-y-5">
             <div>
-              <h3 className="text-[17px] font-bold text-gray-800">Enter password</h3>
-              <p className="text-[12px] text-gray-400 mt-0.5">
+              <h3 className="text-[17px] font-bold text-gray-800 dark:text-[#F5F5F5]">Enter password</h3>
+              <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0] mt-0.5">
                 Required for {props.targetDeviceName || props.sessionCode}
               </p>
             </div>
@@ -422,7 +434,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
                 autoFocus
                 type={showPwd ? 'text' : 'password'}
                 placeholder="Device password"
-                className="w-full border border-gray-200 rounded-lg pl-10 pr-10 py-3 text-[13px] text-gray-700 focus:border-[#1D6DF5] outline-none transition-colors"
+                className="w-full border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 rounded-lg pl-10 pr-10 py-3 text-[13px] text-gray-700 dark:text-[#F5F5F5] focus:border-[#1D6DF5] outline-none transition-colors"
                 value={props.accessPassword}
                 onChange={e => props.onAccessPasswordChange?.(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') props.onConnectToHost?.(); }}
@@ -434,7 +446,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
             </div>
             <div className="flex gap-3">
               <button onClick={props.onBackToStep1}
-                className="flex-1 py-2.5 border border-gray-200 text-[13px] font-semibold text-gray-600 rounded-lg hover:bg-gray-50 transition-colors">
+                className="flex-1 py-2.5 border border-gray-200 dark:border-white/10 text-[13px] font-semibold text-gray-600 dark:text-[#A0A0A0] rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                 Back
               </button>
               <button onClick={props.onConnectToHost}

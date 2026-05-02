@@ -1392,6 +1392,174 @@ export const translations = {
         "de": "Ende der Benachrichtigungen",
         "fr": "Fin des notifications",
         "es": "Fin de las notificaciones"
+    },
+    "device_name": {
+        "en": "Device name",
+        "de": "Gerätename",
+        "fr": "Nom de l'appareil",
+        "es": "Nombre del dispositivo"
+    },
+    "device_name_desc": {
+        "en": "While you are signed in with your RemoteLink account your account name is used instead.",
+        "de": "Solange Sie mit Ihrem RemoteLink-Konto angemeldet sind, wird stattdessen Ihr Kontoname verwendet.",
+        "fr": "Tant que vous êtes connecté avec votre compte RemoteLink, le nom de votre compte est utilisé à la place.",
+        "es": "Mientras esté conectado con su cuenta RemoteLink, se utilizará su nombre de cuenta en su lugar."
+    },
+    "start_with_windows": {
+        "en": "Start RemoteLink with Windows",
+        "de": "RemoteLink mit Windows starten",
+        "fr": "Démarrer RemoteLink mit Windows",
+        "es": "Iniciar RemoteLink con Windows"
+    },
+    "start_with_windows_desc": {
+        "en": "RemoteLink will launch automatically after you start your device.",
+        "de": "RemoteLink wird nach dem Start Ihres Geräts automatisch gestartet.",
+        "fr": "RemoteLink se lancera automatiquement après le démarrage de votre appareil.",
+        "es": "RemoteLink se iniciará automáticamente después de encender su dispositivo."
+    },
+    "device_dock": {
+        "en": "RemoteLink Device Dock",
+        "de": "RemoteLink Device Dock",
+        "fr": "RemoteLink Device Dock",
+        "es": "RemoteLink Device Dock"
+    },
+    "device_dock_desc": {
+        "en": "Have your devices always available on your screen in a compact view.",
+        "de": "Haben Sie Ihre Geräte immer auf Ihrem Bildschirm in einer kompakten Ansicht verfügbar.",
+        "fr": "Ayez vos appareils toujours disponibles sur votre écran dans une vue compacte.",
+        "es": "Ten tus dispositivos siempre disponibles en tu pantalla en una vista compacta."
+    },
+    "block_allow_list": {
+        "en": "Block and allow list",
+        "de": "Block- und Erlaubnisliste",
+        "fr": "Liste de blocage et d'autorisation",
+        "es": "Lista de bloqueo y permitido"
+    },
+    "block_allow_list_desc": {
+        "en": "Set up your block and allow list. You can block specific users or define a group of users who are allowed to connect to your device.",
+        "de": "Richten Sie Ihre Block- und Erlaubnisliste ein. Sie können bestimmte Benutzer blockieren oder eine Gruppe von Benutzern definieren, die eine Verbindung zu Ihrem Gerät herstellen dürfen.",
+        "fr": "Configurez votre liste de blocage et d'autorisation. Vous pouvez bloquer des utilisateurs spécifiques ou définir un groupe d'utilisateurs autorisés à se connecter à votre appareil.",
+        "es": "Configure su lista de bloqueo y permitido. Puede bloquear usuarios específicos o definir un grupo de usuarios que tengan permitido conectarse a su dispositivo."
+    },
+    "two_factor_auth_connections": {
+        "en": "Two-factor authentication for connections",
+        "de": "Zwei-Faktor-Authentifizierung für Verbindungen",
+        "fr": "Authentification à deux facteurs pour les connexions",
+        "es": "Autenticación de dos factores para conexiones"
+    },
+    "two_factor_auth_connections_desc": {
+        "en": "Offers an extra layer of protection to this device. When enabled, connections to this device need to be approved using a push notification sent to a mobile device.",
+        "de": "Bietet eine zusätzliche Schutzebene für dieses Gerät. Wenn aktiviert, müssen Verbindungen zu diesem Gerät über eine Push-Benachrichtigung genehmigt werden, die an ein mobiles Gerät gesendet wird.",
+        "fr": "Offre une couche de protection supplémentaire à cet appareil. Lorsqu'il est activé, les connexions à cet appareil doivent être approuvées à l'aide d'une notification push envoyée à un appareil mobile.",
+        "es": "Ofrece una capa adicional de protección a este dispositivo. Cuando está habilitado, las conexiones a este dispositivo deben aprobarse mediante una notificación push enviada a un dispositivo móvil."
+    },
+    "add_device": {
+        "en": "Add Device",
+        "de": "Gerät hinzufügen",
+        "fr": "Ajouter un appareil",
+        "es": "Añadir dispositivo"
+    },
+    "additional_auth_settings": {
+        "en": "Additional authentication settings",
+        "de": "Zusätzliche Authentifizierungseinstellungen",
+        "fr": "Paramètres d'authentification supplémentaires",
+        "es": "Ajustes de autenticación adicionales"
+    },
+    "additional_auth_settings_desc": {
+        "en": "Use these settings to optimize the authentication process for your RemoteLink connections.",
+        "de": "Verwenden Sie diese Einstellungen, um den Authentifizierungsprozess für Ihre RemoteLink-Verbindungen zu optimieren.",
+        "fr": "Utilisez ces paramètres pour optimiser le processus d'authentification pour vos connexions RemoteLink.",
+        "es": "Utilice estos ajustes para optimizar el proceso de autenticación para sus conexiones de RemoteLink."
+    },
+    "access_control": {
+        "en": "Access Control",
+        "de": "Zugriffskontrolle",
+        "fr": "Contrôle d'accès",
+        "es": "Control de acceso"
+    },
+    "access_control_desc": {
+        "en": "Define permissions and the number of end users in the RemoteLink sessions. You can apply rule sets or set up customized permissions for your remote connections.",
+        "de": "Definieren Sie Berechtigungen und die Anzahl der Endbenutzer in den RemoteLink-Sitzungen. Sie können Regelsätze anwenden oder angepasste Berechtigungen für Ihre Remote-Verbindungen einrichten.",
+        "fr": "Définissez les autorisations et le nombre d'utilisateurs finaux dans les sessions RemoteLink. Vous pouvez appliquer des ensembles de règles ou configurer des autorisations personnalisées pour vos connexions à distance.",
+        "es": "Defina permisos y el número de usuarios finales en las sesiones de RemoteLink. Puede aplicar conjuntos de reglas o configurar permisos personalizados para sus conexiones remotas."
+    },
+    "security_key_redirection": {
+        "en": "Security key redirection",
+        "de": "Sicherheitsschlüssel-Weiterleitung",
+        "fr": "Redirection de clé de sécurité",
+        "es": "Redirección de clave de seguridad"
+    },
+    "security_key_redirection_desc": {
+        "en": "Install RemoteLink Virtual Security Key driver on the remote side to enable redirection of security keys from the local side via a RemoteLink session. Learn more",
+        "de": "Installieren Sie den RemoteLink Virtual Security Key Treiber auf der Remote-Seite, um die Weiterleitung von Sicherheitsschlüsseln von der lokalen Seite über eine RemoteLink-Sitzung zu ermöglichen. Mehr erfahren",
+        "fr": "Installez le pilote RemoteLink Virtual Security Key du côté distant pour activer la redirection des clés de sécurité du côté local via une session RemoteLink. En savoir plus",
+        "es": "Instale el controlador de clave de seguridad virtual de RemoteLink en el lado remoto para permitir la redirección de claves de seguridad desde el lado local a través de una sesión de RemoteLink. Aprender más"
+    },
+    "install": {
+        "en": "Install",
+        "de": "Installieren",
+        "fr": "Installer",
+        "es": "Instalar"
+    },
+    "microphone": {
+        "en": "Microphone",
+        "de": "Mikrofon",
+        "fr": "Microphone",
+        "es": "Micrófono"
+    },
+    "microphone_desc": {
+        "en": "Configure all required settings so the end users can hear you.",
+        "de": "Konfigurieren Sie alle erforderlichen Einstellungen, damit die Endbenutzer Sie hören können.",
+        "fr": "Configurez tous les paramètres requis pour que les utilisateurs finaux puissent vous entendre.",
+        "es": "Configure todos los ajustes necesarios para que los usuarios finales puedan escucharle."
+    },
+    "speaker": {
+        "en": "Speaker",
+        "de": "Lautsprecher",
+        "fr": "Haut-parleur",
+        "es": "Altavoz"
+    },
+    "speaker_desc": {
+        "en": "Set up all required settings so you can hear the end users.",
+        "de": "Richten Sie alle erforderlichen Einstellungen ein, damit Sie die Endbenutzer hören können.",
+        "fr": "Configurez tous les paramètres requis pour que vous puissiez entendre les utilisateurs finaux.",
+        "es": "Configure todos los ajustes necesarios para que pueda escuchar a los usuarios finales."
+    },
+    "video_label": {
+        "en": "Video",
+        "de": "Video",
+        "fr": "Vidéo",
+        "es": "Vídeo"
+    },
+    "video_desc": {
+        "en": "Choose the video source and configure settings for the best video experience.",
+        "de": "Wählen Sie die Videoquelle und konfigurieren Sie die Einstellungen für das beste Videoerlebnis.",
+        "fr": "Choisissez la source vidéo et configurez les paramètres pour la meilleure expérience vidéo.",
+        "es": "Elija la fuente de video y configure los ajustes para la mejor experiencia de video."
+    },
+    "windows_notification": {
+        "en": "Windows notification",
+        "de": "Windows-Benachrichtigung",
+        "fr": "Notification Windows",
+        "es": "Notificación de Windows"
+    },
+    "windows_notification_desc": {
+        "en": "Turn on push notifications to receive them on the Windows sidebar.",
+        "de": "Schalten Sie Push-Benachrichtigungen ein, um sie in der Windows-Sidebar zu erhalten.",
+        "fr": "Activez les notifications push pour les recevoir dans la barre latérale Windows.",
+        "es": "Active las notificaciones push para recibirlas en la barra lateral de Windows."
+    },
+    "incoming_session_notification": {
+        "en": "Windows notifications for incoming sessions",
+        "de": "Windows-Benachrichtigungen für eingehende Sitzungen",
+        "fr": "Notifications Windows pour les sessions entrantes",
+        "es": "Notificaciones de Windows para sesiones entrantes"
+    },
+    "incoming_session_notification_desc": {
+        "en": "Get notified when a session starts or ends. Useful for screen reader users. Learn more",
+        "de": "Lassen Sie sich benachrichtigen, wenn eine Sitzung beginnt oder endet. Nützlich für Benutzer von Bildschirmleseprogrammen. Mehr erfahren",
+        "fr": "Soyez averti lorsqu'une session commence ou se termine. Utile pour les utilisateurs de lecteurs d'écran. En savoir plus",
+        "es": "Reciba una notificación cuando comience o termine una sesión. Útil para usuarios de lectores de pantalla. Aprender más"
     }
 };
 

@@ -22,6 +22,11 @@ interface User {
   useNewInterface?: boolean;
   marketingMessages?: boolean;
   fontSize?: number;
+  deviceName?: string;
+  startWithWindows?: boolean;
+  useDeviceDock?: boolean;
+  windowsNotification?: boolean;
+  incomingSessionNotification?: boolean;
 }
 
 interface AuthState {
@@ -170,8 +175,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const { data: responseData } = await api.patch('/api/auth/me', data);
-      if (responseData.user) {
-        set({ user: responseData.user });
+      if (responseData.user || responseData.id) {
+        set({ user: responseData.user || responseData });
       }
     } catch (e) {
       console.error('[AuthStore] Profile update failed:', e);

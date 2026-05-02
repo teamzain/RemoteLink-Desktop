@@ -6,7 +6,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
-import { redisPublisher, redisSubscriber, verifyToken, EventChannel } from '@remotelink/shared';
+import { redisPublisher, redisSubscriber, verifyToken, EventChannel, prisma } from '@remotelink/shared';
 
 const PORT = parseInt(process.env.PORT || '3002', 10);
 
@@ -18,6 +18,11 @@ const reverseRegistry = new Map<string, string>(); // hostConnectionId -> sessio
 const viewerRegistry = new Map<string, string>(); // viewerConnectionId -> sessionId
 // Pending connections waiting for host approval
 const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
+
+// Chat connections: userId -> Set of connectionIds
+const userConnections = new Map<string, Set<string>>();
+// connectionId -> userId (for quick cleanup)
+const connectionToUser = new Map<string, string>();
 
 // --- STARTUP CLEANUP ---
 // Clear all stale presence keys on service restart to prevent ghost online status
@@ -106,6 +111,74 @@ async function startServer() {
               ws.send(JSON.stringify({ type: 'subscribed-org', organizationId: orgId }));
             }
             break;
+
+          case 'authenticate-chat': {
+            const token = data.token;
+            if (!token) break;
+            const decoded = verifyToken(token);
+            if (decoded && decoded.userId) {
+              const userId = decoded.userId;
+              connectionToUser.set(connectionId, userId);
+              
+              if (!userConnections.has(userId)) {
+                userConnections.set(userId, new Set());
+              }
+              userConnections.get(userId)!.add(connectionId);
+              console.log(`[Signaling] Chat authenticated for user: ${userId}`);
+            }
+            break;
+          }
+
+          case 'send-chat-message': {
+            const senderId = connectionToUser.get(connectionId);
+            if (!senderId) {
+              ws.send(JSON.stringify({ type: 'chat-error', error: 'Unauthenticated' }));
+              break;
+            }
+
+            const { conversationId, content } = data;
+            if (!conversationId || !content) break;
+
+            try {
+              // 1. Save to DB
+              const message = await prisma.message.create({
+                data: {
+                  conversationId,
+                  senderId,
+                  content
+                },
+                include: {
+                  sender: { select: { id: true, name: true, avatar: true } }
+                }
+              });
+
+              // Update the conversation updatedAt
+              await prisma.conversation.update({
+                where: { id: conversationId },
+                data: { updatedAt: new Date() }
+              });
+
+              // 2. Fetch participants to broadcast
+              const participants = await prisma.conversationParticipant.findMany({
+                where: { conversationId },
+                select: { userId: true }
+              });
+
+              const targetUserIds = participants.map(p => p.userId);
+
+              // 3. Publish to Redis cluster
+              await redisPublisher.publish('chat:new-message', JSON.stringify({
+                type: 'chat-message-received',
+                message,
+                conversationId,
+                targetUserIds
+              }));
+
+            } catch (err) {
+              console.error('[Signaling] Failed to process send-chat-message', err);
+            }
+            break;
+          }
 
           case 'register':
             let sessionId = data.accessKey;
@@ -276,6 +349,16 @@ async function startServer() {
       presenceSubscriptions.delete(connectionId);
       orgSubscriptions.delete(connectionId);
 
+      const chatUserId = connectionToUser.get(connectionId);
+      if (chatUserId) {
+        const set = userConnections.get(chatUserId);
+        if (set) {
+          set.delete(connectionId);
+          if (set.size === 0) userConnections.delete(chatUserId);
+        }
+        connectionToUser.delete(connectionId);
+      }
+
       // If this viewer disconnected while still pending approval, cancel the request
       if (pendingJoins.has(connectionId)) {
         const pending = pendingJoins.get(connectionId)!;
@@ -370,6 +453,11 @@ async function startServer() {
   redisPublisher.on('error', (err) => console.error('[Signaling] Redis Publisher Error:', err));
   redisSubscriber.on('error', (err) => console.error('[Signaling] Redis Subscriber Error:', err));
 
+  // Listen for Chat Messages across the cluster
+  redisSubscriber.subscribe('chat:new-message', (err) => {
+    if (err) console.error('[Signaling] Failed to subscribe to chat:new-message', err);
+  });
+
   // Listen for Organization Updates
   redisSubscriber.subscribe(EventChannel.ORG_UPDATES, (err) => {
     if (err) console.error('[Signaling] Failed to subscribe to ORG_UPDATES', err);
@@ -395,6 +483,26 @@ async function startServer() {
         }
       } catch (err) {
         console.error('[Signaling] Failed to process Org Update:', err);
+      }
+    } else if (channel === 'chat:new-message') {
+      try {
+        const payload = JSON.parse(message);
+        const { targetUserIds } = payload;
+        
+        // Broadcast to all active connections for the target users
+        targetUserIds.forEach((userId: string) => {
+          const conns = userConnections.get(userId);
+          if (conns) {
+            conns.forEach(connId => {
+              const clientWs = localClients.get(connId);
+              if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(JSON.stringify(payload));
+              }
+            });
+          }
+        });
+      } catch (err) {
+        console.error('[Signaling] Failed to process chat:new-message:', err);
       }
     }
   });

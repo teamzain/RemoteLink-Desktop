@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Shield, Wifi, Monitor, Video, Bell, Package, CheckCircle2, ChevronRight, Settings as SettingsIcon, LogOut, Edit3, Loader2 } from 'lucide-react';
+import { User, Shield, Wifi, Monitor, Video, Bell, Package, CheckCircle2, ChevronRight, Settings as SettingsIcon, LogOut, Edit3, Loader2, Moon, Search, Layout, Mail, Type, Smartphone, Rocket, Key, ShieldCheck, Usb, Mic, Volume2, ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { t } from '../lib/translations';
 
@@ -25,9 +25,27 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
   const [marketingMessages, setMarketingMessages] = useState(false);
   const [fontSize, setFontSize] = useState(16);
 
+  // New Settings state
+  const [deviceName, setDeviceName] = useState('');
+  const [startWithWindows, setStartWithWindows] = useState(false);
+  const [useDeviceDock, setUseDeviceDock] = useState(false);
+  const [windowsNotification, setWindowsNotification] = useState(true);
+  const [incomingSessionNotification, setIncomingSessionNotification] = useState(true);
+
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch machine name if deviceName is empty
+  useEffect(() => {
+    if (activeTab === 'General' && !deviceName && (window as any).electronAPI) {
+      (window as any).electronAPI.getMachineName().then((name: string) => {
+        setDeviceName(name);
+      });
+    }
+  }, [activeTab, deviceName]);
+
   // Sync local state if user object in store changes
+
   useEffect(() => {
     if (user) {
       setDisplayName(user.name || '');
@@ -38,6 +56,13 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       setUseNewInterface(user.useNewInterface ?? true);
       setMarketingMessages(user.marketingMessages ?? false);
       setFontSize(user.fontSize || 16);
+
+      setDeviceName(user.deviceName || '');
+      setStartWithWindows(user.startWithWindows ?? false);
+      setUseDeviceDock(user.useDeviceDock ?? false);
+      setWindowsNotification(user.windowsNotification ?? true);
+      setIncomingSessionNotification(user.incomingSessionNotification ?? true);
+
     }
   }, [user]);
 
@@ -90,7 +115,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
   ];
 
   return (
-    <div className="h-full w-full flex bg-[#F4F7F9] dark:bg-[#0A0A0A] rounded-bl-[24px] overflow-hidden font-lato transition-colors duration-300">
+    <div className="h-full w-full flex bg-[#F4F7F9] dark:bg-[#080808] rounded-bl-[24px] overflow-hidden font-lato transition-colors duration-300">
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -103,7 +128,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       <div className="w-64 bg-white dark:bg-[#0F0F0F] border-r border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex flex-col overflow-y-auto transition-colors duration-300">
         <div className="py-4">
           <div className="px-6 mb-2">
-            <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">{t('profile', lang)}</span>
+            <span className="text-[10px] font-bold text-[#757575] dark:text-[#A0A0A0] uppercase tracking-wider">{t('profile', lang)}</span>
           </div>
           {profileItems.map(item => {
             const Icon = item.icon;
@@ -113,10 +138,10 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-6 py-2.5 text-sm transition-colors ${
-                  isActive ? 'bg-blue-50/50 text-blue-600 font-medium' : 'text-[#1C1C1C] hover:bg-gray-50'
+                  isActive ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600 font-medium' : 'text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-gray-50 dark:hover:bg-white/5'
                 }`}
               >
-                <Icon size={16} className={isActive ? 'text-blue-600' : 'text-[#757575]'} />
+                <Icon size={16} className={isActive ? 'text-blue-600' : 'text-[#757575] dark:text-[#A0A0A0]'} />
                 {item.label}
               </button>
             );
@@ -125,7 +150,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
 
         <div className="py-2">
           <div className="px-6 mb-2">
-            <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">{t('device', lang)}</span>
+            <span className="text-[10px] font-bold text-[#757575] dark:text-[#A0A0A0] uppercase tracking-wider">{t('device', lang)}</span>
           </div>
           {deviceItems.map(item => {
             const Icon = item.icon;
@@ -135,10 +160,10 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-6 py-2.5 text-sm transition-colors ${
-                  isActive ? 'bg-blue-50/50 text-blue-600 font-medium' : 'text-[#1C1C1C] hover:bg-gray-50'
+                  isActive ? 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-600 font-medium' : 'text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-gray-50 dark:hover:bg-white/5'
                 }`}
               >
-                <Icon size={16} className={isActive ? 'text-blue-600' : 'text-[#757575]'} />
+                <Icon size={16} className={isActive ? 'text-blue-600' : 'text-[#757575] dark:text-[#A0A0A0]'} />
                 {item.label}
               </button>
             );
@@ -147,7 +172,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-white dark:bg-[#141414] p-10 custom-scrollbar relative transition-colors duration-300">
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-[#080808] p-10 custom-scrollbar relative transition-colors duration-300">
         <div className="max-w-4xl mx-auto">
           {activeTab === 'Account' ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -165,7 +190,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div>
                   <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('account', lang)}</h1>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-[#757575]">{t('account_desc', lang)}</p>
+                    <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('account_desc', lang)}</p>
                     {(showSaved || isLoading) && (
                       <span className="text-xs text-emerald-500 font-medium animate-in fade-in slide-in-from-left-2 duration-300 flex items-center gap-1">
                         {isLoading ? <Loader2 size={12} className="animate-spin" /> : '•'} {isLoading ? t('saving', lang) : t('save_changes', lang)}
@@ -183,7 +208,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       {user?.avatar ? (
                         <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
-                        <User size={24} className="text-[#757575]" />
+                        <User size={24} className="text-[#757575] dark:text-[#A0A0A0]" />
                       )}
                     </div>
                     <div>
@@ -252,7 +277,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('email_desc', lang)}</p>
                     </div>
                   </div>
-                  <span className="text-sm text-[#757575] font-mono">{user?.email || t('no_email_assigned', lang)}</span>
+                  <span className="text-sm text-[#757575] dark:text-[#A0A0A0] font-mono">{user?.email || t('no_email_assigned', lang)}</span>
                 </div>
 
                 {/* Display Language */}
@@ -306,7 +331,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       }}
                       disabled={isLoading}
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
 
@@ -330,38 +355,38 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
           ) : activeTab === 'Licenses' ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="flex items-center gap-4 mb-10">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shadow-sm border border-blue-100">
+                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center shadow-sm border border-blue-100 dark:border-blue-900/40">
                   <CheckCircle2 size={24} />
                 </div>
                 <div>
                   <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('licenses', lang)}</h1>
-                  <p className="text-sm text-[#757575]">{t('upgrade_license_desc', lang)}</p>
+                  <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('upgrade_license_desc', lang)}</p>
                 </div>
               </div>
 
               <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] shadow-sm overflow-hidden">
                 {/* Free */}
-                <div className="p-8 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between hover:bg-gray-50/30 transition-colors">
+                <div className="p-8 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between hover:bg-gray-50/30 dark:hover:bg-white/5 transition-colors">
                   <div>
                     <h3 className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('free_label', lang)}</h3>
-                    <p className="text-xs text-[#757575]">0 {t('channels_label', lang)}</p>
+                    <p className="text-xs text-[#757575] dark:text-[#A0A0A0]">0 {t('channels_label', lang)}</p>
                   </div>
                   <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">{t('upgrade_license_btn', lang)}</button>
                 </div>
 
                 {/* IoT Free */}
-                <div className="p-8 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between hover:bg-gray-50/30 transition-colors">
+                <div className="p-8 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between hover:bg-gray-50/30 dark:hover:bg-white/5 transition-colors">
                   <div>
                     <h3 className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">IoT {t('free_label', lang)}</h3>
-                    <p className="text-xs text-[#757575]">0 / 0 {t('endpoints_label', lang)}</p>
+                    <p className="text-xs text-[#757575] dark:text-[#A0A0A0]">0 / 0 {t('endpoints_label', lang)}</p>
                   </div>
                 </div>
 
                 {/* Monitoring */}
-                <div className="p-8 flex items-center justify-between hover:bg-gray-50/30 transition-colors">
+                <div className="p-8 flex items-center justify-between hover:bg-gray-50/30 dark:hover:bg-white/5 transition-colors">
                   <div>
                     <h3 className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">Monitoring</h3>
-                    <p className="text-xs text-[#757575]">{t('trial_days_left', lang).replace('{days}', '14')}</p>
+                    <p className="text-xs text-[#757575] dark:text-[#A0A0A0]">{t('trial_days_left', lang).replace('{days}', '14')}</p>
                   </div>
                 </div>
               </div>
@@ -374,7 +399,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
                 <div>
                   <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('customization', lang)}</h1>
-                  <p className="text-sm text-[#757575]">{t('customization_desc', lang)}</p>
+                  <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('customization_desc', lang)}</p>
                 </div>
               </div>
 
@@ -383,7 +408,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      <Moon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -407,7 +432,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      <Search size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('search_behavior', lang)}</h3>
@@ -432,7 +457,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      <Layout size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('use_new_interface', lang)}</h3>
@@ -453,7 +478,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      <Mail size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('marketing_messages', lang)}</h3>
@@ -474,7 +499,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      <Type size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('font_size', lang)}</h3>
@@ -500,8 +525,214 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
               </div>
             </div>
+          ) : activeTab === 'General' ? (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex items-center gap-4 mb-10">
+                <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                  <Monitor size={24} />
+                </div>
+                <div>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('general', lang)}</h1>
+                  <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">Manage your device identity and startup behavior.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Device Name */}
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Monitor size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('device_name', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('device_name_desc', lang)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      value={deviceName}
+                      onChange={(e) => setDeviceName(e.target.value)}
+                      onBlur={() => triggerSave({ deviceName })}
+                      className="bg-white dark:bg-[#141414] border border-[#D1D1D1] dark:border-white/10 text-[#1C1C1C] dark:text-white text-sm rounded-lg block p-2 outline-none w-48 focus:border-blue-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Start with Windows */}
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Rocket size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('start_with_windows', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('start_with_windows_desc', lang)}</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={startWithWindows} onChange={() => {
+                      const next = !startWithWindows;
+                      setStartWithWindows(next);
+                      triggerSave({ startWithWindows: next });
+                    }} />
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {/* Device Dock */}
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Layout size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('device_dock', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('device_dock_desc', lang)}</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={useDeviceDock} onChange={() => {
+                      const next = !useDeviceDock;
+                      setUseDeviceDock(next);
+                      triggerSave({ useDeviceDock: next });
+                    }} />
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          ) : activeTab === 'Security' ? (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex items-center gap-4 mb-10">
+                <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                  <Shield size={24} />
+                </div>
+                <div>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('security_label', lang)}</h1>
+                  <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">Secure your device and manage access permissions.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { id: 'block', title: t('block_allow_list', lang), desc: t('block_allow_list_desc', lang), icon: Shield, action: 'Configure' },
+                  { id: '2fa', title: t('two_factor_auth_connections', lang), desc: t('two_factor_auth_connections_desc', lang), icon: Smartphone, action: t('add_device', lang) },
+                  { id: 'auth', title: t('additional_auth_settings', lang), desc: t('additional_auth_settings_desc', lang), icon: Key, action: 'Configure' },
+                  { id: 'access', title: t('access_control', lang), desc: t('access_control_desc', lang), icon: ShieldCheck, action: 'Configure' },
+                  { id: 'redirection', title: t('security_key_redirection', lang), desc: t('security_key_redirection_desc', lang), icon: Usb, action: t('install', lang) },
+                ].map(item => (
+                  <div key={item.id} className="p-6 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] rounded-xl bg-white dark:bg-[#111111] hover:bg-gray-50 dark:hover:bg-white/5 transition-all flex items-center justify-between group">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-1">
+                        <item.icon size={22} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      </div>
+                      <div className="max-w-xl">
+                        <h3 className="text-[15px] font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{item.title}</h3>
+                        <p className="text-[13.5px] leading-relaxed text-[#757575] dark:text-[#A0A0A0]">{item.desc}</p>
+                      </div>
+                    </div>
+                    <button className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors shrink-0">
+                      {item.action}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : activeTab === 'Audio and video' ? (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex items-center gap-4 mb-10">
+                <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                  <Video size={24} />
+                </div>
+                <div>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('audio_video', lang)}</h1>
+                  <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">Configure your media inputs and outputs for remote sessions.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {[
+                  { id: 'mic', title: t('microphone', lang), desc: t('microphone_desc', lang), icon: Mic },
+                  { id: 'speaker', title: t('speaker', lang), desc: t('speaker_desc', lang), icon: Volume2 },
+                  { id: 'video', title: t('video_label', lang), desc: t('video_desc', lang), icon: Video },
+                ].map(item => (
+                  <div key={item.id} className="p-6 border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] rounded-xl bg-white dark:bg-[#111111] hover:bg-gray-50 dark:hover:bg-white/5 transition-all flex items-center justify-between group">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-1">
+                        <item.icon size={22} className="text-[#757575] dark:text-[#A0A0A0]" />
+                      </div>
+                      <div className="max-w-xl">
+                        <h3 className="text-[15px] font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{item.title}</h3>
+                        <p className="text-[13.5px] leading-relaxed text-[#757575] dark:text-[#A0A0A0]">{item.desc}</p>
+                      </div>
+                    </div>
+                    <button className="p-2 text-[#757575] dark:text-[#A0A0A0] hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                      <ExternalLink size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : activeTab === 'Notifications' ? (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="flex items-center gap-4 mb-10">
+                <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center shadow-md">
+                  <Bell size={24} />
+                </div>
+                <div>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('notifications_label', lang)}</h1>
+                  <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">Manage how you receive alerts and session updates.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Windows notification */}
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Bell size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('windows_notification', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('windows_notification_desc', lang)}</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={windowsNotification} onChange={() => {
+                      const next = !windowsNotification;
+                      setWindowsNotification(next);
+                      triggerSave({ windowsNotification: next });
+                    }} />
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {/* Incoming session notification */}
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
+                      <Monitor size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('incoming_session_notification', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('incoming_session_notification_desc', lang)}</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={incomingSessionNotification} onChange={() => {
+                      const next = !incomingSessionNotification;
+                      setIncomingSessionNotification(next);
+                      triggerSave({ incomingSessionNotification: next });
+                    }} />
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-[#757575] animate-in fade-in duration-300">
+            <div className="flex flex-col items-center justify-center h-64 text-[#757575] dark:text-[#A0A0A0] animate-in fade-in duration-300">
               <SettingsIcon size={48} className="mb-4 opacity-20" />
               <p className="text-base font-medium">{t('settings_soon', lang).replace('{tab}', activeTab)}</p>
             </div>
