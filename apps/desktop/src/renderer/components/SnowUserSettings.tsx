@@ -242,7 +242,7 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
   );
 
   return (
-    <div className="max-w-4xl mx-auto font-inter animate-in fade-in duration-500 pb-20">
+    <div className="max-w-4xl mx-auto font-lato animate-in fade-in duration-500 pb-20">
       
       {/* Profile Mini Header */}
       <div className="flex items-center gap-6 mb-10 p-6 bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] shadow-sm">

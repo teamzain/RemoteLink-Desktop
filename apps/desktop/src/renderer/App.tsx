@@ -29,6 +29,7 @@ import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
 import { SnowNotificationPanel } from './components/SnowNotificationPanel';
+import { t } from './lib/translations';
 
 import { SnowAnalytics } from './components/SnowAnalytics';
 import { SnowHome } from './components/SnowHome';
@@ -2950,6 +2951,8 @@ export default function App() {
                     user={user}
                     isCollapsed={isSidebarCollapsed}
                     onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    showNotifications={showNotifications}
+                    setShowNotifications={setShowNotifications}
                 />
             )}
 
@@ -3036,8 +3039,10 @@ export default function App() {
                                         onClick={() => setShowUserDropdown(!showUserDropdown)}
                                         className="relative group cursor-pointer"
                                     >
-                                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-                                            {(() => {
+                                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-sm overflow-hidden">
+                                            {user?.avatar ? (
+                                                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                                            ) : (() => {
                                                 const name = user?.name || user?.email || '';
                                                 const parts = name.trim().split(/\s+/);
                                                 if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -3079,7 +3084,7 @@ export default function App() {
                                             {/* Navigation Section 1 */}
                                             <div className="py-1">
                                                 <button 
-                                                    onClick={() => { setCurrentView('profile'); setShowUserDropdown(false); }}
+                                                    onClick={() => { setCurrentView('settings'); setShowUserDropdown(false); }}
                                                     className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
                                                 >
                                                     <span>Edit profile</span>

@@ -199,7 +199,7 @@ export const SnowMembers: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-lato">
 
       {/* Header Section */}
       <div className="flex items-center justify-between">
@@ -453,7 +453,7 @@ export const SnowMembers: React.FC = () => {
                       value={editDeviceSearch}
                       onChange={(e) => setEditDeviceSearch(e.target.value)}
                       placeholder="Search devices..."
-                      className="w-full pl-9 pr-4 py-2.5 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-xs focus:border-[#1C1C1C] outline-none transition-all font-inter"
+                      className="w-full pl-9 pr-4 py-2.5 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-xs focus:border-[#1C1C1C] outline-none transition-all font-lato"
                     />
                   </div>
                   <div className="max-h-48 overflow-y-auto rounded-xl border border-[rgba(28,28,28,0.06)] bg-[#F9F9FA] divide-y divide-[rgba(28,28,28,0.04)]">
@@ -521,7 +521,7 @@ export const SnowMembers: React.FC = () => {
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="colleague@company.com"
-                  className="w-full px-4 py-3 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-sm focus:border-[#1C1C1C] outline-none transition-all font-inter"
+                  className="w-full px-4 py-3 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-sm focus:border-[#1C1C1C] outline-none transition-all font-lato"
                   required
                 />
               </div>
@@ -575,7 +575,7 @@ export const SnowMembers: React.FC = () => {
                         value={deviceSearch}
                         onChange={(e) => setDeviceSearch(e.target.value)}
                         placeholder="Search devices..."
-                        className="w-full pl-9 pr-4 py-2.5 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-xs focus:border-[#1C1C1C] outline-none transition-all font-inter"
+                        className="w-full pl-9 pr-4 py-2.5 bg-[#F9F9FA] border border-[rgba(28,28,28,0.06)] rounded-xl text-xs focus:border-[#1C1C1C] outline-none transition-all font-lato"
                       />
                     </div>
                     <div className="max-h-44 overflow-y-auto rounded-xl border border-[rgba(28,28,28,0.06)] bg-[#F9F9FA] divide-y divide-[rgba(28,28,28,0.04)]">

@@ -142,7 +142,7 @@ export const SnowDashboard: React.FC<{
   const onlineCount = devices.filter(d => d.is_online).length;
 
   return (
-    <div className="flex flex-col h-full w-full bg-white rounded-3xl overflow-hidden relative font-inter transition-all duration-500">
+    <div className="flex flex-col h-full w-full bg-white rounded-3xl overflow-hidden relative font-lato transition-all duration-500">
       <div className="flex-1 flex flex-col p-8 pt-6 overflow-y-auto custom-scrollbar bg-[#F8F9FA]/50">
 
         {/* Trial Banner */}

@@ -214,7 +214,7 @@ export const SnowOrgs: React.FC<SnowOrgsProps> = ({ setCurrentView, setSelectedD
   const planMeta = selectedOrg ? (PLAN_META[selectedOrg.plan] || PLAN_META.SOLO) : PLAN_META.SOLO;
 
   return (
-    <div className="flex gap-6 h-full animate-in fade-in duration-500 font-inter">
+    <div className="flex gap-6 h-full animate-in fade-in duration-500 font-lato">
 
       {/* ── LEFT: Org List ── */}
       <div className={`flex flex-col gap-5 transition-all duration-300 ${selectedOrg || detailLoading ? 'w-[360px] flex-shrink-0' : 'flex-1'}`}>

@@ -12,6 +12,7 @@ interface User {
   role: 'PLATFORM_OWNER' | 'PLATFORM_SUPPORT' | 'SUPER_ADMIN' | 'DEPARTMENT_MANAGER' | 'OPERATOR' | 'VIEWER' | 'USER';
   organizationId: string | null;
   avatar: string | null;
+  language?: string;
   is_2fa_enabled?: boolean;
   notify_session_alert?: boolean;
   notify_disconnect_alert?: boolean;
@@ -32,6 +33,7 @@ interface AuthState {
   register: (name: string, email: string, password: string, verificationCode: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateProfile: (data: Partial<User> & { current_password?: string; password?: string }) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -141,10 +143,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
            // Set tokens first so the request interceptor can attach them
            set({ accessToken: token, refreshToken: refresh });
            const { data } = await api.get('/api/auth/me');
-           set({ user: data });
+           set({ user: data.user || data }); // Support both formats
         } catch (e: any) {
-           // Token expired and refresh also failed — clear everything so the
-           // app shows the login screen instead of triggering "Session Expired"
            if (e.response?.status === 401 || e.response?.status === 403) {
              if (isElectron) {
                try { await (window as any).electronAPI.deleteToken(); } catch {}
@@ -154,9 +154,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
              }
              set({ user: null, accessToken: null, refreshToken: null });
            }
-           // Network errors: keep state so the user doesn't get logged out offline
         }
       }
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  updateProfile: async (data) => {
+    set({ isLoading: true });
+    try {
+      const { data: responseData } = await api.patch('/api/auth/me', data);
+      if (responseData.user) {
+        set({ user: responseData.user });
+      }
+    } catch (e) {
+      console.error('[AuthStore] Profile update failed:', e);
+      throw e;
     } finally {
       set({ isLoading: false });
     }

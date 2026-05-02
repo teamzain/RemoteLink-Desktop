@@ -18,7 +18,7 @@ export const SnowPremiumDashboard: React.FC<SnowPremiumDashboardProps> = ({ user
   const userName = user?.name?.split(' ')[0] || 'User';
 
   return (
-    <div className="h-full w-full flex flex-col p-8 bg-[#F4F7F9] font-sans overflow-hidden rounded-bl-[24px]">
+    <div className="h-full w-full flex flex-col p-8 bg-[#F4F7F9] font-lato overflow-hidden rounded-bl-[24px]">
       {/* Top Title Row */}
       <div className="flex items-center gap-2 mb-6 flex-shrink-0">
         <h1 className="text-[28px] font-normal text-[#1C1C1C]">Hi {userName}</h1>

@@ -67,7 +67,7 @@ export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) =
 
   if (isSuccess) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-white font-inter animate-in fade-in duration-700">
+      <div className="h-screen w-full flex items-center justify-center bg-white font-lato animate-in fade-in duration-700">
         <div className="flex flex-col items-center text-center max-w-sm">
           <div className="w-20 h-20 rounded-[32px] bg-emerald-50 text-emerald-600 flex items-center justify-center mb-8 animate-bounce">
             <CheckCircle2 size={40} />
@@ -82,7 +82,7 @@ export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) =
   }
 
   return (
-    <div className="h-screen w-full flex items-center justify-center bg-[#F8F9FA] font-inter p-6">
+    <div className="h-screen w-full flex items-center justify-center bg-[#F8F9FA] font-lato p-6">
       <div className="w-full max-w-md bg-white rounded-[40px] shadow-2xl shadow-black/5 border border-[rgba(28,28,28,0.04)] p-10 md:p-12 animate-in zoom-in-95 duration-500">
         
         {/* Brand Header */}

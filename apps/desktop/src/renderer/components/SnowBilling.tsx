@@ -112,7 +112,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter pb-10">
+    <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-lato pb-10">
 
       {/* Test Mode Banner */}
       <div className="flex items-center gap-3 px-5 py-3.5 bg-blue-50 border border-blue-200 rounded-2xl">

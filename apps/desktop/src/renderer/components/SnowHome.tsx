@@ -101,7 +101,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden select-none font-sans">
+    <div className="flex h-screen w-full overflow-hidden select-none font-lato">
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside

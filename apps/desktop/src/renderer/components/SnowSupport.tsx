@@ -123,7 +123,7 @@ export const SnowSupport: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-8 duration-700 font-inter pb-20">
+    <div className="max-w-5xl mx-auto flex flex-col gap-10 animate-in fade-in slide-in-from-bottom-8 duration-700 font-lato pb-20">
 
       {/* Support Hero */}
       <div className="bg-[#1C1C1C] rounded-[40px] p-12 text-white relative overflow-hidden shadow-xl">

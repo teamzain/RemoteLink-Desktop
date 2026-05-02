@@ -71,7 +71,7 @@ export const SnowOrgSettings: React.FC = () => {
    );
 
    return (
-      <div className="max-w-4xl mx-auto font-inter animate-in fade-in duration-500 pb-20">
+      <div className="max-w-4xl mx-auto font-lato animate-in fade-in duration-500 pb-20">
 
          {/* Org Header */}
          <div className="bg-[#1C1C1C] rounded-[32px] p-8 mb-8 text-white relative overflow-hidden shadow-xl">

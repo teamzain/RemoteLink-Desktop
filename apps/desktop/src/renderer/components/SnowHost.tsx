@@ -47,7 +47,7 @@ export const SnowHost: React.FC<SnowHostProps> = ({
 
   if (!isRegistered) {
     return (
-      <div className="max-w-4xl mx-auto min-h-[60vh] flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-700 font-inter">
+      <div className="max-w-4xl mx-auto min-h-[60vh] flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-700 font-lato">
         <div className="w-24 h-24 rounded-[32px] bg-[rgba(28,28,28,0.04)] border border-[rgba(28,28,28,0.06)] flex items-center justify-center mb-8 relative group">
           <Globe size={40} className="text-[rgba(28,28,28,0.2)] group-hover:text-[#1C1C1C] transition-colors duration-500" />
           <div className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full border border-[rgba(28,28,28,0.06)] flex items-center justify-center shadow-sm">
@@ -84,7 +84,7 @@ export const SnowHost: React.FC<SnowHostProps> = ({
   }
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-inter">
+    <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 font-lato">
       
       {/* Hero Status Card */}
       <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm relative overflow-hidden">

@@ -208,13 +208,13 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
             placeholder="Search Device..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-40 h-7 bg-white/80 border border-[rgba(0,0,0,0.1)] rounded-xl pl-9 pr-3 text-xs outline-none focus:border-[rgba(0,0,0,0.3)] transition-all font-inter"
+            className="w-40 h-7 bg-white/80 border border-[rgba(0,0,0,0.1)] rounded-xl pl-9 pr-3 text-xs outline-none focus:border-[rgba(0,0,0,0.3)] transition-all font-lato"
           />
         </div>
       </div>
 
       {/* Device Table */}
-      <div className="w-full bg-white rounded-2xl overflow-hidden font-inter">
+      <div className="w-full bg-white rounded-2xl overflow-hidden font-lato">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-[rgba(0,0,0,0.1)]">

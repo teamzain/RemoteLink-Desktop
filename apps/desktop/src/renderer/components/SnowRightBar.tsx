@@ -6,7 +6,8 @@ import {
   ShieldCheck, 
   Monitor, 
   Smartphone,
-  ExternalLink 
+  ExternalLink,
+  Inbox
 } from 'lucide-react';
 
 interface SnowRightBarProps {
@@ -20,11 +21,16 @@ interface SnowRightBarProps {
 export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notifications, onDeviceClick, isOpen, onClose }) => {
   return (
     <>
-      <aside className={`fixed xl:static right-0 top-0 bottom-0 w-[280px] min-w-[280px] h-full border-l border-[rgba(28,28,28,0.1)] p-6 flex flex-col bg-white overflow-y-auto custom-scrollbar font-inter z-30 shadow-2xl xl:shadow-none transition-transform duration-300 xl:translate-x-0 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <aside className={`fixed xl:static right-0 top-0 bottom-0 w-[280px] min-w-[280px] h-full border-l border-[rgba(28,28,28,0.1)] p-6 flex flex-col bg-white overflow-y-auto custom-scrollbar font-lato z-30 shadow-2xl xl:shadow-none transition-transform duration-300 xl:translate-x-0 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
       
       {/* Top Section - Alerts */}
       <div className="mb-10">
-        <h3 className="text-sm font-semibold text-[#1C1C1C] mb-6 tracking-tight">System Notifications</h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-semibold text-[#1C1C1C] tracking-tight">System Notifications</h3>
+          {notifications.length > 0 && (
+            <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+          )}
+        </div>
         <div className="flex flex-col gap-6">
           {notifications.map((act, i) => (
              <div key={i} className="flex gap-3 animate-in fade-in slide-in-from-right-4 duration-300" style={{ animationDelay: `${i * 50}ms` }}>
@@ -38,8 +44,12 @@ export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notificatio
              </div>
           ))}
           {notifications.length === 0 && (
-            <div className="py-4 text-center">
-               <span className="text-xs text-[rgba(28,28,28,0.3)] font-medium italic">All systems reporting nominal</span>
+            <div className="py-8 flex flex-col items-center justify-center bg-[rgba(28,28,28,0.02)] rounded-2xl border border-[rgba(28,28,28,0.04)] px-4 text-center group">
+               <div className="w-12 h-12 bg-white rounded-xl border border-[rgba(0,0,0,0.05)] flex items-center justify-center mb-3 shadow-sm transition-transform duration-500 group-hover:-translate-y-1">
+                  <Inbox size={20} className="text-[rgba(28,28,28,0.2)]" />
+               </div>
+               <span className="text-[11px] text-[rgba(28,28,28,0.4)] font-bold uppercase tracking-wider mb-1">Systems Nominal</span>
+               <span className="text-[10px] text-[rgba(28,28,28,0.3)] leading-relaxed">No critical alerts detected in your sector.</span>
             </div>
           )}
         </div>

@@ -81,7 +81,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
   `;
 
   return (
-    <aside className={`fixed left-0 top-0 bottom-0 w-[240px] bg-white border-r border-[rgba(28,28,28,0.08)] flex flex-col font-inter z-30 shadow-sm overflow-hidden transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+    <aside className={`fixed left-0 top-0 bottom-0 w-[240px] bg-white border-r border-[rgba(28,28,28,0.08)] flex flex-col font-lato z-30 shadow-sm overflow-hidden transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
       {/* Brand Logo Section */}
       <div className="flex items-center gap-3 px-5 pt-8 mb-10 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>

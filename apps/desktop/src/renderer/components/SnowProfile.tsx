@@ -158,7 +158,7 @@ export const SnowProfile: React.FC<{ user: any; logout: () => void }> = ({ user,
   const planLabel = user?.plan || 'FREE';
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-6 duration-700 font-inter pb-20">
+    <div className="max-w-4xl mx-auto flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-6 duration-700 font-lato pb-20">
 
       {/* Profile Header Card */}
       <div className="bg-white rounded-[32px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
