@@ -50,12 +50,21 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
+      // Diagnostic logging
+      const allParticipants = await (prisma as any).conversationParticipant.findMany({
+        where: { conversationId: id },
+        include: { user: { select: { id: true, email: true } } }
+      });
+      console.log(`[Chat API] GET messages for ${id}. Participants in DB:`, allParticipants.map((p: any) => p.userId));
+      console.log(`[Chat API] Requesting User ID:`, userId);
+
       // Ensure the user is a participant
-      const participant = await (prisma as any).conversationParticipant.findUnique({
-        where: { conversationId_userId: { conversationId: id, userId } }
+      const participant = await (prisma as any).conversationParticipant.findFirst({
+        where: { conversationId: id, userId }
       });
 
       if (!participant) {
+        console.warn(`[Chat API] Access denied: User ${userId} is not in conversation ${id}`);
         return reply.code(403).send({ error: 'Forbidden' });
       }
 
@@ -151,6 +160,14 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const { name } = request.body as { name: string };
 
     try {
+      // Diagnostic logging
+      const allParticipants = await (prisma as any).conversationParticipant.findMany({
+        where: { conversationId: id },
+        include: { user: { select: { id: true, email: true } } }
+      });
+      console.log(`[Chat API] PATCH rename for ${id}. Participants in DB:`, allParticipants.map((p: any) => p.userId));
+      console.log(`[Chat API] Requesting User ID:`, userId);
+
       // Update nickname for the participant
       await (prisma as any).conversationParticipant.update({
         where: { conversationId_userId: { conversationId: id, userId } },
@@ -183,8 +200,15 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
-      console.log(`[Chat API] Delete request for conv: ${id} by user: ${userId}`);
+      console.log(`[Chat API] DELETE request for ${id} by user: ${userId}`);
       
+      // Diagnostic logging
+      const allParticipants = await (prisma as any).conversationParticipant.findMany({
+        where: { conversationId: id },
+        include: { user: { select: { id: true, email: true } } }
+      });
+      console.log(`[Chat API] Participants in DB for ${id}:`, allParticipants.map((p: any) => p.userId));
+
       // Check if user is a participant
       const participant = await (prisma as any).conversationParticipant.findFirst({
         where: { conversationId: id, userId }
