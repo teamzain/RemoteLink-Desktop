@@ -6,6 +6,9 @@ import { useAuthStore } from '../store/authStore';
 interface SnowNotificationPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  notifications: any[];
+  onMarkAllRead: () => void;
+  onClearAll: () => void;
 }
 
 const AnimatedTray: React.FC = () => {
@@ -67,11 +70,14 @@ const AnimatedTray: React.FC = () => {
   );
 };
 
-export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ isOpen, onClose }) => {
+export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ isOpen, onClose, notifications, onMarkAllRead, onClearAll }) => {
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
   const [showMenu, setShowMenu] = useState(false);
   const { user } = useAuthStore();
   const lang = user?.language;
+  const visibleNotifications = filter === 'unread'
+    ? notifications.filter((notification) => !notification.read)
+    : notifications;
 
   return (
     <>
@@ -112,7 +118,10 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] p-1.5 z-40 animate-in fade-in zoom-in-95 duration-200">
-                    <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-[13px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5] transition-colors">
+                    <button
+                      onClick={() => { onMarkAllRead(); setShowMenu(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 text-[13px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5] transition-colors"
+                    >
                       <Check size={16} className="text-emerald-500" />
                       {t('mark_all_read', lang)}
                     </button>
@@ -121,7 +130,10 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
                       {t('notification_settings', lang)}
                     </button>
                     <div className="h-px bg-[rgba(0,0,0,0.04)] dark:bg-[rgba(255,255,255,0.04)] my-1 mx-2" />
-                    <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 text-[13px] font-medium text-red-600 transition-colors">
+                    <button
+                      onClick={() => { onClearAll(); setShowMenu(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/10 text-[13px] font-medium text-red-600 transition-colors"
+                    >
                       <Trash2 size={16} />
                       {t('clear_all', lang)}
                     </button>
@@ -140,21 +152,53 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto bg-[#FBFBFC] dark:bg-[#0A0A0A] flex flex-col items-center justify-center p-12 text-center transition-colors duration-300">
-          <div className="max-w-[280px] flex flex-col items-center">
-            <AnimatedTray />
+        <div className={`flex-1 overflow-y-auto bg-[#FBFBFC] dark:bg-[#0A0A0A] transition-colors duration-300 ${visibleNotifications.length === 0 ? 'flex flex-col items-center justify-center p-12 text-center' : 'p-4 space-y-3'}`}>
+          {visibleNotifications.length === 0 ? (
+            <div className="max-w-[280px] flex flex-col items-center">
+              <AnimatedTray />
 
-            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-              <h3 className="text-xl font-bold text-[#1C1C1C] dark:text-[#F5F5F5] tracking-tight">{t('caught_up', lang)}</h3>
-              <p className="text-[13px] text-[#8A8A8E] dark:text-[#A0A0A0] leading-relaxed font-medium">
-                {t('no_notifications_desc', lang)}
-              </p>
-              
-              <button className="mt-8 px-6 py-2.5 bg-white dark:bg-[#1A1A1A] border border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-full text-[12px] font-bold text-[#1C1C1C] dark:text-[#F5F5F5] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-95">
-                {t('refresh_feed', lang)}
-              </button>
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+                <h3 className="text-xl font-bold text-[#1C1C1C] dark:text-[#F5F5F5] tracking-tight">{t('caught_up', lang)}</h3>
+                <p className="text-[13px] text-[#8A8A8E] dark:text-[#A0A0A0] leading-relaxed font-medium">
+                  {t('no_notifications_desc', lang)}
+                </p>
+                
+                <button className="mt-8 px-6 py-2.5 bg-white dark:bg-[#1A1A1A] border border-[rgba(0,0,0,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-full text-[12px] font-bold text-[#1C1C1C] dark:text-[#F5F5F5] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-95">
+                  {t('refresh_feed', lang)}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            visibleNotifications.map((notification) => {
+              const Icon = notification.icon || Inbox;
+              return (
+                <div
+                  key={notification.id || `${notification.action}-${notification.time}`}
+                  className="bg-white dark:bg-[#151515] border border-[rgba(0,0,0,0.06)] dark:border-white/5 rounded-2xl p-4 shadow-sm flex gap-4 animate-in fade-in slide-in-from-right-3 duration-300"
+                >
+                  <div className={`w-10 h-10 rounded-xl ${notification.color || 'bg-[#E6F1FD]'} flex items-center justify-center shrink-0`}>
+                    <Icon size={18} className="text-[#1C1C1C]" />
+                  </div>
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[13px] font-bold text-[#1C1C1C] dark:text-[#F5F5F5] leading-snug">
+                        {notification.title || notification.action}
+                      </p>
+                      {!notification.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-600 shrink-0" />}
+                    </div>
+                    {notification.title && (
+                      <p className="text-[12px] text-[#757575] dark:text-[#A0A0A0] mt-1 leading-relaxed">
+                        {notification.action}
+                      </p>
+                    )}
+                    <p className="text-[10px] font-bold text-[#A0A0A0] uppercase tracking-[0.12em] mt-3">
+                      {notification.time}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Footer */}

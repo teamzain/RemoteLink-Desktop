@@ -14,7 +14,10 @@ import {
   X,
   RefreshCw,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Ban,
+  UserMinus,
+  Unlock
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -31,6 +34,9 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
     sendMessage, 
     renameConversation,
     deleteConversation,
+    unfriendConversation,
+    blockConversation,
+    unblockConversation,
     acceptInvite,
     rejectInvite,
     connectWebSocket, 
@@ -74,6 +80,7 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
   const isInviteRequester = activeConversation?.requestedById
     ? activeConversation.requestedById === user?.id
     : activeConversation?.participants?.[0]?.userId === user?.id;
+  const isBlockedByMe = activeConversation?.status === 'BLOCKED' && activeConversation.blockedById === user?.id;
 
   const handleSend = () => {
     if (!inputText.trim() || !activeChatId) return;
@@ -308,6 +315,41 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
                       <Trash2 size={14} />
                       Delete Chat
                     </button>
+                    {activeConversation?.status === 'ACCEPTED' && (
+                      <button
+                        onClick={() => {
+                          unfriendConversation(activeChatId!);
+                          setShowOptionsModal(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-[13px] text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-500/10 flex items-center gap-2"
+                      >
+                        <UserMinus size={14} />
+                        Unfriend
+                      </button>
+                    )}
+                    {activeConversation?.status === 'BLOCKED' && isBlockedByMe ? (
+                      <button
+                        onClick={() => {
+                          unblockConversation(activeChatId!);
+                          setShowOptionsModal(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-[13px] text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 flex items-center gap-2"
+                      >
+                        <Unlock size={14} />
+                        Unblock
+                      </button>
+                    ) : activeConversation?.status !== 'BLOCKED' ? (
+                      <button
+                        onClick={() => {
+                          blockConversation(activeChatId!);
+                          setShowOptionsModal(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-[13px] text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2"
+                      >
+                        <Ban size={14} />
+                        Block
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -316,7 +358,30 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 bg-white dark:bg-[#080808]">
-            {activeConversation?.status === 'PENDING' ? (
+            {activeConversation?.status === 'BLOCKED' ? (
+              <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                <div className="w-20 h-20 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mb-6">
+                  <Ban size={40} />
+                </div>
+                <h3 className="text-[24px] font-bold text-[#111111] dark:text-[#F5F5F5] mb-2">
+                  {isBlockedByMe ? 'Contact Blocked' : 'Chat Unavailable'}
+                </h3>
+                <p className="text-[15px] text-gray-500 dark:text-[#A0A0A0] mb-8 leading-relaxed">
+                  {isBlockedByMe
+                    ? "You blocked this contact. They can't send you messages or send a new request."
+                    : "This chat is no longer available for messaging."}
+                </p>
+                {isBlockedByMe && (
+                  <button
+                    onClick={() => unblockConversation(activeChatId!)}
+                    className="px-6 py-3 bg-[#1C202B] text-white text-[14px] font-bold rounded-2xl hover:bg-[#2A2F3D] transition-all shadow-xl shadow-black/10 flex items-center gap-2"
+                  >
+                    <Unlock size={16} />
+                    Unblock Contact
+                  </button>
+                )}
+              </div>
+            ) : activeConversation?.status === 'PENDING' ? (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
                 <div className="w-20 h-20 bg-blue-50 dark:bg-blue-500/10 text-blue-600 rounded-full flex items-center justify-center mb-6">
                   <Plus size={40} />

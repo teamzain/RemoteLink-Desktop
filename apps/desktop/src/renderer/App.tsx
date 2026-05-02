@@ -4,7 +4,8 @@ import logo from './assets/logo.png';
 import {
     Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
     RefreshCw, Eye, EyeOff, CreditCard, Power, Lock, Mail, Link, Sun, Moon, Edit2, Trash2, ShieldOff, LayoutGrid, PlusCircle, Radio, ShieldCheck, ArrowRightCircle, Check, DownloadCloud, MonitorOff, User,
-    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink, HelpCircle
+    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink, HelpCircle,
+    MessageCircle, UserCheck, UserX, Ban
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
@@ -1197,30 +1198,49 @@ export default function App() {
         // Set the callback for new messages to trigger notifications
         useChatStore.setState({
             onNewMessage: (msg: any, convId: string) => {
-                // Don't notify if the chat is currently active/open
-                if (useChatStore.getState().activeChatId === convId) return;
-                
-                // Add to internal notification panel
-                addNotification(`New message: ${msg.content.substring(0, 30)}${msg.content.length > 30 ? '...' : ''}`, 'session');
+                if (msg.senderId === user?.id) return;
+
+                const senderName = msg.sender?.name || msg.sender?.email || 'Someone';
+                const preview = msg.content.substring(0, 80);
+                addNotification(preview, 'message', `${senderName} sent you a message`);
                 
                 // Fire native system notification
-                fireNotification(`New Message`, msg.content.substring(0, 50));
+                if (useChatStore.getState().activeChatId !== convId) {
+                    fireNotification(`New message from ${senderName}`, preview);
+                }
                 
                 // Play sound
                 playUISound('connect');
             },
             onInvite: (conv) => {
-                // Add to internal notification panel
-                addNotification(`New chat invitation from ${conv.participants?.[0]?.user?.name || 'a user'}`, 'session');
+                const requester = conv.participants?.find((p: any) => p.userId === conv.requestedById)?.user;
+                const requesterName = requester?.name || requester?.email || 'Someone';
+                addNotification(`${requesterName} sent you a friend request`, 'session');
                 
                 // Fire native system notification
-                fireNotification(`New Chat Invite`, `Someone wants to connect with you!`);
+                fireNotification(`New friend request`, `${requesterName} wants to connect with you.`);
                 
                 // Play sound
                 playUISound('connect');
+            },
+            onConversationEvent: (event) => {
+                if (event.actorUserId === user?.id) return;
+                const conversation = event.conversation;
+                const actor = conversation?.participants?.find((p: any) => p.userId === event.actorUserId)?.user;
+                const actorName = actor?.name || actor?.email || 'Someone';
+
+                if (event.reason === 'accepted') {
+                    addNotification(`${actorName} accepted your friend request`, 'accepted');
+                    fireNotification('Friend request accepted', `${actorName} accepted your request.`);
+                    playUISound('connect');
+                } else if (event.reason === 'unfriended') {
+                    addNotification(`${actorName} removed you from contacts`, 'removed');
+                } else if (event.reason === 'blocked') {
+                    addNotification(`A chat is no longer available`, 'blocked');
+                }
             }
         });
-    }, []);
+    }, [user?.id]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -1402,30 +1422,41 @@ export default function App() {
 
     // --- Dynamic Notifications ---
     const [notifications, setNotifications] = useState<any[]>([
-        { action: 'Security scan completed.', time: 'Just now', icon: ShieldCheck, color: 'bg-[#E6F1FD]' },
-        { action: 'Client initialized.', time: 'Just now', icon: Activity, color: 'bg-[#E6F1FD]' },
+        { id: 'boot-security', action: 'Security scan completed.', time: 'Just now', icon: ShieldCheck, color: 'bg-[#E6F1FD]', read: true },
+        { id: 'boot-client', action: 'Client initialized.', time: 'Just now', icon: Activity, color: 'bg-[#E6F1FD]', read: true },
     ]);
     const [activeSessionCount, setActiveSessionCount] = useState(0);
 
-    const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' = 'system') => {
+    const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' | 'message' | 'accepted' | 'removed' | 'blocked' = 'system', title?: string) => {
         const iconMap = {
             host: Radio,
             security: ShieldCheck,
             session: User,
-            system: Activity
+            system: Activity,
+            message: MessageCircle,
+            accepted: UserCheck,
+            removed: UserX,
+            blocked: Ban
         };
         const colorMap = {
             host: 'bg-[#EDEEFC]',
             security: 'bg-[#E6F1FD]',
             session: 'bg-[#F2F2F2]',
-            system: 'bg-[#E6F1FD]'
+            system: 'bg-[#E6F1FD]',
+            message: 'bg-[#E6F1FD]',
+            accepted: 'bg-emerald-50',
+            removed: 'bg-orange-50',
+            blocked: 'bg-red-50'
         };
 
         const newNotif = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            title,
             action,
             time: 'Just now',
             icon: iconMap[iconType],
-            color: colorMap[iconType]
+            color: colorMap[iconType],
+            read: false
         };
         setNotifications(prev => [newNotif, ...prev.slice(0, 9)]);
     };
@@ -3104,7 +3135,9 @@ export default function App() {
                                     onClick={() => setShowNotifications(!showNotifications)}
                                 >
                                     <Bell size={18} className="animate-ring" />
-                                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_4px_rgba(239,68,68,0.5)]" />
+                                    {notifications.some((notification) => !notification.read) && (
+                                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_4px_rgba(239,68,68,0.5)]" />
+                                    )}
                                 </button>
 
                                 
@@ -3520,6 +3553,9 @@ export default function App() {
                 <SnowNotificationPanel 
                     isOpen={showNotifications} 
                     onClose={() => setShowNotifications(false)} 
+                    notifications={notifications}
+                    onMarkAllRead={() => setNotifications(prev => prev.map(notification => ({ ...notification, read: true })))}
+                    onClearAll={() => setNotifications([])}
                 />
             </div>
 

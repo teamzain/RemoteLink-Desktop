@@ -1336,9 +1336,10 @@ app.whenReady().then(() => {
     });
   }
 
-  // Check for updates on startup
+  // Check for updates on startup. The renderer also checks when the banner mounts,
+  // which covers the case where this event fires before React listeners are ready.
   if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((e: any) => log.error('[Updater] Failed initial check:', e));
+    autoUpdater.checkForUpdates().catch((e: any) => log.error('[Updater] Failed initial check:', e));
   }
 });
 

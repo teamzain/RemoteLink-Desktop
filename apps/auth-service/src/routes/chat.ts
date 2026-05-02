@@ -2,6 +2,29 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma, verifyToken, redisPublisher } from '@remotelink/shared';
 
 export default async function chatRoutes(fastify: FastifyInstance) {
+  const conversationInclude = {
+    participants: {
+      include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
+    },
+    messages: {
+      take: 1,
+      orderBy: { createdAt: 'desc' as const }
+    }
+  };
+
+  const publishConversationEvent = async (event: string, conversation: any, extra: Record<string, any> = {}) => {
+    const targetUserIds = conversation?.participants?.map((p: any) => p.userId) || [];
+    if (targetUserIds.length === 0) return;
+
+    await redisPublisher.publish('chat:conversation-updated', JSON.stringify({
+      type: event,
+      conversation,
+      conversationId: conversation.id,
+      targetUserIds,
+      ...extra
+    }));
+  };
+
   // Middleware to authenticate user
   fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const authHeader = request.headers.authorization;
@@ -25,15 +48,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             some: { userId }
           }
         },
-        include: {
-          participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
-          },
-          messages: {
-            take: 1,
-            orderBy: { createdAt: 'desc' }
-          }
-        },
+        include: conversationInclude,
         orderBy: { updatedAt: 'desc' }
       });
 
@@ -115,14 +130,13 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             { participants: { some: { userId: targetUser.id } } }
           ]
         },
-        include: {
-          participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
-          }
-        }
+        include: { participants: { include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } } } }
       });
 
       if (existingConversation) {
+        if (existingConversation.status === 'BLOCKED') {
+          return reply.code(403).send({ error: 'This contact is blocked' });
+        }
         return reply.send(existingConversation);
       }
 
@@ -136,11 +150,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
             create: userId === targetUser.id ? [{ userId }] : [{ userId }, { userId: targetUser.id }]
           }
         },
-        include: {
-          participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
-          }
-        }
+        include: { participants: { include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } } } }
       });
 
       // Broadcast to signaling-service so the target user gets a live notification
@@ -180,15 +190,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       const updated = await (prisma as any).conversation.findUnique({
         where: { id },
-        include: {
-          participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
-          },
-          messages: {
-            take: 1,
-            orderBy: { createdAt: 'desc' }
-          }
-        }
+        include: conversationInclude
       });
 
       return reply.send(updated);
@@ -223,11 +225,21 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         return reply.code(403).send({ error: 'Forbidden' });
       }
 
-      // In a 1-on-1 chat, deleting usually means removing the conversation for BOTH if it's the only way to "clear" it.
-      // But for now, we just delete the whole conversation since we added Cascade.
+      const conversation = await (prisma as any).conversation.findUnique({
+        where: { id },
+        include: conversationInclude
+      });
+
       await (prisma as any).conversation.delete({
         where: { id }
       });
+
+      if (conversation) {
+        await publishConversationEvent('chat-conversation-removed', conversation, {
+          actorUserId: userId,
+          reason: 'deleted'
+        });
+      }
 
       return reply.send({ success: true });
     } catch (err) {
@@ -246,7 +258,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         where: {
           id,
           status: 'PENDING',
-          requestedById: { not: userId },
+          OR: [{ requestedById: { not: userId } }, { requestedById: null }],
           participants: { some: { userId } }
         }
       });
@@ -256,11 +268,12 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       const updated = await (prisma as any).conversation.update({
         where: { id },
         data: { status: 'ACCEPTED' },
-        include: {
-          participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
-          }
-        }
+        include: conversationInclude
+      });
+
+      await publishConversationEvent('chat-conversation-updated', updated, {
+        actorUserId: userId,
+        reason: 'accepted'
       });
 
       return reply.send(updated);
@@ -280,20 +293,121 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         where: {
           id,
           status: 'PENDING',
-          requestedById: { not: userId },
+          OR: [{ requestedById: { not: userId } }, { requestedById: null }],
           participants: { some: { userId } }
         }
       });
 
       if (!conversation) return reply.code(403).send({ error: 'Only the invited recipient can ignore this request' });
 
+      const fullConversation = await (prisma as any).conversation.findUnique({
+        where: { id },
+        include: conversationInclude
+      });
+
       await (prisma as any).conversation.delete({
         where: { id }
       });
 
+      if (fullConversation) {
+        await publishConversationEvent('chat-conversation-removed', fullConversation, {
+          actorUserId: userId,
+          reason: 'rejected'
+        });
+      }
+
       return reply.send({ success: true });
     } catch (err) {
       console.error('[Chat API] Failed to reject invite', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 8. Unfriend/remove a direct chat for both people
+  fastify.post('/conversations/:id/unfriend', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      const conversation = await (prisma as any).conversation.findFirst({
+        where: { id, isGroup: false, participants: { some: { userId } } },
+        include: conversationInclude
+      });
+
+      if (!conversation) return reply.code(403).send({ error: 'Forbidden' });
+
+      await (prisma as any).conversation.delete({ where: { id } });
+      await publishConversationEvent('chat-conversation-removed', conversation, {
+        actorUserId: userId,
+        reason: 'unfriended'
+      });
+
+      return reply.send({ success: true });
+    } catch (err) {
+      console.error('[Chat API] Failed to unfriend contact', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 9. Block a direct chat. Keeps a blocked record so the other person cannot re-invite.
+  fastify.post('/conversations/:id/block', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      const participant = await (prisma as any).conversationParticipant.findFirst({
+        where: { conversationId: id, userId }
+      });
+      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+
+      const conversation = await (prisma as any).conversation.findUnique({ where: { id } });
+      if (conversation?.status === 'BLOCKED' && conversation.blockedById !== userId) {
+        return reply.code(403).send({ error: 'This chat is already blocked' });
+      }
+
+      const updated = await (prisma as any).conversation.update({
+        where: { id },
+        data: { status: 'BLOCKED', blockedById: userId },
+        include: conversationInclude
+      });
+
+      await publishConversationEvent('chat-conversation-updated', updated, {
+        actorUserId: userId,
+        reason: 'blocked'
+      });
+
+      return reply.send(updated);
+    } catch (err) {
+      console.error('[Chat API] Failed to block contact', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 10. Unblock a contact and return to a pending invite so the recipient can accept again.
+  fastify.post('/conversations/:id/unblock', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      const conversation = await (prisma as any).conversation.findFirst({
+        where: { id, status: 'BLOCKED', blockedById: userId, participants: { some: { userId } } }
+      });
+      if (!conversation) return reply.code(403).send({ error: 'Only the person who blocked this contact can unblock' });
+
+      const updated = await (prisma as any).conversation.update({
+        where: { id },
+        data: { status: 'PENDING', blockedById: null, requestedById: userId },
+        include: conversationInclude
+      });
+
+      await publishConversationEvent('chat-conversation-updated', updated, {
+        actorUserId: userId,
+        reason: 'unblocked'
+      });
+
+      return reply.send(updated);
+    } catch (err) {
+      console.error('[Chat API] Failed to unblock contact', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });

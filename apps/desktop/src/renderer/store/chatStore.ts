@@ -22,10 +22,11 @@ export interface ChatConversation {
   isGroup: boolean;
   name: string | null;
   requestedById?: string | null;
+  blockedById?: string | null;
   participants: { userId: string; user: ChatUser; nickname?: string | null }[];
   messages: ChatMessage[];
   updatedAt: string;
-  status?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status?: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'BLOCKED';
 }
 
 interface ChatState {
@@ -38,12 +39,16 @@ interface ChatState {
   setActiveChat: (id: string | null) => void;
   onNewMessage?: (msg: any, convId: string) => void;
   onInvite?: (conv: any) => void;
+  onConversationEvent?: (event: { type: string; conversation?: ChatConversation; conversationId?: string; actorUserId?: string; reason?: string }) => void;
   fetchConversations: () => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
   createConversation: (email: string) => Promise<boolean>;
   sendMessage: (conversationId: string, content: string) => void;
   renameConversation: (id: string, name: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  unfriendConversation: (id: string) => Promise<void>;
+  blockConversation: (id: string) => Promise<void>;
+  unblockConversation: (id: string) => Promise<void>;
   acceptInvite: (id: string) => Promise<void>;
   rejectInvite: (id: string) => Promise<void>;
   connectWebSocket: () => Promise<void>;
@@ -166,6 +171,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  unfriendConversation: async (id: string) => {
+    try {
+      await api.post(`/api/chat/conversations/${id}/unfriend`);
+      set((state) => ({
+        conversations: state.conversations.filter(c => c.id !== id),
+        activeChatId: state.activeChatId === id ? null : state.activeChatId
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to unfriend conversation', err);
+    }
+  },
+
+  blockConversation: async (id: string) => {
+    try {
+      const { data } = await api.post(`/api/chat/conversations/${id}/block`);
+      set((state) => ({
+        conversations: state.conversations.map(c => c.id === id ? data : c)
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to block conversation', err);
+    }
+  },
+
+  unblockConversation: async (id: string) => {
+    try {
+      const { data } = await api.post(`/api/chat/conversations/${id}/unblock`);
+      set((state) => ({
+        conversations: state.conversations.map(c => c.id === id ? data : c)
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to unblock conversation', err);
+    }
+  },
+
   acceptInvite: async (id: string) => {
     try {
       const { data } = await api.post(`/api/chat/conversations/${id}/accept`);
@@ -264,6 +303,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
               conversations: [conversation, ...state.conversations]
             };
           });
+        } else if (data.type === 'chat-conversation-updated') {
+          const { conversation } = data;
+          if (!conversation?.id) return;
+
+          set((state) => {
+            const exists = state.conversations.some(c => c.id === conversation.id);
+            const conversations = exists
+              ? state.conversations.map(c => c.id === conversation.id ? conversation : c)
+              : [conversation, ...state.conversations];
+
+            return { conversations };
+          });
+
+          get().onConversationEvent?.(data);
+        } else if (data.type === 'chat-conversation-removed') {
+          const { conversationId } = data;
+          if (!conversationId) return;
+
+          set((state) => ({
+            conversations: state.conversations.filter(c => c.id !== conversationId),
+            activeChatId: state.activeChatId === conversationId ? null : state.activeChatId
+          }));
+
+          get().onConversationEvent?.(data);
         }
       } catch (err) {
         console.error('[ChatStore] Failed to parse message', err);

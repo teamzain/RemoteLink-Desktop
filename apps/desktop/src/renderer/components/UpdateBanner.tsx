@@ -9,6 +9,8 @@ const UpdateBanner: React.FC = () => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    if (!(window as any).electronAPI?.updates) return;
+
     // @ts-ignore
     const unAvailable = window.electronAPI.updates.onAvailable((info: any) => {
       setUpdateInfo(info);
@@ -31,6 +33,15 @@ const UpdateBanner: React.FC = () => {
     const unError = window.electronAPI.updates.onError((err: string) => {
       setError(err);
       setStatus('error');
+    });
+
+    window.electronAPI.isPackaged?.().then((isPackaged: boolean) => {
+      if (isPackaged) {
+        window.electronAPI.updates.check().catch((err: any) => {
+          setError(err?.message || 'Unable to check for updates.');
+          setStatus('error');
+        });
+      }
     });
 
     return () => {
