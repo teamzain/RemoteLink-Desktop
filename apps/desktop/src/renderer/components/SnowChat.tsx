@@ -131,6 +131,7 @@ export const SnowChat: React.FC = () => {
               <h3 className="text-[12px] font-bold text-gray-400 tracking-wider uppercase">Direct messages</h3>
             </div>
             <div className="space-y-0.5">
+              {console.log('[SnowChat] Rendering directChats:', directChats) || null}
               {directChats.length === 0 ? (
                 <div key="no-direct-chats" className="px-2 py-3 text-[13px] text-gray-500 text-center">No direct messages yet</div>
               ) : (

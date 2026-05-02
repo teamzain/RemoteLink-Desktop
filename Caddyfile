@@ -47,6 +47,10 @@
             reverse_proxy auth-service:3001
         }
 
+        handle /api/chat* {
+            reverse_proxy auth-service:3001
+        }
+
         handle /api/analytics* {
             reverse_proxy auth-service:3001
         }

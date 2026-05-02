@@ -86,6 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       set({ isLoading: true });
       const { data } = await api.get('/api/chat/conversations');
+      console.log('[chatStore] fetchConversations raw data:', data);
       set({ conversations: Array.isArray(data) ? data : [], isLoading: false });
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
