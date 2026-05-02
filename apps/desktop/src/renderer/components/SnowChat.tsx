@@ -141,7 +141,7 @@ export const SnowChat: React.FC = () => {
                     <button
                       key={chat.id || `direct-${idx}`}
                       onClick={() => {
-                        console.log('[SnowChat] Clicking conversation:', chat.id);
+                        console.log('[SnowChat] Clicking conversation:', chat.id, 'Full object:', chat);
                         setActiveChat(chat.id);
                       }}
                       className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${

@@ -120,10 +120,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         data: {
           isGroup: false,
           participants: {
-            create: [
-              { userId },
-              { userId: targetUser.id }
-            ]
+            create: userId === targetUser.id ? [{ userId }] : [{ userId }, { userId: targetUser.id }]
           }
         },
         include: {
