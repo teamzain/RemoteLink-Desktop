@@ -383,14 +383,14 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575]" />
+                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('dark_mode', lang)}</h3>
                         <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase rounded-md border border-blue-100 dark:border-blue-900/40">Beta</span>
                       </div>
-                      <p className="text-sm text-[#757575]">{t('dark_mode_desc', lang)}</p>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('dark_mode_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -399,7 +399,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       setDarkMode(next);
                       triggerSave({ darkMode: next });
                     }} />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
 
@@ -407,7 +407,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575]" />
+                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('search_behavior', lang)}</h3>
@@ -432,7 +432,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575]" />
+                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('use_new_interface', lang)}</h3>
@@ -445,7 +445,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       setUseNewInterface(next);
                       triggerSave({ useNewInterface: next });
                     }} />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
 
@@ -453,7 +453,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575]" />
+                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('marketing_messages', lang)}</h3>
@@ -466,7 +466,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       setMarketingMessages(next);
                       triggerSave({ marketingMessages: next });
                     }} />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 dark:bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
 
@@ -474,7 +474,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 <div className="flex items-center justify-between p-2">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
-                      <SettingsIcon size={20} className="text-[#757575]" />
+                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('font_size', lang)}</h3>
@@ -493,7 +493,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                         setFontSize(val);
                       }}
                       onMouseUp={() => triggerSave({ fontSize })}
-                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      className="w-full h-1.5 bg-gray-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-600"
                     />
                     <span className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] w-8">{fontSize}px</span>
                   </div>

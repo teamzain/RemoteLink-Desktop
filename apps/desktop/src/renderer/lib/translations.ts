@@ -19,6 +19,12 @@ export const translations = {
         "fr": "Compte",
         "es": "Cuenta"
     },
+    "account_desc": {
+        "en": "Manage your profile, email, and personal settings.",
+        "de": "Verwalten Sie Ihr Profil, Ihre E-Mail und Ihre persönlichen Einstellungen.",
+        "fr": "Gérez votre profil, votre e-mail et vos paramètres personnels.",
+        "es": "Gestiona tu perfil, correo electrónico y ajustes personales."
+    },
     "profile": {
         "en": "Profile",
         "de": "Profil",
@@ -703,6 +709,12 @@ export const translations = {
         "fr": "Gratuit",
         "es": "Gratis"
     },
+    "upgrade_plan": {
+        "en": "Upgrade plan",
+        "de": "Plan aktualisieren",
+        "fr": "Passer au forfait supérieur",
+        "es": "Actualizar plan"
+    },
     "how_can_help": {
         "en": "How can we help?",
         "de": "Wie können wir helfen?",
@@ -1326,6 +1338,60 @@ export const translations = {
         "de": "Jemand möchte Ihren Bildschirm sehen. Möchten Sie diese Verbindung zulassen?",
         "fr": "Quelqu'un souhaite voir votre écran. Voulez-vous autoriser cette connexion ?",
         "es": "Alguien quiere ver tu pantalla. ¿Quieres permitir esta conexión?"
+    },
+    "caught_up": {
+        "en": "You're all caught up",
+        "de": "Du bist auf dem Laufenden",
+        "fr": "Vous êtes à jour",
+        "es": "Estás al día"
+    },
+    "no_notifications_desc": {
+        "en": "Your inbox is empty. We'll notify you when something important happens.",
+        "de": "Dein Postegang ist leer. Wir benachrichtigen dich, wenn etwas Wichtiges passiert.",
+        "fr": "Votre boîte de réception est vide. Nous vous informerons quand quelque chose d'important se passera.",
+        "es": "Tu bandeja de entrada está vacía. Te avisaremos cuando ocurra algo importante."
+    },
+    "unread": {
+        "en": "Unread",
+        "de": "Ungelesen",
+        "fr": "Non lu",
+        "es": "No leído"
+    },
+    "all": {
+        "en": "All",
+        "de": "Alle",
+        "fr": "Tout",
+        "es": "Todos"
+    },
+    "mark_all_read": {
+        "en": "Mark all as read",
+        "de": "Alle als gelesen markieren",
+        "fr": "Tout marquer comme lu",
+        "es": "Marcar todo como leído"
+    },
+    "notification_settings": {
+        "en": "Notification Settings",
+        "de": "Benachrichtigungseinstellungen",
+        "fr": "Paramètres de notification",
+        "es": "Ajustes de notificación"
+    },
+    "clear_all": {
+        "en": "Clear all",
+        "de": "Alles löschen",
+        "fr": "Tout effacer",
+        "es": "Borrar todo"
+    },
+    "refresh_feed": {
+        "en": "Refresh feed",
+        "de": "Feed aktualisieren",
+        "fr": "Actualiser le flux",
+        "es": "Actualizar fuente"
+    },
+    "end_of_notifications": {
+        "en": "End of notifications",
+        "de": "Ende der Benachrichtigungen",
+        "fr": "Fin des notifications",
+        "es": "Fin de las notificaciones"
     }
 };
 

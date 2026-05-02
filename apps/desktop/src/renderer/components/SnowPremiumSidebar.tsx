@@ -40,21 +40,6 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside className={`fixed left-0 top-0 bottom-0 z-30 bg-[#00193F] text-white flex flex-col font-lato border-r border-[rgba(255,255,255,0.05)] transition-all duration-300 ${isCollapsed ? 'w-[80px]' : 'w-64'}`}>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes ring {
-          0% { transform: rotate(0); }
-          10% { transform: rotate(15deg); }
-          20% { transform: rotate(-15deg); }
-          30% { transform: rotate(10deg); }
-          40% { transform: rotate(-10deg); }
-          50% { transform: rotate(0); }
-          100% { transform: rotate(0); }
-        }
-        .animate-ring {
-          animation: ring 2s ease-in-out infinite;
-          transform-origin: top center;
-        }
-      `}} />
       {/* Brand Header */}
       <div className={`p-4 mb-2 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 px-6 py-6'}`}>
         <div className={`rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/5 overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-10 h-10' : 'w-8 h-8'}`}>

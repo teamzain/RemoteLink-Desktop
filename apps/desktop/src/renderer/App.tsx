@@ -95,21 +95,6 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [isAutoPlayBlocked, setIsAutoPlayBlocked] = useState(false);
     const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
 
-    // --- Global Theme & Font Size ---
-    useEffect(() => {
-        if (user) {
-            // Apply Dark Mode
-            if (user.darkMode) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-
-            // Apply Global Font Size
-            const size = user.fontSize || 16;
-            document.documentElement.style.setProperty('--base-font-size', `${size}px`);
-        }
-    }, [user?.darkMode, user?.fontSize]);
 
     // --- Black Screen Watchdog ---
     // If we have a stream but videoWidth is 0, request a recovery keyframe every 2s
@@ -1109,10 +1094,21 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 export default function App() {
     const isElectron = !!(window as any).electronAPI;
 
+    // --- Global Theme & Font Size ---
     useEffect(() => {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
-    }, []);
+        if (user) {
+            // Apply Dark Mode
+            if (user.darkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+
+            // Apply Global Font Size
+            const size = user.fontSize || 16;
+            document.documentElement.style.setProperty('--base-font-size', `${size}px`);
+        }
+    }, [user?.darkMode, user?.fontSize]);
 
     const [loading, setLoading] = useState(true);
     const [showSplash, setShowSplash] = useState(false);
@@ -3042,7 +3038,7 @@ export default function App() {
                                     title={t('notifications_tooltip', user?.language)}
                                     onClick={() => setShowNotifications(!showNotifications)}
                                 >
-                                    <Bell size={18} />
+                                    <Bell size={18} className="animate-ring" />
                                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_4px_rgba(239,68,68,0.5)]" />
                                 </button>
 
