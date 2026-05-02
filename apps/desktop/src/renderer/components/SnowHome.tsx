@@ -407,6 +407,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
           )}
         </main>
       </div>
+      </div>
 
       {/* ── Password modal ──────────────────────────────────── */}
       {props.connectStep === 2 && (

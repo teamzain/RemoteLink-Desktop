@@ -88,9 +88,11 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: 'User not found' });
       }
 
+      /* 
       if (targetUser.id === userId) {
         return reply.code(400).send({ error: 'Cannot start a conversation with yourself' });
       }
+      */
 
       // Check if a direct conversation already exists
       const existingConversation = await (prisma as any).conversation.findFirst({

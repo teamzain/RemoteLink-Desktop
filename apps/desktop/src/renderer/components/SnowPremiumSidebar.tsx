@@ -1,6 +1,6 @@
 import React from 'react';
 import logo from '../assets/logo.png';
-import { Home, Headphones, Monitor, MessageSquare, Settings, HelpCircle, MessageCircle, MoreHorizontal, ChevronRight, Menu, ChevronLeft, Bell } from 'lucide-react';
+import { Home, Network, Monitor, MessageSquare, Settings, HelpCircle, MessageCircle, MoreHorizontal, ChevronRight, Menu, ChevronLeft, Bell } from 'lucide-react';
 import { t } from '../lib/translations';
 
 interface SidebarProps {
@@ -26,7 +26,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { id: 'dashboard', label: t('home', user?.language), icon: Home },
-    { id: 'connect', label: t('remote_support', user?.language), icon: Headphones },
+    { id: 'connect', label: t('remote_support', user?.language), icon: Network },
     { id: 'devices', label: t('devices', user?.language), icon: Monitor },
     { id: 'chat', label: t('chat', user?.language), icon: MessageSquare },
   ];
@@ -77,13 +77,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
           </button>
         ))}
         
-        {!isCollapsed && (
-          <button className="w-full flex items-center gap-4 px-4 py-2.5 rounded-md text-[rgba(255,255,255,0.7)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white transition-all group">
-            <MoreHorizontal size={18} className="text-[rgba(255,255,255,0.6)]" />
-            <span className="text-sm font-medium">{t('more_solutions', user?.language)}</span>
-            <ChevronRight size={14} className="ml-auto opacity-40" />
-          </button>
-        )}
+
       </nav>
 
       {/* Bottom Nav */}

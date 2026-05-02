@@ -4,7 +4,7 @@ import logo from './assets/logo.png';
 import {
     Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
     RefreshCw, Eye, EyeOff, CreditCard, Power, Lock, Mail, Link, Sun, Moon, Edit2, Trash2, ShieldOff, LayoutGrid, PlusCircle, Radio, ShieldCheck, ArrowRightCircle, Check, DownloadCloud, MonitorOff, User,
-    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink
+    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink, HelpCircle
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
@@ -33,6 +33,7 @@ import { t } from './lib/translations';
 
 import { SnowAnalytics } from './components/SnowAnalytics';
 import { SnowHome } from './components/SnowHome';
+import { SnowLanding } from './components/SnowLanding';
 import { SnowRemoteSupport } from './components/SnowRemoteSupport';
 import { SnowChat } from './components/SnowChat';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
@@ -1121,7 +1122,10 @@ export default function App() {
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
     type ViewType = 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail';
-    const [currentView, _setCurrentView] = useState<ViewType>('home');
+    const [currentView, _setCurrentView] = useState<ViewType>(() => {
+        const stored = localStorage.getItem('last_view') as ViewType;
+        return stored || 'home';
+    });
     const [history, setHistory] = useState<ViewType[]>(['home']);
     const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -1141,19 +1145,24 @@ export default function App() {
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
         _setCurrentView(view);
+        localStorage.setItem('last_view', view);
     };
 
     const handleBack = () => {
         if (historyIndex > 0) {
             setHistoryIndex(historyIndex - 1);
-            _setCurrentView(history[historyIndex - 1]);
+            const view = history[historyIndex - 1];
+            _setCurrentView(view);
+            localStorage.setItem('last_view', view);
         }
     };
 
     const handleForward = () => {
         if (historyIndex < history.length - 1) {
             setHistoryIndex(historyIndex + 1);
-            _setCurrentView(history[historyIndex + 1]);
+            const view = history[historyIndex + 1];
+            _setCurrentView(view);
+            localStorage.setItem('last_view', view);
         }
     };
 
@@ -2981,7 +2990,7 @@ export default function App() {
             <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 relative bg-[#F4F7F9] dark:bg-[#0A0A0A] rounded-l-[24px] shadow-2xl shadow-black/10 ${isAuthenticated ? (isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-64') : ''}`}>
                 <main className="flex-1 flex flex-col overflow-hidden relative bg-[#F4F7F9] dark:bg-[#0A0A0A]">
                     {/* Workspace Header */}
-                    {(isAuthenticated || ((currentView as any) !== 'home' && (currentView as any) !== 'settings')) && (
+                    {isAuthenticated && (
                         <>
                             <header className="h-[56px] flex items-center justify-between px-6 flex-shrink-0 z-10 w-full bg-white dark:bg-[#0F0F0F] border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.1)] font-sans">
                                 <div className="flex items-center gap-12">
@@ -3017,18 +3026,39 @@ export default function App() {
                                 </div>
                             </div>
 
-                            <div className="flex-1 max-w-xl mx-8">
+                            <div className="flex-1 max-w-sm mx-8 relative">
                                 <div className="relative group">
                                     <div className="absolute inset-y-0 left-4 flex items-center text-[#757575] dark:text-[#A0A0A0]">
                                         <Search size={16} />
                                     </div>
                                     <input
                                         type="text"
-                                        placeholder={t('search_and_connect', user?.language)}
-                                        className="w-full h-9 pl-11 pr-20 bg-white dark:bg-white/5 border border-[#D1D1D1] dark:border-white/10 rounded-lg text-sm outline-none focus:border-blue-500 transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
+                                        placeholder="Search device, contact, group or feature. Type an ID to connect."
+                                        className="w-full h-10 pl-11 pr-20 bg-white dark:bg-white/5 border border-blue-500 dark:border-blue-400 rounded-xl text-sm outline-none shadow-[0_0_0_1px_rgba(59,130,246,0.1)] transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
                                     />
                                     <div className="absolute inset-y-0 right-3 flex items-center">
                                         <span className="text-[10px] font-medium text-[#757575] dark:text-[#A0A0A0] bg-[#F4F7F9] dark:bg-white/5 px-1.5 py-0.5 rounded border border-[#D1D1D1] dark:border-white/10">Ctrl + K</span>
+                                    </div>
+
+                                    {/* Search Dropdown Mockup */}
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1C1C1C] border border-gray-100 dark:border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200">
+                                        <div className="flex items-center gap-2 p-2 border-b border-gray-50 dark:border-white/5">
+                                            <button className="px-3 py-1.5 bg-gray-100 dark:bg-white/5 rounded-lg text-[12px] font-medium text-gray-900 dark:text-white">All</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Monitor size={14} /> Devices</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Layers size={14} /> Groups</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><User size={14} /> Contacts</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Zap size={14} /> Features</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><HelpCircle size={14} /> Help</button>
+                                        </div>
+                                        <div className="p-6">
+                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2">Search and make your first connection</h3>
+                                            <p className="text-[13px] text-gray-500 leading-relaxed">
+                                                Your most recent connections will appear here once they are completed, making it easier for you to find and reuse them in the future.
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 dark:bg-white/5 flex justify-end">
+                                            <button className="text-gray-400 hover:text-gray-600 transition-colors"><Settings size={16} /></button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3167,7 +3197,20 @@ export default function App() {
                     )}
 
                     <div className={`flex-1 ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
-                        {(!isAuthenticated || currentView === 'home') ? (
+                        {!isAuthenticated ? (
+                            <SnowLanding
+                                localAuthKey={localAuthKey}
+                                devicePassword={devicePassword}
+                                onSignIn={() => { setShowAuthModal(true); setAuthMode('login'); }}
+                                onSignUp={() => { setShowAuthModal(true); setAuthMode('signup'); }}
+                                onFindDevice={handleFindDevice}
+                                sessionCode={sessionCode}
+                                onSessionCodeChange={setSessionCode}
+                                formatCode={formatCode}
+                                connectStatus={viewerStatus}
+                                connectError={viewerError || null}
+                            />
+                        ) : currentView === 'home' ? (
                             <div className={`w-full h-full overflow-hidden animate-in fade-in duration-700`}>
                                 <SnowHome
                                     localAuthKey={localAuthKey}
@@ -3380,7 +3423,7 @@ export default function App() {
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
                                 <SnowSupport />
                             </div>
-                        ) : currentView === 'chat' ? (
+                        ) : (currentView as any) === 'chat' ? (
                             <SnowChat />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
@@ -3428,6 +3471,16 @@ export default function App() {
                             </div>
                         ) : null}
                     </div>
+
+                    {/* ── Global Footer (Inside Main) ────────────────────── */}
+                    <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center w-full z-[99999] overflow-hidden">
+                        <div className="flex-1 h-full flex items-center justify-start px-4">
+                            <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                {hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'Ready to connect (secure connection)' : 'Not connected'}
+                            </span>
+                        </div>
+                    </footer>
                 </main>
 
                 <SnowNotificationPanel 
@@ -3704,14 +3757,6 @@ export default function App() {
                 </div>
             )}
             </div>
-
-            {/* ── Global Footer ──────────────────────────────────── */}
-            <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center px-4 w-full z-[99999]">
-                <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                    {hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'Ready to connect (secure connection)' : 'Not connected'}
-                </span>
-            </footer>
         </div>
     );
 }

@@ -11,7 +11,8 @@ import {
   ChevronDown,
   FileText,
   Shield,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -32,6 +33,8 @@ export const SnowChat: React.FC = () => {
 
   const [showAddContact, setShowAddContact] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -66,11 +69,16 @@ export const SnowChat: React.FC = () => {
 
   const handleCreateChat = async () => {
     if (!inviteEmail) return;
+    setIsInviting(true);
+    setInviteError(null);
     const success = await createConversation(inviteEmail);
     if (success) {
       setShowAddContact(false);
       setInviteEmail('');
+    } else {
+      setInviteError('User not found. They must have a Remote 365 account.');
     }
+    setIsInviting(false);
   };
 
   // Helper to get the other participant in a 1-on-1 chat
@@ -114,41 +122,42 @@ export const SnowChat: React.FC = () => {
               <h3 className="text-[12px] font-bold text-gray-400 tracking-wider uppercase">Direct messages</h3>
             </div>
             <div className="space-y-0.5">
-              {directChats.length === 0 && (
-                <div className="px-2 py-3 text-[13px] text-gray-500 text-center">No direct messages yet</div>
-              )}
-              {directChats.map(chat => {
-                const otherUser = getOtherParticipant(chat);
-                const lastMessage = chat.messages?.[0]?.content || 'Start a conversation';
-                return (
-                  <button
-                    key={chat.id}
-                    onClick={() => setActiveChat(chat.id)}
-                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
-                      activeChatId === chat.id 
-                        ? 'bg-[#F0F2F5] dark:bg-[#1C1C1C]' 
-                        : 'hover:bg-gray-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="relative">
-                      {otherUser?.avatar ? (
-                        <img src={otherUser.avatar} alt={otherUser.name} className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-[#CDE6E8] dark:bg-[#1A3A3D] text-[#1A3A3D] dark:text-[#8EE6EE] flex items-center justify-center font-medium">
-                          {otherUser?.name?.charAt(0) || '?'}
-                        </div>
-                      )}
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#0A0A0A] rounded-full"></div>
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex justify-between items-center mb-0.5">
-                        <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{otherUser?.name || otherUser?.email || 'Unknown Contact'}</span>
+              {directChats.length === 0 ? (
+                <div key="no-direct-chats" className="px-2 py-3 text-[13px] text-gray-500 text-center">No direct messages yet</div>
+              ) : (
+                directChats.map((chat, idx) => {
+                  const otherUser = getOtherParticipant(chat);
+                  const lastMessage = chat.messages?.[0]?.content || 'Start a conversation';
+                  return (
+                    <button
+                      key={chat.id || `direct-${idx}`}
+                      onClick={() => setActiveChat(chat.id)}
+                      className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
+                        activeChatId === chat.id 
+                          ? 'bg-[#F0F2F5] dark:bg-[#1C1C1C]' 
+                          : 'hover:bg-gray-50 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="relative">
+                        {otherUser?.avatar ? (
+                          <img src={otherUser.avatar} alt={otherUser.name} className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-[#CDE6E8] dark:bg-[#1A3A3D] text-[#1A3A3D] dark:text-[#8EE6EE] flex items-center justify-center font-medium">
+                            {otherUser?.name?.charAt(0) || '?'}
+                          </div>
+                        )}
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#0A0A0A] rounded-full"></div>
                       </div>
-                      <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
-                    </div>
-                  </button>
-                );
-              })}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{otherUser?.name || otherUser?.email || 'Unknown Contact'}</span>
+                        </div>
+                        <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -158,33 +167,34 @@ export const SnowChat: React.FC = () => {
               <h3 className="text-[12px] font-bold text-gray-400 tracking-wider uppercase">Groups</h3>
             </div>
             <div className="space-y-0.5">
-              {groups.length === 0 && (
-                <div className="px-2 py-3 text-[13px] text-gray-500 text-center">No groups yet</div>
-              )}
-              {groups.map(chat => {
-                const lastMessage = chat.messages?.[0]?.content || 'Start a conversation';
-                return (
-                  <button
-                    key={chat.id}
-                    onClick={() => setActiveChat(chat.id)}
-                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
-                      activeChatId === chat.id 
-                        ? 'bg-[#F0F2F5] dark:bg-[#1C1C1C]' 
-                        : 'hover:bg-gray-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-[#F0F2F5] dark:bg-[#141414] text-gray-500 flex items-center justify-center shrink-0">
-                      <span className="font-medium text-[14px]">#</span>
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex justify-between items-center mb-0.5">
-                        <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{chat.name || 'Group Chat'}</span>
+              {groups.length === 0 ? (
+                <div key="no-groups" className="px-2 py-3 text-[13px] text-gray-500 text-center">No groups yet</div>
+              ) : (
+                groups.map((chat, idx) => {
+                  const lastMessage = chat.messages?.[0]?.content || 'Start a conversation';
+                  return (
+                    <button
+                      key={chat.id || `group-${idx}`}
+                      onClick={() => setActiveChat(chat.id)}
+                      className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
+                        activeChatId === chat.id 
+                          ? 'bg-[#F0F2F5] dark:bg-[#1C1C1C]' 
+                          : 'hover:bg-gray-50 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-[#F0F2F5] dark:bg-[#141414] text-gray-500 flex items-center justify-center shrink-0">
+                        <span className="font-medium text-[14px]">#</span>
                       </div>
-                      <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
-                    </div>
-                  </button>
-                );
-              })}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{chat.name || 'Group Chat'}</span>
+                        </div>
+                        <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -355,6 +365,12 @@ export const SnowChat: React.FC = () => {
               </label>
             </div>
 
+            {inviteError && (
+              <p className="text-[12px] text-red-500 font-medium mb-6 animate-in fade-in slide-in-from-top-1">
+                {inviteError}
+              </p>
+            )}
+
             <div className="flex items-center justify-end gap-3">
               <button 
                 onClick={() => setShowAddContact(false)}
@@ -364,14 +380,15 @@ export const SnowChat: React.FC = () => {
               </button>
               <button 
                 onClick={handleCreateChat}
-                disabled={!inviteEmail}
-                className={`px-6 py-2.5 rounded-lg text-[14px] font-medium transition-colors ${
-                  inviteEmail 
+                disabled={!inviteEmail || isInviting}
+                className={`px-6 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 ${
+                  inviteEmail && !isInviting
                     ? 'bg-blue-600 text-white hover:bg-blue-700' 
                     : 'bg-[#F0F2F5] dark:bg-[#2A2A2A] text-gray-400 dark:text-[#666666] pointer-events-none'
                 }`}
               >
-                Send invite
+                {isInviting ? <RefreshCw size={16} className="animate-spin" /> : null}
+                {isInviting ? 'Sending...' : 'Send invite'}
               </button>
             </div>
           </div>
