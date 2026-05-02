@@ -140,10 +140,16 @@ async function startServer() {
             if (!conversationId || !content) break;
 
             try {
-              // 0. Check if conversation is accepted
-              const conv = await (prisma as any).conversation.findUnique({ where: { id: conversationId } });
-              if (conv?.status === 'PENDING') {
-                ws.send(JSON.stringify({ type: 'chat-error', error: 'Conversation pending acceptance' }));
+              // 0. Verify sender membership and accepted state before any DB write.
+              const conv = await (prisma as any).conversation.findFirst({
+                where: {
+                  id: conversationId,
+                  status: 'ACCEPTED',
+                  participants: { some: { userId: senderId } }
+                }
+              });
+              if (!conv) {
+                ws.send(JSON.stringify({ type: 'chat-error', error: 'Conversation is not available for messaging' }));
                 break;
               }
 

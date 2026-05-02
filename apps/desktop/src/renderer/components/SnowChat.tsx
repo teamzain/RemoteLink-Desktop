@@ -71,6 +71,9 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
   const directChats = conversations.filter(c => !c.isGroup);
 
   const activeConversation = conversations.find(c => c.id === activeChatId);
+  const isInviteRequester = activeConversation?.requestedById
+    ? activeConversation.requestedById === user?.id
+    : activeConversation?.participants?.[0]?.userId === user?.id;
 
   const handleSend = () => {
     if (!inputText.trim() || !activeChatId) return;
@@ -320,13 +323,13 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
                 </div>
                 <h3 className="text-[24px] font-bold text-[#111111] dark:text-[#F5F5F5] mb-2">Pending Invitation</h3>
                 <p className="text-[15px] text-gray-500 dark:text-[#A0A0A0] mb-8 leading-relaxed">
-                  {activeConversation.participants?.[0]?.userId === user?.id 
+                  {isInviteRequester 
                     ? "Waiting for the other person to accept your chat request. You can't send messages until they accept."
                     : "This person wants to chat with you. Accept the invitation to start exchanging messages."
                   }
                 </p>
                 
-                {activeConversation.participants?.[0]?.userId !== user?.id && (
+                {!isInviteRequester && (
                   <div className="flex gap-4 w-full">
                     <button 
                       onClick={() => acceptInvite(activeChatId!)}

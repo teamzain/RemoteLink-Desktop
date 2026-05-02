@@ -109,11 +109,11 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       const existingConversation = await (prisma as any).conversation.findFirst({
         where: {
           isGroup: false,
-          participants: {
-            every: {
-              userId: { in: [userId, targetUser.id] }
-            }
-          }
+          AND: [
+            { participants: { every: { userId: { in: [userId, targetUser.id] } } } },
+            { participants: { some: { userId } } },
+            { participants: { some: { userId: targetUser.id } } }
+          ]
         },
         include: {
           participants: {
@@ -131,6 +131,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         data: {
           isGroup: false,
           status: 'PENDING',
+          requestedById: userId,
           participants: {
             create: userId === targetUser.id ? [{ userId }] : [{ userId }, { userId: targetUser.id }]
           }
@@ -241,11 +242,16 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
-      const participant = await (prisma as any).conversationParticipant.findFirst({
-        where: { conversationId: id, userId }
+      const conversation = await (prisma as any).conversation.findFirst({
+        where: {
+          id,
+          status: 'PENDING',
+          requestedById: { not: userId },
+          participants: { some: { userId } }
+        }
       });
 
-      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+      if (!conversation) return reply.code(403).send({ error: 'Only the invited recipient can accept this request' });
 
       const updated = await (prisma as any).conversation.update({
         where: { id },
@@ -270,11 +276,16 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
-      const participant = await (prisma as any).conversationParticipant.findFirst({
-        where: { conversationId: id, userId }
+      const conversation = await (prisma as any).conversation.findFirst({
+        where: {
+          id,
+          status: 'PENDING',
+          requestedById: { not: userId },
+          participants: { some: { userId } }
+        }
       });
 
-      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+      if (!conversation) return reply.code(403).send({ error: 'Only the invited recipient can ignore this request' });
 
       await (prisma as any).conversation.delete({
         where: { id }

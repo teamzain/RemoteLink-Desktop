@@ -21,6 +21,7 @@ export interface ChatConversation {
   id: string;
   isGroup: boolean;
   name: string | null;
+  requestedById?: string | null;
   participants: { userId: string; user: ChatUser; nickname?: string | null }[];
   messages: ChatMessage[];
   updatedAt: string;

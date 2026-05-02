@@ -253,6 +253,7 @@ model Conversation {
   isGroup       Boolean                   @default(false)
   name          String?
   status        String                    @default("ACCEPTED") // PENDING, ACCEPTED, REJECTED
+  requestedById String?
   createdAt     DateTime                  @default(now())
   updatedAt     DateTime                  @updatedAt
   participants  ConversationParticipant[]
