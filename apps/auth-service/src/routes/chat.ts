@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { prisma, verifyToken } from '@remotelink/shared';
+import { prisma, verifyToken, redisPublisher } from '@remotelink/shared';
 
 export default async function chatRoutes(fastify: FastifyInstance) {
   // Middleware to authenticate user
@@ -130,6 +130,13 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           }
         }
       });
+
+      // Broadcast to signaling-service so the target user gets a live notification
+      const payload = JSON.stringify({
+        targetUserId: targetUser.id,
+        conversation
+      });
+      redisPublisher.publish('chat:new-conversation', payload);
 
       return reply.send(conversation);
     } catch (err) {

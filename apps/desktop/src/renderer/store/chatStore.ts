@@ -184,6 +184,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
               conversations: updatedConversations
             };
           });
+        } else if (data.type === 'chat-invite') {
+          const { conversation } = data;
+          set((state) => {
+            // Check if it already exists to avoid duplicates
+            if (state.conversations.some(c => c.id === conversation.id)) return state;
+            
+            // Show a native browser notification if permitted
+            if (Notification.permission === 'granted') {
+              new Notification('New Chat Invite', {
+                body: `Someone wants to connect with you!`
+              });
+            }
+
+            return {
+              conversations: [conversation, ...state.conversations]
+            };
+          });
         }
       } catch (err) {
         console.error('[ChatStore] Failed to parse message', err);

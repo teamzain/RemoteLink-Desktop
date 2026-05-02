@@ -253,7 +253,7 @@ async function main() {
   // Step: build
   if (!args.skipBuild) {
     step(++stepN, TOTAL_STEPS, 'Building desktop app');
-    run('npm', ['run', 'build', '-w', 'connect-x']);
+    run('npm', ['run', 'build', '-w', 'remote-365']);
   } else {
     console.log('\n  Skipping build (--skip-build)');
   }

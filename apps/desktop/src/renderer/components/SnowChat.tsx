@@ -38,6 +38,11 @@ export const SnowChat: React.FC = () => {
   useEffect(() => {
     fetchConversations();
     connectWebSocket();
+    
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    
     return () => disconnectWebSocket();
   }, []);
 
