@@ -183,12 +183,17 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
+      console.log(`[Chat API] Delete request for conv: ${id} by user: ${userId}`);
+      
       // Check if user is a participant
-      const participant = await (prisma as any).conversationParticipant.findUnique({
-        where: { conversationId_userId: { conversationId: id, userId } }
+      const participant = await (prisma as any).conversationParticipant.findFirst({
+        where: { conversationId: id, userId }
       });
 
-      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+      if (!participant) {
+        console.warn(`[Chat API] Delete failed: User ${userId} is NOT a participant of ${id}`);
+        return reply.code(403).send({ error: 'Forbidden' });
+      }
 
       // In a 1-on-1 chat, deleting usually means removing the conversation for BOTH if it's the only way to "clear" it.
       // But for now, we just delete the whole conversation since we added Cascade.
