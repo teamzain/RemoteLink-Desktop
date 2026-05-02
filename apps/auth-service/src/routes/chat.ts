@@ -143,4 +143,72 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });
+
+  // 4. Rename a conversation
+  fastify.patch('/conversations/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+    const { name } = request.body as { name: string };
+
+    try {
+      // Ensure user is a participant
+      const participant = await (prisma as any).conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId: id, userId } }
+      });
+
+      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+
+      const updated = await (prisma as any).conversation.update({
+        where: { id },
+        data: { name },
+        include: {
+          participants: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
+          }
+        }
+      });
+
+      return reply.send(updated);
+    } catch (err) {
+      console.error('[Chat API] Failed to rename conversation', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 5. Delete/Leave a conversation
+  fastify.delete('/conversations/:id', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      // Check if user is a participant
+      const participant = await (prisma as any).conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId: id, userId } }
+      });
+
+      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+
+      // If it's a 1-on-1 chat, delete the whole conversation? 
+      // Or just remove the participant? 
+      // Usually, deleting a conversation for one person shouldn't delete it for the other.
+      // But for simplicity in this MVP, we remove the participant record.
+      await (prisma as any).conversationParticipant.delete({
+        where: { conversationId_userId: { conversationId: id, userId } }
+      });
+
+      // If no participants left, delete the conversation entirely
+      const remaining = await (prisma as any).conversationParticipant.count({
+        where: { conversationId: id }
+      });
+
+      if (remaining === 0) {
+        await (prisma as any).conversation.delete({ where: { id } });
+      }
+
+      return reply.send({ success: true });
+    } catch (err) {
+      console.error('[Chat API] Failed to delete conversation', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
 }

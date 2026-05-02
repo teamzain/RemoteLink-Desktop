@@ -12,12 +12,14 @@ import {
   FileText,
   Shield,
   X,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 
-export const SnowChat: React.FC = () => {
+export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ setCurrentView }) => {
   const { user } = useAuthStore();
   const { 
     conversations, 
@@ -27,11 +29,18 @@ export const SnowChat: React.FC = () => {
     fetchConversations, 
     createConversation, 
     sendMessage, 
+    renameConversation,
+    deleteConversation,
     connectWebSocket, 
     disconnectWebSocket 
   } = useChatStore();
 
   const [showAddContact, setShowAddContact] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -131,7 +140,6 @@ export const SnowChat: React.FC = () => {
               <h3 className="text-[12px] font-bold text-gray-400 tracking-wider uppercase">Direct messages</h3>
             </div>
             <div className="space-y-0.5">
-              {console.log('[SnowChat] Rendering directChats:', directChats) || null}
               {directChats.length === 0 ? (
                 <div key="no-direct-chats" className="px-2 py-3 text-[13px] text-gray-500 text-center">No direct messages yet</div>
               ) : (
@@ -239,18 +247,44 @@ export const SnowChat: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              <button className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center text-gray-600 dark:text-[#A0A0A0] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                <Video size={18} />
-              </button>
-              <button className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 flex items-center justify-center text-gray-600 dark:text-[#A0A0A0] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                <Phone size={18} />
-              </button>
-              <button className="px-5 py-2.5 bg-[#1C202B] text-white text-[13px] font-medium rounded-full hover:bg-[#2A2F3D] transition-colors ml-2">
+              <button 
+                onClick={() => setShowProfileModal(true)}
+                className="px-5 py-2.5 bg-[#1C202B] text-white text-[13px] font-medium rounded-full hover:bg-[#2A2F3D] transition-colors ml-2"
+              >
                 View profile
               </button>
-              <button className="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-600 dark:text-[#A0A0A0] hover:bg-gray-200 dark:hover:bg-white/20 transition-colors ml-1">
-                <MoreHorizontal size={18} />
-              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => {
+                    setShowOptionsModal(!showOptionsModal);
+                    setNewName(activeConversation?.name || activeParticipant?.name || '');
+                  }}
+                  className="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-600 dark:text-[#A0A0A0] hover:bg-gray-200 dark:hover:bg-white/20 transition-colors ml-1"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+                
+                {showOptionsModal && (
+                  <div className="absolute right-0 top-12 w-48 bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/5 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                    <button 
+                      onClick={() => { setIsRenaming(true); setShowOptionsModal(false); }}
+                      className="w-full text-left px-4 py-2 text-[13px] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                    >
+                      Rename Conversation
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowDeleteModal(true);
+                        setShowOptionsModal(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-[13px] text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2"
+                    >
+                      <Trash2 size={14} />
+                      Delete Chat
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -402,6 +436,123 @@ export const SnowChat: React.FC = () => {
               >
                 {isInviting ? <RefreshCw size={16} className="animate-spin" /> : null}
                 {isInviting ? 'Sending...' : 'Send invite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Rename Modal */}
+      {isRenaming && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#111111] w-full max-w-md p-8 rounded-[32px] shadow-2xl relative animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setIsRenaming(false)}
+              className="absolute top-8 right-8 text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"
+            >
+              <X size={24} strokeWidth={1.5} />
+            </button>
+            <h3 className="text-[22px] font-medium text-[#111111] dark:text-[#F5F5F5] mb-8">Rename Conversation</h3>
+            <div className="relative mb-8">
+              <input 
+                type="text" 
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="block px-4 py-3.5 w-full text-[14px] text-gray-900 dark:text-white bg-transparent rounded-xl border border-gray-200 dark:border-white/10 focus:outline-none focus:border-blue-600 transition-colors" 
+                placeholder="New conversation name" 
+              />
+            </div>
+            <button 
+              onClick={() => {
+                if (newName.trim()) {
+                  renameConversation(activeChatId!, newName);
+                  setIsRenaming(false);
+                }
+              }}
+              className="w-full py-4 bg-[#1C202B] text-white text-[13px] font-bold rounded-xl hover:bg-[#2A2F3D] transition-colors"
+            >
+              Update Name
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#111111] w-full max-w-sm p-0 rounded-[32px] shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="h-32 bg-gradient-to-br from-[#1C202B] to-[#2A2F3D]" />
+            <button 
+              onClick={() => setShowProfileModal(false)}
+              className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="px-8 pb-10 -mt-12 text-center">
+              <div className="relative inline-block mb-4">
+                {activeParticipant?.avatar ? (
+                  <img src={activeParticipant.avatar} alt={activeParticipant.name} className="w-24 h-24 rounded-[32px] border-4 border-white dark:border-[#111111] shadow-lg object-cover" />
+                ) : (
+                  <div className="w-24 h-24 bg-[#CDE6E8] text-[#1A3A3D] rounded-[32px] border-4 border-white dark:border-[#111111] shadow-lg flex items-center justify-center text-3xl font-bold">
+                    {activeParticipant?.name?.charAt(0) || activeParticipant?.email?.charAt(0) || '?'}
+                  </div>
+                )}
+                <div className="absolute bottom-1 right-1 w-5 h-5 bg-[#71DD8C] rounded-full border-2 border-white dark:border-[#111111]" />
+              </div>
+              
+              <h3 className="text-xl font-bold text-[#111111] dark:text-[#F5F5F5] mb-1">{activeParticipant?.name || 'Unknown Contact'}</h3>
+              <p className="text-[13px] text-gray-500 mb-6">{activeParticipant?.email}</p>
+              
+              <div className="grid grid-cols-2 gap-3 mb-8 text-left">
+                <div className="bg-gray-50 dark:bg-white/5 p-3 rounded-2xl">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Role</p>
+                  <p className="text-[12px] font-medium text-gray-800 dark:text-gray-200">{activeParticipant?.role || 'Member'}</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-white/5 p-3 rounded-2xl">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">Status</p>
+                  <p className="text-[12px] font-medium text-[#71DD8C]">Available</p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => setShowProfileModal(false)}
+                className="w-full py-3.5 bg-gray-100 dark:bg-white/5 text-gray-800 dark:text-white text-[12px] font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors uppercase tracking-widest"
+              >
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#111111] w-full max-w-sm p-8 rounded-[32px] shadow-2xl relative text-center animate-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle size={32} />
+            </div>
+            
+            <h3 className="text-[20px] font-bold text-[#111111] dark:text-[#F5F5F5] mb-2">Delete Conversation?</h3>
+            <p className="text-[14px] text-gray-500 dark:text-[#A0A0A0] mb-8">
+              This will permanently remove this chat and all messages for you. This action cannot be undone.
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  deleteConversation(activeChatId!);
+                  setShowDeleteModal(false);
+                }}
+                className="w-full py-3.5 bg-red-500 text-white text-[13px] font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+              >
+                Delete for Me
+              </button>
+              <button 
+                onClick={() => setShowDeleteModal(false)}
+                className="w-full py-3.5 bg-gray-100 dark:bg-white/5 text-gray-800 dark:text-white text-[12px] font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors uppercase tracking-widest"
+              >
+                Cancel
               </button>
             </div>
           </div>

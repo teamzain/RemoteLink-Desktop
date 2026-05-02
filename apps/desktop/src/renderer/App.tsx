@@ -39,6 +39,7 @@ import { SnowChat } from './components/SnowChat';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
 import UpdateBanner from './components/UpdateBanner';
 import { playUISound, fireNotification } from './components/SnowUserSettings';
+import { useChatStore } from './store/chatStore';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -1190,6 +1191,36 @@ export default function App() {
     const [remoteCursor, setRemoteCursor] = useState<{ x: number, y: number, visible: boolean } | null>(null);
     const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
     const [showDiagnostics, setShowDiagnostics] = useState(false);
+
+    // --- Chat Notifications & Global Events ---
+    useEffect(() => {
+        // Set the callback for new messages to trigger notifications
+        useChatStore.setState({
+            onNewMessage: (msg: any, convId: string) => {
+                // Don't notify if the chat is currently active/open
+                if (useChatStore.getState().activeChatId === convId) return;
+                
+                // Add to internal notification panel
+                addNotification(`New message: ${msg.content.substring(0, 30)}${msg.content.length > 30 ? '...' : ''}`, 'session');
+                
+                // Fire native system notification
+                fireNotification(`New Message`, msg.content.substring(0, 50));
+                
+                // Play sound
+                playUISound('connect');
+            },
+            onInvite: (conv) => {
+                // Add to internal notification panel
+                addNotification(`New chat invitation from ${conv.participants?.[0]?.user?.name || 'a user'}`, 'session');
+                
+                // Fire native system notification
+                fireNotification(`New Chat Invite`, `Someone wants to connect with you!`);
+                
+                // Play sound
+                playUISound('connect');
+            }
+        });
+    }, []);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -3425,7 +3456,7 @@ export default function App() {
                                 <SnowSupport />
                             </div>
                         ) : (currentView as any) === 'chat' ? (
-                            <SnowChat />
+                            <SnowChat setCurrentView={setCurrentView} />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
                             <div className="w-full h-full animate-in fade-in duration-700 pt-2">

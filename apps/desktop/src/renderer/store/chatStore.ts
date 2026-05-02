@@ -34,10 +34,14 @@ interface ChatState {
   isLoading: boolean;
 
   setActiveChat: (id: string | null) => void;
+  onNewMessage?: (msg: any, convId: string) => void;
+  onInvite?: (conv: any) => void;
   fetchConversations: () => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
   createConversation: (email: string) => Promise<boolean>;
   sendMessage: (conversationId: string, content: string) => void;
+  renameConversation: (id: string, name: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
   connectWebSocket: () => Promise<void>;
   disconnectWebSocket: () => void;
 }
@@ -135,6 +139,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  renameConversation: async (id: string, name: string) => {
+    try {
+      const { data } = await api.patch(`/api/chat/conversations/${id}`, { name });
+      set((state) => ({
+        conversations: state.conversations.map(c => c.id === id ? data : c)
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to rename conversation', err);
+    }
+  },
+
+  deleteConversation: async (id: string) => {
+    try {
+      await api.delete(`/api/chat/conversations/${id}`);
+      set((state) => ({
+        conversations: state.conversations.filter(c => c.id !== id),
+        activeChatId: state.activeChatId === id ? null : state.activeChatId
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to delete conversation', err);
+    }
+  },
+
   connectWebSocket: async () => {
     const existingWs = get().ws;
     if (existingWs) return;
@@ -172,7 +199,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const convIndex = updatedConversations.findIndex(c => c.id === conversationId);
             
             if (convIndex > -1) {
-              const conv = updatedConversations[convIndex];
+              const conv = { ...updatedConversations[convIndex] };
               conv.messages = [message];
               conv.updatedAt = message.createdAt;
               updatedConversations.splice(convIndex, 1);
@@ -181,6 +208,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
               // If we received a message for a new conversation, fetch full conversation list
               get().fetchConversations();
             }
+
+            // Trigger callback for notifications
+            get().onNewMessage?.(message, conversationId);
 
             return {
               messages: updatedMessages,
@@ -199,6 +229,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 body: `Someone wants to connect with you!`
               });
             }
+
+            // Trigger callback for UI notification
+            get().onInvite?.(conversation);
 
             return {
               conversations: [conversation, ...state.conversations]
