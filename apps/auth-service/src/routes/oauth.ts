@@ -178,12 +178,63 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
           return reply.type('text/html').send(`
             <!DOCTYPE html>
             <html>
-              <head><title>2FA Required | Connect-X</title></head>
-              <body style="background:#060608;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;">
-                <div style="padding:40px;background:rgba(255,255,255,0.03);border-radius:24px;border:1px solid rgba(255,255,255,0.1);">
-                  <h1>Security Verification</h1>
-                  <p>Please enter your 2FA code in the app to continue.</p>
-                  <a href="${deepLink}" style="padding:14px 28px;background:#fff;color:#000;text-decoration:none;border-radius:12px;font-weight:600;">Open Connect-X</a>
+              <head>
+                <title>2FA Required | Remote 365</title>
+                <style>
+                  body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    background: #f8fafc;
+                    color: #0f172a;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    text-align: center;
+                  }
+                  .card {
+                    background: white;
+                    padding: 48px;
+                    border-radius: 24px;
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+                    max-width: 400px;
+                    animation: slideUp 0.6s ease-out;
+                  }
+                  .icon-box {
+                    width: 72px;
+                    height: 72px;
+                    background: #eff6ff;
+                    border-radius: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 24px;
+                    color: #2563eb;
+                  }
+                  h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.02em; }
+                  p { color: #64748b; line-height: 1.6; margin-bottom: 32px; }
+                  .btn {
+                    display: inline-block;
+                    background: #2563eb;
+                    color: white;
+                    text-decoration: none;
+                    padding: 14px 32px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                  }
+                  .btn:hover { background: #1d4ed8; transform: translateY(-1px); }
+                  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+                </style>
+              </head>
+              <body>
+                <div class="card">
+                  <div class="icon-box">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                  </div>
+                  <h1>2FA Required</h1>
+                  <p>Please open the Remote 365 app to enter your security code.</p>
+                  <a href="${deepLink}" class="btn">Open Remote 365</a>
                 </div>
                 <script>setTimeout(() => { window.location.href = "${deepLink}"; }, 1000);</script>
               </body>
@@ -207,80 +258,120 @@ export default async function oauthRoutes(fastify: FastifyInstance) {
           <!DOCTYPE html>
           <html>
             <head>
-              <title>Login Successful | Connect-X</title>
+              <title>Launching Remote 365</title>
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <style>
                 body {
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                  background-color: #060608;
-                  color: #fff;
+                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                  background: #f8fafc;
+                  color: #0f172a;
                   display: flex;
-                  flex-direction: column;
                   align-items: center;
                   justify-content: center;
                   height: 100vh;
                   margin: 0;
-                  text-align: center;
+                  overflow: hidden;
                 }
                 .container {
-                  max-width: 400px;
+                  text-align: center;
+                  max-width: 440px;
                   padding: 40px;
-                  background: rgba(255,255,255,0.03);
-                  border-radius: 24px;
-                  border: 1px solid rgba(255,255,255,0.1);
-                  backdrop-filter: blur(10px);
+                  animation: fadeIn 0.8s ease-out;
                 }
-                .icon {
-                  width: 64px;
-                  height: 64px;
-                  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-                  border-radius: 20px;
-                  margin-bottom: 24px;
+                .logo-container {
+                  position: relative;
+                  width: 100px;
+                  height: 100px;
+                  margin: 0 auto 40px;
+                }
+                .logo-circle {
+                  position: absolute;
+                  top: 0; left: 0; right: 0; bottom: 0;
+                  background: #2563eb;
+                  border-radius: 30px;
                   display: flex;
                   align-items: center;
                   justify-content: center;
-                  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
+                  box-shadow: 0 20px 40px -10px rgba(37, 99, 235, 0.3);
+                  z-index: 2;
                 }
-                h1 { margin: 0 0 12px 0; font-size: 24px; font-weight: 600; }
-                p { color: rgba(255,255,255,0.6); margin: 0 0 32px 0; line-height: 1.5; }
+                .pulse {
+                  position: absolute;
+                  top: 0; left: 0; right: 0; bottom: 0;
+                  background: #2563eb;
+                  border-radius: 30px;
+                  opacity: 0.4;
+                  animation: pulse 2s infinite;
+                  z-index: 1;
+                }
+                h1 {
+                  font-size: 28px;
+                  font-weight: 700;
+                  margin: 0 0 12px 0;
+                  letter-spacing: -0.02em;
+                }
+                p {
+                  color: #64748b;
+                  font-size: 16px;
+                  line-height: 1.6;
+                  margin: 0 0 40px 0;
+                }
                 .button {
                   display: inline-block;
-                  padding: 14px 28px;
-                  background-color: #fff;
-                  color: #000;
+                  padding: 14px 32px;
+                  background-color: #2563eb;
+                  color: #fff;
                   text-decoration: none;
                   border-radius: 12px;
                   font-weight: 600;
-                  transition: transform 0.2s, opacity 0.2s;
+                  font-size: 15px;
+                  transition: all 0.2s;
+                  box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
                 }
-                .button:active { transform: scale(0.95); }
-                .loader {
-                  margin-top: 24px;
-                  width: 20px;
-                  height: 20px;
-                  border: 2px solid rgba(255,255,255,0.1);
-                  border-top-color: #fff;
-                  border-radius: 50%;
-                  animation: spin 1s linear infinite;
+                .button:hover {
+                  background-color: #1d4ed8;
+                  transform: translateY(-1px);
+                  box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3);
                 }
-                @keyframes spin { to { transform: rotate(360deg); } }
+                .footer {
+                  position: fixed;
+                  bottom: 40px;
+                  font-size: 13px;
+                  color: #94a3b8;
+                }
+                @keyframes pulse {
+                  0% { transform: scale(1); opacity: 0.4; }
+                  70% { transform: scale(1.4); opacity: 0; }
+                  100% { transform: scale(1.4); opacity: 0; }
+                }
+                @keyframes fadeIn {
+                  from { opacity: 0; transform: translateY(10px); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
               </style>
             </head>
             <body>
               <div class="container">
-                <center><div class="icon">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                </div></center>
-                <h1>Authentication Successful</h1>
-                <p>Welcome back! We're redirecting you to the Connect-X app now.</p>
-                <a href="${deepLink}" class="button">Open Connect-X</a>
-                <center><div class="loader"></div></center>
+                <div class="logo-container">
+                  <div class="logo-circle">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </div>
+                  <div class="pulse"></div>
+                </div>
+                <h1>Launching Remote 365</h1>
+                <p>Allow your browser to launch the Remote 365 desktop app to complete your sign-in.</p>
+                <a href="${deepLink}" class="button">Open Remote 365</a>
+              </div>
+              <div class="footer">
+                &copy; 2026 Remote 365. All rights reserved.
               </div>
               <script>
-                // Auto-trigger deep link after a small delay
                 setTimeout(() => {
                   window.location.href = "${deepLink}";
-                }, 1000);
+                }, 1500);
               </script>
             </body>
           </html>

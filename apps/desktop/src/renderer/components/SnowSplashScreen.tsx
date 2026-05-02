@@ -32,7 +32,7 @@ export const SnowSplashScreen: React.FC<{ isReady: boolean }> = ({ isReady }) =>
 
          <div className="flex flex-col items-center">
             <h1 className="text-4xl font-extrabold text-white tracking-tighter mb-1">
-               Connect-X
+               Remote 365
             </h1>
             <div className="flex items-center gap-3">
                <div className="h-[1px] w-8 bg-white/20" />

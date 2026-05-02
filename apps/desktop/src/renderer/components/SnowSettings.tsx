@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Server,
   Play,
@@ -18,244 +18,581 @@ import {
   Star,
   Crown,
   CheckCircle2,
-  ArrowUpRight
+  ArrowUpRight,
+  X,
+  User,
+  Lock,
+  Eye,
+  EyeOff,
+  Video,
+  Info,
+  RefreshCw,
+  AlertCircle,
+  Loader2,
+  Smartphone,
+  Globe,
+  Trash2,
+  LogOut,
+  QrCode,
+  Camera,
+  Settings
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import api from '../lib/api';
 
 interface SnowSettingsProps {
   serverIP: string;
   isAutoHostEnabled: boolean;
   setIsAutoHostEnabled: (val: boolean) => void;
   onRenameDevice: () => void;
+  onClose: () => void;
+  logout?: () => void;
 }
 
-const PLAN_FEATURES: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string; features: string[]; limit: string }> = {
-  FREE:       { icon: <Package size={18} />,  color: 'text-slate-600',   bg: 'bg-slate-50',    border: 'border-slate-200',  limit: '1 device · 1 user',        features: ['P2P remote access', 'Basic file transfer', 'Standard quality (720p)', 'Community support'] },
-  PRO:        { icon: <Zap size={18} />,      color: 'text-blue-600',    bg: 'bg-blue-50',     border: 'border-blue-200',   limit: '5 devices · 5 users',      features: ['Everything in Free', 'HD streaming (1080p)', 'Session recording', 'Priority support', 'Custom device tags'] },
-  BUSINESS:   { icon: <Star size={18} />,     color: 'text-purple-600',  bg: 'bg-purple-50',   border: 'border-purple-200', limit: '25 devices · 25 users',    features: ['Everything in Pro', '4K / 60fps streaming', 'Team management', 'Role-based access control', 'Audit logs', 'SSO integration'] },
-  ENTERPRISE: { icon: <Crown size={18} />,    color: 'text-amber-600',   bg: 'bg-amber-50',    border: 'border-amber-200',  limit: 'Unlimited',                features: ['Everything in Business', 'Dedicated relay servers', 'SLA guarantee', 'Custom branding', 'On-premise deployment', 'Dedicated account manager'] },
-};
-
-type Quality = 'auto' | 'high' | 'medium' | 'low';
+type TabType = 'General' | 'Account' | 'Security' | 'Remote control' | 'Meeting' | 'Audio conferencing' | 'Video' | 'Custom invitation' | 'Advanced';
 
 export const SnowSettings: React.FC<SnowSettingsProps> = ({
   serverIP,
   isAutoHostEnabled,
   setIsAutoHostEnabled,
-  onRenameDevice
+  onRenameDevice,
+  onClose,
+  logout
 }) => {
   const user = useAuthStore(s => s.user);
-  const currentPlan = (user?.plan || 'FREE').toUpperCase();
-  const planMeta = PLAN_FEATURES[currentPlan] || PLAN_FEATURES.FREE;
-
-  const [quality, setQuality] = useState<Quality>(
-    (localStorage.getItem('stream_quality') as Quality) || 'auto'
-  );
-  const [notifyNewSession, setNotifyNewSession] = useState(
-    localStorage.getItem('notify_new_session') !== 'false'
-  );
-  const [notifyDisconnect, setNotifyDisconnect] = useState(
-    localStorage.getItem('notify_disconnect') !== 'false'
-  );
-  const [soundEnabled, setSoundEnabled] = useState(
-    localStorage.getItem('sound_enabled') !== 'false'
-  );
-  const [reducedMotion, setReducedMotion] = useState(
-    localStorage.getItem('reduced_motion') === 'true'
-  );
+  const isAuthenticated = useAuthStore(s => !!s.user);
+  const [activeTab, setActiveTab] = useState<TabType>('General');
   const [saved, setSaved] = useState(false);
+
+  // Settings states
+  const [quality, setQuality] = useState(localStorage.getItem('stream_quality') || 'auto');
+  const [notifySession, setNotifySession] = useState(localStorage.getItem('pref_notify_session') !== 'false');
+  const [notifyDisconnect, setNotifyDisconnect] = useState(localStorage.getItem('pref_notify_disconnect') !== 'false');
+  const [soundEnabled, setSoundEnabled] = useState(localStorage.getItem('pref_sound_enabled') !== 'false');
+  const [reducedMotion, setReducedMotion] = useState(localStorage.getItem('reduced_motion') === 'true');
+  const [displayName, setDisplayName] = useState(localStorage.getItem('pref_display_name') || user?.name || 'DESKTOP-QT99CCQ');
+  const [theme, setTheme] = useState(localStorage.getItem('pref_theme') || 'Light');
+  const [insiderBuilds, setInsiderBuilds] = useState(localStorage.getItem('pref_insider_builds') === 'true');
+  const [removeWallpaper, setRemoveWallpaper] = useState(localStorage.getItem('pref_remove_wallpaper') === 'true');
+  const [showRemoteCursor, setShowRemoteCursor] = useState(localStorage.getItem('pref_show_remote_cursor') !== 'false');
+  const [grantEasyAccess, setGrantEasyAccess] = useState(localStorage.getItem('pref_easy_access') === 'true');
+  const [logSessions, setLogSessions] = useState(localStorage.getItem('pref_log_sessions') === 'true');
+  const [showCommentWindow, setShowCommentWindow] = useState(localStorage.getItem('pref_show_comment') === 'true');
+  const [volume, setVolume] = useState(Number(localStorage.getItem('pref_volume')) || 80);
+  const [mirrorVideo, setMirrorVideo] = useState(localStorage.getItem('pref_mirror_video') === 'true');
+  const [separateGroups, setSeparateGroups] = useState(localStorage.getItem('pref_separate_groups') !== 'false');
+  const [notifyIncoming, setNotifyIncoming] = useState(localStorage.getItem('pref_notify_incoming') !== 'false');
+  const [notifyPartnerSignIn, setNotifyPartnerSignIn] = useState(localStorage.getItem('pref_notify_partner') !== 'false');
+  const [notifyServiceCase, setNotifyServiceCase] = useState(localStorage.getItem('pref_notify_service') !== 'false');
+  const [showMarketing, setShowMarketing] = useState(localStorage.getItem('pref_marketing') !== 'false');
+
+  // Random Password strength
+  const [pwStrength, setPwStrength] = useState(localStorage.getItem('pref_pw_strength') || '8 characters');
 
   const savePreferences = () => {
     localStorage.setItem('stream_quality', quality);
-    localStorage.setItem('notify_new_session', String(notifyNewSession));
-    localStorage.setItem('notify_disconnect', String(notifyDisconnect));
-    localStorage.setItem('sound_enabled', String(soundEnabled));
+    localStorage.setItem('pref_notify_session', String(notifySession));
+    localStorage.setItem('pref_notify_disconnect', String(notifyDisconnect));
+    localStorage.setItem('pref_sound_enabled', String(soundEnabled));
     localStorage.setItem('reduced_motion', String(reducedMotion));
+    localStorage.setItem('pref_display_name', displayName);
+    localStorage.setItem('pref_theme', theme);
+    localStorage.setItem('pref_insider_builds', String(insiderBuilds));
+    localStorage.setItem('pref_pw_strength', pwStrength);
+    localStorage.setItem('pref_remove_wallpaper', String(removeWallpaper));
+    localStorage.setItem('pref_show_remote_cursor', String(showRemoteCursor));
+    localStorage.setItem('pref_easy_access', String(grantEasyAccess));
+    localStorage.setItem('pref_log_sessions', String(logSessions));
+    localStorage.setItem('pref_show_comment', String(showCommentWindow));
+    localStorage.setItem('pref_volume', String(volume));
+    localStorage.setItem('pref_mirror_video', String(mirrorVideo));
+    localStorage.setItem('pref_separate_groups', String(separateGroups));
+    localStorage.setItem('pref_notify_incoming', String(notifyIncoming));
+    localStorage.setItem('pref_notify_partner', String(notifyPartnerSignIn));
+    localStorage.setItem('pref_notify_service', String(notifyServiceCase));
+    localStorage.setItem('pref_marketing', String(showMarketing));
+    
+    // Apply theme
+    if (theme === 'Dark') document.documentElement.classList.add('dark');
+    else if (theme === 'Light') document.documentElement.classList.remove('dark');
+    else {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', isDark);
+    }
+
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(() => {
+      setSaved(false);
+      onClose();
+    }, 1000);
   };
 
-  const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void }> = ({ checked, onChange }) => (
-    <label className="relative inline-flex items-center cursor-pointer">
-      <input type="checkbox" className="sr-only peer" checked={checked} onChange={e => onChange(e.target.checked)} />
-      <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]" />
-    </label>
-  );
+  const tabs: TabType[] = ['General', 'Account', 'Security', 'Remote control', 'Meeting', 'Audio conferencing', 'Video', 'Custom invitation', 'Advanced'];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'General':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-[#1C1C1C]">Most popular options</h2>
+              <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50/50 p-3 rounded-lg border border-blue-100/50">
+                <Info size={16} />
+                <span>Hover your mouse over options to get additional info</span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Important options for working with Remote 365
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#1C1C1C]">Your display name</span>
+                  <input 
+                    type="text" 
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none focus:border-blue-500 shadow-sm"
+                  />
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0"
+                    checked={isAutoHostEnabled}
+                    onChange={(e) => {
+                      setIsAutoHostEnabled(e.target.checked);
+                      localStorage.setItem('is_auto_host_enabled', String(e.target.checked));
+                    }}
+                  />
+                  <span className="text-xs text-[#1C1C1C]">Start Remote 365 with Windows</span>
+                </label>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#1C1C1C]">Choose a theme</span>
+                  <select 
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value)}
+                    className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm"
+                  >
+                    <option>Light</option>
+                    <option>Dark</option>
+                    <option>System</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center text-[10px] text-white">?</div>
+                  <input 
+                    type="checkbox" 
+                    checked={insiderBuilds}
+                    onChange={(e) => setInsiderBuilds(e.target.checked)}
+                    className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0"
+                  />
+                  <span className="text-xs text-[#1C1C1C]">Receive insider builds</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Network settings
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#1C1C1C]">Proxy settings</span>
+                  <button className="w-48 bg-white border border-[rgba(28,28,28,0.15)] rounded px-4 py-1.5 text-xs font-medium text-[#1C1C1C] hover:bg-[#F9F9FA] transition-colors shadow-sm">Configure...</button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#1C1C1C]">Wake-on-LAN</span>
+                  <button className="w-48 bg-white border border-[rgba(28,28,28,0.15)] rounded px-4 py-1.5 text-xs font-medium text-[#1C1C1C] hover:bg-[#F9F9FA] transition-colors shadow-sm">Configure...</button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#1C1C1C]">Incoming LAN connections</span>
+                  <select className="w-48 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none opacity-50 cursor-not-allowed shadow-sm">
+                    <option>deactivated</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Account assignment
+              </div>
+              <div className="px-2 space-y-4">
+                <p className="text-xs text-[rgba(28,28,28,0.6)] leading-relaxed">
+                  By assigning this device to a Remote 365 account it can be remotely managed and monitored.
+                </p>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1C1C1C]">
+                        {user ? `Assigned to: ${user.email}` : 'No assignment yet.'}
+                    </span>
+                    {!user && (
+                        <button className="w-48 bg-white border border-[rgba(28,28,28,0.15)] rounded px-4 py-1.5 text-xs font-medium text-[#1C1C1C] hover:bg-[#F9F9FA] transition-colors shadow-sm">Assign to account...</button>
+                    )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'Account':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold text-[#1C1C1C]">Options for your Remote 365 account</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Account settings
+              </div>
+              
+              <div className="flex gap-8 px-2">
+                <div className="flex-1 space-y-4">
+                  {[
+                    { id: 'offline', label: 'Offline computers & contacts in separate group', checked: separateGroups, onChange: setSeparateGroups },
+                    { id: 'notify_messages', label: 'Notify me of incoming messages', checked: notifyIncoming, onChange: setNotifyIncoming },
+                    { id: 'notify_signin', label: 'Notify me when partners sign in', checked: notifyPartnerSignIn, onChange: setNotifyPartnerSignIn },
+                    { id: 'notify_service', label: 'Notify me about service case changes', checked: notifyServiceCase, onChange: setNotifyServiceCase },
+                    { id: 'log_sessions', label: 'Log sessions for connection reporting', checked: logSessions, onChange: setLogSessions, info: true },
+                    { id: 'show_comment', label: 'Show comment window after each session', checked: showCommentWindow, onChange: setShowCommentWindow, info: true },
+                    { id: 'marketing', label: 'Show in-product marketing messages', checked: showMarketing, onChange: setShowMarketing }
+                  ].map(item => (
+                    <div key={item.id} className="flex items-center gap-2 group">
+                      {item.info && <div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center text-[10px] text-white">?</div>}
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            checked={item.checked} 
+                            onChange={item.onChange ? (e) => item.onChange(e.target.checked) : undefined}
+                            className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" 
+                        />
+                        <span className="text-xs text-[#1C1C1C]">{item.label}</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <div className="w-32 h-32 bg-[#F8F9FA] border border-[rgba(28,28,28,0.1)] rounded-lg flex items-center justify-center shadow-inner">
+                  <User size={64} className="text-[rgba(28,28,28,0.1)]" />
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-6 px-2">
+                <div className="grid grid-cols-[120px_1fr] items-center gap-x-6 gap-y-4">
+                  <span className="text-xs text-[#1C1C1C]">Your name</span>
+                  <input type="text" value={user?.name || ''} readOnly className="bg-white border border-[rgba(28,28,28,0.15)] rounded px-3 py-1.5 text-xs outline-none shadow-sm" />
+                  
+                  <span className="text-xs text-[#1C1C1C]">Email</span>
+                  <input type="text" value={user?.email || ''} readOnly className="bg-white border border-[rgba(28,28,28,0.15)] rounded px-3 py-1.5 text-xs outline-none shadow-sm" />
+                  
+                  <span className="text-xs text-[#1C1C1C]">Password</span>
+                  <input type="password" value="********" readOnly className="bg-white border border-[rgba(28,28,28,0.15)] rounded px-3 py-1.5 text-xs outline-none shadow-sm" />
+                </div>
+
+                <div className="space-y-2 pt-4">
+                    <button className="text-xs text-blue-600 hover:underline">Manage two factor authentication</button>
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#1C1C1C]">Activated license</span>
+                        <span className="text-xs font-bold text-[#1C1C1C]">{user?.plan || 'Free'}</span>
+                    </div>
+                </div>
+
+                <div className="pt-6">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked readOnly className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" />
+                        <span className="text-xs text-[#1C1C1C]">Only partners in my list may see my online status and send messages to me</span>
+                    </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'Security':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold text-[#1C1C1C]">Options for access to this computer</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Unattended Access
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center text-[10px] text-white">?</div>
+                        <input 
+                            type="checkbox" 
+                            checked={grantEasyAccess}
+                            onChange={(e) => setGrantEasyAccess(e.target.checked)}
+                            className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" 
+                        />
+                        <span className="text-xs text-[#1C1C1C]">Grant easy access</span>
+                    </label>
+                    <button className="w-48 bg-white border border-[rgba(28,28,28,0.15)] rounded px-4 py-1.5 text-xs font-medium text-[#1C1C1C] hover:bg-[#F9F9FA] transition-colors shadow-sm">Configure...</button>
+                </div>
+                <p className="text-xs text-[rgba(28,28,28,0.6)] leading-relaxed max-w-lg">
+                  Easy Access is the recommended way to access your device remotely. To set a personal password instead, go to the Advanced tab.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Random password (for spontaneous access)
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Password strength</span>
+                    <select 
+                        value={pwStrength}
+                        onChange={(e) => setPwStrength(e.target.value)}
+                        className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm"
+                    >
+                        <option>8 characters</option>
+                        <option>10 characters</option>
+                        <option>Standard (6 characters)</option>
+                        <option>Secure (10 characters)</option>
+                    </select>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" />
+                    <span className="text-xs text-[#1C1C1C]">Enable One-Time Access feature</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Rules for connections to this computer
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Windows logon</span>
+                    <select className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm">
+                        <option>Not allowed</option>
+                        <option>Allowed</option>
+                    </select>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Block and allowlist</span>
+                    <button className="w-48 bg-white border border-[rgba(28,28,28,0.15)] rounded px-4 py-1.5 text-xs font-medium text-[#1C1C1C] hover:bg-[#F9F9FA] transition-colors shadow-sm">Configure...</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Two-factor authentication for connections
+              </div>
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs text-[#1C1C1C]">Manage approval devices</span>
+                <button className="w-48 bg-white border border-[rgba(28,28,28,0.15)] rounded px-4 py-1.5 text-xs font-medium text-[#1C1C1C] hover:bg-[#F9F9FA] transition-colors shadow-sm">Configure...</button>
+              </div>
+            </div>
+          </div>
+        );
+      case 'Remote control':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold text-[#1C1C1C]">Options for remote control of other computers</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Display
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Quality</span>
+                    <select 
+                        value={quality}
+                        onChange={(e) => setQuality(e.target.value)}
+                        className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm"
+                    >
+                        <option value="auto">Automatic selection</option>
+                        <option value="speed">Optimize speed</option>
+                        <option value="quality">Optimize quality</option>
+                    </select>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={removeWallpaper}
+                        onChange={(e) => setRemoveWallpaper(e.target.checked)}
+                        className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" 
+                    />
+                    <span className="text-xs text-[#1C1C1C]">Remove remote wallpaper</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={showRemoteCursor}
+                        onChange={(e) => setShowRemoteCursor(e.target.checked)}
+                        className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" 
+                    />
+                    <span className="text-xs text-[#1C1C1C]">Show remote cursor</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Remote control defaults
+              </div>
+              <div className="space-y-4 px-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked readOnly className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" />
+                    <span className="text-xs text-[#1C1C1C]">Play computer sounds and music</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" />
+                    <span className="text-xs text-[#1C1C1C]">Record partner's video and VOIP</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        );
+      case 'Audio conferencing':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold text-[#1C1C1C]">Options for audio conferencing</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Voice transmission
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Microphone</span>
+                    <select className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm">
+                        <option>Default Communication Device</option>
+                        <option>Microphone (Realtek High Definition Audio)</option>
+                    </select>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Speakers</span>
+                    <select className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm">
+                        <option>Default Communication Device</option>
+                        <option>Speakers (Realtek High Definition Audio)</option>
+                    </select>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Volume</span>
+                    <input 
+                        type="range" 
+                        min="0" max="100" 
+                        value={volume}
+                        onChange={(e) => setVolume(Number(e.target.value))}
+                        className="w-60 h-1 bg-[rgba(28,28,28,0.1)] rounded-lg appearance-none cursor-pointer accent-[#0099FF]"
+                    />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'Video':
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-xl font-bold text-[#1C1C1C]">Options for video conferencing</h2>
+            
+            <div className="space-y-4">
+              <div className="bg-[#F1F1F1] px-3 py-1.5 text-[11px] font-bold text-[#1C1C1C] rounded-sm">
+                Video
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#1C1C1C]">Camera</span>
+                    <select className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none shadow-sm">
+                        <option>Integrated Webcam</option>
+                        <option>OBS Virtual Camera</option>
+                    </select>
+                </div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={mirrorVideo}
+                        onChange={(e) => setMirrorVideo(e.target.checked)}
+                        className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0" 
+                    />
+                    <span className="text-xs text-[#1C1C1C]">Mirror my video</span>
+                </label>
+              </div>
+              <div className="w-full aspect-video bg-[#F8F9FA] border border-[rgba(28,28,28,0.1)] rounded-lg flex items-center justify-center relative overflow-hidden group">
+                  <Video size={48} className="text-[rgba(28,28,28,0.1)] group-hover:scale-110 transition-transform duration-500" />
+                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">Camera Preview</span>
+                  </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-full text-[rgba(28,28,28,0.4)] animate-in fade-in duration-300">
+            <Settings size={64} strokeWidth={1} className="mb-4 opacity-20" />
+            <p className="text-sm font-medium">Settings for {activeTab} will be available soon.</p>
+          </div>
+        );
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 font-inter pb-20">
-
-      {/* Plan & Subscription */}
-      <section className={`rounded-[24px] border p-8 shadow-sm ${planMeta.bg} ${planMeta.border}`}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm ${planMeta.color}`}>
-              {planMeta.icon}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <h3 className={`text-lg font-bold ${planMeta.color}`}>{currentPlan.charAt(0) + currentPlan.slice(1).toLowerCase()} Plan</h3>
-                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-white/60 ${planMeta.color}`}>Active</span>
-              </div>
-              <p className="text-sm text-[rgba(28,28,28,0.5)] font-medium">{planMeta.limit}</p>
-            </div>
+    <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 font-['Lato']">
+      <div className="bg-white w-full max-w-4xl h-[650px] rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden border border-[rgba(28,28,28,0.1)]">
+        
+        {/* Window Title Bar */}
+        <div className="bg-[#06113C] px-4 py-2 flex items-center justify-between select-none">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" className="w-4 h-4 invert" alt="" />
+            <span className="text-xs font-bold text-white opacity-90">Remote 365 options</span>
           </div>
-          {currentPlan !== 'ENTERPRISE' && (
-            <button className={`flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-xs font-bold shadow-sm hover:shadow-md transition-all ${planMeta.color} border ${planMeta.border}`}>
-              <ArrowUpRight size={13} /> Upgrade Plan
-            </button>
-          )}
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-2">
-          {planMeta.features.map(f => (
-            <div key={f} className="flex items-center gap-2">
-              <CheckCircle2 size={13} className={planMeta.color} />
-              <span className="text-xs font-medium text-[rgba(28,28,28,0.6)]">{f}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Connection */}
-      <section className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
-        <h3 className="text-sm font-bold text-[#1C1C1C] mb-6 tracking-tight flex items-center gap-2">
-          <Server size={15} className="text-blue-500" /> Connection
-        </h3>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">Relay Server Address</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Signaling endpoint for P2P connection establishment</span>
-            </div>
-            <div className="flex items-center bg-white px-3 py-1.5 rounded-xl border border-[rgba(28,28,28,0.08)]">
-              <Wifi size={12} className="text-green-500 mr-2" />
-              <span className="text-xs font-mono text-[#1C1C1C]">{serverIP}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">Auto-Start Hosting</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Automatically broadcast this machine on app launch</span>
-            </div>
-            <Toggle checked={isAutoHostEnabled} onChange={(val) => {
-              setIsAutoHostEnabled(val);
-              localStorage.setItem('is_auto_host_enabled', String(val));
-            }} />
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">Device Identifier</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Custom display name for this machine on your device map</span>
-            </div>
-            <button
-              onClick={onRenameDevice}
-              className="flex items-center gap-2 px-4 py-2 font-bold text-[11px] uppercase tracking-widest bg-white border border-[rgba(28,28,28,0.08)] hover:border-[rgba(28,28,28,0.3)] text-[#1C1C1C] rounded-xl transition-all shadow-sm"
-            >
-              <Tag size={12} /> Modify
+          <div className="flex items-center">
+            <button onClick={onClose} className="text-white/60 hover:text-white hover:bg-red-500 p-1.5 rounded transition-colors">
+              <X size={14} />
             </button>
           </div>
         </div>
-      </section>
 
-      {/* Streaming Quality */}
-      <section className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
-        <h3 className="text-sm font-bold text-[#1C1C1C] mb-6 tracking-tight flex items-center gap-2">
-          <Monitor size={15} className="text-purple-500" /> Streaming Quality
-        </h3>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {(['auto', 'high', 'medium', 'low'] as Quality[]).map(q => (
-            <button
-              key={q}
-              onClick={() => setQuality(q)}
-              className={`p-4 rounded-[20px] border text-center transition-all ${quality === q
-                ? 'bg-[#1C1C1C] border-[#1C1C1C] text-white shadow-lg shadow-black/10'
-                : 'bg-[#F9F9FA] border-[rgba(28,28,28,0.04)] text-[#1C1C1C] hover:border-[rgba(28,28,28,0.2)]'
-              }`}
-            >
-              <span className="block text-sm font-bold capitalize">{q}</span>
-              <span className={`text-[10px] font-medium mt-1 block ${quality === q ? 'text-white/60' : 'text-[rgba(28,28,28,0.4)]'}`}>
-                {q === 'auto' ? 'Adaptive' : q === 'high' ? '4K / 60fps' : q === 'medium' ? '1080p / 30fps' : '720p / 30fps'}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 p-3 bg-blue-50/40 border border-blue-100/50 rounded-xl">
-          <p className="text-[10px] text-blue-600/70 font-medium leading-relaxed">
-            <strong>Auto</strong> dynamically adjusts based on your network bandwidth. Choose <strong>High</strong> for LAN sessions; <strong>Low</strong> for congested or mobile connections.
-          </p>
-        </div>
-      </section>
-
-      {/* Notifications */}
-      <section className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
-        <h3 className="text-sm font-bold text-[#1C1C1C] mb-6 tracking-tight flex items-center gap-2">
-          <Bell size={15} className="text-orange-500" /> Notifications
-        </h3>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">New Session Alert</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Notify when a viewer connects to this device</span>
-            </div>
-            <Toggle checked={notifyNewSession} onChange={setNotifyNewSession} />
+        {/* Body */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar */}
+          <div className="w-64 bg-white border-r border-[rgba(28,28,28,0.1)] overflow-y-auto py-2">
+            {tabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`w-full text-left px-5 py-2.5 text-xs transition-all relative ${
+                  activeTab === tab 
+                    ? 'bg-[#0099FF] text-white border-y border-dashed border-white/20 font-bold' 
+                    : 'text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.05)]'
+                }`}
+              >
+                {activeTab === tab && <div className="absolute inset-0 border border-white/30" />}
+                {tab}
+              </button>
+            ))}
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">Disconnect Alert</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Notify when a remote session ends unexpectedly</span>
-            </div>
-            <Toggle checked={notifyDisconnect} onChange={setNotifyDisconnect} />
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex items-center gap-3">
-              {soundEnabled ? <Volume2 size={16} className="text-[rgba(28,28,28,0.4)]" /> : <VolumeX size={16} className="text-[rgba(28,28,28,0.2)]" />}
-              <div className="flex flex-col">
-                <span className="font-bold text-sm text-[#1C1C1C]">Sound Effects</span>
-                <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Play audio cues for connection events</span>
-              </div>
-            </div>
-            <Toggle checked={soundEnabled} onChange={setSoundEnabled} />
+          {/* Content Area */}
+          <div className="flex-1 overflow-y-auto p-10 bg-white relative custom-scrollbar">
+            {renderContent()}
           </div>
         </div>
-      </section>
 
-      {/* Appearance */}
-      <section className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-8 shadow-sm">
-        <h3 className="text-sm font-bold text-[#1C1C1C] mb-6 tracking-tight flex items-center gap-2">
-          <Shield size={15} className="text-emerald-500" /> Appearance & Accessibility
-        </h3>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-[#F9F9FA] rounded-[20px] border border-[rgba(28,28,28,0.04)]">
-            <div className="flex flex-col">
-              <span className="font-bold text-sm text-[#1C1C1C]">Reduce Motion</span>
-              <span className="text-[11px] font-medium text-[rgba(28,28,28,0.4)] mt-1">Disable animations and transitions throughout the UI</span>
-            </div>
-            <Toggle checked={reducedMotion} onChange={setReducedMotion} />
-          </div>
+        {/* Footer */}
+        <div className="bg-[#F8F9FA] border-t border-[rgba(28,28,28,0.1)] px-8 py-4 flex items-center justify-end gap-3">
+          <button 
+            onClick={savePreferences}
+            className="px-8 py-1.5 bg-white border border-[rgba(28,28,28,0.2)] rounded text-xs font-medium text-[#1C1C1C] hover:bg-[#F1F1F1] transition-all min-w-[100px] shadow-sm active:bg-[#E5E5E5]"
+          >
+            {saved ? 'Saved!' : 'OK'}
+          </button>
+          <button 
+            onClick={onClose}
+            className="px-8 py-1.5 bg-white border border-[rgba(28,28,28,0.2)] rounded text-xs font-medium text-[#1C1C1C] hover:bg-[#F1F1F1] transition-all min-w-[100px] shadow-sm active:bg-[#E5E5E5]"
+          >
+            Cancel
+          </button>
         </div>
-      </section>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={savePreferences}
-          className="h-11 px-8 bg-[#1C1C1C] text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-black/10"
-        >
-          {saved ? <Check size={15} /> : <Save size={15} />}
-          {saved ? 'Preferences Saved!' : 'Save Preferences'}
-        </button>
       </div>
-
     </div>
   );
 };

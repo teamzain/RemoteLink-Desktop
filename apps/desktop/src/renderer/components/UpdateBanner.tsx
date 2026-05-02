@@ -79,9 +79,9 @@ const UpdateBanner: React.FC = () => {
             {status === 'error' && 'Update Error'}
           </h4>
           <p className="text-xs text-white/50">
-            {status === 'available' && 'A new version of RemoteLink is ready for download.'}
+            {status === 'available' && 'A new version of Remote 365 is ready for download.'}
             {status === 'downloading' && 'Please wait while we prepare the new version.'}
-            {status === 'downloaded' && 'Restart RemoteLink to apply the latest improvements.'}
+            {status === 'downloaded' && 'Restart Remote 365 to apply the latest improvements.'}
             {status === 'error' && error}
           </p>
         </div>

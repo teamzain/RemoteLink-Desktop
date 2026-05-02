@@ -55,11 +55,12 @@ const PLAN_META: Record<string, { label: string; color: string; bg: string; icon
 };
 
 const ROLE_META: Record<string, { label: string; color: string; bg: string }> = {
-  SUPER_ADMIN: { label: 'Admin',    color: 'text-purple-700', bg: 'bg-purple-50' },
-  OPERATOR:    { label: 'Operator', color: 'text-blue-700',   bg: 'bg-blue-50'   },
-  VIEWER:      { label: 'Viewer',   color: 'text-slate-600',  bg: 'bg-slate-100' },
-  USER:        { label: 'User',     color: 'text-slate-500',  bg: 'bg-slate-50'  },
-  SUPER_ADMIN: { label: 'Super',    color: 'text-red-700',    bg: 'bg-red-50'    },
+  PLATFORM_OWNER: { label: 'Owner',    color: 'text-amber-700', bg: 'bg-amber-50' },
+  SUPER_ADMIN:    { label: 'Super',    color: 'text-red-700',    bg: 'bg-red-50'    },
+  ADMIN:          { label: 'Admin',    color: 'text-purple-700', bg: 'bg-purple-50' },
+  OPERATOR:       { label: 'Operator', color: 'text-blue-700',   bg: 'bg-blue-50'   },
+  VIEWER:         { label: 'Viewer',   color: 'text-slate-600',  bg: 'bg-slate-100' },
+  USER:           { label: 'User',     color: 'text-slate-500',  bg: 'bg-slate-50'  },
 };
 
 function DeviceTypeIcon({ type }: { type: string }) {

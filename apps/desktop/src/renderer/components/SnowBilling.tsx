@@ -89,7 +89,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ user }) => {
     }
 
     if (plan.id === 'ENTERPRISE') {
-      window.location.href = 'mailto:sales@remotelink.com';
+      window.location.href = 'mailto:sales@remote365.com';
       return;
     }
 

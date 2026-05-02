@@ -164,7 +164,7 @@ export const SnowDashboard: React.FC<{
                 </p>
                 <p className="text-xs opacity-70">
                   {new Date() > new Date(user.currentPeriodEnd)
-                    ? 'Your test period has ended. Please upgrade to continue using RemoteLink features.'
+                    ? 'Your test period has ended. Please upgrade to continue using Remote 365 features.'
                     : `Your early access period ends at ${new Date(user.currentPeriodEnd).toLocaleTimeString()}.`}
                 </p>
               </div>

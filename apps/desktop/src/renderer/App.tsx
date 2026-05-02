@@ -4,7 +4,7 @@ import logo from './assets/logo.png';
 import {
     Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
     RefreshCw, Eye, EyeOff, CreditCard, Power, Lock, Mail, Link, Sun, Moon, Edit2, Trash2, ShieldOff, LayoutGrid, PlusCircle, Radio, ShieldCheck, ArrowRightCircle, Check, DownloadCloud, MonitorOff, User,
-    Globe, Folder, Maximize, Info, Home, ChevronLeft, Layers, BellDot, Command
+    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
@@ -18,7 +18,7 @@ import { SnowHost } from './components/SnowHost';
 import { SnowBilling } from './components/SnowBilling';
 import { SnowDocumentation } from './components/SnowDocumentation';
 import { SnowSupport } from './components/SnowSupport';
-import { SnowUserSettings } from './components/SnowUserSettings';
+import { SnowSettings } from './components/SnowSettings';
 import { SnowOrgSettings } from './components/SnowOrgSettings';
 import { SnowAdminSettings } from './components/SnowAdminSettings';
 import { SnowSplashScreen } from './components/SnowSplashScreen';
@@ -779,7 +779,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                                     <span className="text-[10px] font-bold text-white/80">Hardware/NVENC</span>
                                 </div>
                                 <div className="h-px bg-white/5 w-full" />
-                                <div className="text-[9px] text-white/30 italic text-[#000000]enter">
+                                <div className="text-[9px] text-white/30 italic  
+">
                                     NAL units are aggregated for sync.
                                 </div>
                             </div>
@@ -1152,7 +1153,14 @@ export default function App() {
     const [hostError, setHostError] = useState('');
     const [hostAccessKey, setHostAccessKey] = useState('');
     const [devicePassword, setDevicePassword] = useState(localStorage.getItem('device_password') || '');
-    const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(localStorage.getItem('is_auto_host_enabled') === 'true');
+    const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(() => {
+        const stored = localStorage.getItem('is_auto_host_enabled');
+        if (stored === null) {
+            localStorage.setItem('is_auto_host_enabled', 'true');
+            return true;
+        }
+        return stored === 'true';
+    });
     const [showHostPassword, setShowHostPassword] = useState(false);
     const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
     const [setupPassword, setSetupPassword] = useState('');
@@ -1160,7 +1168,7 @@ export default function App() {
     const [setupPasswordError, setSetupPasswordError] = useState('');
     const [isLocalHostRegistered, setIsLocalHostRegistered] = useState(false);
 
-    const [serverIP, setServerIP] = useState('159.65.84.190'); // HARDCODED
+    const [serverIP, setServerIP] = useState('remote365.ai'); // Production Domain
     const [localAuthKey, setLocalAuthKey] = useState('');
     const [localIP, setLocalIP] = useState('127.0.0.1');
     const [showSettings, setShowSettings] = useState(false);
@@ -1182,6 +1190,7 @@ export default function App() {
                     await setAuth({ id: 'loading', email: '', name: '', plan: 'FREE', role: 'USER', organizationId: null, avatar: null }, data.accessToken, data.refreshToken);
                     await checkAuth();
                     setShowSplash(true);
+                    setCurrentView('dashboard');
                     setTimeout(() => setShowSplash(false), 2000);
                 } catch (err) {
                     console.error('[Auth] Failed to sync user after deep link:', err);
@@ -1259,6 +1268,8 @@ export default function App() {
 
     const handleLogout = async () => {
         await storeLogout();
+        setAuth({} as any, '', '');
+        setCurrentView('home');
     };
     const lastClipboardRef = useRef<string>('');
 
@@ -1268,6 +1279,9 @@ export default function App() {
     const [devices, setDevices] = useState<any[]>([]);
     const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [showUserDropdown, setShowUserDropdown] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const userDropdownRef = useRef<HTMLDivElement>(null);
 
     const [showPasswordPrompt, setShowPasswordPrompt] = useState<any | null>(null); // { device }
     const [promptPassword, setPromptPassword] = useState('');
@@ -1284,6 +1298,7 @@ export default function App() {
     const [globalError, setGlobalError] = useState('');
 
     const [actionModal, setActionModal] = useState<{ type: 'rename' | 'password' | 'remove' | 'regenerate', device: any } | null>(null);
+    const [showActionPassword, setShowActionPassword] = useState(false);
     const [actionValue, setActionValue] = useState('');
 
     // --- Dynamic Notifications ---
@@ -1326,10 +1341,15 @@ export default function App() {
     }, [actionModal]);
 
     useEffect(() => {
-        const handleGlobalClick = () => { if (contextMenuId) setContextMenuId(null); };
+        const handleGlobalClick = (e: MouseEvent) => {
+            if (contextMenuId) setContextMenuId(null);
+            if (showUserDropdown && userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
+                setShowUserDropdown(false);
+            }
+        };
         window.addEventListener('click', handleGlobalClick);
         return () => window.removeEventListener('click', handleGlobalClick);
-    }, [contextMenuId]);
+    }, [contextMenuId, showUserDropdown]);
 
     const handleDisconnect = () => {
         if (pcRef.current) {
@@ -1409,10 +1429,25 @@ export default function App() {
                 playUISound('disconnect');
             }
         });
+
+        // Auto-host on mount logic moved to reactive effect
+
         return () => removeHostStatusListener();
     }, [isElectron]);
 
+    // Reactive Auto-Host: Waits until device is initialized (hostAccessKey)
+    useEffect(() => {
+        if (isElectron && !hasAutoStartedHost.current && isAutoHostEnabled && hostAccessKey && devicePassword) {
+            hasAutoStartedHost.current = true;
+            console.log('[Auto-Host] Initialization complete. Starting host automatically...');
+            setTimeout(() => {
+                handleStartHosting();
+            }, 500); // Tiny buffer for state stability
+        }
+    }, [isElectron, isAutoHostEnabled, hostAccessKey, devicePassword]);
+
     const pollDevices = async () => {
+        if (!isAuthenticated) return;
         try {
             const endpoint = user?.role === 'SUPER_ADMIN' ? '/api/devices/all' : '/api/devices/mine';
             const { data } = await api.get(endpoint);
@@ -1805,7 +1840,7 @@ export default function App() {
             console.log(`[Identity] User-initiated registration started...`);
             const machineName = (isElectron && (window as any).electronAPI.getMachineName)
                 ? await (window as any).electronAPI.getMachineName()
-                : 'RemoteLink Web User';
+                : 'Remote 365 Web User';
 
             let localKey = isElectron ? await (window as any).electronAPI.getDeterministicKey() : null;
 
@@ -1900,7 +1935,14 @@ export default function App() {
     }, []);
 
     useEffect(() => {
-        checkAuth().finally(() => setLoading(false));
+        checkAuth().then(() => {
+            // If the user is already authenticated (restored from stored token),
+            // redirect them to the dashboard instead of showing the guest home screen.
+            const state = useAuthStore.getState();
+            if (state.accessToken && state.user) {
+                setCurrentView('dashboard');
+            }
+        }).finally(() => setLoading(false));
 
         if (!isElectron) return;
 
@@ -2212,6 +2254,7 @@ export default function App() {
                 return;
             }
             setShowSplash(true);
+            setCurrentView('dashboard');
             setTimeout(() => setShowSplash(false), 2000);
             localStorage.setItem('remote_link_server_ip', serverIP);
         } catch (err: any) {
@@ -2229,6 +2272,7 @@ export default function App() {
         try {
             await storeVerify2fa(totpCode);
             setShowSplash(true);
+            setCurrentView('dashboard');
             setTimeout(() => setShowSplash(false), 2000);
         } catch (err: any) {
             setTwoFaError(err.response?.data?.error || 'Invalid 2FA code');
@@ -2261,6 +2305,7 @@ export default function App() {
             try {
                 await storeRegister(signupName.trim(), email, password, verificationCode);
                 setShowSplash(true);
+                setCurrentView('dashboard');
                 setTimeout(() => setShowSplash(false), 2000);
                 localStorage.setItem('remote_link_server_ip', serverIP);
                 setIsAwaitingVerification(false);
@@ -2407,7 +2452,7 @@ export default function App() {
             }
 
             if (!lookupData?.exists) throw new Error('No machine found with that access key. Check and try again.');
-            if (!lookupData?.online) throw new Error('That machine is offline. Ask the owner to open RemoteLink and check their connection.');
+            if (!lookupData?.online) throw new Error('That machine is offline. Ask the owner to open Remote 365 and check their connection.');
 
             setTargetDeviceName(lookupData?.name || null);
             setViewerStep(2);
@@ -2571,7 +2616,8 @@ export default function App() {
                                     type="text"
                                     maxLength={6}
                                     placeholder="000 000"
-                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[24px] px-4 py-5 text-[#000000]enter text-3xl font-mono font-bold tracking-[0.2em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#000000]"
+                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[24px] px-4 py-5  
+ text-3xl font-mono font-bold tracking-[0.2em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#000000]"
                                     value={totpCode}
                                     onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 />
@@ -2601,498 +2647,165 @@ export default function App() {
                 </div>
             );
         }
-
-        return (
-            <div className="h-screen w-full flex overflow-hidden bg-white font-inter select-none">
+         return (
+            <div className="h-screen w-full flex items-center justify-center bg-[#F5F7F9] font-inter select-none overflow-hidden relative">
                 <SnowSplashScreen isReady={!loading} />
-                {/* LEFT — Branded Input Panel */}
-                <div className="flex-1 flex flex-col items-center justify-center px-12 lg:px-20 py-12 animate-in fade-in slide-in-from-left-8 duration-700 overflow-y-auto">
-                    <div className="w-full max-w-sm">
-                        {/* Logo */}
-                        <div className="flex items-center gap-3 mb-10 group cursor-default">
-                            <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 group-hover:scale-105 transition-transform duration-300 overflow-hidden border border-white/5">
-                                <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
-                                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#1C1C1C] mt-1">Desktop Auth</span>
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setShowAuthModal(false);
-                                setAuthMode('login');
-                                setAuthError(null);
-                            }}
-                            className="mb-6 text-[11px] font-bold text-[#000000] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors"
-                        >
-                            ← Back to Home
-                        </button>
+                
+                {/* Simplified Auth Card */}
+                <div className="w-full max-w-[440px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-[rgba(0,0,0,0.05)] p-10 animate-in fade-in zoom-in-95 duration-500 relative z-10">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowAuthModal(false);
+                            setAuthMode('login');
+                            setAuthError(null);
+                        }}
+                        className="mb-8 flex items-center gap-2 text-[13px] font-medium text-slate-400 hover:text-slate-600 transition-all group"
+                    >
+                        <ArrowLeft size={16} />
+                        <span>Back</span>
+                    </button>
 
-                        {/* Auth Mode Tabs */}
-                        <div className={`flex bg-[#F8F9FA] rounded-2xl p-1 mb-8 border border-[rgba(28,28,28,0.04)] ${(authMode === 'forgot' || authMode === 'reset') ? 'hidden' : ''}`}>
-                            {(['login', 'signup', 'connect'] as const).map(mode => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => {
-                                        setAuthMode(mode);
-                                        setEmail(''); setPassword(''); setSignupName('');
-                                        setIsAwaitingVerification(false); setVerificationCode(''); setAuthError(null);
-                                        if (mode === 'connect') {
-                                            setViewerStep(1); setSessionCode(''); setAccessPassword('');
-                                            setViewerError(''); setViewerStatus('idle');
-                                        }
-                                    }}
-                                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${authMode === mode ? 'bg-white text-[#1C1C1C] shadow-sm' : 'text-[#1C1C1C] hover:text-[#000000]'}`}
-                                >
-                                    {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Register' : 'Connect'}
-                                </button>
-                            ))}
-                        </div>
+                    <h1 className="text-2xl font-semibold text-slate-800 mb-2">Remote 365</h1>
+                    <p className="text-[13px] text-slate-400 mb-8">Access remote devices securely.</p>
 
-                        {authMode === 'connect' ? (
-                            /* --- GUEST CONNECT FLOW --- */
-                            <div className="animate-in fade-in duration-300">
-                                <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
-                                <p className="text-sm font-medium text-[#1C1C1C] mb-8 leading-relaxed">
-                                    Enter the device access key and password to connect without an account.
-                                </p>
-
-                                {viewerStep === 1 ? (
-                                    <div className="space-y-4">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Access Key</label>
-                                            <div className="relative group">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                    <Monitor size={16} />
-                                                </div>
-                                                <input
-                                                    autoFocus
-                                                    type="text"
-                                                    placeholder="000 000 000"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-[#000000]enter focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                    value={sessionCode}
-                                                    onChange={e => setSessionCode(formatCode(e.target.value))}
-                                                    onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
-                                                    maxLength={11}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {viewerError && (
-                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
-                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                                                <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
-                                            </div>
-                                        )}
-
-                                        <button
-                                            type="button"
-                                            onClick={handleFindDevice}
-                                            disabled={viewerStatus === 'connecting' || !sessionCode}
-                                            className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
-                                        >
-                                            {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                                            FIND DEVICE
-                                        </button>
+                    {authMode === 'connect' ? (
+                        /* --- GUEST CONNECT FLOW (Two-Step Implementation) --- */
+                        <div className="animate-in fade-in duration-300">
+                            {viewerStep === 1 ? (
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            placeholder="Device Access Key"
+                                            className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                            value={sessionCode}
+                                            onChange={e => setSessionCode(formatCode(e.target.value))}
+                                            onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
+                                            maxLength={11}
+                                        />
                                     </div>
-                                ) : (
-                                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                                        <div className="flex items-center gap-3 p-4 bg-[#F8F9FA] rounded-2xl border border-[rgba(28,28,28,0.04)] mb-2">
-                                            <div className="w-8 h-8 bg-[#1C1C1C] rounded-xl flex items-center justify-center flex-shrink-0">
-                                                <Monitor size={14} className="text-white" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">Target Device</p>
-                                                <p className="text-sm font-bold text-[#1C1C1C] font-mono">{formatCode(sessionCode)}</p>
-                                            </div>
-                                            <div className="w-2.5 h-2.5 bg-[#71DD8C] rounded-full animate-pulse" />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Device Password</label>
-                                            <div className="relative group">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                    <Lock size={16} />
-                                                </div>
-                                                <input
-                                                    autoFocus
-                                                    type={showManualPassword ? 'text' : 'password'}
-                                                    placeholder="••••••••"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                    value={accessPassword}
-                                                    onChange={e => setAccessPassword(e.target.value)}
-                                                    onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowManualPassword(!showManualPassword)}
-                                                    className="absolute inset-y-0 right-4 flex items-center text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors"
-                                                >
-                                                    {showManualPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {viewerError && (
-                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
-                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                                                <p className="text-xs font-semibold text-red-600 leading-relaxed">{viewerError}</p>
-                                            </div>
-                                        )}
-
-                                        <button
-                                            type="button"
-                                            onClick={handleConnectToHost}
-                                            disabled={viewerStatus === 'connecting' || !accessPassword}
-                                            className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
-                                        >
-                                            {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
-                                            ESTABLISH LINK
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); }}
-                                            className="w-full text-xs font-bold text-[#1C1C1C] hover:text-[#1C1C1C] uppercase tracking-widest transition-colors py-2"
-                                        >
-                                            ← Change Device
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <>
-                                {(authMode === 'login' || authMode === 'signup') && <>
-                                    <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">
-                                        {authMode === 'login' ? 'Welcome Back' : 'Get Started'}
-                                    </h1>
-                                    <p className="text-sm font-medium text-[#1C1C1C] mb-8 leading-relaxed">
-                                        {authMode === 'login' ? 'Enter your credentials to access your secure network.' : 'Create a free account to join the Connect-X mesh.'}
-                                    </p>
-
-                                    {/* Google Button */}
+                                    {viewerError && <p className="text-[11px] text-red-500 font-medium">{viewerError}</p>}
                                     <button
                                         type="button"
-                                        onClick={handleGoogleLogin}
-                                        className="w-full flex items-center justify-center gap-3 bg-white border border-[rgba(28,28,28,0.08)] text-[#1C1C1C] hover:bg-[#F8F9FA] hover:border-[rgba(28,28,28,0.2)] transition-all py-3.5 rounded-2xl text-sm font-semibold group shadow-sm active:scale-[0.99] mb-6"
+                                        onClick={handleFindDevice}
+                                        disabled={viewerStatus === 'connecting' || !sessionCode}
+                                        className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
-                                        <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                                        </svg>
-                                        {authMode === 'login' ? 'Continue with Google' : 'Sign up with Google'}
+                                        {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : null}
+                                        Continue
                                     </button>
-
-                                    <div className="relative flex items-center justify-center mb-6">
-                                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[rgba(28,28,28,0.15)]" /></div>
-                                        <span className="relative z-10 bg-white px-4 text-[10px] text-[#1C1C1C] uppercase tracking-widest font-bold">or with email</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
+                                    <div className="space-y-1.5">
+                                        <input
+                                            autoFocus
+                                            type="password"
+                                            placeholder="Device Password"
+                                            className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                            value={accessPassword}
+                                            onChange={e => setAccessPassword(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') handleConnectToHost(); }}
+                                        />
                                     </div>
-
-                                    <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-                                        {authMode === 'signup' && isAwaitingVerification ? (
-                                            <div className="space-y-1.5 animate-in fade-in">
-                                                <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Verification Code</label>
-                                                <div className="relative group">
-                                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                        <ShieldCheck size={16} />
-                                                    </div>
-                                                    <input
-                                                        type="text"
-                                                        required
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                        value={verificationCode}
-                                                        placeholder="123456"
-                                                        onChange={(e) => setVerificationCode(e.target.value)}
-                                                    />
-                                                </div>
-                                                <p className="text-[10px] text-[#000000]enter text-[#1C1C1C] mt-2">
-                                                    Code sent to <strong className="text-[#1C1C1C]">{email}</strong>
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {authMode === 'signup' && (
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Display Name</label>
-                                                        <div className="relative group">
-                                                            <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                                <User size={16} />
-                                                            </div>
-                                                            <input
-                                                                type="text"
-                                                                required
-                                                                className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                                value={signupName}
-                                                                placeholder="Your name"
-                                                                onChange={(e) => setSignupName(e.target.value)}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="space-y-1.5">
-                                                    <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider block ml-1">Email Address</label>
-                                                    <div className="relative group">
-                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                            <Mail size={16} />
-                                                        </div>
-                                                        <input
-                                                            type="email"
-                                                            required
-                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                            value={email}
-                                                            placeholder="name@company.com"
-                                                            onChange={(e) => setEmail(e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center justify-between ml-1">
-                                                        <label className="text-[11px] font-bold text-[#1C1C1C] uppercase tracking-wider">Password</label>
-                                                        {authMode === 'login' && <button type="button" onClick={() => { setResetEmail(email); setResetMsg(''); setAuthMode('forgot'); }} className="text-[10px] font-bold text-blue-600 hover:opacity-80 transition-opacity">Forgot?</button>}
-                                                    </div>
-                                                    <div className="relative group">
-                                                        <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C] group-focus-within:text-[#1C1C1C] transition-colors">
-                                                            <Lock size={16} />
-                                                        </div>
-                                                        <input
-                                                            type={showLoginPassword ? "text" : "password"}
-                                                            required
-                                                            className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-12 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                            value={password}
-                                                            placeholder="••••••••"
-                                                            onChange={(e) => setPassword(e.target.value)}
-                                                        />
-                                                        <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
-                                                            {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-
-                                        {authError && (
-                                            <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl animate-in fade-in duration-200">
-                                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                                                <p className="text-xs font-semibold text-red-600 leading-relaxed">{authError}</p>
-                                            </div>
-                                        )}
-
-                                        <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm shadow-xl shadow-black/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
-                                            {loading ? <RefreshCw size={16} className="animate-spin" /> : <ArrowRight size={16} />}
-                                            {authMode === 'login' ? 'SIGN IN' : isAwaitingVerification ? 'VERIFY TO PROCEED' : 'CREATE ACCOUNT'}
-                                        </button>
-
-                                    </form>
-                                </>}
-
-                                {/* ── Forgot Password ── */}
-                                {authMode === 'forgot' && (
-                                    <div className="animate-in fade-in duration-300">
-                                        <button onClick={() => setAuthMode('login')} className="flex items-center gap-1.5 text-[11px] font-bold text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors mb-6">
-                                            <ChevronLeft size={14} /> Back to Sign In
-                                        </button>
-                                        <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Forgot Password</h2>
-                                        <p className="text-xs text-[#1C1C1C] mb-6">Enter your email and we'll send a 6-character reset code.</p>
-                                        <form onSubmit={async (e) => {
-                                            e.preventDefault();
-                                            setLoading(true);
-                                            setResetMsg('');
-                                            try {
-                                                await api.post('/api/auth/password/forgot', { email: resetEmail });
-                                                setAuthMode('reset');
-                                            } catch (err: any) {
-                                                setResetMsg(err?.response?.data?.error || 'Something went wrong.');
-                                            } finally { setLoading(false); }
-                                        }} className="space-y-4">
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><Mail size={16} /></div>
-                                                <input
-                                                    type="email" required
-                                                    value={resetEmail}
-                                                    onChange={e => setResetEmail(e.target.value)}
-                                                    placeholder="name@company.com"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                />
-                                            </div>
-                                            {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
-                                            <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                                {loading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
-                                                SEND RESET CODE
-                                            </button>
-                                            <button type="button" onClick={() => setAuthMode('reset')} className="w-full text-[#000000]enter text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
-                                                Already have a code?
-                                            </button>
-                                        </form>
-                                    </div>
+                                    {viewerError && <p className="text-[11px] text-red-500 font-medium">{viewerError}</p>}
+                                    <button
+                                        type="button"
+                                        onClick={handleConnectToHost}
+                                        disabled={viewerStatus === 'connecting' || !accessPassword}
+                                        className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
+                                        Connect
+                                    </button>
+                                    <button onClick={() => setViewerStep(1)} className="w-full text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                                        ← Change Access Key
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* --- LOGIN / SIGNUP FLOW (Card Style) --- */
+                        <div className="animate-in fade-in duration-300">
+                            <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
+                                {authMode === 'signup' && (
+                                    <input
+                                        type="text" required
+                                        value={signupName}
+                                        onChange={e => setSignupName(e.target.value)}
+                                        placeholder="Full Name"
+                                        className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                    />
+                                )}
+                                <input
+                                    type="email" required
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    placeholder="Email"
+                                    className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                />
+                                {(!isAwaitingVerification || authMode === 'login') && (
+                                    <input
+                                        type="password" required
+                                        value={password}
+                                        onChange={e => setPassword(e.target.value)}
+                                        placeholder="Password"
+                                        className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                    />
                                 )}
 
-                                {/* ── Reset Password ── */}
-                                {authMode === 'reset' && (
-                                    <div className="animate-in fade-in duration-300">
-                                        <button onClick={() => { setAuthMode('forgot'); setResetMsg(''); }} className="flex items-center gap-1.5 text-[11px] font-bold text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors mb-6">
-                                            <ChevronLeft size={14} /> Back
-                                        </button>
-                                        <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-1">Enter Reset Code</h2>
-                                        <p className="text-xs text-[#1C1C1C] mb-6">Check your email for the 6-character code, then set a new password.</p>
-                                        <form onSubmit={async (e) => {
-                                            e.preventDefault();
-                                            setLoading(true);
-                                            setResetMsg('');
-                                            try {
-                                                await api.post('/api/auth/password/reset', { email: resetEmail, code: resetCode, newPassword: resetNewPassword });
-                                                setResetCode('');
-                                                setResetNewPassword('');
-                                                setResetMsg('');
-                                                setAuthMode('login');
-                                                setAuthError('Password reset! Please sign in.');
-                                            } catch (err: any) {
-                                                setResetMsg(err?.response?.data?.error || 'Invalid or expired code.');
-                                            } finally { setLoading(false); }
-                                        }} className="space-y-4">
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><Mail size={16} /></div>
-                                                <input type="email" required value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="Your email" className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]" />
-                                            </div>
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><KeyRound size={16} /></div>
-                                                <input
-                                                    type="text" required maxLength={6}
-                                                    value={resetCode}
-                                                    onChange={e => setResetCode(e.target.value.toUpperCase())}
-                                                    placeholder="XXXXXX"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-black tracking-[0.3em] focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C] placeholder:tracking-normal"
-                                                />
-                                            </div>
-                                            <div className="relative">
-                                                <div className="absolute inset-y-0 left-4 flex items-center text-[#1C1C1C]"><Lock size={16} /></div>
-                                                <input
-                                                    type="password" required minLength={8}
-                                                    value={resetNewPassword}
-                                                    onChange={e => setResetNewPassword(e.target.value)}
-                                                    placeholder="New password (min 8 chars)"
-                                                    className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-medium focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
-                                                />
-                                            </div>
-                                            {resetMsg && <p className="text-xs text-red-500 font-semibold">{resetMsg}</p>}
-                                            <button type="submit" disabled={loading} className="w-full py-4 bg-[#1C1C1C] text-white rounded-2xl font-bold text-sm hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                                                {loading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
-                                                RESET PASSWORD
-                                            </button>
-                                        </form>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                                {authError && <p className="text-[11px] text-red-500 font-medium">{authError}</p>}
 
-                    </div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading && <RefreshCw size={16} className="animate-spin" />}
+                                    Continue
+                                </button>
+                            </form>
 
-                    <div className="mt-8 text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.3em]">
-                        Team Zain • Connect-X Engine v1.0
-                    </div>
+                            <div className="relative flex items-center justify-center my-8">
+                                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100" /></div>
+                                <span className="relative z-10 bg-white px-3 text-[11px] text-slate-300 uppercase tracking-widest font-medium">Or</span>
+                            </div>
+
+                            {/* Social Logins - Google Only */}
+                            <div className="flex justify-center mb-8">
+                                <button 
+                                    onClick={handleGoogleLogin}
+                                    className="w-full flex items-center justify-center gap-3 py-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-all font-semibold text-slate-600 text-sm"
+                                >
+                                    <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                                    Sign in with Google
+                                </button>
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 text-center leading-relaxed mb-8">
+                                By clicking "Continue", you acknowledge that your data may be processed in accordance with our terms.
+                            </p>
+
+                            <div className="text-center text-[13px]">
+                                <span className="text-slate-400">New to Remote 365? </span>
+                                <button 
+                                    onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                                    className="text-blue-600 font-semibold hover:underline"
+                                >
+                                    {authMode === 'login' ? 'Create an account' : 'Sign in'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* RIGHT — Host Identity Panel */}
-                <div className="w-[45%] bg-[#1C1C1C] relative flex flex-col items-center justify-center p-12 overflow-hidden animate-in fade-in slide-in-from-right-8 duration-1000">
-                    {/* Glow blobs */}
-                    <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/10 blur-[100px] rounded-full -mr-24 -mt-24 pointer-events-none" />
-                    <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-white/5 blur-[80px] rounded-full -ml-24 -mb-24 pointer-events-none" />
-
-                    <div className="relative z-10 flex flex-col items-center w-full max-w-xs">
-                        {/* Animated Laptop Illustration */}
-                        <div className="mb-10 relative">
-                            <style>{`
-                                @keyframes scanline { 0%,100%{transform:translateY(0)} 50%{transform:translateY(52px)} }
-                                @keyframes cursorBlink { 0%,100%{opacity:1} 50%{opacity:0} }
-                                @keyframes pulseRing { 0%{transform:scale(1);opacity:.5} 100%{transform:scale(1.5);opacity:0} }
-                                @keyframes floatLaptop { 0%,100%{transform:translateY(0px)} 50%{transform:translateY(-6px)} }
-                                @keyframes dotStream { 0%{opacity:.2} 50%{opacity:1} 100%{opacity:.2} }
-                            `}</style>
-                            <div style={{ animation: 'floatLaptop 3s ease-in-out infinite' }}>
-                                {/* Laptop screen */}
-                                <svg width="220" height="160" viewBox="0 0 220 160" fill="none">
-                                    {/* Screen body */}
-                                    <rect x="20" y="4" width="180" height="118" rx="10" fill="#0F0F0F" stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
-                                    {/* Screen bezel inner */}
-                                    <rect x="28" y="12" width="164" height="102" rx="6" fill="#111827" />
-                                    {/* Simulated content lines */}
-                                    <rect x="38" y="24" width="60" height="5" rx="2.5" fill="rgba(255,255,255,0.15)" />
-                                    <rect x="38" y="34" width="100" height="4" rx="2" fill="rgba(255,255,255,0.07)" />
-                                    <rect x="38" y="42" width="80" height="4" rx="2" fill="rgba(255,255,255,0.07)" />
-                                    {/* Scan line */}
-                                    <rect x="28" y="12" width="164" height="2" rx="1" fill="rgba(99,179,237,0.25)" style={{ animation: 'scanline 2.5s ease-in-out infinite' }} />
-                                    {/* Remote cursor dot */}
-                                    <circle cx="130" cy="75" r="4" fill="#60A5FA" style={{ animation: 'cursorBlink 1.2s ease-in-out infinite' }} />
-                                    <circle cx="130" cy="75" r="8" fill="none" stroke="#60A5FA" strokeWidth="1.5" style={{ animation: 'pulseRing 1.2s ease-out infinite' }} />
-                                    {/* Activity dots bottom */}
-                                    {[0, 1, 2, 3].map(i => (
-                                        <circle key={i} cx={38 + i * 12} cy={104} r="3" fill="#60A5FA" style={{ animation: `dotStream 1.4s ease-in-out ${i * 0.25}s infinite` }} />
-                                    ))}
-                                    {/* Camera dot */}
-                                    <circle cx="110" cy="9" r="2.5" fill="rgba(255,255,255,0.1)" />
-                                    {/* Base */}
-                                    <path d="M0 130 L20 122 L200 122 L220 130 L220 133 Q110 140 0 133 Z" fill="#1a1a1a" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-                                    {/* Keyboard hint */}
-                                    <rect x="70" y="124" width="80" height="4" rx="2" fill="rgba(255,255,255,0.04)" />
-                                </svg>
-                            </div>
-                            {/* Base glow */}
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-32 h-4 bg-blue-500/20 blur-xl rounded-full" />
-                        </div>
-
-                        <h2 className="text-2xl font-extrabold text-white tracking-tight mb-1 text-[#000000]enter">This Machine</h2>
-                        <p className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] mb-8 text-[#000000]enter">Share these credentials to allow remote access</p>
-
-                        {/* Server IP */}
-                        <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 mb-3 flex items-center gap-4">
-                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                                <Globe size={14} className="text-blue-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-0.5">Signaling Server</p>
-                                <p className="text-sm font-mono font-bold text-white/80">{serverIP}</p>
-                            </div>
-                        </div>
-
-                        {/* Access Key */}
-                        <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 mb-3 flex items-center gap-4">
-                            <div className="w-8 h-8 rounded-xl bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                                <KeyRound size={14} className="text-green-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-0.5">Access Key</p>
-                                {localAuthKey ? (
-                                    <p className="text-sm font-mono font-bold text-white tracking-[0.15em]">{formatCode(localAuthKey)}</p>
-                                ) : (
-                                    <p className="text-sm font-bold text-white/80 italic">Not registered</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* PIN */}
-                        <div className="w-full bg-white/5 border border-white/[0.07] rounded-2xl px-5 py-4 flex items-center gap-4">
-                            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                                <Lock size={14} className="text-purple-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mb-0.5">Device PIN</p>
-                                {devicePassword ? (
-                                    <p className="text-sm font-mono font-bold text-white/70 tracking-[0.3em]">{'•'.repeat(Math.min(devicePassword.length, 10))}</p>
-                                ) : (
-                                    <p className="text-sm font-bold text-white/80 italic">Not configured</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Decorative floor */}
-                    <div className="absolute bottom-0 inset-x-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                {/* Footer links matching reference */}
+                <div className="absolute bottom-8 w-full flex justify-center gap-6 text-[11px] text-slate-400 font-medium">
+                    <button className="hover:text-slate-600">Imprint</button>
+                    <button className="hover:text-slate-600">Privacy Policy</button>
+                    <button className="hover:text-slate-600">Copyright</button>
                 </div>
             </div>
         );
@@ -3135,7 +2848,8 @@ export default function App() {
                         <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
                             <Monitor className="text-blue-600 w-8 h-8" />
                         </div>
-                        <div className="text-[#000000]enter">
+                        <div className=" 
+">
                             <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">Connection Request</h2>
                             <p className="text-sm font-medium text-[#000000] leading-relaxed">
                                 Someone wants to view your screen.<br />Do you want to allow this connection?
@@ -3177,7 +2891,8 @@ export default function App() {
             )}
 
             {globalError && (
-                <div className="fixed top-0 left-0 right-0 bg-red-500 text-white text-[#000000]enter py-3 text-xs font-bold z-[50] flex justify-between px-6 items-center shadow-lg">
+                <div className="fixed top-0 left-0 right-0 bg-red-500 text-white  
+ py-3 text-xs font-bold z-[50] flex justify-between px-6 items-center shadow-lg">
                     <span>{globalError}</span>
                     <button onClick={() => setGlobalError('')} className="bg-white/20 p-1 rounded-md hover:bg-white/30 transition-colors"><X className="w-4 h-4" /></button>
                 </div>
@@ -3190,10 +2905,7 @@ export default function App() {
                     selectedDevice={selectedDevice}
                     setCurrentView={(v: any) => { setCurrentView(v); setIsSidebarOpen(false); }}
                     setSelectedDevice={setSelectedDevice}
-                    handleLogout={() => {
-                        storeLogout();
-                        setAuth({} as any, '', '');
-                    }}
+                    handleLogout={handleLogout}
                     user={user}
                     isOpen={isSidebarOpen}
                     onClose={() => setIsSidebarOpen(false)}
@@ -3208,11 +2920,11 @@ export default function App() {
                 />
             )}
 
-            <div className={`flex-1 flex overflow-hidden transition-all duration-300 relative ${isAuthenticated ? 'md:ml-[212px]' : ''}`}>
+            <div className={`flex-1 flex overflow-hidden transition-all duration-300 relative ${isAuthenticated ? 'md:ml-[240px]' : ''}`}>
                 <main className="flex-1 flex flex-col overflow-hidden relative bg-white">
                     {/* Workspace Header */}
                     {/* Workspace Header - Hidden on Guest Home */}
-                    {(isAuthenticated || (currentView as any) !== 'home') && (
+                    {(isAuthenticated || ((currentView as any) !== 'home' && (currentView as any) !== 'settings')) && (
                         <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(28,28,28,0.15)]">
                         <div className="flex items-center gap-4">
                             {/* Mobile Menu Toggle */}
@@ -3278,31 +2990,76 @@ export default function App() {
                             )}
 
                             {isAuthenticated && (
-                                <button onClick={pollDevices} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.15)]" title="Refresh">
-                                    <RefreshCw className="w-4 h-4" />
+                                <button 
+                                    onClick={async () => {
+                                        setIsRefreshing(true);
+                                        await pollDevices();
+                                        setTimeout(() => setIsRefreshing(false), 700);
+                                    }} 
+                                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.15)] group" 
+                                    title="Refresh"
+                                >
+                                    <RefreshCw className={`w-4 h-4 transition-transform duration-700 ${isRefreshing ? 'animate-spin' : 'group-active:rotate-180'}`} />
                                 </button>
                             )}
 
-                            {/* User Avatar */}
+                            {/* User Avatar Dropdown */}
                             {isAuthenticated ? (
-                                <button
-                                    onClick={() => setCurrentView('profile')}
-                                    className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-[rgba(28,28,28,0.04)] transition-colors group"
-                                    title="View Profile"
-                                >
-                                <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0">
-                                    {(() => {
-                                        const name = user?.name || user?.email || '';
-                                        const parts = name.trim().split(/\s+/);
-                                        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-                                        return name.slice(0, 2).toUpperCase();
-                                    })()}
+                                <div className="relative" ref={userDropdownRef}>
+                                    <button
+                                        onClick={() => setShowUserDropdown(!showUserDropdown)}
+                                        className={`flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl transition-all group ${showUserDropdown ? 'bg-[rgba(28,28,28,0.08)]' : 'hover:bg-[rgba(28,28,28,0.04)]'}`}
+                                        title="Account Menu"
+                                    >
+                                        <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 shadow-lg shadow-black/10 group-hover:scale-105 transition-transform">
+                                            {(() => {
+                                                const name = user?.name || user?.email || '';
+                                                const parts = name.trim().split(/\s+/);
+                                                if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                                                return name.slice(0, 2).toUpperCase();
+                                            })()}
+                                        </div>
+                                        <div className="hidden md:flex flex-col items-start">
+                                            <span className="text-[11px] font-bold text-[#1C1C1C] leading-none truncate max-w-[100px]">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <span className="text-[9px] font-bold text-[#1C1C1C] uppercase tracking-wider opacity-60">{user?.role?.replace('_', ' ') || 'Member'}</span>
+                                                <ChevronDown size={10} className={`text-[#1C1C1C] opacity-40 transition-transform duration-300 ${showUserDropdown ? 'rotate-180' : ''}`} />
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {showUserDropdown && (
+                                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl border border-[rgba(28,28,28,0.08)] shadow-2xl p-2 animate-in fade-in slide-in-from-top-2 duration-200 z-[100]">
+                                            <div className="px-3 py-3 border-b border-[rgba(28,28,28,0.04)] mb-1">
+                                                <p className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest mb-1">Connected as</p>
+                                                <p className="text-xs font-bold text-[#1C1C1C] truncate">{user?.email}</p>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={() => { setCurrentView('profile'); setShowUserDropdown(false); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-bold text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                            >
+                                                <User size={14} className="opacity-60" /> View Profile
+                                            </button>
+                                            
+                                            <button 
+                                                onClick={() => { setCurrentView('settings'); setShowUserDropdown(false); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-bold text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                            >
+                                                <Settings size={14} className="opacity-60" /> Preferences
+                                            </button>
+
+                                            <div className="h-px bg-[rgba(28,28,28,0.04)] my-1" />
+                                            
+                                            <button 
+                                                onClick={() => { handleLogout(); setShowUserDropdown(false); }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors"
+                                            >
+                                                <LogOut size={14} /> Sign Out
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="hidden md:flex flex-col items-start">
-                                    <span className="text-[11px] font-bold text-[#1C1C1C] leading-none truncate max-w-[100px]">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
-                                    <span className="text-[9px] font-bold text-[#1C1C1C] uppercase tracking-wider mt-0.5">{user?.role?.replace('_', ' ') || 'Member'}</span>
-                                </div>
-                                </button>
                             ) : (
                                 <button
                                     onClick={() => { setShowAuthModal(true); setAuthMode('login'); }}
@@ -3315,9 +3072,9 @@ export default function App() {
                         </header>
                     )}
 
-                    <div className={`flex-1 overflow-y-auto custom-scrollbar ${(isAuthenticated || (currentView as any) !== 'home') ? 'px-8 pb-8' : ''}`}>
-                        {!isAuthenticated || currentView === 'home' ? (
-                            <div className="w-full pt-4 animate-in fade-in duration-700">
+                    <div className={`flex-1 ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'} ${(isAuthenticated || (currentView as any) !== 'home' && currentView !== 'settings') ? 'px-8 pb-8' : ''}`}>
+                        {(!isAuthenticated || currentView === 'home' || currentView === 'settings') ? (
+                            <div className={`w-full h-full overflow-hidden animate-in fade-in duration-700 ${currentView === 'settings' && !isAuthenticated ? 'blur-sm' : ''}`}>
                                 <SnowHome
                                     localAuthKey={localAuthKey}
                                     hostStatus={hostStatus}
@@ -3347,6 +3104,7 @@ export default function App() {
                                     onConnectToHost={handleConnectToHost}
                                     onBackToStep1={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); setLockoutSeconds(0); }}
                                     onSignIn={() => { setShowAuthModal(true); setAuthMode('login'); }}
+                                    onOpenSettings={() => setCurrentView('settings')}
                                     formatCode={formatCode}
                                     user={user}
                                     isRegistered={isLocalHostRegistered}
@@ -3430,7 +3188,8 @@ export default function App() {
                                         </div>
                                     </div>
 
-                                    <div className="text-[#000000]enter mb-8">
+                                    <div className=" 
+ mb-8">
                                         <h1 className="text-3xl font-extrabold text-[#1C1C1C] tracking-tight mb-2">Quick Connect</h1>
                                         <p className="text-sm font-medium text-[#1C1C1C] leading-relaxed">
                                             Enter the device access key and password to connect directly to a remote node.
@@ -3449,7 +3208,8 @@ export default function App() {
                                                         autoFocus
                                                         type="text"
                                                         placeholder="000 000 000"
-                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em] text-[#000000]enter focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
+                                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.15)] text-[#1C1C1C] rounded-[18px] pl-12 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.2em]  
+ focus:bg-white focus:border-[rgba(28,28,28,0.2)] focus:ring-4 focus:ring-black/5 outline-none transition-all placeholder:text-[#1C1C1C]"
                                                         value={sessionCode}
                                                         onChange={e => setSessionCode(formatCode(e.target.value))}
                                                         onKeyDown={e => { if (e.key === 'Enter') handleFindDevice(); }}
@@ -3556,7 +3316,8 @@ export default function App() {
                                     </div>
 
                                     {activeSessionCount === 0 ? (
-                                        <div className="py-20 flex flex-col items-center justify-center text-[#000000]enter">
+                                        <div className="py-20 flex flex-col items-center justify-center  
+">
                                             <div className="w-20 h-20 bg-[#F8F9FA] rounded-[32px] flex items-center justify-center mb-6">
                                                 <Radio className="text-[#000000] w-10 h-10" />
                                             </div>
@@ -3619,7 +3380,7 @@ export default function App() {
                         ) : currentView === 'profile' ? (
                             /* --- PROFILE ALIASED TO SETTINGS --- */
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
-                                <SnowUserSettings
+                                <SnowSettings
                                     serverIP={serverIP}
                                     isAutoHostEnabled={isAutoHostEnabled}
                                     setIsAutoHostEnabled={(val) => {
@@ -3632,7 +3393,8 @@ export default function App() {
                                         }
                                     }}
                                     onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
-                                    logout={storeLogout}
+                                    logout={handleLogout}
+                                    onClose={() => setCurrentView('dashboard')}
                                 />
                             </div>
                         ) : currentView === 'support' ? (
@@ -3684,41 +3446,6 @@ export default function App() {
                                     onBack={() => setCurrentView('analytics')}
                                 />
                             </div>
-                        ) : currentView === 'settings' ? (
-                            /* --- UNIFIED SETTINGS VIEW --- */
-                            <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
-                                <div className="space-y-12 pb-20">
-                                    <SnowUserSettings
-                                        serverIP={serverIP}
-                                        isAutoHostEnabled={isAutoHostEnabled}
-                                        setIsAutoHostEnabled={(val) => {
-                                            setIsAutoHostEnabled(val);
-                                            localStorage.setItem('is_auto_host_enabled', String(val));
-                                            if (val && hostStatus !== 'status') {
-                                                handleStartHosting();
-                                            } else if (!val && hostStatus === 'status') {
-                                                handleStopHosting();
-                                            }
-                                        }}
-                                        onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
-                                        logout={storeLogout}
-                                    />
-
-                                    {(user?.role === 'DEPARTMENT_MANAGER' || user?.role === 'SUPER_ADMIN' || user?.role === 'PLATFORM_OWNER') && (
-                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.15)]">
-                                            <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1">Organization Control</h2>
-                                            <SnowOrgSettings />
-                                        </div>
-                                    )}
-
-                                    {user?.role === 'PLATFORM_OWNER' && (
-                                        <div className="pt-12 border-t border-[rgba(28,28,28,0.15)]">
-                                            <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1">Platform Control</h2>
-                                            <SnowAdminSettings />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
                         ) : null}
                     </div>
                 </main>
@@ -3727,6 +3454,41 @@ export default function App() {
             </div>
 
             {/* MODALS LAYER */}
+            {currentView === 'settings' && (
+                 <>
+                    <SnowSettings
+                        serverIP={serverIP}
+                        isAutoHostEnabled={isAutoHostEnabled}
+                        setIsAutoHostEnabled={(val) => {
+                            setIsAutoHostEnabled(val);
+                            localStorage.setItem('is_auto_host_enabled', String(val));
+                            if (val && hostStatus !== 'status') {
+                                handleStartHosting();
+                            } else if (!val && hostStatus === 'status') {
+                                handleStopHosting();
+                            }
+                        }}
+                        onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
+                        logout={handleLogout}
+                        onClose={() => setCurrentView(isAuthenticated ? 'dashboard' : 'home')}
+                    />
+
+                    {(user?.role === 'DEPARTMENT_MANAGER' || user?.role === 'SUPER_ADMIN' || user?.role === 'PLATFORM_OWNER') && (
+                        <div className="fixed inset-0 z-[110] pointer-events-none flex flex-col items-center justify-end pb-12">
+                            <div className="w-full max-w-4xl bg-white rounded-lg shadow-2xl p-8 border border-[rgba(28,28,28,0.1)] pointer-events-auto max-h-[40vh] overflow-y-auto">
+                                <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1 text-center">Organization Control</h2>
+                                <SnowOrgSettings />
+                                {user?.role === 'PLATFORM_OWNER' && (
+                                    <div className="pt-12 border-t border-[rgba(28,28,28,0.15)] mt-12">
+                                        <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1 text-center">Platform Control</h2>
+                                        <SnowAdminSettings />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                 </>
+            )}
 
             {/* Set Password Before Hosting Modal */}
             {showSetPasswordModal && (
@@ -3799,7 +3561,8 @@ export default function App() {
                                 placeholder="Network Hardware Key"
                                 value={promptPassword}
                                 onChange={e => setPromptPassword(e.target.value)}
-                                className="purity-input font-mono text-[#000000]enter text-2xl tracking-[0.2em] pr-12"
+                                className="purity-input font-mono  
+ text-2xl tracking-[0.2em] pr-12"
                                 autoFocus
                             />
                             <button onClick={() => setShowPromptPassword(!showPromptPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
@@ -3832,12 +3595,14 @@ export default function App() {
                         <div className="space-y-6 mb-10">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] ml-1">Network ID</label>
-                                <input type="text" placeholder="000 000 000" value={addKey} onChange={e => setAddKey(formatCode(e.target.value))} className="purity-input font-mono text-[#000000]enter tracking-[0.2em]" />
+                                <input type="text" placeholder="000 000 000" value={addKey} onChange={e => setAddKey(formatCode(e.target.value))} className="purity-input font-mono  
+ tracking-[0.2em]" />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] ml-1">Security Token</label>
                                 <div className="relative">
-                                    <input type={showAddPassword ? "text" : "password"} placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="purity-input font-mono text-[#000000]enter pr-12" />
+                                    <input type={showAddPassword ? "text" : "password"} placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="purity-input font-mono  
+ pr-12" />
                                     <button onClick={() => setShowAddPassword(!showAddPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
                                         {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
@@ -3848,18 +3613,21 @@ export default function App() {
                     </div>
                 </div>
             )}
-
-            {/* Device Action Modal */}
-            {actionModal && (
+               {actionModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-sm bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
-                        <div className="mb-8 text-[#000000]enter">
-                            <h3 className="text-xl font-black text-[#1C1C1C] mb-2 tracking-tight uppercase">
+                    <div className="w-full max-w-sm bg-white p-10 rounded-[32px] shadow-2xl border border-[rgba(28,28,28,0.1)] animate-in zoom-in-95 duration-300">
+                        <div className="mb-8 text-center">
+                            <div className="w-16 h-16 bg-[#F8F9FA] rounded-[24px] flex items-center justify-center mx-auto mb-6 border border-[rgba(28,28,28,0.06)]">
+                                {actionModal.type === 'rename' ? <Edit2 size={24} className="text-[#1C1C1C]" /> :
+                                 actionModal.type === 'password' ? <KeyRound size={24} className="text-[#1C1C1C]" /> :
+                                 <Trash2 size={24} className="text-red-500" />}
+                            </div>
+                            <h3 className="text-xl font-bold text-[#1C1C1C] mb-2 tracking-tight uppercase">
                                 {actionModal.type === 'rename' ? 'Modify Identity' :
                                     actionModal.type === 'password' ? 'Hardware Key' :
                                         actionModal.type === 'remove' ? 'Sever Connection' : ''}
                             </h3>
-                            <p className="text-[10px] font-bold text-[#1C1C1C] leading-relaxed uppercase tracking-[0.2em]">
+                            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] leading-relaxed uppercase tracking-[0.2em] max-w-[240px] mx-auto">
                                 {actionModal.type === 'rename' ? 'Set a persistent nickname for this machine.' :
                                     actionModal.type === 'password' ? 'Update the hardware access credentials.' :
                                         actionModal.type === 'remove' ? `Unlink ${actionModal.device.device_name} from your account?` : ''}
@@ -3867,22 +3635,38 @@ export default function App() {
                         </div>
 
                         {(actionModal.type === 'rename' || actionModal.type === 'password') && (
-                            <div className="space-y-4">
-                                <input
-                                    autoFocus
-                                    type={actionModal.type === 'password' ? 'password' : 'text'}
-                                    placeholder={actionModal.type === 'password' ? 'Secure Crypt Key' : 'e.g. Workstation Alpha'}
-                                    className="purity-input w-full font-mono text-[#000000]enter tracking-widest"
-                                    value={actionValue}
-                                    onChange={e => setActionValue(e.target.value)}
-                                />
+                            <div className="space-y-4 mb-8">
+                                <div className="relative">
+                                    <input
+                                        autoFocus
+                                        type={actionModal.type === 'password' ? (showActionPassword ? 'text' : 'password') : 'text'}
+                                        placeholder={actionModal.type === 'password' ? 'Secure Crypt Key' : 'e.g. Workstation Alpha'}
+                                        className="w-full bg-[#F8F9FA] border border-[rgba(28,28,28,0.1)] text-[#1C1C1C] rounded-2xl px-6 py-4 text-sm font-bold focus:bg-white focus:border-[#1C1C1C] outline-none transition-all placeholder:text-[rgba(28,28,28,0.3)] tracking-widest"
+                                        value={actionValue}
+                                        onChange={e => setActionValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                if (actionModal.type === 'rename') handleRename(actionModal.device);
+                                                if (actionModal.type === 'password') handleSetPassword(actionModal.device);
+                                            }
+                                        }}
+                                    />
+                                    {actionModal.type === 'password' && (
+                                        <button 
+                                            onClick={() => setShowActionPassword(!showActionPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-[rgba(28,28,28,0.3)] hover:text-[#1C1C1C] transition-colors"
+                                        >
+                                            {showActionPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
 
                         <div className="flex gap-4">
                             <button
-                                onClick={() => setActionModal(null)}
-                                className="snow-btn-secondary flex-1 uppercase text-[10px] font-black tracking-widest"
+                                onClick={() => { setActionModal(null); setShowActionPassword(false); }}
+                                className="flex-1 py-4 rounded-2xl border border-[rgba(28,28,28,0.1)] text-[10px] font-bold uppercase tracking-widest hover:bg-[rgba(28,28,28,0.02)] transition-all text-[rgba(28,28,28,0.6)]"
                             >
                                 Cancel
                             </button>
@@ -3891,8 +3675,9 @@ export default function App() {
                                     if (actionModal.type === 'rename') handleRename(actionModal.device);
                                     if (actionModal.type === 'remove') handleRemove(actionModal.device);
                                     if (actionModal.type === 'password') handleSetPassword(actionModal.device);
+                                    setShowActionPassword(false);
                                 }}
-                                className={`snow-btn flex-1 uppercase text-[10px] font-black tracking-widest ${actionModal.type === 'remove' ? 'bg-red-600 hover:bg-red-700 !shadow-none' : ''}`}
+                                className={`flex-1 py-4 ${actionModal.type === 'remove' ? 'bg-red-600' : 'bg-[#1C1C1C]'} text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-xl shadow-black/5`}
                             >
                                 Confirm
                             </button>
@@ -3904,7 +3689,8 @@ export default function App() {
             {/* File Received Modal */}
             {fileReceivedModal && (
                 <div className="fixed inset-0 z-[300] bg-[#1C1C1C]/20 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in duration-300">
-                    <div className="bg-white border border-[rgba(28,28,28,0.15)] shadow-2xl rounded-[32px] p-10 w-[500px] max-w-full flex flex-col items-center text-[#000000]enter relative">
+                    <div className="bg-white border border-[rgba(28,28,28,0.15)] shadow-2xl rounded-[32px] p-10 w-[500px] max-w-full flex flex-col items-center  
+ relative">
                         <div className={`w-20 h-20 rounded-[24px] flex items-center justify-center mb-8 shadow-sm border ${fileReceivedModal.isRemote ? 'bg-blue-50 text-blue-500 border-blue-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'}`}>
                             <DownloadCloud className="w-10 h-10" />
                         </div>
@@ -3950,7 +3736,8 @@ export default function App() {
             {/* Global Error Modal */}
             {errorModal && errorModal.show && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-[#1C1C1C]/40 backdrop-blur-xl animate-in fade-in duration-300">
-                    <div className="w-full max-w-md bg-white p-10 rounded-[32px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300 text-[#000000]enter">
+                    <div className="w-full max-w-md bg-white p-10 rounded-[32px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300  
+">
                         <div className="w-20 h-20 bg-red-50 rounded-[28px] flex items-center justify-center text-red-500 mx-auto mb-8 border border-red-100">
                             <ShieldOff className="w-10 h-10" />
                         </div>

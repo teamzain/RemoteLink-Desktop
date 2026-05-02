@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 
 // Disable Hardware Acceleration for desktop host window to ensure
 // it remains visible and controllable via DXGI capture.
+app.name = 'Remote 365';
 app.disableHardwareAcceleration();
 
 // Allow video autoplay in viewer windows opened programmatically (no prior user gesture).
