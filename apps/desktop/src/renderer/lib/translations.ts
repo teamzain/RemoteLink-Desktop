@@ -1165,6 +1165,18 @@ export const translations = {
         "fr": "Recevez des mises à jour sur les nouveaux produits et fonctionnalités via des messages intégrés à l'application.",
         "es": "Reciba actualizaciones sobre nuevos productos y funciones a través de mensajes en la aplicación."
     },
+    "font_size": {
+        "en": "Global Font Size",
+        "de": "Globale Schriftgröße",
+        "fr": "Taille de police globale",
+        "es": "Tamaño de fuente global"
+    },
+    "font_size_desc": {
+        "en": "Adjust the text size across the entire application for better readability.",
+        "de": "Passen Sie die Textgröße in der gesamten Anwendung für eine bessere Lesbarkeit an.",
+        "fr": "Ajustez la taille du texte dans toute l'application pour une meilleure lisibilité.",
+        "es": "Ajuste el tamaño del texto en toda la aplicación para una mejor legibilidad."
+    },
     "settings_soon": {
         "en": "Settings for {tab} will be available soon.",
         "de": "Einstellungen für {tab} sind in Kürze verfügbar.",

@@ -95,6 +95,22 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [isAutoPlayBlocked, setIsAutoPlayBlocked] = useState(false);
     const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
 
+    // --- Global Theme & Font Size ---
+    useEffect(() => {
+        if (user) {
+            // Apply Dark Mode
+            if (user.darkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+
+            // Apply Global Font Size
+            const size = user.fontSize || 16;
+            document.documentElement.style.setProperty('--base-font-size', `${size}px`);
+        }
+    }, [user?.darkMode, user?.fontSize]);
+
     // --- Black Screen Watchdog ---
     // If we have a stream but videoWidth is 0, request a recovery keyframe every 2s
     useEffect(() => {

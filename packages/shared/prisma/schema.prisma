@@ -38,6 +38,7 @@ model User {
   searchBehavior        String          @default("Search for result")
   useNewInterface       Boolean         @default(true)
   marketingMessages     Boolean         @default(false)
+  fontSize              Int             @default(16)
   passwordResetToken    String?
   passwordResetExpires  DateTime?
   supportTickets       SupportTicket[]

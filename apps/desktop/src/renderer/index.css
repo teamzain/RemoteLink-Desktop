@@ -8,17 +8,29 @@
   --snow-primary: #000000;
   --snow-secondary: #F8F9FA;
   --snow-accent: #3B82F6;
-  --bg-app: #F8F9FA;
+  --bg-app: #F4F7F9;
   --surface: #FFFFFF;
-  --border: rgba(0, 0, 0, 0.2);
-  --text-primary: #000000;
-  --text-secondary: #000000;
+  --border: rgba(0, 0, 0, 0.06);
+  --text-primary: #1C1C1C;
+  --text-secondary: #757575;
+  --base-font-size: 16px;
+}
+
+.dark {
+  --snow-primary: #FFFFFF;
+  --snow-secondary: #1C1C1C;
+  --snow-accent: #3B82F6;
+  --bg-app: #0A0A0A;
+  --surface: #141414;
+  --border: rgba(255, 255, 255, 0.1);
+  --text-primary: #F5F5F5;
+  --text-secondary: #A0A0A0;
 }
 
 * { box-sizing: border-box; }
 
 html {
-  font-size: 19px;
+  font-size: var(--base-font-size);
 }
 
 body {
@@ -29,6 +41,7 @@ body {
   font-family: 'Lato', -apple-system, sans-serif;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Reduced motion mode */

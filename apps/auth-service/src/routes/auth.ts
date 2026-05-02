@@ -455,7 +455,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       darkMode: (user as any).darkMode ?? false,
       searchBehavior: (user as any).searchBehavior || 'Search for result',
       useNewInterface: (user as any).useNewInterface ?? true,
-      marketingMessages: (user as any).marketingMessages ?? false
+      marketingMessages: (user as any).marketingMessages ?? false,
+      fontSize: (user as any).fontSize ?? 16
     });
   });
 
@@ -513,7 +514,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       darkMode,
       searchBehavior,
       useNewInterface,
-      marketingMessages
+      marketingMessages,
+      fontSize
     } = request.body as any;
 
     const updateData: any = {};
@@ -529,6 +531,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (searchBehavior) updateData.searchBehavior = searchBehavior;
     if (useNewInterface !== undefined) updateData.useNewInterface = useNewInterface;
     if (marketingMessages !== undefined) updateData.marketingMessages = marketingMessages;
+    if (fontSize !== undefined) updateData.fontSize = fontSize;
 
     if (password) {
       if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
@@ -564,7 +567,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         darkMode: (updatedUser as any).darkMode ?? false,
         searchBehavior: (updatedUser as any).searchBehavior || 'Search for result',
         useNewInterface: (updatedUser as any).useNewInterface ?? true,
-        marketingMessages: (updatedUser as any).marketingMessages ?? false
+        marketingMessages: (updatedUser as any).marketingMessages ?? false,
+        fontSize: (updatedUser as any).fontSize ?? 16
       }
     });
   });

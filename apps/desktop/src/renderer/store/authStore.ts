@@ -21,6 +21,7 @@ interface User {
   searchBehavior?: string;
   useNewInterface?: boolean;
   marketingMessages?: boolean;
+  fontSize?: number;
 }
 
 interface AuthState {

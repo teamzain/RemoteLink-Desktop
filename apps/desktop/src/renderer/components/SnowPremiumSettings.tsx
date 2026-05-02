@@ -23,6 +23,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
   const [searchBehavior, setSearchBehavior] = useState('Search for result');
   const [useNewInterface, setUseNewInterface] = useState(true);
   const [marketingMessages, setMarketingMessages] = useState(false);
+  const [fontSize, setFontSize] = useState(16);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +37,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       setSearchBehavior(user.searchBehavior || 'Search for result');
       setUseNewInterface(user.useNewInterface ?? true);
       setMarketingMessages(user.marketingMessages ?? false);
+      setFontSize(user.fontSize || 16);
     }
   }, [user]);
 
@@ -88,7 +90,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
   ];
 
   return (
-    <div className="h-full w-full flex bg-[#F4F7F9] rounded-bl-[24px] overflow-hidden font-lato">
+    <div className="h-full w-full flex bg-[#F4F7F9] dark:bg-[#0A0A0A] rounded-bl-[24px] overflow-hidden font-lato transition-colors duration-300">
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -98,7 +100,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       />
 
       {/* Inner Sidebar */}
-      <div className="w-64 bg-white border-r border-[rgba(0,0,0,0.06)] flex flex-col overflow-y-auto">
+      <div className="w-64 bg-white dark:bg-[#0F0F0F] border-r border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex flex-col overflow-y-auto transition-colors duration-300">
         <div className="py-4">
           <div className="px-6 mb-2">
             <span className="text-[10px] font-bold text-[#757575] uppercase tracking-wider">{t('profile', lang)}</span>
@@ -145,7 +147,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-white p-10 custom-scrollbar relative">
+      <div className="flex-1 overflow-y-auto bg-white dark:bg-[#141414] p-10 custom-scrollbar relative transition-colors duration-300">
         <div className="max-w-4xl mx-auto">
           {activeTab === 'Account' ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -161,7 +163,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('account', lang)}</h1>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('account', lang)}</h1>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-[#757575]">{t('account_desc', lang)}</p>
                     {(showSaved || isLoading) && (
@@ -173,11 +175,11 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[rgba(0,0,0,0.06)] shadow-sm">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] shadow-sm">
                 {/* Profile Picture */}
-                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between">
+                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-full bg-[#F4F7F9] flex items-center justify-center mt-1 overflow-hidden border border-[rgba(0,0,0,0.05)]">
+                    <div className="w-12 h-12 rounded-full bg-[#F4F7F9] dark:bg-white/5 flex items-center justify-center mt-1 overflow-hidden border border-[rgba(0,0,0,0.05)]">
                       {user?.avatar ? (
                         <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
                       ) : (
@@ -185,8 +187,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       )}
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('profile_picture', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('profile_picture_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('profile_picture', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('profile_picture_desc', lang)}</p>
                     </div>
                   </div>
                   <button 
@@ -199,14 +201,14 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
 
                 {/* Name */}
-                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between group transition-colors">
+                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between group transition-colors">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-full bg-transparent flex items-center justify-center mt-1">
-                      <User size={20} className="text-[#757575]" />
+                      <User size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('name_label', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('name_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('name_label', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('name_desc', lang)}</p>
                     </div>
                   </div>
                   {isEditingName ? (
@@ -226,13 +228,13 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                           } 
                         }}
                         autoFocus
-                        className="bg-white border border-blue-500 text-[#1C1C1C] text-sm rounded-lg block p-2 outline-none w-48 shadow-[0_0_8px_rgba(59,130,246,0.1)]"
+                        className="bg-white dark:bg-[#141414] border border-blue-500 text-[#1C1C1C] dark:text-white text-sm rounded-lg block p-2 outline-none w-48 shadow-[0_0_8px_rgba(59,130,246,0.1)]"
                       />
                     </div>
                   ) : (
                     <span 
                       onClick={() => setIsEditingName(true)}
-                      className="text-sm text-[#1C1C1C] cursor-pointer hover:bg-gray-50 px-2 py-1 rounded transition-colors border border-transparent hover:border-[rgba(0,0,0,0.05)]"
+                      className="text-sm text-[#1C1C1C] dark:text-[#F5F5F5] cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 px-2 py-1 rounded transition-colors border border-transparent hover:border-[rgba(0,0,0,0.05)]"
                     >
                       {displayName || t('set_name_placeholder', lang)}
                     </span>
@@ -240,28 +242,28 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
 
                 {/* Email */}
-                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between group cursor-default hover:bg-gray-50/50 transition-colors">
+                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between group cursor-default hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-full bg-transparent flex items-center justify-center mt-1">
-                      <Package size={20} className="text-[#757575]" />
+                      <Package size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('email_label', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('email_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('email_label', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('email_desc', lang)}</p>
                     </div>
                   </div>
                   <span className="text-sm text-[#757575] font-mono">{user?.email || t('no_email_assigned', lang)}</span>
                 </div>
 
                 {/* Display Language */}
-                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between group cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-full bg-transparent flex items-center justify-center mt-1">
-                      <SettingsIcon size={20} className="text-[#757575]" />
+                      <SettingsIcon size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('language', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('language_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('language', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('language_desc', lang)}</p>
                     </div>
                   </div>
                   <select 
@@ -272,7 +274,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       triggerSave({ language: val }); 
                     }}
                     disabled={isLoading}
-                    className="bg-white border border-[#D1D1D1] text-[#1C1C1C] text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none cursor-pointer hover:border-gray-400 transition-colors disabled:opacity-50"
+                    className="bg-white dark:bg-[#141414] border border-[#D1D1D1] dark:border-white/10 text-[#1C1C1C] dark:text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none cursor-pointer hover:border-gray-400 dark:hover:border-white/20 transition-colors disabled:opacity-50"
                   >
                     <option value="en">English</option>
                     <option value="de">German</option>
@@ -282,14 +284,14 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
 
                 {/* Status restrictions */}
-                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between group cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="p-6 border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-full bg-transparent flex items-center justify-center mt-1">
-                      <Shield size={20} className="text-[#757575]" />
+                      <Shield size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('status_restrictions', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('status_restrictions_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('status_restrictions', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('status_restrictions_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -309,14 +311,14 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 </div>
 
                 {/* Delete Account */}
-                <div className="p-6 flex items-center justify-between group cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="p-6 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-full bg-transparent flex items-center justify-center mt-1">
-                      <User size={20} className="text-[#757575]" />
+                      <User size={20} className="text-[#757575] dark:text-[#A0A0A0]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C]">{t('delete_account', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('delete_account_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('delete_account', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('delete_account_desc', lang)}</p>
                     </div>
                   </div>
                   <button className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors">
@@ -332,16 +334,16 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                   <CheckCircle2 size={24} />
                 </div>
                 <div>
-                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('licenses', lang)}</h1>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('licenses', lang)}</h1>
                   <p className="text-sm text-[#757575]">{t('upgrade_license_desc', lang)}</p>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[rgba(0,0,0,0.06)] shadow-sm overflow-hidden">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-xl border border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.06)] shadow-sm overflow-hidden">
                 {/* Free */}
                 <div className="p-8 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between hover:bg-gray-50/30 transition-colors">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">{t('free_label', lang)}</h3>
+                    <h3 className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('free_label', lang)}</h3>
                     <p className="text-xs text-[#757575]">0 {t('channels_label', lang)}</p>
                   </div>
                   <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">{t('upgrade_license_btn', lang)}</button>
@@ -350,7 +352,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 {/* IoT Free */}
                 <div className="p-8 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between hover:bg-gray-50/30 transition-colors">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">IoT {t('free_label', lang)}</h3>
+                    <h3 className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">IoT {t('free_label', lang)}</h3>
                     <p className="text-xs text-[#757575]">0 / 0 {t('endpoints_label', lang)}</p>
                   </div>
                 </div>
@@ -358,7 +360,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                 {/* Monitoring */}
                 <div className="p-8 flex items-center justify-between hover:bg-gray-50/30 transition-colors">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#1C1C1C] mb-1">Monitoring</h3>
+                    <h3 className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">Monitoring</h3>
                     <p className="text-xs text-[#757575]">{t('trial_days_left', lang).replace('{days}', '14')}</p>
                   </div>
                 </div>
@@ -371,7 +373,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                   <Monitor size={24} />
                 </div>
                 <div>
-                  <h1 className="text-[28px] font-normal text-[#1C1C1C] leading-none mb-1">{t('customization', lang)}</h1>
+                  <h1 className="text-[28px] font-normal text-[#1C1C1C] dark:text-[#F5F5F5] leading-none mb-1">{t('customization', lang)}</h1>
                   <p className="text-sm text-[#757575]">{t('customization_desc', lang)}</p>
                 </div>
               </div>
@@ -385,8 +387,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-medium text-[#1C1C1C]">{t('dark_mode', lang)}</h3>
-                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded-md border border-blue-100">Beta</span>
+                        <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{t('dark_mode', lang)}</h3>
+                        <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase rounded-md border border-blue-100 dark:border-blue-900/40">Beta</span>
                       </div>
                       <p className="text-sm text-[#757575]">{t('dark_mode_desc', lang)}</p>
                     </div>
@@ -408,8 +410,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">{t('search_behavior', lang)}</h3>
-                      <p className="text-sm text-[#757575] max-w-lg">{t('search_behavior_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('search_behavior', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('search_behavior_desc', lang)}</p>
                     </div>
                   </div>
                   <select 
@@ -419,7 +421,7 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       setSearchBehavior(val);
                       triggerSave({ searchBehavior: val });
                     }}
-                    className="bg-white border border-[#D1D1D1] text-[#1C1C1C] text-sm rounded-lg block p-2 outline-none cursor-pointer w-48"
+                    className="bg-white dark:bg-[#141414] border border-[#D1D1D1] dark:border-white/10 text-[#1C1C1C] dark:text-white text-sm rounded-lg block p-2 outline-none cursor-pointer w-48"
                   >
                     <option value="Search for result">{t('search_for_result', lang)}</option>
                     <option value="Direct connect">{t('direct_connect', lang)}</option>
@@ -433,8 +435,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">{t('use_new_interface', lang)}</h3>
-                      <p className="text-sm text-[#757575] max-w-lg">{t('use_new_interface_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('use_new_interface', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0] max-w-lg">{t('use_new_interface_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -454,8 +456,8 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <SettingsIcon size={20} className="text-[#757575]" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-[#1C1C1C] mb-1">{t('marketing_messages', lang)}</h3>
-                      <p className="text-sm text-[#757575]">{t('marketing_messages_desc', lang)}</p>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('marketing_messages', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('marketing_messages_desc', lang)}</p>
                     </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -466,6 +468,35 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                     }} />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
+                </div>
+
+                {/* Font Size */}
+                <div className="flex items-center justify-between p-2">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 flex items-center justify-center shrink-0 mt-0.5">
+                      <SettingsIcon size={20} className="text-[#757575]" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] mb-1">{t('font_size', lang)}</h3>
+                      <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('font_size_desc', lang)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 w-48">
+                    <input 
+                      type="range" 
+                      min="12" 
+                      max="24" 
+                      step="1"
+                      value={fontSize}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setFontSize(val);
+                      }}
+                      onMouseUp={() => triggerSave({ fontSize })}
+                      className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <span className="text-sm font-medium text-[#1C1C1C] dark:text-[#F5F5F5] w-8">{fontSize}px</span>
+                  </div>
                 </div>
               </div>
             </div>
