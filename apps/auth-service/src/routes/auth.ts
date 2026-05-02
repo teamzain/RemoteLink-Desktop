@@ -446,7 +446,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
       role: user.role,
       organizationId: user.organizationId,
       allowedTags: user.allowedTags,
-      avatar: null,
+      avatar: (user as any).avatar || null,
+      language: (user as any).language || 'English',
       is_2fa_enabled: (user as any).is2FAEnabled ?? false,
       notify_session_alert: (user as any).notifySessionAlert ?? true,
       notify_disconnect_alert: (user as any).notifyDisconnectAlert ?? true,
@@ -502,7 +503,9 @@ export default async function authRoutes(fastify: FastifyInstance) {
       password,
       notify_session_alert,
       notify_disconnect_alert,
-      notify_sound_effects
+      notify_sound_effects,
+      language,
+      avatar
     } = request.body as any;
 
     const updateData: any = {};
@@ -512,6 +515,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (notify_session_alert !== undefined) updateData.notifySessionAlert = notify_session_alert;
     if (notify_disconnect_alert !== undefined) updateData.notifyDisconnectAlert = notify_disconnect_alert;
     if (notify_sound_effects !== undefined) updateData.notifySoundEffects = notify_sound_effects;
+    if (language) updateData.language = language;
+    if (avatar) updateData.avatar = avatar;
 
     if (password) {
       if (!current_password) return reply.code(400).send({ error: 'Current password required to set new password' });
@@ -538,7 +543,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         email: updatedUser.email,
         name: updatedUser.name,
         plan: updatedUser.subscription?.plan || 'FREE',
-        avatar: null,
+        avatar: (updatedUser as any).avatar || null,
+        language: (updatedUser as any).language || 'English',
         is_2fa_enabled: (updatedUser as any).is2FAEnabled ?? false,
         notify_session_alert: (updatedUser as any).notifySessionAlert ?? true,
         notify_disconnect_alert: (updatedUser as any).notifyDisconnectAlert ?? true,

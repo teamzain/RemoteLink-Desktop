@@ -4,13 +4,16 @@ import logo from './assets/logo.png';
 import {
     Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
     RefreshCw, Eye, EyeOff, CreditCard, Power, Lock, Mail, Link, Sun, Moon, Edit2, Trash2, ShieldOff, LayoutGrid, PlusCircle, Radio, ShieldCheck, ArrowRightCircle, Check, DownloadCloud, MonitorOff, User,
-    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command
+    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink
 } from 'lucide-react';
 
 import { useImperativeHandle, forwardRef } from 'react';
 import api from './lib/api';
 import { useAuthStore } from './store/authStore';
-import { SnowDashboard } from './components/SnowDashboard';
+import { SnowPremiumDashboard } from './components/SnowPremiumDashboard';
+import { SnowPremiumSettings } from './components/SnowPremiumSettings';
+import { SnowPremiumSidebar } from './components/SnowPremiumSidebar';
+import { SnowSettingsModal } from './components/SnowSettingsModal';
 import { SnowSidebar } from './components/SnowSidebar';
 import { SnowDevices } from './components/SnowDevices';
 import { SnowRightBar } from './components/SnowRightBar';
@@ -25,6 +28,8 @@ import { SnowSplashScreen } from './components/SnowSplashScreen';
 import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
+import { SnowNotificationPanel } from './components/SnowNotificationPanel';
+
 import { SnowAnalytics } from './components/SnowAnalytics';
 import { SnowHome } from './components/SnowHome';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
@@ -1100,13 +1105,50 @@ export default function App() {
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
-    const [currentView, setCurrentView] = useState<'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail'>('home');
+    type ViewType = 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail';
+    const [currentView, _setCurrentView] = useState<ViewType>('home');
+    const [history, setHistory] = useState<ViewType[]>(['home']);
+    const [historyIndex, setHistoryIndex] = useState(0);
+
+    const setCurrentView = (view: ViewType | ((prev: ViewType) => ViewType)) => {
+        if (typeof view === 'function') {
+            view = view(currentView);
+        }
+        if (view === currentView) return;
+        
+        if (view as any === 'Notifications') {
+            setShowNotifications(true);
+            return;
+        }
+        
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(view);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+        _setCurrentView(view);
+    };
+
+    const handleBack = () => {
+        if (historyIndex > 0) {
+            setHistoryIndex(historyIndex - 1);
+            _setCurrentView(history[historyIndex - 1]);
+        }
+    };
+
+    const handleForward = () => {
+        if (historyIndex < history.length - 1) {
+            setHistoryIndex(historyIndex + 1);
+            _setCurrentView(history[historyIndex + 1]);
+        }
+    };
+
     const [orgDetailId, setOrgDetailId] = useState<string | null>(null);
     const [authMode, setAuthMode] = useState<'login' | 'signup' | 'connect' | 'forgot' | 'reset'>('login');
     const [resetEmail, setResetEmail] = useState('');
     const [resetCode, setResetCode] = useState('');
     const [resetNewPassword, setResetNewPassword] = useState('');
     const [resetMsg, setResetMsg] = useState('');
+    const [showNotifications, setShowNotifications] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [signupName, setSignupName] = useState('');
@@ -1125,6 +1167,7 @@ export default function App() {
     const [showDiagnostics, setShowDiagnostics] = useState(false);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isRightBarOpen, setIsRightBarOpen] = useState(false);
 
     // Persistent Client ID for signaling stability (survives re-mounts/Strict Mode)
@@ -2813,7 +2856,7 @@ export default function App() {
 
 
     return (
-        <div className="h-screen w-full bg-[#F8F9FA] text-[#1C1C1C] flex overflow-hidden font-inter selection:bg-blue-500/20 select-none">
+        <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex overflow-hidden font-inter selection:bg-blue-500/20 select-none">
             <UpdateBanner />
             <SnowSplashScreen isReady={!loading} />
 
@@ -2898,17 +2941,15 @@ export default function App() {
                 </div>
             )}
 
-            {/* --- SNOW UI SIDEBAR NAV --- */}
+            {/* --- PREMIUM UI SIDEBAR NAV --- */}
             {isAuthenticated && (
-                <SnowSidebar
+                <SnowPremiumSidebar
                     currentView={currentView}
-                    selectedDevice={selectedDevice}
                     setCurrentView={(v: any) => { setCurrentView(v); setIsSidebarOpen(false); }}
-                    setSelectedDevice={setSelectedDevice}
                     handleLogout={handleLogout}
                     user={user}
-                    isOpen={isSidebarOpen}
-                    onClose={() => setIsSidebarOpen(false)}
+                    isCollapsed={isSidebarCollapsed}
+                    onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                 />
             )}
 
@@ -2920,98 +2961,82 @@ export default function App() {
                 />
             )}
 
-            <div className={`flex-1 flex overflow-hidden transition-all duration-300 relative ${isAuthenticated ? 'md:ml-[240px]' : ''}`}>
-                <main className="flex-1 flex flex-col overflow-hidden relative bg-white">
+            <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 relative bg-[#F4F7F9] rounded-l-[24px] shadow-2xl shadow-black/10 ${isAuthenticated ? (isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-64') : ''}`}>
+                <main className="flex-1 flex flex-col overflow-hidden relative bg-[#F4F7F9]">
                     {/* Workspace Header */}
-                    {/* Workspace Header - Hidden on Guest Home */}
                     {(isAuthenticated || ((currentView as any) !== 'home' && (currentView as any) !== 'settings')) && (
-                        <header className="h-[64px] flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(28,28,28,0.15)]">
-                        <div className="flex items-center gap-4">
-                            {/* Mobile Menu Toggle */}
-                            {isAuthenticated && (
-                                <button
-                                    onClick={() => setIsSidebarOpen(true)}
-                                    className="p-2 md:hidden hover:bg-[rgba(28,28,28,0.05)] rounded-lg transition-colors"
-                                >
-                                    <LayoutGrid size={20} className="text-[#1C1C1C]" />
-                                </button>
-                            )}
-
-                            <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-1.5 text-[9px] font-bold text-[#000000] uppercase tracking-widest hidden sm:flex">
-                                    <span className="hover:text-[#000000] cursor-pointer transition-colors" onClick={() => setCurrentView(isAuthenticated ? 'dashboard' : 'home')}>Connect-X</span>
-                                    <span>/</span>
-                                    <span className="text-[#000000]">{
-                                        selectedDevice ? 'Device Terminal' :
-                                            currentView === 'home' ? 'Home' :
-                                            currentView === 'dashboard' ? 'Overview' :
-                                                currentView === 'host' ? 'Host Device' :
-                                                    currentView === 'devices' ? 'All Devices' :
-                                                        currentView === 'members' ? 'Team Management' :
-                                                            currentView === 'organizations' ? 'Organizations' :
-                                                                currentView === 'settings' ? 'Settings' :
-                                                                    currentView === 'billing' ? 'Subscriptions' :
-                                                                        currentView === 'profile' ? 'Profile' :
-                                                                            currentView === 'support' ? 'Support' :
-                                                                                currentView === 'documentation' ? 'Documentation' :
-                                                                                    currentView === 'analytics' ? 'Platform Analytics' : currentView
-                                    }</span>
+                        <>
+                            <header className="h-[56px] flex items-center justify-between px-6 flex-shrink-0 z-10 w-full bg-white border-b border-[rgba(0,0,0,0.06)] font-sans">
+                                <div className="flex items-center gap-12">
+                                <div className="flex items-center gap-6">
+                                    <h1 className="text-base font-bold text-[#1C1C1C] tracking-tight min-w-[60px]">
+                                        {selectedDevice ? 'Terminal' :
+                                            (currentView === 'home' || currentView === 'dashboard') ? 'Home' :
+                                                currentView === 'host' ? 'Host' :
+                                                    currentView === 'devices' ? 'Devices' :
+                                                        currentView === 'settings' ? 'Settings' :
+                                                            currentView === 'billing' ? 'Billing' :
+                                                                currentView === 'profile' ? 'Profile' :
+                                                                    currentView === 'support' ? 'Support' :
+                                                                        currentView === 'documentation' ? 'Docs' : currentView}
+                                    </h1>
+                                    
+                                    <div className="flex items-center gap-4 text-[#757575]">
+                                        <button 
+                                            onClick={handleBack}
+                                            disabled={historyIndex === 0}
+                                            className={`transition-colors ${historyIndex > 0 ? 'hover:text-[#1C1C1C]' : 'opacity-30 cursor-not-allowed'}`}
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={handleForward}
+                                            disabled={historyIndex === history.length - 1}
+                                            className={`transition-colors ${historyIndex < history.length - 1 ? 'hover:text-[#1C1C1C]' : 'opacity-30 cursor-not-allowed'}`}
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <h1 className="text-base md:text-xl font-bold text-[#1C1C1C] tracking-tight truncate max-w-[140px] md:max-w-none">
-                                    {selectedDevice ? selectedDevice.device_name :
-                                        currentView === 'home' ? 'Home' :
-                                        currentView === 'dashboard' ? 'Overview' :
-                                            currentView === 'host' ? 'Host This Device' :
-                                                currentView === 'devices' ? 'All Devices' :
-                                                    currentView === 'members' ? 'Team Management' :
-                                                        currentView === 'organizations' ? 'Organizations' :
-                                                            currentView === 'settings' ? 'Settings' :
-                                                                currentView === 'billing' ? 'Subscriptions' :
-                                                                    currentView === 'profile' ? 'User Profile' :
-                                                                        currentView === 'support' ? 'Support Hub' :
-                                                                            currentView === 'documentation' ? 'Documentation' :
-                                                                                currentView === 'analytics' ? 'Platform Analytics' : currentView}
-                                </h1>
                             </div>
-                        </div>
 
-                        <div className="flex items-center gap-2 md:gap-4">
-                            {isAuthenticated && (
-                                <div className="hidden sm:flex items-center bg-[#F9F9FA] rounded-xl border border-[rgba(28,28,28,0.15)] pl-3.5 pr-1 py-1 transition-all w-44 md:w-60 h-9 focus-within:bg-white focus-within:border-[rgba(28,28,28,0.2)]">
-                                <Search className="w-3.5 h-3.5 text-[#1C1C1C] mr-2 flex-shrink-0" />
-                                <input
-                                    type="text"
-                                    placeholder="Search devices..."
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="bg-transparent text-[11px] font-medium text-[#1C1C1C] outline-none w-full placeholder:text-[#000000]"
-                                />
+                            <div className="flex-1 max-w-xl mx-8">
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#757575]">
+                                        <Search size={16} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Search and Connect"
+                                        className="w-full h-9 pl-11 pr-20 bg-white border border-[#D1D1D1] rounded-lg text-sm outline-none focus:border-blue-500 transition-all placeholder:text-[#757575]"
+                                    />
+                                    <div className="absolute inset-y-0 right-3 flex items-center">
+                                        <span className="text-[10px] font-medium text-[#757575] bg-[#F4F7F9] px-1.5 py-0.5 rounded border border-[#D1D1D1]">Ctrl + K</span>
+                                    </div>
                                 </div>
-                            )}
+                            </div>
 
-                            {isAuthenticated && (
+                            <div className="flex items-center gap-5 text-[#757575]">
+                                <button className="hover:text-[#1C1C1C] transition-colors" title="Documentation" onClick={() => setCurrentView('documentation')}><Book size={18} /></button>
+                                <button className="hover:text-[#1C1C1C] transition-colors" title="Settings" onClick={() => setCurrentView('settings')}><Settings size={18} /></button>
                                 <button 
-                                    onClick={async () => {
-                                        setIsRefreshing(true);
-                                        await pollDevices();
-                                        setTimeout(() => setIsRefreshing(false), 700);
-                                    }} 
-                                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[rgba(28,28,28,0.04)] text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors border border-transparent hover:border-[rgba(28,28,28,0.15)] group" 
-                                    title="Refresh"
+                                    className={`hover:text-[#1C1C1C] transition-colors relative ${showNotifications ? 'text-[#1C1C1C]' : ''}`} 
+                                    title="Notifications"
+                                    onClick={() => setShowNotifications(!showNotifications)}
                                 >
-                                    <RefreshCw className={`w-4 h-4 transition-transform duration-700 ${isRefreshing ? 'animate-spin' : 'group-active:rotate-180'}`} />
+                                    <Bell size={18} />
+                                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_4px_rgba(239,68,68,0.5)]" />
                                 </button>
-                            )}
 
-                            {/* User Avatar Dropdown */}
-                            {isAuthenticated ? (
+                                
+                                <div className="h-8 w-px bg-[rgba(0,0,0,0.06)] mx-1" />
+                                
                                 <div className="relative" ref={userDropdownRef}>
-                                    <button
+                                    <button 
                                         onClick={() => setShowUserDropdown(!showUserDropdown)}
-                                        className={`flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl transition-all group ${showUserDropdown ? 'bg-[rgba(28,28,28,0.08)]' : 'hover:bg-[rgba(28,28,28,0.04)]'}`}
-                                        title="Account Menu"
+                                        className="relative group cursor-pointer"
                                     >
-                                        <div className="w-8 h-8 rounded-xl bg-[#1C1C1C] flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0 shadow-lg shadow-black/10 group-hover:scale-105 transition-transform">
+                                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                                             {(() => {
                                                 const name = user?.name || user?.email || '';
                                                 const parts = name.trim().split(/\s+/);
@@ -3019,62 +3044,112 @@ export default function App() {
                                                 return name.slice(0, 2).toUpperCase();
                                             })()}
                                         </div>
-                                        <div className="hidden md:flex flex-col items-start">
-                                            <span className="text-[11px] font-bold text-[#1C1C1C] leading-none truncate max-w-[100px]">{user?.name || user?.email?.split('@')[0] || 'User'}</span>
-                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                                <span className="text-[9px] font-bold text-[#1C1C1C] uppercase tracking-wider opacity-60">{user?.role?.replace('_', ' ') || 'Member'}</span>
-                                                <ChevronDown size={10} className={`text-[#1C1C1C] opacity-40 transition-transform duration-300 ${showUserDropdown ? 'rotate-180' : ''}`} />
-                                            </div>
-                                        </div>
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#71DD8C] rounded-full border-2 border-white" />
                                     </button>
 
                                     {showUserDropdown && (
-                                        <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl border border-[rgba(28,28,28,0.08)] shadow-2xl p-2 animate-in fade-in slide-in-from-top-2 duration-200 z-[100]">
-                                            <div className="px-3 py-3 border-b border-[rgba(28,28,28,0.04)] mb-1">
-                                                <p className="text-[11px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest mb-1">Connected as</p>
-                                                <p className="text-xs font-bold text-[#1C1C1C] truncate">{user?.email}</p>
+                                        <div className="absolute top-full right-0 mt-3 w-64 bg-white rounded-xl border border-[rgba(0,0,0,0.08)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[100] font-sans">
+                                            {/* Profile Header */}
+                                            <div className="p-4 flex items-start gap-3">
+                                                <div className="relative">
+                                                    <div className="w-10 h-10 rounded-full bg-[#E91E63] flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                                                        {(() => {
+                                                            const name = user?.name || user?.email || '';
+                                                            const parts = name.trim().split(/\s+/);
+                                                            if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+                                                            return name.slice(0, 2).toUpperCase();
+                                                        })()}
+                                                    </div>
+                                                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#71DD8C] rounded-full border-2 border-white flex items-center justify-center">
+                                                        <Check size={7} className="text-white" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-semibold text-[#1C1C1C] leading-tight">{user?.name || 'User'}</span>
+                                                    <span className="text-[11px] font-bold text-blue-600 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
+                                                    <div className="flex items-center gap-1 mt-1 cursor-pointer hover:bg-gray-50 px-1.5 py-0.5 -ml-1.5 rounded transition-colors">
+                                                        <span className="text-xs text-[#757575]">Online</span>
+                                                        <ChevronDown size={12} className="text-[#757575]" />
+                                                    </div>
+                                                </div>
                                             </div>
-                                            
-                                            <button 
-                                                onClick={() => { setCurrentView('profile'); setShowUserDropdown(false); }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-bold text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
-                                            >
-                                                <User size={14} className="opacity-60" /> View Profile
-                                            </button>
-                                            
-                                            <button 
-                                                onClick={() => { setCurrentView('settings'); setShowUserDropdown(false); }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-bold text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
-                                            >
-                                                <Settings size={14} className="opacity-60" /> Preferences
-                                            </button>
 
-                                            <div className="h-px bg-[rgba(28,28,28,0.04)] my-1" />
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)]" />
                                             
-                                            <button 
-                                                onClick={() => { handleLogout(); setShowUserDropdown(false); }}
-                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[11px] font-bold text-red-600 hover:bg-red-50 transition-colors"
-                                            >
-                                                <LogOut size={14} /> Sign Out
-                                            </button>
+                                            {/* Navigation Section 1 */}
+                                            <div className="py-1">
+                                                <button 
+                                                    onClick={() => { setCurrentView('profile'); setShowUserDropdown(false); }}
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    <span>Edit profile</span>
+                                                </button>
+                                                <button 
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    <span>Management Console</span>
+                                                    <ExternalLink size={12} className="text-[#757575]" />
+                                                </button>
+                                                <button 
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    <span>Open Device Dock</span>
+                                                </button>
+                                            </div>
+
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)]" />
+
+                                            {/* Navigation Section 2 */}
+                                            <div className="py-1">
+                                                <button 
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    <span>Upgrade Plan</span>
+                                                    <ExternalLink size={12} className="text-[#757575]" />
+                                                </button>
+                                                <button 
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    <span>Customer Portal</span>
+                                                    <ExternalLink size={12} className="text-[#757575]" />
+                                                </button>
+                                                <button 
+                                                    className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    <span>Help</span>
+                                                    <ChevronRight size={12} className="text-[#757575]" />
+                                                </button>
+                                            </div>
+
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)]" />
+                                            
+                                            {/* Sign Out Section */}
+                                            <div className="py-1">
+                                                <button 
+                                                    onClick={() => { handleLogout(); setShowUserDropdown(false); }}
+                                                    className="w-full flex items-center px-4 py-2 text-[13px] text-[#1C1C1C] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                                                >
+                                                    Sign out
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={() => { setShowAuthModal(true); setAuthMode('login'); }}
-                                    className="px-4 py-2 rounded-xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest hover:bg-[rgba(28,28,28,0.04)] transition-colors"
-                                >
-                                    Sign In
-                                </button>
-                            )}
-                        </div>
-                        </header>
+                            </div>
+                            </header>
+                            
+                            {/* License Banner */}
+                            <div className="h-8 w-full flex items-center justify-center bg-[#EEF2FC] flex-shrink-0 font-sans border-b border-[rgba(0,0,0,0.03)]">
+                                <span className="text-[11px] text-[#4A4A4A]">
+                                    Free license (non-commercial use only) <button className="text-blue-600 hover:underline ml-1">Upgrade plan</button>
+                                </span>
+                            </div>
+                        </>
                     )}
 
-                    <div className={`flex-1 ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'} ${(isAuthenticated || (currentView as any) !== 'home' && currentView !== 'settings') ? 'px-8 pb-8' : ''}`}>
-                        {(!isAuthenticated || currentView === 'home' || currentView === 'settings') ? (
-                            <div className={`w-full h-full overflow-hidden animate-in fade-in duration-700 ${currentView === 'settings' && !isAuthenticated ? 'blur-sm' : ''}`}>
+                    <div className={`flex-1 ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+                        {(!isAuthenticated || currentView === 'home') ? (
+                            <div className={`w-full h-full overflow-hidden animate-in fade-in duration-700`}>
                                 <SnowHome
                                     localAuthKey={localAuthKey}
                                     hostStatus={hostStatus}
@@ -3104,10 +3179,32 @@ export default function App() {
                                     onConnectToHost={handleConnectToHost}
                                     onBackToStep1={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); setLockoutSeconds(0); }}
                                     onSignIn={() => { setShowAuthModal(true); setAuthMode('login'); }}
+                                    onSignUp={() => { setShowAuthModal(true); setAuthMode('signup'); }}
                                     onOpenSettings={() => setCurrentView('settings')}
                                     formatCode={formatCode}
                                     user={user}
                                     isRegistered={isLocalHostRegistered}
+                                />
+                            </div>
+                        ) : (currentView === 'dashboard' && !selectedDevice) ? (
+                            <div className="w-full flex flex-col animate-in fade-in duration-700">
+                                <SnowPremiumDashboard
+                                    user={user}
+                                    localAuthKey={localAuthKey}
+                                    devicePassword={devicePassword}
+                                    onNavigate={setCurrentView}
+                                    onConnect={() => setCurrentView('connect')}
+                                    onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
+                                    formatCode={formatCode}
+                                />
+                            </div>
+                        ) : (currentView === 'settings' && !selectedDevice) ? (
+                            <div className="w-full flex flex-col flex-1 animate-in fade-in duration-700 h-full overflow-hidden">
+                                <SnowPremiumSettings 
+                                    user={user}
+                                    logout={() => {
+                                        storeLogout();
+                                    }}
                                 />
                             </div>
                         ) : selectedDevice ? (
@@ -3151,28 +3248,6 @@ export default function App() {
                                         {viewerStatus === 'connecting' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <>Establish Link <Zap size={14} /></>}
                                     </button>
                                 </div>
-                            </div>
-                        ) : currentView === 'dashboard' ? (
-                            /* --- SNOW UI DASHBOARD VIEW --- */
-                            <div className="w-full animate-in fade-in duration-700">
-                                <SnowDashboard
-                                    devices={devices}
-                                    activeSessionCount={activeSessionCount}
-                                    telemetryHistory={telemetryHistory}
-                                    analytics={analyticsSummary}
-                                    user={user}
-                                    onNavigate={(view: any, filter: any) => {
-                                        if (view === 'devices') {
-                                            if (filter === 'online') setSearchQuery(':online');
-                                            else setSearchQuery('');
-                                            setCurrentView('devices');
-                                        } else if (view === 'sessions') {
-                                            setCurrentView('sessions' as any);
-                                        } else if (view === 'analytics') {
-                                            setCurrentView('analytics' as any);
-                                        }
-                                    }}
-                                />
                             </div>
                         ) : currentView === 'connect' ? (
                             /* --- QUICK CONNECT VIEW (AUTHENTICATED) --- */
@@ -3450,45 +3525,14 @@ export default function App() {
                     </div>
                 </main>
 
-
+                <SnowNotificationPanel 
+                    isOpen={showNotifications} 
+                    onClose={() => setShowNotifications(false)} 
+                />
             </div>
 
-            {/* MODALS LAYER */}
-            {currentView === 'settings' && (
-                 <>
-                    <SnowSettings
-                        serverIP={serverIP}
-                        isAutoHostEnabled={isAutoHostEnabled}
-                        setIsAutoHostEnabled={(val) => {
-                            setIsAutoHostEnabled(val);
-                            localStorage.setItem('is_auto_host_enabled', String(val));
-                            if (val && hostStatus !== 'status') {
-                                handleStartHosting();
-                            } else if (!val && hostStatus === 'status') {
-                                handleStopHosting();
-                            }
-                        }}
-                        onRenameDevice={() => setActionModal({ type: 'rename', device: null })}
-                        logout={handleLogout}
-                        onClose={() => setCurrentView(isAuthenticated ? 'dashboard' : 'home')}
-                    />
+            {/* MODALS LAYER - Removed old settings modal in favor of full-page SnowPremiumSettings */}
 
-                    {(user?.role === 'DEPARTMENT_MANAGER' || user?.role === 'SUPER_ADMIN' || user?.role === 'PLATFORM_OWNER') && (
-                        <div className="fixed inset-0 z-[110] pointer-events-none flex flex-col items-center justify-end pb-12">
-                            <div className="w-full max-w-4xl bg-white rounded-lg shadow-2xl p-8 border border-[rgba(28,28,28,0.1)] pointer-events-auto max-h-[40vh] overflow-y-auto">
-                                <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1 text-center">Organization Control</h2>
-                                <SnowOrgSettings />
-                                {user?.role === 'PLATFORM_OWNER' && (
-                                    <div className="pt-12 border-t border-[rgba(28,28,28,0.15)] mt-12">
-                                        <h2 className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] mb-8 ml-1 text-center">Platform Control</h2>
-                                        <SnowAdminSettings />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                 </>
-            )}
 
             {/* Set Password Before Hosting Modal */}
             {showSetPasswordModal && (

@@ -13,7 +13,7 @@
     "rebuild:native": "npm run install --workspaces --if-present",
     "mobile": "npm run start -w mobile",
     "mobile:android": "npm run android -w mobile",
-    "desktop": "npm run dev -w connect-x",
+    "desktop": "npm run dev -w remote-365",
     "db:generate": "npm run db:generate -w @remotelink/shared",
     "db:seed": "npm run seed -w @remotelink/shared",
     "release:desktop": "node scripts/release-desktop.mjs"
