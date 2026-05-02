@@ -102,9 +102,10 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden select-none font-lato">
+    <div className="flex flex-col h-screen w-full overflow-hidden select-none font-lato">
+      <div className="flex flex-1 min-h-0 w-full">
 
-      {/* ── Sidebar ─────────────────────────────────────────── */}
+        {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
         className="flex flex-col bg-[#0D1B3D] dark:bg-[#050505] text-white shrink-0 overflow-hidden transition-all duration-200 ease-in-out"
         style={{ width: collapsed ? 52 : 220 }}
@@ -204,16 +205,6 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
               {!collapsed && <span className="truncate">{item.label}</span>}
             </button>
           ))}
-        </div>
-
-        {/* Status */}
-        <div className={`border-t border-white/10 py-3 flex items-center gap-2 shrink-0 ${collapsed ? 'justify-center px-0' : 'px-4'}`}>
-          <div className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-emerald-400' : 'bg-gray-500'}`} />
-          {!collapsed && (
-            <span className="text-[10.5px] text-white/35 font-medium truncate">
-              {isOnline ? 'Ready to connect (secure connection)' : 'Not connected'}
-            </span>
-          )}
         </div>
       </aside>
 

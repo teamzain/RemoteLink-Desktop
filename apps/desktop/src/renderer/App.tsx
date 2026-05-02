@@ -2871,7 +2871,8 @@ export default function App() {
 
 
     return (
-        <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex overflow-hidden font-inter selection:bg-blue-500/20 select-none">
+        <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex flex-col overflow-hidden font-inter selection:bg-blue-500/20 select-none">
+            <div className="flex-1 flex flex-row min-h-0 w-full relative">
             <UpdateBanner />
             <SnowSplashScreen isReady={!loading} />
 
@@ -3221,7 +3222,7 @@ export default function App() {
                                 <SnowPremiumSettings 
                                     user={user}
                                     logout={() => {
-                                        storeLogout();
+                                        handleLogout();
                                     }}
                                 />
                             </div>
@@ -3702,6 +3703,15 @@ export default function App() {
                     </div>
                 </div>
             )}
+            </div>
+
+            {/* ── Global Footer ──────────────────────────────────── */}
+            <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center px-4 w-full z-[99999]">
+                <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                    {hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'Ready to connect (secure connection)' : 'Not connected'}
+                </span>
+            </footer>
         </div>
     );
 }
