@@ -83,7 +83,10 @@ export const SnowChat: React.FC = () => {
 
   // Helper to get the other participant in a 1-on-1 chat
   const getOtherParticipant = (conv: any) => {
-    return conv.participants?.find((p: any) => p.userId !== user?.id)?.user;
+    if (!conv || !conv.participants) return null;
+    const other = conv.participants.find((p: any) => p.userId !== user?.id);
+    if (other) return other.user;
+    return conv.participants[0]?.user;
   };
 
   const activeParticipant = activeConversation && !activeConversation.isGroup ? getOtherParticipant(activeConversation) : null;

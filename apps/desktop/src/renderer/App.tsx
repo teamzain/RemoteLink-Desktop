@@ -3473,14 +3473,16 @@ export default function App() {
                     </div>
 
                     {/* ── Global Footer (Inside Main) ────────────────────── */}
-                    <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center w-full z-[99999] overflow-hidden">
-                        <div className="flex-1 h-full flex items-center justify-start px-4">
-                            <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                                {hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'Ready to connect (secure connection)' : 'Not connected'}
-                            </span>
-                        </div>
-                    </footer>
+                    {!showSplash && !loading && (
+                        <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center w-full z-[99999] overflow-hidden">
+                            <div className="flex-1 h-full flex items-center justify-start px-4">
+                                <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                    {hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'Ready to connect (secure connection)' : 'Not connected'}
+                                </span>
+                            </div>
+                        </footer>
+                    )}
                 </main>
 
                 <SnowNotificationPanel 
