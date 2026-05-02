@@ -144,26 +144,28 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // 4. Rename a conversation
+  // 4. Rename a conversation (Updates NICKNAME for the requester)
   fastify.patch('/conversations/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = (request as any).userId;
     const { id } = request.params as { id: string };
     const { name } = request.body as { name: string };
 
     try {
-      // Ensure user is a participant
-      const participant = await (prisma as any).conversationParticipant.findUnique({
-        where: { conversationId_userId: { conversationId: id, userId } }
+      // Update nickname for the participant
+      await (prisma as any).conversationParticipant.update({
+        where: { conversationId_userId: { conversationId: id, userId } },
+        data: { nickname: name }
       });
 
-      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
-
-      const updated = await (prisma as any).conversation.update({
+      const updated = await (prisma as any).conversation.findUnique({
         where: { id },
-        data: { name },
         include: {
           participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
+            include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
+          },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: 'desc' }
           }
         }
       });
@@ -188,22 +190,11 @@ export default async function chatRoutes(fastify: FastifyInstance) {
 
       if (!participant) return reply.code(403).send({ error: 'Forbidden' });
 
-      // If it's a 1-on-1 chat, delete the whole conversation? 
-      // Or just remove the participant? 
-      // Usually, deleting a conversation for one person shouldn't delete it for the other.
-      // But for simplicity in this MVP, we remove the participant record.
-      await (prisma as any).conversationParticipant.delete({
-        where: { conversationId_userId: { conversationId: id, userId } }
+      // In a 1-on-1 chat, deleting usually means removing the conversation for BOTH if it's the only way to "clear" it.
+      // But for now, we just delete the whole conversation since we added Cascade.
+      await (prisma as any).conversation.delete({
+        where: { id }
       });
-
-      // If no participants left, delete the conversation entirely
-      const remaining = await (prisma as any).conversationParticipant.count({
-        where: { conversationId: id }
-      });
-
-      if (remaining === 0) {
-        await (prisma as any).conversation.delete({ where: { id } });
-      }
 
       return reply.send({ success: true });
     } catch (err) {

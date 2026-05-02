@@ -104,6 +104,19 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
     return conv.participants[0]?.user;
   };
 
+  const getChatName = (chat: any) => {
+    // 1. Check for nickname in current user's participant record
+    const myParticipant = chat.participants?.find((p: any) => p.userId === user?.id);
+    if (myParticipant?.nickname) return myParticipant.nickname;
+
+    // 2. Fallback to conversation name
+    if (chat.name) return chat.name;
+
+    // 3. Fallback to other participant's name
+    const other = getOtherParticipant(chat);
+    return other?.name || other?.email || 'Unknown Contact';
+  };
+
   const activeParticipant = activeConversation && !activeConversation.isGroup ? getOtherParticipant(activeConversation) : null;
 
   return (
@@ -161,17 +174,17 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
                     >
                       <div className="relative">
                         {otherUser?.avatar ? (
-                          <img src={otherUser.avatar} alt={otherUser.name} className="w-10 h-10 rounded-full object-cover" />
+                          <img src={otherUser.avatar} alt={getChatName(chat)} className="w-10 h-10 rounded-full object-cover" />
                         ) : (
                           <div className="w-10 h-10 rounded-full bg-[#CDE6E8] dark:bg-[#1A3A3D] text-[#1A3A3D] dark:text-[#8EE6EE] flex items-center justify-center font-medium">
-                            {otherUser?.name?.charAt(0) || '?'}
+                            {getChatName(chat).charAt(0)}
                           </div>
                         )}
                         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#0A0A0A] rounded-full"></div>
                       </div>
                       <div className="flex-1 min-w-0 text-left">
                         <div className="flex justify-between items-center mb-0.5">
-                          <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{otherUser?.name || otherUser?.email || 'Unknown Contact'}</span>
+                          <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{getChatName(chat)}</span>
                         </div>
                         <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
                       </div>
@@ -229,19 +242,19 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
             <div className="flex items-center gap-4">
               <div className="relative">
                 {activeParticipant?.avatar ? (
-                  <img src={activeParticipant.avatar} alt={activeParticipant.name} className="w-[52px] h-[52px] rounded-full object-cover" />
+                  <img src={activeParticipant.avatar} alt={getChatName(activeConversation)} className="w-[52px] h-[52px] rounded-full object-cover" />
                 ) : (
                   <div className="w-[52px] h-[52px] bg-[#CDE6E8] dark:bg-[#1A3A3D] text-[#1A3A3D] dark:text-[#8EE6EE] rounded-full flex items-center justify-center text-xl font-medium">
-                    {activeParticipant?.name?.charAt(0) || activeConversation?.name?.charAt(0) || '#'}
+                    {getChatName(activeConversation).charAt(0)}
                   </div>
                 )}
               </div>
               <div>
                 <h2 className="text-[20px] font-medium text-[#111111] dark:text-[#F5F5F5]">
-                  {activeParticipant?.name || activeParticipant?.email || activeConversation?.name || 'Chat'}
+                  {getChatName(activeConversation)}
                 </h2>
                 <p className="text-[14px] text-gray-500 dark:text-[#A0A0A0]">
-                  {activeParticipant?.email || 'Group members'}
+                  {activeParticipant?.email || 'Direct Message'}
                 </p>
               </div>
             </div>
