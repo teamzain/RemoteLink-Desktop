@@ -74,8 +74,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoading: false,
 
   setActiveChat: (id) => {
+    console.log('[chatStore] setActiveChat called with:', id);
     set({ activeChatId: id });
     if (id && !get().messages[id]) {
+      console.log('[chatStore] Fetching messages for:', id);
       get().fetchMessages(id);
     }
   },

@@ -1099,6 +1099,7 @@ export default function App() {
 
     const [loading, setLoading] = useState(true);
     const [showSplash, setShowSplash] = useState(false);
+    const [isSplashComplete, setIsSplashComplete] = useState(false);
     const { user, accessToken, temp2faToken, login: storeLogin, verify2fa: storeVerify2fa, setTemp2faToken, register: storeRegister, requestVerification: storeRequestVerification, logout: storeLogout, checkAuth, setAuth } = useAuthStore();
 
     // --- Global Theme & Font Size ---
@@ -2883,7 +2884,7 @@ export default function App() {
         <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex flex-col overflow-hidden font-inter selection:bg-blue-500/20 select-none">
             <div className="flex-1 flex flex-row min-h-0 w-full relative">
             <UpdateBanner />
-            <SnowSplashScreen isReady={!loading} />
+            <SnowSplashScreen isReady={!loading} onFinished={() => setIsSplashComplete(true)} />
 
             {/* THEATER MODE VIEWER (Standard or Dedicated Window) */}
             {isViewerWindow && (
@@ -3473,7 +3474,7 @@ export default function App() {
                     </div>
 
                     {/* ── Global Footer (Inside Main) ────────────────────── */}
-                    {!showSplash && !loading && (
+                    {!showSplash && isSplashComplete && (
                         <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center w-full z-[99999] overflow-hidden">
                             <div className="flex-1 h-full flex items-center justify-start px-4">
                                 <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import logo from '../assets/logo.png';
 import { Link } from 'lucide-react';
 
-export const SnowSplashScreen: React.FC<{ isReady: boolean }> = ({ isReady }) => {
+export const SnowSplashScreen: React.FC<{ isReady: boolean, onFinished?: () => void }> = ({ isReady, onFinished }) => {
   const [shouldRender, setShouldRender] = useState(true);
   const [fadeStatus, setFadeStatus] = useState<'in' | 'out'>('in');
 
@@ -10,7 +10,10 @@ export const SnowSplashScreen: React.FC<{ isReady: boolean }> = ({ isReady }) =>
     if (isReady) {
       setTimeout(() => {
         setFadeStatus('out');
-        setTimeout(() => setShouldRender(false), 800);
+        setTimeout(() => {
+          setShouldRender(false);
+          onFinished?.();
+        }, 800);
       }, 1500); // Show for at least 1.5s for branding impact
     }
   }, [isReady]);

@@ -85,6 +85,12 @@ export const SnowChat: React.FC = () => {
   const getOtherParticipant = (conv: any) => {
     if (!conv || !conv.participants) return null;
     const other = conv.participants.find((p: any) => p.userId !== user?.id);
+    console.log('[SnowChat] getOtherParticipant:', {
+      convId: conv.id,
+      myId: user?.id,
+      participants: conv.participants.map((p: any) => p.userId),
+      foundOther: other?.userId
+    });
     if (other) return other.user;
     return conv.participants[0]?.user;
   };
@@ -134,7 +140,10 @@ export const SnowChat: React.FC = () => {
                   return (
                     <button
                       key={chat.id || `direct-${idx}`}
-                      onClick={() => setActiveChat(chat.id)}
+                      onClick={() => {
+                        console.log('[SnowChat] Clicking conversation:', chat.id);
+                        setActiveChat(chat.id);
+                      }}
                       className={`w-full flex items-center gap-3 p-2 rounded-xl transition-colors ${
                         activeChatId === chat.id 
                           ? 'bg-[#F0F2F5] dark:bg-[#1C1C1C]' 
