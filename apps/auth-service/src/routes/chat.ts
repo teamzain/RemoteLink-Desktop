@@ -27,7 +27,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         },
         include: {
           participants: {
-            include: { user: { select: { id: true, name: true, email: true, avatar: true } } }
+            include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
           },
           messages: {
             take: 1,
@@ -36,6 +36,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         },
         orderBy: { updatedAt: 'desc' }
       });
+
+      console.log(`[Chat API] Fetched ${conversations.length} conversations for user ${userId}`);
 
       return reply.send(conversations);
     } catch (err) {
@@ -128,6 +130,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       const conversation = await (prisma as any).conversation.create({
         data: {
           isGroup: false,
+          status: 'PENDING',
           participants: {
             create: userId === targetUser.id ? [{ userId }] : [{ userId }, { userId: targetUser.id }]
           }
@@ -228,6 +231,58 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true });
     } catch (err) {
       console.error('[Chat API] Failed to delete conversation', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 6. Accept a conversation invite
+  fastify.post('/conversations/:id/accept', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      const participant = await (prisma as any).conversationParticipant.findFirst({
+        where: { conversationId: id, userId }
+      });
+
+      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+
+      const updated = await (prisma as any).conversation.update({
+        where: { id },
+        data: { status: 'ACCEPTED' },
+        include: {
+          participants: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
+          }
+        }
+      });
+
+      return reply.send(updated);
+    } catch (err) {
+      console.error('[Chat API] Failed to accept invite', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 7. Reject a conversation invite
+  fastify.post('/conversations/:id/reject', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      const participant = await (prisma as any).conversationParticipant.findFirst({
+        where: { conversationId: id, userId }
+      });
+
+      if (!participant) return reply.code(403).send({ error: 'Forbidden' });
+
+      await (prisma as any).conversation.delete({
+        where: { id }
+      });
+
+      return reply.send({ success: true });
+    } catch (err) {
+      console.error('[Chat API] Failed to reject invite', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });

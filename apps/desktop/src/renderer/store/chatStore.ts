@@ -21,9 +21,10 @@ export interface ChatConversation {
   id: string;
   isGroup: boolean;
   name: string | null;
-  participants: { userId: string; user: ChatUser }[];
+  participants: { userId: string; user: ChatUser; nickname?: string | null }[];
   messages: ChatMessage[];
   updatedAt: string;
+  status?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
 }
 
 interface ChatState {
@@ -42,6 +43,8 @@ interface ChatState {
   sendMessage: (conversationId: string, content: string) => void;
   renameConversation: (id: string, name: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
+  acceptInvite: (id: string) => Promise<void>;
+  rejectInvite: (id: string) => Promise<void>;
   connectWebSocket: () => Promise<void>;
   disconnectWebSocket: () => void;
 }
@@ -159,6 +162,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
     } catch (err) {
       console.error('[ChatStore] Failed to delete conversation', err);
+    }
+  },
+
+  acceptInvite: async (id: string) => {
+    try {
+      const { data } = await api.post(`/api/chat/conversations/${id}/accept`);
+      set((state) => ({
+        conversations: state.conversations.map(c => c.id === id ? data : c)
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to accept invite', err);
+    }
+  },
+
+  rejectInvite: async (id: string) => {
+    try {
+      await api.post(`/api/chat/conversations/${id}/reject`);
+      set((state) => ({
+        conversations: state.conversations.filter(c => c.id !== id),
+        activeChatId: state.activeChatId === id ? null : state.activeChatId
+      }));
+    } catch (err) {
+      console.error('[ChatStore] Failed to reject invite', err);
     }
   },
 

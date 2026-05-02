@@ -31,6 +31,8 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
     sendMessage, 
     renameConversation,
     deleteConversation,
+    acceptInvite,
+    rejectInvite,
     connectWebSocket, 
     disconnectWebSocket 
   } = useChatStore();
@@ -105,15 +107,23 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
   };
 
   const getChatName = (chat: any) => {
+    if (!chat) return 'Chat';
+    
     // 1. Check for nickname in current user's participant record
     const myParticipant = chat.participants?.find((p: any) => p.userId === user?.id);
-    if (myParticipant?.nickname) return myParticipant.nickname;
+    if (myParticipant?.nickname) {
+      console.log(`[SnowChat] Using nickname for ${chat.id}:`, myParticipant.nickname);
+      return myParticipant.nickname;
+    }
 
     // 2. Fallback to conversation name
     if (chat.name) return chat.name;
 
     // 3. Fallback to other participant's name
     const other = getOtherParticipant(chat);
+    if (!other) {
+      console.warn(`[SnowChat] No other participant found for ${chat.id}. Participants:`, chat.participants);
+    }
     return other?.name || other?.email || 'Unknown Contact';
   };
 
@@ -301,87 +311,116 @@ export const SnowChat: React.FC<{ setCurrentView?: (view: any) => void }> = ({ s
             </div>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-8 space-y-6">
-            {activeMessages.length === 0 && (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                No messages yet. Send a message to start the conversation!
-              </div>
-            )}
-            
-            {activeMessages.map(msg => {
-              const isMine = msg.senderId === user?.id;
-              
-              if (isMine) {
-                return (
-                  <div key={msg.id} className="flex justify-end">
-                    <div className="max-w-[500px]">
-                      <div className="flex justify-end gap-3 mb-1">
-                        <span className="text-[12px] text-gray-400">
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="font-semibold text-[#111111] dark:text-[#F5F5F5] text-[14px]">You</span>
-                      </div>
-                      <div className="bg-[#EAF3FA] dark:bg-[#162740] text-[#111111] dark:text-[#F5F5F5] px-5 py-3 rounded-2xl rounded-tr-sm text-[14px] leading-relaxed shadow-sm">
-                        {msg.content}
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div key={msg.id} className="flex gap-4 max-w-[600px]">
-                  <div className="w-8 h-8 rounded-full bg-[#CDE6E8] dark:bg-[#1A3A3D] text-[#1A3A3D] dark:text-[#8EE6EE] flex items-center justify-center text-sm font-medium shrink-0 relative mt-1">
-                    {msg.sender?.name?.charAt(0) || '?'}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="font-semibold text-[#111111] dark:text-[#F5F5F5] text-[14px]">
-                        {msg.sender?.name || 'Unknown User'}
-                      </span>
-                      <span className="text-[12px] text-gray-400">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <div className="bg-[#F0F2F5] dark:bg-[#141414] text-[#111111] dark:text-[#F5F5F5] px-5 py-3 rounded-2xl rounded-tl-sm text-[14px] leading-relaxed">
-                      {msg.content}
-                    </div>
-                  </div>
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 bg-white dark:bg-[#080808]">
+            {activeConversation?.status === 'PENDING' ? (
+              <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                <div className="w-20 h-20 bg-blue-50 dark:bg-blue-500/10 text-blue-600 rounded-full flex items-center justify-center mb-6">
+                  <Plus size={40} />
                 </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
+                <h3 className="text-[24px] font-bold text-[#111111] dark:text-[#F5F5F5] mb-2">Pending Invitation</h3>
+                <p className="text-[15px] text-gray-500 dark:text-[#A0A0A0] mb-8 leading-relaxed">
+                  {activeConversation.participants?.[0]?.userId === user?.id 
+                    ? "Waiting for the other person to accept your chat request. You can't send messages until they accept."
+                    : "This person wants to chat with you. Accept the invitation to start exchanging messages."
+                  }
+                </p>
+                
+                {activeConversation.participants?.[0]?.userId !== user?.id && (
+                  <div className="flex gap-4 w-full">
+                    <button 
+                      onClick={() => acceptInvite(activeChatId!)}
+                      className="flex-1 py-4 bg-[#1C202B] text-white text-[14px] font-bold rounded-2xl hover:bg-[#2A2F3D] transition-all shadow-xl shadow-black/10"
+                    >
+                      Accept Chat
+                    </button>
+                    <button 
+                      onClick={() => rejectInvite(activeChatId!)}
+                      className="flex-1 py-4 bg-gray-100 dark:bg-white/5 text-gray-800 dark:text-white text-[14px] font-bold rounded-2xl hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                    >
+                      Ignore
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {activeMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 text-gray-400 rounded-full flex items-center justify-center mb-4">
+                      <FileText size={32} />
+                    </div>
+                    <h3 className="text-[18px] font-medium text-gray-900 dark:text-gray-100 mb-1">No messages yet</h3>
+                    <p className="text-[14px] text-gray-500 dark:text-gray-400">Send a message to start the conversation</p>
+                  </div>
+                ) : (
+                  activeMessages.map((msg, idx) => {
+                    const isMe = msg.senderId === user?.id;
+                    const sender = msg.sender;
+                    
+                    return (
+                      <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex gap-3 max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div className="flex-shrink-0 mt-1">
+                            {sender?.avatar ? (
+                              <img src={sender.avatar} alt={sender.name} className="w-8 h-8 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-8 h-8 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-[#A0A0A0] rounded-full flex items-center justify-center text-[12px] font-medium">
+                                {sender?.name?.charAt(0) || '?'}
+                              </div>
+                            )}
+                          </div>
+                          <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            <div className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed ${
+                              isMe 
+                                ? 'bg-[#1C202B] text-white rounded-tr-none' 
+                                : 'bg-[#F0F2F5] dark:bg-white/5 text-[#111111] dark:text-[#F5F5F5] rounded-tl-none'
+                            }`}>
+                              {msg.content}
+                            </div>
+                            <span className="text-[11px] text-gray-400 mt-1">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={messagesEndRef} />
+              </>
+            )}
           </div>
 
           {/* Input Area */}
-          <div className="p-6 shrink-0 border-t border-transparent dark:border-white/5">
-            <div className="flex items-center gap-3 bg-white dark:bg-[#141414] border border-gray-200 dark:border-white/10 rounded-2xl p-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900 transition-all">
-              <button className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-[#F5F5F5] transition-colors shrink-0">
-                <Paperclip size={20} />
-              </button>
-              <input 
-                type="text" 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSend();
-                }}
-                placeholder="Type here..." 
-                className="flex-1 bg-transparent text-[14px] text-[#111111] dark:text-[#F5F5F5] placeholder:text-gray-400 outline-none"
-              />
-              <button className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-[#F5F5F5] transition-colors shrink-0">
-                <Smile size={20} />
-              </button>
-              <button 
-                onClick={handleSend}
-                disabled={!inputText.trim()}
-                className="w-10 h-10 bg-[#1C202B] disabled:opacity-50 text-white rounded-xl flex items-center justify-center hover:bg-[#2A2F3D] transition-colors shrink-0"
-              >
-                <CornerDownLeft size={18} />
-              </button>
+          {activeConversation?.status === 'ACCEPTED' && (
+            <div className="p-6 bg-white dark:bg-[#080808] border-t border-gray-100 dark:border-white/5 shrink-0">
+              <div className="relative flex items-center gap-3">
+                <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0] transition-colors">
+                  <Paperclip size={20} />
+                </button>
+                <div className="flex-1 relative">
+                  <input 
+                    type="text" 
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder="Type your message..." 
+                    className="w-full bg-[#F0F2F5] dark:bg-white/5 text-[#111111] dark:text-[#F5F5F5] placeholder:text-gray-400 rounded-2xl py-3.5 pl-4 pr-12 text-[14px] outline-none focus:bg-white dark:focus:bg-[#1A1A1A] border border-transparent focus:border-gray-200 dark:focus:border-white/10 transition-all"
+                  />
+                  <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0] transition-colors">
+                    <Smile size={20} />
+                  </button>
+                </div>
+                <button 
+                  onClick={handleSend}
+                  className="w-12 h-12 bg-[#1C202B] text-white rounded-2xl flex items-center justify-center hover:bg-[#2A2F3D] transition-all shadow-lg shadow-black/10 active:scale-95"
+                >
+                  <CornerDownLeft size={20} />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#080808] text-gray-400">

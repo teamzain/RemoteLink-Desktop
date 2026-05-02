@@ -140,8 +140,15 @@ async function startServer() {
             if (!conversationId || !content) break;
 
             try {
+              // 0. Check if conversation is accepted
+              const conv = await (prisma as any).conversation.findUnique({ where: { id: conversationId } });
+              if (conv?.status === 'PENDING') {
+                ws.send(JSON.stringify({ type: 'chat-error', error: 'Conversation pending acceptance' }));
+                break;
+              }
+
               // 1. Save to DB
-              const message = await prisma.message.create({
+              const message = await (prisma as any).message.create({
                 data: {
                   conversationId,
                   senderId,
@@ -153,18 +160,18 @@ async function startServer() {
               });
 
               // Update the conversation updatedAt
-              await prisma.conversation.update({
+              await (prisma as any).conversation.update({
                 where: { id: conversationId },
                 data: { updatedAt: new Date() }
               });
 
               // 2. Fetch participants to broadcast
-              const participants = await prisma.conversationParticipant.findMany({
+              const participants = await (prisma as any).conversationParticipant.findMany({
                 where: { conversationId },
                 select: { userId: true }
               });
 
-              const targetUserIds = participants.map(p => p.userId);
+              const targetUserIds = participants.map((p: any) => p.userId);
 
               // 3. Publish to Redis cluster
               await redisPublisher.publish('chat:new-message', JSON.stringify({
