@@ -16,6 +16,10 @@ const localClients = new Map<string, WebSocket>();
 const sessionRegistry = new Map<string, string>(); // sessionId -> hostConnectionId
 const reverseRegistry = new Map<string, string>(); // hostConnectionId -> sessionId
 const viewerRegistry = new Map<string, string>(); // viewerConnectionId -> sessionId
+// Map meetingId -> Set of connectionIds
+const meetingRooms = new Map<string, Set<string>>();
+// connectionId -> meetingId (for cleanup)
+const connectionToMeeting = new Map<string, string>();
 // Pending connections waiting for host approval
 const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
 
@@ -351,6 +355,98 @@ async function startServer() {
               }));
             }
             break;
+
+          case 'meeting-join': {
+            const { meetingId, user } = data;
+            if (!meetingId) break;
+
+            console.log(`[Signaling] User ${user?.name || connectionId} joining meeting: ${meetingId}`);
+            
+            if (!meetingRooms.has(meetingId)) {
+              meetingRooms.set(meetingId, new Set());
+            }
+            
+            const room = meetingRooms.get(meetingId)!;
+            
+            // Notify others in the room
+            const joinNotification = JSON.stringify({
+              type: 'meeting-participant-joined',
+              meetingId,
+              participant: {
+                connectionId,
+                user: user || { id: connectionToUser.get(connectionId), name: 'Unknown' }
+              }
+            });
+
+            for (const participantId of room) {
+              const pWs = localClients.get(participantId);
+              if (pWs && pWs.readyState === WebSocket.OPEN) {
+                pWs.send(joinNotification);
+              }
+            }
+
+            room.add(connectionId);
+            connectionToMeeting.set(connectionId, meetingId);
+
+            // Send current participants to the new joiner
+            const participants = [];
+            for (const pId of room) {
+              if (pId !== connectionId) {
+                participants.push({ connectionId: pId });
+              }
+            }
+
+            ws.send(JSON.stringify({
+              type: 'meeting-joined',
+              meetingId,
+              participants
+            }));
+            break;
+          }
+
+          case 'meeting-signal': {
+            const { targetConnectionId, signal, meetingId } = data;
+            if (!targetConnectionId || !signal) break;
+
+            const tWs = localClients.get(targetConnectionId);
+            if (tWs && tWs.readyState === WebSocket.OPEN) {
+              tWs.send(JSON.stringify({
+                type: 'meeting-signal',
+                senderConnectionId: connectionId,
+                signal,
+                meetingId
+              }));
+            }
+            break;
+          }
+
+          case 'meeting-leave': {
+            const mId = data.meetingId || connectionToMeeting.get(connectionId);
+            if (!mId) break;
+
+            const room = meetingRooms.get(mId);
+            if (room) {
+              room.delete(connectionId);
+              if (room.size === 0) {
+                meetingRooms.delete(mId);
+              } else {
+                // Notify others
+                const leaveNotification = JSON.stringify({
+                  type: 'meeting-participant-left',
+                  meetingId: mId,
+                  participantConnectionId: connectionId
+                });
+                for (const pId of room) {
+                  const pWs = localClients.get(pId);
+                  if (pWs && pWs.readyState === WebSocket.OPEN) {
+                    pWs.send(leaveNotification);
+                  }
+                }
+              }
+            }
+            connectionToMeeting.delete(connectionId);
+            break;
+          }
         }
       } catch (err) {
         console.error('[Signaling] Failed to process message', err);
@@ -412,6 +508,31 @@ async function startServer() {
         }
         viewerRegistry.delete(connectionId);
         broadcastGlobalStats();
+      }
+
+      // Meeting cleanup
+      const meetingId = connectionToMeeting.get(connectionId);
+      if (meetingId) {
+        const room = meetingRooms.get(meetingId);
+        if (room) {
+          room.delete(connectionId);
+          if (room.size === 0) {
+            meetingRooms.delete(meetingId);
+          } else {
+            const leaveNotification = JSON.stringify({
+              type: 'meeting-participant-left',
+              meetingId,
+              participantConnectionId: connectionId
+            });
+            for (const pId of room) {
+              const pWs = localClients.get(pId);
+              if (pWs && pWs.readyState === WebSocket.OPEN) {
+                pWs.send(leaveNotification);
+              }
+            }
+          }
+        }
+        connectionToMeeting.delete(connectionId);
       }
     });
 
@@ -493,9 +614,7 @@ async function startServer() {
       try {
         const payload = JSON.parse(message);
         const { organizationId, type } = payload;
-
         console.log(`[Signaling] Received Org Update: ${type} for ${organizationId}`);
-
         // Broadcast to all clients subscribed to this organization
         const updateMsg = JSON.stringify({ type: 'team-update', payload });
         for (const [connId, subOrgId] of orgSubscriptions.entries()) {
@@ -513,7 +632,6 @@ async function startServer() {
       try {
         const payload = JSON.parse(message);
         const { targetUserIds } = payload;
-        
         // Broadcast to all active connections for the target users
         targetUserIds.forEach((userId: string) => {
           const conns = userConnections.get(userId);
@@ -533,7 +651,6 @@ async function startServer() {
       try {
         const payload = JSON.parse(message);
         const { targetUserId, conversation } = payload;
-        
         const conns = userConnections.get(targetUserId);
         if (conns) {
           conns.forEach(connId => {
@@ -553,7 +670,6 @@ async function startServer() {
       try {
         const payload = JSON.parse(message);
         const { targetUserIds } = payload;
-
         targetUserIds.forEach((userId: string) => {
           const conns = userConnections.get(userId);
           if (conns) {
@@ -572,7 +688,6 @@ async function startServer() {
       try {
         const payload = JSON.parse(message);
         const { targetUserIds } = payload;
-
         targetUserIds.forEach((userId: string) => {
           const conns = userConnections.get(userId);
           if (conns) {

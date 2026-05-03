@@ -25,7 +25,8 @@ const sendSessionInviteEmail = async ({
   sessionCode,
   sessionPassword,
   sessionLink,
-  isExistingUser
+  isExistingUser,
+  sessionType = 'REMOTE_CONTROL'
 }: {
   to: string;
   senderName: string;
@@ -34,6 +35,7 @@ const sendSessionInviteEmail = async ({
   sessionPassword?: string;
   sessionLink: string;
   isExistingUser: boolean;
+  sessionType?: string;
 }) => {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.log(`[Session Invite] SMTP not configured. Invite for ${to}: ${sessionLink}`);
@@ -47,27 +49,31 @@ const sendSessionInviteEmail = async ({
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
   });
 
+  const isMeeting = sessionType === 'VIDEO_MEETING';
+  const typeLabel = isMeeting ? 'Video Meeting' : 'Remote 365 Session';
+  const actionLabel = isMeeting ? 'Join meeting' : 'Join session';
+
   const installUrl = getInviteInstallUrl();
   const installCopy = isExistingUser
-    ? 'Open Remote 365 to join from your notification, or use the link below.'
-    : 'Install Remote 365 first, then open this invite link to join the session.';
+    ? `Open Remote 365 to join from your notification, or use the link below.`
+    : `Install Remote 365 first, then open this invite link to join the ${isMeeting ? 'meeting' : 'session'}.`;
 
   await transporter.sendMail({
     from: `"Remote 365" <${process.env.SMTP_USER}>`,
     to,
-    subject: `${senderName} invited you to a Remote 365 session`,
+    subject: `${senderName} invited you to a ${typeLabel}`,
     text: `${senderName} invited you to ${sessionName}.\n\nJoin link: ${sessionLink}\nSession code: ${sessionCode}${sessionPassword ? `\nPassword: ${sessionPassword}` : ''}\n\n${installCopy}\nDownload: ${installUrl}`,
     html: `
       <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:28px;color:#172033">
-        <h2 style="margin:0 0 12px">${senderName} invited you to a Remote 365 session</h2>
+        <h2 style="margin:0 0 12px">${senderName} invited you to a ${typeLabel}</h2>
         <p style="color:#667085;margin:0 0 22px">${installCopy}</p>
         <div style="background:#f5f7fb;border:1px solid #e8edf5;border-radius:14px;padding:18px;margin-bottom:22px">
-          <p style="margin:0 0 8px;color:#667085;font-size:13px">Session</p>
+          <p style="margin:0 0 8px;color:#667085;font-size:13px">${isMeeting ? 'Meeting' : 'Session'}</p>
           <p style="margin:0 0 12px;font-size:18px;font-weight:700">${sessionName}</p>
           <p style="margin:0;color:#667085;font-size:13px">Code: <strong style="color:#172033">${sessionCode}</strong></p>
           ${sessionPassword ? `<p style="margin:6px 0 0;color:#667085;font-size:13px">Password: <strong style="color:#172033">${sessionPassword}</strong></p>` : ''}
         </div>
-        <a href="${sessionLink}" style="display:inline-block;background:#1D6DF5;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">Join session</a>
+        <a href="${sessionLink}" style="display:inline-block;background:#1D6DF5;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">${actionLabel}</a>
         <p style="margin-top:22px;color:#667085;font-size:13px">Need the app? Download it here: <a href="${installUrl}">${installUrl}</a></p>
       </div>
     `
@@ -244,21 +250,17 @@ export default async function chatRoutes(fastify: FastifyInstance) {
   // the invite is stored as a structured chat message so it appears instantly.
   fastify.post('/session-invites', async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = (request as any).userId;
-    const {
-      conversationId,
-      email,
-      sessionName,
-      sessionCode,
-      sessionPassword,
-      sessionLink
-    } = request.body as {
-      conversationId?: string;
+    const { email, conversationId, sessionName, sessionCode, sessionPassword, sessionLink, type } = request.body as {
       email?: string;
-      sessionName?: string;
-      sessionCode?: string;
+      conversationId?: string;
+      sessionName: string;
+      sessionCode: string;
       sessionPassword?: string;
-      sessionLink?: string;
+      sessionLink: string;
+      type?: string;
     };
+
+    const sessionType = type || 'REMOTE_CONTROL';
 
     const cleanEmail = email?.trim().toLowerCase();
     const cleanCode = String(sessionCode || '').replace(/\s/g, '');
@@ -327,6 +329,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           joinLink: getSafeJoinLink(sessionLink),
           conversationId: conversationId || null,
           createdById: userId,
+          type: sessionType,
           collaborators: {
             create: collaboratorUsers.map((collaborator: any) => ({
               userId: collaborator.userId || null,
@@ -351,6 +354,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         sessionCode: cleanCode,
         sessionPassword: sessionPassword || '',
         sessionLink,
+        sessionType,
         senderName,
         createdAt: new Date().toISOString()
       };
@@ -397,7 +401,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
           sessionCode: cleanCode,
           sessionPassword,
           sessionLink,
-          isExistingUser: Boolean(targetUserIds.length)
+          isExistingUser: Boolean(targetUserIds.length),
+          sessionType
         }).catch((err: any) => {
           console.error(`[Session Invite] Email failed for ${to}:`, err.message);
         })

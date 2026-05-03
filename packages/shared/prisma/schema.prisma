@@ -292,6 +292,7 @@ model RemoteSession {
   joinLink       String?                     @db.Text
   conversationId String?
   createdById    String
+  type           String                      @default("REMOTE_CONTROL") // REMOTE_CONTROL or VIDEO_MEETING
   status         String                      @default("ACTIVE")
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt

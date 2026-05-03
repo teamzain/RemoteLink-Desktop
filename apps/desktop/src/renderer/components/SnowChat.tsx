@@ -45,7 +45,8 @@ export const SnowChat: React.FC<{
   localAuthKey?: string | null;
   devicePassword?: string;
   onJoinSessionInvite?: (code: string, password?: string) => void;
-}> = ({ setCurrentView, localAuthKey, devicePassword, onJoinSessionInvite }) => {
+  onJoinMeeting?: (meetingId: string) => void;
+}> = ({ setCurrentView, localAuthKey, devicePassword, onJoinSessionInvite, onJoinMeeting }) => {
   const { user } = useAuthStore();
   const { 
     conversations, 
@@ -81,6 +82,9 @@ export const SnowChat: React.FC<{
   const [groupName, setGroupName] = useState('');
   const [groupEmails, setGroupEmails] = useState('');
   const [memberEmails, setMemberEmails] = useState('');
+  const [sessionCode, setSessionCode] = useState('');
+  const [sessionPassword, setSessionPassword] = useState('');
+  const [sessionType, setSessionType] = useState<'REMOTE_CONTROL' | 'VIDEO_MEETING'>('REMOTE_CONTROL');
   const [sessionInviteEmail, setSessionInviteEmail] = useState('');
   const [sessionName, setSessionName] = useState('Remote support session');
   const [sessionInviteStatus, setSessionInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -213,8 +217,8 @@ export const SnowChat: React.FC<{
 
   const activeParticipant = activeConversation && !activeConversation.isGroup ? getOtherParticipant(activeConversation) : null;
   const activeGroupMembers = activeConversation?.isGroup ? (activeConversation.participants || []) : [];
-  const sessionCode = (localAuthKey || '').replace(/\s/g, '');
-  const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCode)}&password=${encodeURIComponent(devicePassword || '')}`;
+  const sessionCodeGenerated = (localAuthKey || '').replace(/\s/g, '');
+  const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCodeGenerated)}&password=${encodeURIComponent(devicePassword || '')}`;
 
   const handleOpenSessionModal = () => {
     setSessionInviteEmail(activeConversation?.isGroup ? '' : (activeParticipant?.email || ''));
@@ -225,7 +229,7 @@ export const SnowChat: React.FC<{
   };
 
   const handleSendSessionInvite = async () => {
-    if (!activeChatId || !sessionCode) {
+    if (!activeChatId || !sessionCodeGenerated) {
       setSessionInviteStatus('error');
       setSessionInviteMessage('This device is still getting its RemoteLink ID.');
       return;
@@ -238,9 +242,10 @@ export const SnowChat: React.FC<{
         conversationId: activeChatId,
         email: sessionInviteEmail.trim() || undefined,
         sessionName,
-        sessionCode,
-        sessionPassword: devicePassword,
-        sessionLink
+        sessionCode: sessionCodeGenerated,
+        sessionPassword: sessionType === 'VIDEO_MEETING' ? '' : devicePassword,
+        sessionLink,
+        type: sessionType
       });
       setSessionInviteStatus('sent');
       setSessionInviteMessage('Session invite sent in chat and by email.');
@@ -588,26 +593,39 @@ export const SnowChat: React.FC<{
                             {sessionInvite ? (
                               <div className="w-[320px] rounded-2xl border border-blue-100 dark:border-blue-500/20 bg-white dark:bg-[#111827] shadow-sm overflow-hidden">
                                 <div className="p-4 bg-blue-50 dark:bg-blue-500/10 flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                                  <div className={`w-10 h-10 rounded-xl ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'bg-emerald-600' : 'bg-blue-600'} text-white flex items-center justify-center`}>
                                     <Video size={18} />
                                   </div>
                                   <div className="min-w-0">
-                                    <p className="text-[13px] font-bold text-blue-700 dark:text-blue-300">Remote session invite</p>
-                                    <p className="text-[12px] text-blue-500 truncate">{sessionInvite.senderName || sender?.name || 'Someone'} invited you</p>
+                                    <p className={`text-[13px] font-bold ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'}`}>
+                                      {sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Video meeting invite' : 'Remote session invite'}
+                                    </p>
+                                    <p className={`text-[12px] ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'text-emerald-500' : 'text-blue-500'} truncate`}>{sessionInvite.senderName || sender?.name || 'Someone'} invited you</p>
                                   </div>
                                 </div>
                                 <div className="p-4 space-y-3">
                                   <div>
-                                    <p className="text-[15px] font-bold text-[#111111] dark:text-[#F5F5F5]">{sessionInvite.sessionName || 'Remote support session'}</p>
-                                    <p className="text-[12px] text-gray-500 mt-1">Code: {sessionInvite.sessionCode?.replace(/(.{3})/g, '$1 ').trim()}</p>
+                                    <p className="text-[12px] text-gray-500 dark:text-[#A0A0A0] mb-1">{sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Meeting' : 'Session'}</p>
+                                    <p className="text-[14px] font-bold text-gray-900 dark:text-white truncate">{sessionInvite.sessionName || 'Remote support session'}</p>
                                   </div>
+                                  
                                   <div className="flex gap-2">
                                     <button
-                                      onClick={() => onJoinSessionInvite?.(sessionInvite.sessionCode, sessionInvite.sessionPassword)}
-                                      className="flex-1 py-2.5 rounded-xl bg-[#1D6DF5] text-white text-[12px] font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                      onClick={() => {
+                                        if (sessionInvite.sessionType === 'VIDEO_MEETING') {
+                                          onJoinMeeting?.(sessionInvite.sessionCode);
+                                        } else {
+                                          onJoinSessionInvite?.(sessionInvite.sessionCode, sessionInvite.sessionPassword);
+                                        }
+                                      }}
+                                      className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
+                                        sessionInvite.sessionType === 'VIDEO_MEETING' 
+                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20' 
+                                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
+                                      }`}
                                     >
-                                      <ExternalLink size={14} />
-                                      Join
+                                      <Video size={14} />
+                                      {sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Join' : 'Join'}
                                     </button>
                                     <button
                                       onClick={() => navigator.clipboard?.writeText(sessionInvite.sessionLink || '')}
@@ -693,10 +711,27 @@ export const SnowChat: React.FC<{
             <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center mb-5">
               <Video size={24} />
             </div>
-            <h3 className="text-[22px] font-medium text-[#111111] dark:text-[#F5F5F5] mb-2">Start a remote session</h3>
+            <h3 className="text-[22px] font-medium text-[#111111] dark:text-[#F5F5F5] mb-2">Create invitation</h3>
             <p className="text-[14px] text-gray-500 dark:text-[#A0A0A0] mb-6 leading-relaxed">
-              Send a Zoom-style join card in this chat. The other person can click Join and the connect screen will open with the session details filled in.
+              Choose the type of session you want to start.
             </p>
+
+            <div className="flex gap-2 mb-6 p-1 bg-gray-50 dark:bg-white/5 rounded-2xl">
+              <button
+                onClick={() => setSessionType('REMOTE_CONTROL')}
+                className={`flex-1 py-3.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${sessionType === 'REMOTE_CONTROL' ? 'bg-white dark:bg-white/10 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              >
+                <Monitor size={16} />
+                Remote Control
+              </button>
+              <button
+                onClick={() => setSessionType('VIDEO_MEETING')}
+                className={`flex-1 py-3.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${sessionType === 'VIDEO_MEETING' ? 'bg-white dark:bg-white/10 text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              >
+                <Video size={16} />
+                Video Meeting
+              </button>
+            </div>
 
             <div className="space-y-4 mb-5">
               <input
@@ -743,7 +778,7 @@ export const SnowChat: React.FC<{
                 className="px-6 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 {sessionInviteStatus === 'sending' ? <RefreshCw size={16} className="animate-spin" /> : <Video size={16} />}
-                Send session
+                {sessionType === 'VIDEO_MEETING' ? 'Start meeting' : 'Send session'}
               </button>
             </div>
           </div>

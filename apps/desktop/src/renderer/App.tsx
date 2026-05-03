@@ -30,7 +30,6 @@ import { SnowMembers } from './components/SnowMembers';
 import { SnowOrgs } from './components/SnowOrgs';
 import { SnowOnboard } from './components/SnowOnboard';
 import { SnowNotificationPanel } from './components/SnowNotificationPanel';
-import { t } from './lib/translations';
 
 import { SnowAnalytics } from './components/SnowAnalytics';
 import { SnowHome } from './components/SnowHome';
@@ -38,9 +37,11 @@ import { SnowLanding } from './components/SnowLanding';
 import { SnowRemoteSupport } from './components/SnowRemoteSupport';
 import { SnowChat } from './components/SnowChat';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
+import { SnowMeeting } from './components/SnowMeeting';
 import UpdateBanner from './components/UpdateBanner';
 import { playUISound, fireNotification } from './components/SnowUserSettings';
 import { useChatStore } from './store/chatStore';
+import { t } from './lib/translations';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -1108,6 +1109,13 @@ const getOrCreateDevicePassword = () => {
     return generated;
 };
 
+const formatCode = (val: string) => {
+    if (!val) return '';
+    const clean = val.replace(/\D/g, '');
+    const match = clean.match(/.{1,3}/g);
+    return match ? match.join(' ') : clean;
+};
+
 const SESSION_INVITE_PREFIX = '[[REMOTE365_SESSION_INVITE]]';
 
 const parseSessionInviteContent = (content: string) => {
@@ -1145,6 +1153,9 @@ export default function App() {
     }, [user?.darkMode, user?.fontSize]);
     const isAuthenticated = !!accessToken;
     const [totpCode, setTotpCode] = useState('');
+    const [viewerStep, setViewerStep] = useState<1 | 2>(1);
+    const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
+    const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
@@ -1268,12 +1279,20 @@ export default function App() {
             },
             onSessionInvite: (invite) => {
                 const senderName = invite?.senderName || 'Someone';
-                addNotification(`${senderName} invited you to join ${invite?.sessionName || 'a remote session'}`, 'session', 'Remote session invite', {
-                    view: 'connect',
-                    sessionCode: invite?.sessionCode,
-                    sessionPassword: invite?.sessionPassword
-                });
-                fireNotification('Remote session invite', `${senderName} invited you to join ${invite?.sessionName || 'a remote session'}.`);
+                if (invite?.type === 'VIDEO_MEETING') {
+                    addNotification(`${senderName} invited you to join a video meeting`, 'session', 'Video meeting invite', {
+                        view: 'meeting',
+                        meetingId: invite?.sessionCode
+                    });
+                    fireNotification('Video meeting invite', `${senderName} invited you to join a video meeting.`);
+                } else {
+                    addNotification(`${senderName} invited you to join ${invite?.sessionName || 'a remote session'}`, 'session', 'Remote session invite', {
+                        view: 'connect',
+                        sessionCode: invite?.sessionCode,
+                        sessionPassword: invite?.sessionPassword
+                    });
+                    fireNotification('Remote session invite', `${senderName} invited you to join ${invite?.sessionName || 'a remote session'}.`);
+                }
                 playUISound('connect');
             },
             onConversationEvent: (event) => {
@@ -1545,6 +1564,8 @@ export default function App() {
             } else {
                 setCurrentView('connect');
             }
+        } else if (notification.target?.view === 'meeting') {
+            setActiveMeetingId(notification.target.meetingId);
         }
     };
 
@@ -1916,8 +1937,8 @@ export default function App() {
 
     const [deviceId, setDeviceId] = useState('');
     const [pendingViewerRequest, setPendingViewerRequest] = useState<{ viewerId: string; countdown: number } | null>(null);
-    const [viewerStep, setViewerStep] = useState<1 | 2>(1);
-    const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
+
+
     const [lockoutSeconds, setLockoutSeconds] = useState(0);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [hostStats, setHostStats] = useState<{ bandwidth: string, activeUsers: number, cpu: string, memory: string }>({
@@ -3594,6 +3615,7 @@ export default function App() {
                                 localAuthKey={localAuthKey}
                                 devicePassword={devicePassword}
                                 onJoinSessionInvite={handleJoinSessionInvite}
+                                onJoinMeeting={(meetingId) => setActiveMeetingId(meetingId)}
                             />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
@@ -3931,6 +3953,12 @@ export default function App() {
                         </button>
                     </div>
                 </div>
+            )}
+            {activeMeetingId && (
+                <SnowMeeting 
+                    meetingId={activeMeetingId} 
+                    onLeave={() => setActiveMeetingId(null)} 
+                />
             )}
             </div>
         </div>
