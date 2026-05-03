@@ -79,6 +79,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:onboarding-token', listener);
     return () => ipcRenderer.removeListener('auth:onboarding-token', listener);
   },
+  onSessionJoinLink: (callback: (payload: { code: string; password?: string }) => void) => {
+    const listener = (_: any, payload: { code: string; password?: string }) => callback(payload);
+    ipcRenderer.on('session:join-link', listener);
+    return () => ipcRenderer.removeListener('session:join-link', listener);
+  },
   onTemp2faToken: (callback: (token: string) => void) => {
     const listener = (_: any, token: string) => callback(token);
     ipcRenderer.on('auth:temp-2fa-token', listener);

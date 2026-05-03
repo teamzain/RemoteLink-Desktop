@@ -9,6 +9,7 @@ interface SnowNotificationPanelProps {
   notifications: any[];
   onMarkAllRead: () => void;
   onClearAll: () => void;
+  onNotificationClick: (notification: any) => void;
 }
 
 const AnimatedTray: React.FC = () => {
@@ -70,7 +71,7 @@ const AnimatedTray: React.FC = () => {
   );
 };
 
-export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ isOpen, onClose, notifications, onMarkAllRead, onClearAll }) => {
+export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ isOpen, onClose, notifications, onMarkAllRead, onClearAll, onNotificationClick }) => {
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
   const [showMenu, setShowMenu] = useState(false);
   const { user } = useAuthStore();
@@ -172,9 +173,10 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
             visibleNotifications.map((notification) => {
               const Icon = notification.icon || Inbox;
               return (
-                <div
+                <button
                   key={notification.id || `${notification.action}-${notification.time}`}
-                  className="bg-white dark:bg-[#151515] border border-[rgba(0,0,0,0.06)] dark:border-white/5 rounded-2xl p-4 shadow-sm flex gap-4 animate-in fade-in slide-in-from-right-3 duration-300"
+                  onClick={() => onNotificationClick(notification)}
+                  className="w-full bg-white dark:bg-[#151515] border border-[rgba(0,0,0,0.06)] dark:border-white/5 rounded-2xl p-4 shadow-sm flex gap-4 animate-in fade-in slide-in-from-right-3 duration-300 hover:border-blue-200 dark:hover:border-blue-500/30 hover:shadow-md transition-all text-left"
                 >
                   <div className={`w-10 h-10 rounded-xl ${notification.color || 'bg-[#E6F1FD]'} flex items-center justify-center shrink-0`}>
                     <Icon size={18} className="text-[#1C1C1C]" />
@@ -195,7 +197,7 @@ export const SnowNotificationPanel: React.FC<SnowNotificationPanelProps> = ({ is
                       {notification.time}
                     </p>
                   </div>
-                </div>
+                </button>
               );
             })
           )}

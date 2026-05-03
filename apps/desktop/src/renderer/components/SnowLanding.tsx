@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Monitor, KeyRound, ArrowRight, Shield, RefreshCw, Zap, Settings, Globe, Plus, LogIn, UserPlus } from 'lucide-react';
+import { Monitor, KeyRound, ArrowRight, Shield, RefreshCw, Zap, Settings, Globe, Plus, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 interface SnowLandingProps {
@@ -27,7 +27,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   connectStatus,
   connectError
 }) => {
-  const [showPwd, setShowPwd] = useState(false);
+  const [showPwd, setShowPwd] = useState(true);
 
   const fmt = (code: string) => {
     if (!code) return '--- --- ---';
@@ -38,7 +38,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   return (
     <div className="flex h-full w-full overflow-hidden font-inter select-none">
       {/* Left side: Hero/Blue Section */}
-      <div className="w-1/2 bg-gradient-to-br from-[#00193F] via-[#0033CC] to-[#00193F] flex flex-col items-center justify-center p-12 text-white relative">
+      <div className="w-1/2 bg-[#00193F] flex flex-col items-center justify-center p-12 text-white relative">
         <div className="absolute top-8 left-8 flex items-center gap-3">
           <img src={logo} className="w-8 h-8 object-contain" alt="" />
           <span className="text-xl font-bold tracking-tight">Remote 365</span>
@@ -71,7 +71,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
       </div>
 
       {/* Right side: Connection Section */}
-      <div className="w-1/2 bg-white flex flex-col items-center justify-center p-12 relative">
+      <div className="w-1/2 bg-white flex flex-col items-center justify-center p-12 relative rounded-l-[28px] overflow-hidden">
         <button className="absolute top-8 right-8 text-gray-400 hover:text-gray-600 transition-colors">
           <Settings size={20} />
         </button>
@@ -104,8 +104,9 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
                 <button 
                   onClick={() => setShowPwd(!showPwd)}
                   className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  title={showPwd ? 'Hide password' : 'Show password'}
                 >
-                  <RefreshCw size={16} />
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
                 <KeyRound className="text-gray-300 mt-2" size={20} />
               </div>

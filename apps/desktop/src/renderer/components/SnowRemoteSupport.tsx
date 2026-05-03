@@ -10,10 +10,14 @@ import {
   History,
   Shield,
   Zap,
-  MoreHorizontal
+  MoreHorizontal,
+  Mail,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { t } from '../lib/translations';
 import { useAuthStore } from '../store/authStore';
+import api from '../lib/api';
 
 interface SnowRemoteSupportProps {
   localAuthKey: string | null;
@@ -24,6 +28,7 @@ interface SnowRemoteSupportProps {
   onStartHosting: () => void;
   onStopHosting: () => void;
   hostStatus: string;
+  onJoinSessionInvite?: (code: string, password?: string) => void;
 }
 
 export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
@@ -34,7 +39,8 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   onConnect,
   onStartHosting,
   onStopHosting,
-  hostStatus
+  hostStatus,
+  onJoinSessionInvite
 }) => {
   const { user } = useAuthStore();
   const lang = user?.language;
@@ -43,6 +49,10 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedPwd, setCopiedPwd] = useState(false);
+  const [sessionName, setSessionName] = useState('Remote support session');
+  const [sessionEmail, setSessionEmail] = useState('');
+  const [sessionInviteStatus, setSessionInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [sessionInviteMessage, setSessionInviteMessage] = useState('');
 
   const formatId = (id: string | null) => {
     if (!id) return '--- --- ---';
@@ -65,6 +75,39 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   };
 
   const isOnline = hostStatus.includes('Online') || hostStatus.includes('WebRTC') || hostStatus.includes('Registered');
+  const sessionCode = (localAuthKey || '').replace(/\s/g, '');
+  const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCode)}&password=${encodeURIComponent(devicePassword || '')}`;
+
+  const handleStartSessionInvite = async () => {
+    if (!sessionCode) {
+      setSessionInviteStatus('error');
+      setSessionInviteMessage('This device is still getting its RemoteLink ID.');
+      return;
+    }
+
+    setSessionInviteStatus('sending');
+    setSessionInviteMessage('');
+    try {
+      if (!isOnline) onStartHosting();
+      if (sessionEmail.trim()) {
+        await api.post('/api/chat/session-invites', {
+          email: sessionEmail.trim(),
+          sessionName,
+          sessionCode,
+          sessionPassword: devicePassword,
+          sessionLink
+        });
+      }
+      await navigator.clipboard?.writeText(sessionLink);
+      setSessionInviteStatus('sent');
+      setSessionInviteMessage(sessionEmail.trim()
+        ? 'Invite sent by email. The join link was copied too.'
+        : 'Session link copied. Share it anywhere.');
+    } catch (err: any) {
+      setSessionInviteStatus('error');
+      setSessionInviteMessage(err.response?.data?.error || err.message || 'Could not create session invite.');
+    }
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-white dark:bg-[#080808] font-lato animate-in fade-in duration-500">
@@ -265,21 +308,17 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
         </div>
       </div>
 
-      {/* Bottom Status Bar */}
-      <div className="px-6 py-3 bg-gray-50 dark:bg-[#0A0A0A] border-t border-gray-100 dark:border-white/5 flex items-center gap-3">
-        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-        <span className="text-[12px] font-medium text-gray-500 dark:text-[#A0A0A0]">
-          {t('ready_to_connect', lang) || 'Ready to connect'}
-        </span>
-      </div>
-
       {/* Add Session Modal */}
       {showAddSessionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white dark:bg-[#1C1C1C] rounded-[24px] w-[500px] shadow-2xl p-6 font-sans">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-[20px] font-semibold text-[#1C1C1C] dark:text-[#F5F5F5]">Session name</h3>
+                <input
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  className="text-[20px] font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] bg-transparent outline-none border-b border-transparent focus:border-blue-500"
+                />
                 <button className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                 </button>
@@ -296,8 +335,8 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                   <Info size={14} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[14px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">quicksupport.me/s100310059</span>
-                  <button className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                  <span className="text-[14px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5] truncate max-w-[270px]">{sessionLink}</span>
+                  <button onClick={() => navigator.clipboard?.writeText(sessionLink)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                     <Copy size={14} />
                   </button>
                 </div>
@@ -309,8 +348,8 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                   <Info size={14} />
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[14px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">100 310 059</span>
-                  <button className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                  <span className="text-[14px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{formatId(sessionCode)}</span>
+                  <button onClick={() => navigator.clipboard?.writeText(sessionCode)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                     <Copy size={14} />
                   </button>
                 </div>
@@ -329,9 +368,22 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 <input 
                   type="email" 
                   placeholder="End user's email" 
+                  value={sessionEmail}
+                  onChange={(e) => {
+                    setSessionEmail(e.target.value);
+                    setSessionInviteStatus('idle');
+                    setSessionInviteMessage('');
+                  }}
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0A0A0A] text-[13px] text-gray-800 dark:text-[#F5F5F5] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-gray-400"
                 />
               </div>
+
+              {sessionInviteMessage && (
+                <div className={`flex items-center gap-2 text-[12px] font-medium mb-2 ${sessionInviteStatus === 'error' ? 'text-red-500' : 'text-emerald-600'}`}>
+                  {sessionInviteStatus === 'error' ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
+                  {sessionInviteMessage}
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-3 mt-8">
                 <button 
@@ -341,8 +393,9 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                   Cancel
                 </button>
                 <div className="flex rounded-lg overflow-hidden shadow-sm">
-                  <button className="bg-[#2B52D0] hover:bg-[#2040A0] text-white px-5 py-2 text-[13px] font-medium transition-colors border-r border-blue-700/30">
-                    Start
+                  <button onClick={handleStartSessionInvite} disabled={sessionInviteStatus === 'sending'} className="bg-[#2B52D0] hover:bg-[#2040A0] disabled:opacity-60 text-white px-5 py-2 text-[13px] font-medium transition-colors border-r border-blue-700/30 flex items-center gap-2">
+                    {sessionInviteStatus === 'sending' ? <RefreshCw size={14} className="animate-spin" /> : sessionEmail ? <Mail size={14} /> : <Zap size={14} />}
+                    {sessionEmail ? 'Send invite' : 'Copy link'}
                   </button>
                   <button className="bg-[#2B52D0] hover:bg-[#2040A0] text-white px-2 py-2 flex items-center justify-center transition-colors">
                     <ChevronDown size={16} />

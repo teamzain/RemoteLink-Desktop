@@ -1,5 +1,68 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma, verifyToken, redisPublisher } from '@remotelink/shared';
+import nodemailer from 'nodemailer';
+
+const SESSION_INVITE_PREFIX = '[[REMOTE365_SESSION_INVITE]]';
+
+const getInviteInstallUrl = () => {
+  return process.env.DESKTOP_DOWNLOAD_URL || 'http://159.65.84.190/downloads/desktop/';
+};
+
+const sendSessionInviteEmail = async ({
+  to,
+  senderName,
+  sessionName,
+  sessionCode,
+  sessionPassword,
+  sessionLink,
+  isExistingUser
+}: {
+  to: string;
+  senderName: string;
+  sessionName: string;
+  sessionCode: string;
+  sessionPassword?: string;
+  sessionLink: string;
+  isExistingUser: boolean;
+}) => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.log(`[Session Invite] SMTP not configured. Invite for ${to}: ${sessionLink}`);
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+  });
+
+  const installUrl = getInviteInstallUrl();
+  const installCopy = isExistingUser
+    ? 'Open Remote 365 to join from your notification, or use the link below.'
+    : 'Install Remote 365 first, then open this invite link to join the session.';
+
+  await transporter.sendMail({
+    from: `"Remote 365" <${process.env.SMTP_USER}>`,
+    to,
+    subject: `${senderName} invited you to a Remote 365 session`,
+    text: `${senderName} invited you to ${sessionName}.\n\nJoin link: ${sessionLink}\nSession code: ${sessionCode}${sessionPassword ? `\nPassword: ${sessionPassword}` : ''}\n\n${installCopy}\nDownload: ${installUrl}`,
+    html: `
+      <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;padding:28px;color:#172033">
+        <h2 style="margin:0 0 12px">${senderName} invited you to a Remote 365 session</h2>
+        <p style="color:#667085;margin:0 0 22px">${installCopy}</p>
+        <div style="background:#f5f7fb;border:1px solid #e8edf5;border-radius:14px;padding:18px;margin-bottom:22px">
+          <p style="margin:0 0 8px;color:#667085;font-size:13px">Session</p>
+          <p style="margin:0 0 12px;font-size:18px;font-weight:700">${sessionName}</p>
+          <p style="margin:0;color:#667085;font-size:13px">Code: <strong style="color:#172033">${sessionCode}</strong></p>
+          ${sessionPassword ? `<p style="margin:6px 0 0;color:#667085;font-size:13px">Password: <strong style="color:#172033">${sessionPassword}</strong></p>` : ''}
+        </div>
+        <a href="${sessionLink}" style="display:inline-block;background:#1D6DF5;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">Join session</a>
+        <p style="margin-top:22px;color:#667085;font-size:13px">Need the app? Download it here: <a href="${installUrl}">${installUrl}</a></p>
+      </div>
+    `
+  });
+};
 
 export default async function chatRoutes(fastify: FastifyInstance) {
   const conversationInclude = {
@@ -167,6 +230,147 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // 3b. Create a Meet/Zoom-style remote session invite. If sent inside a chat,
+  // the invite is stored as a structured chat message so it appears instantly.
+  fastify.post('/session-invites', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const {
+      conversationId,
+      email,
+      sessionName,
+      sessionCode,
+      sessionPassword,
+      sessionLink
+    } = request.body as {
+      conversationId?: string;
+      email?: string;
+      sessionName?: string;
+      sessionCode?: string;
+      sessionPassword?: string;
+      sessionLink?: string;
+    };
+
+    const cleanEmail = email?.trim().toLowerCase();
+    const cleanCode = String(sessionCode || '').replace(/\s/g, '');
+    const cleanName = (sessionName || 'Remote support session').trim();
+
+    if (!cleanCode || !sessionLink) {
+      return reply.code(400).send({ error: 'Session code and link are required' });
+    }
+    if (!conversationId && !cleanEmail) {
+      return reply.code(400).send({ error: 'Choose a chat or enter an email address' });
+    }
+
+    try {
+      const sender = await (prisma as any).user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true }
+      });
+      const senderName = sender?.name || sender?.email || 'Someone';
+
+      let conversation: any = null;
+      let targetEmails: string[] = cleanEmail ? [cleanEmail] : [];
+      let targetUserIds: string[] = [];
+
+      if (conversationId) {
+        conversation = await (prisma as any).conversation.findFirst({
+          where: {
+            id: conversationId,
+            status: 'ACCEPTED',
+            participants: { some: { userId } }
+          },
+          include: {
+            participants: {
+              include: { user: { select: { id: true, name: true, email: true, avatar: true, role: true } } }
+            }
+          }
+        });
+
+        if (!conversation) {
+          return reply.code(403).send({ error: 'Only accepted chats can receive session invites' });
+        }
+
+        const otherParticipants = conversation.participants.filter((p: any) => p.userId !== userId);
+        if (!cleanEmail) {
+          targetEmails = otherParticipants.map((p: any) => p.user.email).filter(Boolean);
+        }
+        targetUserIds = otherParticipants.map((p: any) => p.userId);
+      }
+
+      const targetUser = cleanEmail
+        ? await (prisma as any).user.findUnique({ where: { email: cleanEmail }, select: { id: true, email: true } })
+        : null;
+      if (targetUser && !targetUserIds.includes(targetUser.id)) targetUserIds.push(targetUser.id);
+
+      const invitePayload = {
+        kind: 'remote-session-invite',
+        sessionName: cleanName,
+        sessionCode: cleanCode,
+        sessionPassword: sessionPassword || '',
+        sessionLink,
+        senderName,
+        createdAt: new Date().toISOString()
+      };
+
+      let message = null;
+      if (conversationId) {
+        message = await (prisma as any).message.create({
+          data: {
+            conversationId,
+            senderId: userId,
+            content: `${SESSION_INVITE_PREFIX}${JSON.stringify(invitePayload)}`
+          },
+          include: {
+            sender: { select: { id: true, name: true, email: true, avatar: true } }
+          }
+        });
+
+        await (prisma as any).conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() }
+        });
+
+        await redisPublisher.publish('chat:new-message', JSON.stringify({
+          type: 'chat-message-received',
+          message,
+          conversationId,
+          targetUserIds: conversation.participants.map((p: any) => p.userId)
+        }));
+      }
+
+      if (!conversationId && targetUserIds.length > 0) {
+        await redisPublisher.publish('chat:session-invite', JSON.stringify({
+          type: 'chat-session-invite',
+          invite: invitePayload,
+          targetUserIds
+        }));
+      }
+
+      await Promise.all(Array.from(new Set(targetEmails)).map((to) =>
+        sendSessionInviteEmail({
+          to,
+          senderName,
+          sessionName: cleanName,
+          sessionCode: cleanCode,
+          sessionPassword,
+          sessionLink,
+          isExistingUser: Boolean(targetUserIds.length)
+        }).catch((err: any) => {
+          console.error(`[Session Invite] Email failed for ${to}:`, err.message);
+        })
+      ));
+
+      return reply.send({
+        success: true,
+        existingUser: Boolean(targetUser || targetUserIds.length > 0),
+        message
+      });
+    } catch (err) {
+      console.error('[Chat API] Failed to create session invite', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
   // 4. Rename a conversation (Updates NICKNAME for the requester)
   fastify.patch('/conversations/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = (request as any).userId;
@@ -196,6 +400,116 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       return reply.send(updated);
     } catch (err) {
       console.error('[Chat API] Failed to rename conversation', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 4b. Create a group conversation
+  fastify.post('/groups', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { name, emails } = request.body as { name: string; emails: string[] };
+
+    const cleanName = (name || '').trim();
+    const cleanEmails = Array.isArray(emails)
+      ? Array.from(new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean)))
+      : [];
+
+    if (!cleanName) return reply.code(400).send({ error: 'Group name is required' });
+    if (cleanEmails.length === 0) return reply.code(400).send({ error: 'Add at least one member email' });
+
+    try {
+      const users = await (prisma as any).user.findMany({
+        where: { email: { in: cleanEmails } },
+        select: { id: true, email: true }
+      });
+
+      if (users.length !== cleanEmails.length) {
+        const found = new Set(users.map((u: any) => u.email.toLowerCase()));
+        const missing = cleanEmails.filter((email) => !found.has(email));
+        return reply.code(404).send({ error: `Users not found: ${missing.join(', ')}` });
+      }
+
+      const memberIds = Array.from(new Set([userId, ...users.map((u: any) => u.id)]));
+      const conversation = await (prisma as any).conversation.create({
+        data: {
+          isGroup: true,
+          name: cleanName,
+          status: 'ACCEPTED',
+          requestedById: userId,
+          participants: {
+            create: memberIds.map((memberId) => ({ userId: memberId }))
+          }
+        },
+        include: conversationInclude
+      });
+
+      await publishConversationEvent('chat-conversation-updated', conversation, {
+        actorUserId: userId,
+        reason: 'group-created'
+      });
+
+      return reply.send(conversation);
+    } catch (err) {
+      console.error('[Chat API] Failed to create group', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  // 4c. Add people to an existing group
+  fastify.post('/conversations/:id/members', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+    const { emails } = request.body as { emails: string[] };
+
+    const cleanEmails = Array.isArray(emails)
+      ? Array.from(new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean)))
+      : [];
+
+    if (cleanEmails.length === 0) return reply.code(400).send({ error: 'Add at least one member email' });
+
+    try {
+      const group = await (prisma as any).conversation.findFirst({
+        where: { id, isGroup: true, participants: { some: { userId } } },
+        include: { participants: true }
+      });
+
+      if (!group) return reply.code(403).send({ error: 'Only group members can add people' });
+
+      const users = await (prisma as any).user.findMany({
+        where: { email: { in: cleanEmails } },
+        select: { id: true, email: true }
+      });
+
+      if (users.length !== cleanEmails.length) {
+        const found = new Set(users.map((u: any) => u.email.toLowerCase()));
+        const missing = cleanEmails.filter((email) => !found.has(email));
+        return reply.code(404).send({ error: `Users not found: ${missing.join(', ')}` });
+      }
+
+      const existingIds = new Set(group.participants.map((participant: any) => participant.userId));
+      const newUsers = users.filter((member: any) => !existingIds.has(member.id));
+
+      if (newUsers.length > 0) {
+        await (prisma as any).conversationParticipant.createMany({
+          data: newUsers.map((member: any) => ({ conversationId: id, userId: member.id })),
+          skipDuplicates: true
+        });
+      }
+
+      const updated = await (prisma as any).conversation.findUnique({
+        where: { id },
+        include: conversationInclude
+      });
+
+      await publishConversationEvent('chat-conversation-updated', updated, {
+        actorUserId: userId,
+        reason: 'members-added',
+        addedUserIds: newUsers.map((member: any) => member.id)
+      });
+
+      return reply.send(updated);
+    } catch (err) {
+      console.error('[Chat API] Failed to add group members', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });
@@ -230,9 +544,33 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         include: conversationInclude
       });
 
-      await (prisma as any).conversation.delete({
-        where: { id }
-      });
+      if (conversation?.isGroup) {
+        await (prisma as any).conversationParticipant.delete({
+          where: { conversationId_userId: { conversationId: id, userId } }
+        });
+
+        const remainingCount = await (prisma as any).conversationParticipant.count({
+          where: { conversationId: id }
+        });
+
+        if (remainingCount === 0) {
+          await (prisma as any).conversation.delete({ where: { id } });
+        } else {
+          const updated = await (prisma as any).conversation.findUnique({
+            where: { id },
+            include: conversationInclude
+          });
+
+          await publishConversationEvent('chat-conversation-updated', updated, {
+            actorUserId: userId,
+            reason: 'member-left'
+          });
+        }
+
+        return reply.send({ success: true });
+      }
+
+      await (prisma as any).conversation.delete({ where: { id } });
 
       if (conversation) {
         await publishConversationEvent('chat-conversation-removed', conversation, {

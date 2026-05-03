@@ -124,8 +124,13 @@ ipcMain.handle('system:getDeterministicKey', () => {
 });
 
 // --- Auto-Updater Handlers ---
+const UPDATE_FEED_URL = process.env.CONNECT_X_UPDATE_URL || 'http://159.65.84.190/downloads/desktop/';
 autoUpdater.autoDownload = false; // We want to notify first
 autoUpdater.logger = log;
+autoUpdater.setFeedURL({
+  provider: 'generic',
+  url: UPDATE_FEED_URL
+});
 
 ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
 ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
@@ -1127,6 +1132,20 @@ function handleDeepLink(url: string) {
       if (token) {
         log.info('[DeepLink] Received onboarding token:', token);
         mainWindow?.webContents.send('auth:onboarding-token', token);
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    }
+
+    if (parsed.host === 'join') {
+      const code = parsed.searchParams.get('code');
+      const password = parsed.searchParams.get('password') || '';
+      if (code) {
+        log.info('[DeepLink] Received session join link:', code);
+        mainWindow?.webContents.send('session:join-link', { code, password });
         if (mainWindow) {
           if (mainWindow.isMinimized()) mainWindow.restore();
           mainWindow.show();

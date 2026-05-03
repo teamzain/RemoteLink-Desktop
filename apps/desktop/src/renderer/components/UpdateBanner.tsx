@@ -33,6 +33,7 @@ const UpdateBanner: React.FC = () => {
     const unError = window.electronAPI.updates.onError((err: string) => {
       setError(err);
       setStatus('error');
+      setVisible(true);
     });
 
     window.electronAPI.isPackaged?.().then((isPackaged: boolean) => {
@@ -40,6 +41,7 @@ const UpdateBanner: React.FC = () => {
         window.electronAPI.updates.check().catch((err: any) => {
           setError(err?.message || 'Unable to check for updates.');
           setStatus('error');
+          setVisible(true);
         });
       }
     });

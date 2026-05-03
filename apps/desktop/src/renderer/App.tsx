@@ -1095,6 +1095,30 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     );
 });
 
+const generateDevicePassword = () => Math.floor(10000000 + Math.random() * 90000000).toString();
+
+const getOrCreateDevicePassword = () => {
+    if (typeof window === 'undefined') return '';
+
+    const stored = localStorage.getItem('device_password');
+    if (stored) return stored;
+
+    const generated = generateDevicePassword();
+    localStorage.setItem('device_password', generated);
+    return generated;
+};
+
+const SESSION_INVITE_PREFIX = '[[REMOTE365_SESSION_INVITE]]';
+
+const parseSessionInviteContent = (content: string) => {
+    if (!content?.startsWith(SESSION_INVITE_PREFIX)) return null;
+    try {
+        return JSON.parse(content.slice(SESSION_INVITE_PREFIX.length));
+    } catch {
+        return null;
+    }
+};
+
 // --- Main App Component ---
 export default function App() {
     const isElectron = !!(window as any).electronAPI;
@@ -1193,6 +1217,16 @@ export default function App() {
     const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
     const [showDiagnostics, setShowDiagnostics] = useState(false);
 
+    const handleJoinSessionInvite = (code: string, password?: string) => {
+        setSessionCode(formatCode(code));
+        setAccessPassword(password || '');
+        setViewerStep(password ? 2 : 1);
+        setViewerError('');
+        setTargetDeviceName(null);
+        setCurrentView('connect');
+        addNotification('Session details loaded. Press Connect when ready.', 'session');
+    };
+
     // --- Chat Notifications & Global Events ---
     useEffect(() => {
         // Set the callback for new messages to trigger notifications
@@ -1201,12 +1235,18 @@ export default function App() {
                 if (msg.senderId === user?.id) return;
 
                 const senderName = msg.sender?.name || msg.sender?.email || 'Someone';
-                const preview = msg.content.substring(0, 80);
-                addNotification(preview, 'message', `${senderName} sent you a message`);
+                const sessionInvite = parseSessionInviteContent(msg.content);
+                const preview = sessionInvite
+                    ? `${senderName} invited you to join ${sessionInvite.sessionName || 'a remote session'}`
+                    : msg.content.substring(0, 80);
+                addNotification(preview, sessionInvite ? 'session' : 'message', sessionInvite ? 'Remote session invite' : `${senderName} sent you a message`, {
+                    view: 'chat',
+                    chatId: convId
+                });
                 
                 // Fire native system notification
                 if (useChatStore.getState().activeChatId !== convId) {
-                    fireNotification(`New message from ${senderName}`, preview);
+                    fireNotification(sessionInvite ? 'Remote session invite' : `New message from ${senderName}`, preview);
                 }
                 
                 // Play sound
@@ -1215,12 +1255,25 @@ export default function App() {
             onInvite: (conv) => {
                 const requester = conv.participants?.find((p: any) => p.userId === conv.requestedById)?.user;
                 const requesterName = requester?.name || requester?.email || 'Someone';
-                addNotification(`${requesterName} sent you a friend request`, 'session');
+                addNotification(`${requesterName} sent you a friend request`, 'session', undefined, {
+                    view: 'chat',
+                    chatId: conv.id
+                });
                 
                 // Fire native system notification
                 fireNotification(`New friend request`, `${requesterName} wants to connect with you.`);
                 
                 // Play sound
+                playUISound('connect');
+            },
+            onSessionInvite: (invite) => {
+                const senderName = invite?.senderName || 'Someone';
+                addNotification(`${senderName} invited you to join ${invite?.sessionName || 'a remote session'}`, 'session', 'Remote session invite', {
+                    view: 'connect',
+                    sessionCode: invite?.sessionCode,
+                    sessionPassword: invite?.sessionPassword
+                });
+                fireNotification('Remote session invite', `${senderName} invited you to join ${invite?.sessionName || 'a remote session'}.`);
                 playUISound('connect');
             },
             onConversationEvent: (event) => {
@@ -1230,9 +1283,24 @@ export default function App() {
                 const actorName = actor?.name || actor?.email || 'Someone';
 
                 if (event.reason === 'accepted') {
-                    addNotification(`${actorName} accepted your friend request`, 'accepted');
+                    addNotification(`${actorName} accepted your friend request`, 'accepted', undefined, {
+                        view: 'chat',
+                        chatId: conversation?.id
+                    });
                     fireNotification('Friend request accepted', `${actorName} accepted your request.`);
                     playUISound('connect');
+                } else if (event.reason === 'group-created') {
+                    addNotification(`You were added to ${conversation?.name || 'a group'}`, 'session', undefined, {
+                        view: 'chat',
+                        chatId: conversation?.id
+                    });
+                    fireNotification('Added to group', `${actorName} added you to ${conversation?.name || 'a group'}.`);
+                    playUISound('connect');
+                } else if (event.reason === 'members-added') {
+                    addNotification(`${actorName} added new members to ${conversation?.name || 'a group'}`, 'session', undefined, {
+                        view: 'chat',
+                        chatId: conversation?.id
+                    });
                 } else if (event.reason === 'unfriended') {
                     addNotification(`${actorName} removed you from contacts`, 'removed');
                 } else if (event.reason === 'blocked') {
@@ -1271,7 +1339,7 @@ export default function App() {
     const [hostMessage, setHostMessage] = useState('');
     const [hostError, setHostError] = useState('');
     const [hostAccessKey, setHostAccessKey] = useState('');
-    const [devicePassword, setDevicePassword] = useState(localStorage.getItem('device_password') || '');
+    const [devicePassword, setDevicePassword] = useState(getOrCreateDevicePassword);
     const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(() => {
         const stored = localStorage.getItem('is_auto_host_enabled');
         if (stored === null) {
@@ -1427,7 +1495,7 @@ export default function App() {
     ]);
     const [activeSessionCount, setActiveSessionCount] = useState(0);
 
-    const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' | 'message' | 'accepted' | 'removed' | 'blocked' = 'system', title?: string) => {
+    const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' | 'message' | 'accepted' | 'removed' | 'blocked' = 'system', title?: string, target?: any) => {
         const iconMap = {
             host: Radio,
             security: ShieldCheck,
@@ -1456,9 +1524,28 @@ export default function App() {
             time: 'Just now',
             icon: iconMap[iconType],
             color: colorMap[iconType],
-            read: false
+            read: false,
+            target
         };
         setNotifications(prev => [newNotif, ...prev.slice(0, 9)]);
+    };
+
+    const handleNotificationClick = (notification: any) => {
+        setNotifications(prev => prev.map(item => item.id === notification.id ? { ...item, read: true } : item));
+        setShowNotifications(false);
+
+        if (notification.target?.view === 'chat') {
+            setCurrentView('chat' as any);
+            if (notification.target.chatId) {
+                useChatStore.getState().setActiveChat(notification.target.chatId);
+            }
+        } else if (notification.target?.view === 'connect') {
+            if (notification.target.sessionCode) {
+                handleJoinSessionInvite(notification.target.sessionCode, notification.target.sessionPassword);
+            } else {
+                setCurrentView('connect');
+            }
+        }
     };
 
     // Sync actionValue when modal opens
@@ -2091,6 +2178,10 @@ export default function App() {
             setOnboardingToken(token);
         });
 
+        const removeSessionJoin = (window as any).electronAPI.onSessionJoinLink?.((payload: { code: string; password?: string }) => {
+            handleJoinSessionInvite(payload.code, payload.password);
+        });
+
         // Listen for 2FA token
         const removeTemp2fa = (window as any).electronAPI.onTemp2faToken?.((token: string) => {
             setTemp2faToken(token);
@@ -2364,6 +2455,7 @@ export default function App() {
             if (isElectron) {
                 removeAuthSuccess?.();
                 removeOnboarding?.();
+                removeSessionJoin?.();
                 removeTemp2fa?.();
                 removeHostListener();
                 removeSignalingListener();
@@ -2716,13 +2808,19 @@ export default function App() {
 
 
     if (onboardingToken) {
-        return <SnowOnboard token={onboardingToken} onComplete={() => setOnboardingToken(null)} />;
+        return (
+            <>
+                <UpdateBanner />
+                <SnowOnboard token={onboardingToken} onComplete={() => setOnboardingToken(null)} />
+            </>
+        );
     }
 
     if (!isAuthenticated && showAuthModal) {
         if (temp2faToken) {
             return (
                 <div className="h-screen w-full flex items-center justify-center bg-white font-inter select-none">
+                    <UpdateBanner />
                     <div className="w-full max-w-sm p-8 animate-in fade-in zoom-in-95 duration-500">
                         <div className="flex items-center gap-3 mb-10 group cursor-default">
                             <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 transition-transform duration-300 overflow-hidden border border-white/5">
@@ -2779,6 +2877,7 @@ export default function App() {
         }
          return (
             <div className="h-screen w-full flex items-center justify-center bg-[#F5F7F9] font-inter select-none overflow-hidden relative">
+                <UpdateBanner />
                 <SnowSplashScreen isReady={!loading} />
                 
                 {/* Simplified Auth Card */}
@@ -3050,7 +3149,7 @@ export default function App() {
                 />
             )}
 
-            <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 relative bg-[#F4F7F9] dark:bg-[#0A0A0A] rounded-l-[24px] shadow-2xl shadow-black/10 ${isAuthenticated ? (isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-64') : ''}`}>
+            <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 relative bg-[#F4F7F9] dark:bg-[#0A0A0A] shadow-2xl shadow-black/10 ${isAuthenticated ? `rounded-l-[24px] ${isSidebarCollapsed ? 'md:ml-[80px]' : 'md:ml-64'}` : ''}`}>
                 <main className="flex-1 flex flex-col overflow-hidden relative bg-[#F4F7F9] dark:bg-[#0A0A0A]">
                     {/* Workspace Header */}
                     {isAuthenticated && (
@@ -3386,6 +3485,7 @@ export default function App() {
                                 onStartHosting={handleStartHosting}
                                 onStopHosting={handleStopHosting}
                                 hostStatus={hostStatus}
+                                onJoinSessionInvite={handleJoinSessionInvite}
                             />
                         ) : (currentView as any) === 'sessions' ? (
                             /* --- ACTIVE SESSIONS VIEW --- */
@@ -3489,7 +3589,12 @@ export default function App() {
                                 <SnowSupport />
                             </div>
                         ) : (currentView as any) === 'chat' ? (
-                            <SnowChat setCurrentView={setCurrentView} />
+                            <SnowChat
+                                setCurrentView={setCurrentView}
+                                localAuthKey={localAuthKey}
+                                devicePassword={devicePassword}
+                                onJoinSessionInvite={handleJoinSessionInvite}
+                            />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
                             <div className="w-full h-full animate-in fade-in duration-700 pt-2">
@@ -3556,6 +3661,7 @@ export default function App() {
                     notifications={notifications}
                     onMarkAllRead={() => setNotifications(prev => prev.map(notification => ({ ...notification, read: true })))}
                     onClearAll={() => setNotifications([])}
+                    onNotificationClick={handleNotificationClick}
                 />
             </div>
 

@@ -479,6 +479,10 @@ async function startServer() {
     if (err) console.error('[Signaling] Failed to subscribe to chat:conversation-updated', err);
   });
 
+  redisSubscriber.subscribe('chat:session-invite', (err) => {
+    if (err) console.error('[Signaling] Failed to subscribe to chat:session-invite', err);
+  });
+
   // Listen for Organization Updates
   redisSubscriber.subscribe(EventChannel.ORG_UPDATES, (err) => {
     if (err) console.error('[Signaling] Failed to subscribe to ORG_UPDATES', err);
@@ -563,6 +567,25 @@ async function startServer() {
         });
       } catch (err) {
         console.error('[Signaling] Failed to process chat:conversation-updated:', err);
+      }
+    } else if (channel === 'chat:session-invite') {
+      try {
+        const payload = JSON.parse(message);
+        const { targetUserIds } = payload;
+
+        targetUserIds.forEach((userId: string) => {
+          const conns = userConnections.get(userId);
+          if (conns) {
+            conns.forEach(connId => {
+              const clientWs = localClients.get(connId);
+              if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(JSON.stringify(payload));
+              }
+            });
+          }
+        });
+      } catch (err) {
+        console.error('[Signaling] Failed to process chat:session-invite:', err);
       }
     }
   });

@@ -39,10 +39,13 @@ interface ChatState {
   setActiveChat: (id: string | null) => void;
   onNewMessage?: (msg: any, convId: string) => void;
   onInvite?: (conv: any) => void;
+  onSessionInvite?: (invite: any) => void;
   onConversationEvent?: (event: { type: string; conversation?: ChatConversation; conversationId?: string; actorUserId?: string; reason?: string }) => void;
   fetchConversations: () => Promise<void>;
   fetchMessages: (conversationId: string) => Promise<void>;
   createConversation: (email: string) => Promise<boolean>;
+  createGroup: (name: string, emails: string[]) => Promise<boolean>;
+  addGroupMembers: (id: string, emails: string[]) => Promise<boolean>;
   sendMessage: (conversationId: string, content: string) => void;
   renameConversation: (id: string, name: string) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
@@ -131,6 +134,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return true;
     } catch (err) {
       console.error('Failed to create conversation:', err);
+      return false;
+    }
+  },
+
+  createGroup: async (name: string, emails: string[]) => {
+    try {
+      const { data } = await api.post('/api/chat/groups', { name, emails });
+      set((state) => ({
+        conversations: [data, ...state.conversations.filter(c => c.id !== data.id)]
+      }));
+      get().setActiveChat(data.id);
+      return true;
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      return false;
+    }
+  },
+
+  addGroupMembers: async (id: string, emails: string[]) => {
+    try {
+      const { data } = await api.post(`/api/chat/conversations/${id}/members`, { emails });
+      set((state) => ({
+        conversations: state.conversations.map(c => c.id === id ? data : c)
+      }));
+      return true;
+    } catch (err) {
+      console.error('[ChatStore] Failed to add group members', err);
       return false;
     }
   },
@@ -327,6 +357,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }));
 
           get().onConversationEvent?.(data);
+        } else if (data.type === 'chat-session-invite') {
+          get().onSessionInvite?.(data.invite);
         }
       } catch (err) {
         console.error('[ChatStore] Failed to parse message', err);
