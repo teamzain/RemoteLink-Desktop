@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-02T23:36:08.749Z",
+  "generatedAt": "2026-05-03T00:20:49.571Z",
   "releases": [
+    {
+      "version": "1.1.5",
+      "tag": "v1.1.5",
+      "publishedAt": "2026-05-03T00:20:49.459Z",
+      "notes": "Added Real-Time Chat feature",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.5.exe",
+          "size": 135199874,
+          "sha256": "f5a33a67253e2f76bf01d0ac48f43df731cae019cc5006e86e0b73d2e308fad3",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.5/Connect-X.Setup.1.1.5.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.5.exe.blockmap",
+          "size": 120017,
+          "sha256": "bf49bc9d440efc090c33384721ccbb803d35f958c09582218e2eea1a40359ecb",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.5/Connect-X.Setup.1.1.5.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 347,
+          "sha256": "b5dd77f5462a50ed67349ccd1e74d03bab844117c1024bd61b402aa1b6817931",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.5/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.4",
       "tag": "v1.1.4",
