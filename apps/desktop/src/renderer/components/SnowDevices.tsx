@@ -104,8 +104,8 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
     });
 
     const result = [
-      { id: 'all', name: 'All managed devices', icon: LayoutGrid },
-      { id: 'my-devices', name: 'My devices', icon: Monitor },
+      { id: 'all', name: 'All Managed Devices', icon: LayoutGrid },
+      { id: 'my-devices', name: 'My Computers', icon: Monitor },
     ];
 
     Array.from(allTags).sort().forEach(tag => {
@@ -165,11 +165,16 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
       } else if (sortOrder === 'last_seen') {
         const dateA = new Date(a.last_seen || 0).getTime();
         const dateB = new Date(b.last_seen || 0).getTime();
-        return dateB - dateA;
+      return dateB - dateA;
       }
       return 0;
     });
-  }, [devices, searchQuery, filterStatus, sortOrder]);
+  }, [devices, searchQuery, filterStatus, sortOrder, activeGroup, user]);
+
+  const activeGroupName = useMemo(() => {
+    const group = dynamicGroups.find(g => g.id === activeGroup);
+    return group ? group.name : 'All Managed Devices';
+  }, [activeGroup, dynamicGroups]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredDevices.length && filteredDevices.length > 0) {
@@ -192,10 +197,10 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   };
 
   return (
-    <div className="flex h-full w-full bg-white rounded-[32px] overflow-hidden border border-[rgba(28,28,28,0.06)] shadow-[0_8px_30px_rgb(0,0,0,0.04)] animate-in fade-in zoom-in-95 duration-500 font-lato">
+    <div className="flex h-full w-full bg-white overflow-hidden animate-in fade-in duration-500 font-lato">
 
       {/* Left Groups Sidebar */}
-      <div className="w-72 border-r border-[rgba(0,0,0,0.06)] bg-[#FDFDFD] flex flex-col font-lato text-black">
+      <div className="w-72 bg-[#FCFCFC] flex flex-col font-lato text-black">
         {/* Group Search */}
         <div className="p-4 border-b border-[rgba(0,0,0,0.04)]">
           <div className="relative">
@@ -221,8 +226,8 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
           {/* Content List */}
           <div className="space-y-1">
-            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-2 font-lato">
-              Content list
+            <p className="px-3 text-[11px] font-bold text-slate-400 mb-2 font-lato">
+              Content List
             </p>
             {dynamicGroups.slice(0, 2).map(group => (
               <button
@@ -239,7 +244,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
           {/* All Groups */}
           <div className="space-y-1">
             <div className="px-3 flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] font-lato">
+              <p className="text-[11px] font-bold text-slate-400 font-lato">
                 All Groups
               </p>
               <button
@@ -270,30 +275,30 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
       <div className="flex-1 flex flex-col bg-white overflow-hidden font-lato text-black">
 
         {/* Header */}
-        <div className="px-8 pt-8 pb-6 border-b border-[rgba(0,0,0,0.04)]">
+        <div className="px-8 pt-4 pb-4">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h1 className="text-2xl font-semibold text-black tracking-tight flex items-center gap-3 font-lato">
-                All managed devices
+              <h1 className="text-2xl font-semibold text-black flex items-center gap-3 font-lato">
+                {activeGroupName}
               </h1>
               <p className="text-[13px] text-black mt-1 font-lato font-medium">
-                Overview of the devices you are assigned as manager or are part of groups you manage.
+                Overview of the devices in this group.
               </p>
             </div>
             <div className="flex items-center gap-3 font-lato">
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#00193F] text-white rounded-xl text-[13px] font-semibold hover:bg-[#002255] transition-all shadow-lg shadow-blue-900/20 active:scale-95"
+                className="flex items-center gap-2 px-6 py-2.5 bg-[#00193F] text-white rounded-xl text-[13px] font-semibold hover:bg-[#002255] transition-all shadow-lg shadow-blue-900/10 active:scale-95"
               >
                 <Plus size={18} />
-                Add
+                Add Device
               </button>
             </div>
           </div>
         </div>
 
         {/* Toolbar */}
-        <div className="px-8 py-4 flex items-center justify-between bg-[#FDFDFD] font-lato">
+        <div className="px-8 py-2 flex items-center justify-between font-lato">
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-black" />
@@ -306,12 +311,12 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
               />
             </div>
 
-            <button className="flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-colors font-lato">
+            <button className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-colors font-lato">
               <Columns size={16} />
               Columns
             </button>
 
-            <button className="flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-colors font-lato">
+            <button className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-colors font-lato">
               <ListFilter size={16} />
               Filters
             </button>
@@ -347,7 +352,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
         <div className="flex-1 overflow-auto px-8 pb-8 font-lato">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-white z-10 font-lato">
-              <tr className="border-b border-[rgba(0,0,0,0.04)] bg-[#FDFDFD]">
+              <tr className="border-b border-[rgba(0,0,0,0.04)]">
                 <th className="w-10 py-4 text-left font-lato">
                   <div
                     onClick={toggleSelectAll}
@@ -356,24 +361,24 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     {selectedIds.length === filteredDevices.length && filteredDevices.length > 0 && <Check size={10} className="text-white" />}
                   </div>
                 </th>
-                <th className="px-4 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest font-lato">
+                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 font-lato">
                   <div className="flex items-center gap-2">
                     Name <ArrowUpDown size={12} className="opacity-40" />
                   </div>
                 </th>
-                <th className="px-4 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest font-lato">
+                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 font-lato">
                   RemoteLink ID
                 </th>
-                <th className="px-4 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest font-lato">
+                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 font-lato">
                   Status
                 </th>
-                <th className="px-4 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest text-nowrap font-lato">
+                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 text-nowrap font-lato">
                   Last Online
                 </th>
-                <th className="px-4 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest text-nowrap font-lato">
+                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 text-nowrap font-lato">
                   Personal Password
                 </th>
-                <th className="px-4 py-4 text-left text-[10px] font-bold text-slate-500 uppercase tracking-widest text-nowrap font-lato">
+                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 text-nowrap font-lato">
                   Services
                 </th>
                 <th className="w-12 py-4 text-right font-lato"></th>
@@ -406,10 +411,10 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                           <p className={`text-[13px] font-semibold transition-colors flex items-center gap-2 font-lato ${isRowSelected ? 'text-blue-600' : 'text-black group-hover:text-blue-600'}`}>
                             {device.device_name || 'Unnamed Host'}
                             {device.id === authUser?.id && (
-                              <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md">This device</span>
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md">This Device</span>
                             )}
                           </p>
-                          <p className="text-[11px] text-black font-medium mt-0.5 font-lato uppercase tracking-tight">#{device.access_key?.slice(0, 3)} group</p>
+                          <p className="text-[11px] text-black font-medium mt-0.5 font-lato">#{device.access_key?.slice(0, 3)} group</p>
                         </div>
                       </div>
                     </td>
@@ -417,7 +422,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                       {formatID(device.access_key)}
                     </td>
                     <td className="px-4 py-4 font-lato">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${device.is_online ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black ${device.is_online ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${device.is_online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
                         {device.is_online ? 'Online' : 'Offline'}
                       </span>
@@ -461,7 +466,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                 <MonitorOff size={40} strokeWidth={1.5} />
               </div>
               <div className="text-center">
-                <p className="text-sm font-semibold text-black">No devices found</p>
+                <p className="text-sm font-semibold text-black">No Devices Found</p>
                 <p className="text-xs text-black mt-1 font-semibold">Try adjusting your filters or search query.</p>
               </div>
             </div>
@@ -479,14 +484,14 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                 {selectedDevice.device_type?.toLowerCase().includes('phone') ? <Smartphone size={20} /> : <Monitor size={20} />}
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-black uppercase tracking-tight truncate max-w-[180px]">
+                <h2 className="text-sm font-semibold text-black truncate max-w-[180px]">
                   {selectedDevice.device_name || 'Unnamed Host'}
                 </h2>
                 <div className="flex items-center gap-2 mt-0.5">
                   {selectedDevice.id === authUser?.id && (
-                    <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-amber-50 text-[#D4A017] rounded-md uppercase">This device</span>
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-amber-50 text-[#D4A017] rounded-md">This Device</span>
                   )}
-                  <span className="text-[10px] font-semibold text-black uppercase">#{selectedDevice.access_key?.slice(0, 3)} group</span>
+                  <span className="text-[10px] font-semibold text-black">#{selectedDevice.access_key?.slice(0, 3)} Group</span>
                 </div>
               </div>
             </div>
@@ -514,13 +519,13 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
             {/* Device Information Section */}
             <div className="space-y-4">
-              <h3 className="text-[11px] font-semibold text-black uppercase tracking-[0.2em]">Device Information</h3>
+              <h3 className="text-[11px] font-semibold text-black">Device Information</h3>
 
               <div className="space-y-4">
                 {[
                   { label: 'Name', value: selectedDevice.device_name || 'Unnamed' },
                   { label: 'RemoteLink ID', value: formatID(selectedDevice.access_key), isMono: true },
-                  { label: 'RemoteLink policy', value: '--' },
+                  { label: 'RemoteLink Policy', value: '--' },
                   { label: 'Module', value: 'Full' },
                   { label: 'Version', value: '1.0.4' },
                   { label: 'Description', value: '--' },
@@ -535,14 +540,14 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
             {/* Hardware Section */}
             <div className="space-y-4">
-              <h3 className="text-[11px] font-semibold text-black uppercase tracking-[0.2em]">Hardware & OS</h3>
+              <h3 className="text-[11px] font-semibold text-black">Hardware & OS</h3>
               <div className="p-4 bg-white rounded-2xl border border-[rgba(0,0,0,0.08)] space-y-3 shadow-sm">
                 <div className="flex items-center justify-between text-[11px] font-semibold">
-                  <span className="text-black uppercase">Operating System</span>
+                  <span className="text-black">Operating System</span>
                   <span className="text-black">Windows 11 Pro</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] font-semibold">
-                  <span className="text-black uppercase">Local IP Address</span>
+                  <span className="text-black">Local IP Address</span>
                   <span className="text-black font-mono">{selectedDevice.local_ip || '192.168.1.104'}</span>
                 </div>
               </div>
@@ -600,7 +605,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
               <div className="flex items-center justify-end gap-6">
                 <button className="text-[14px] font-bold text-gray-400 hover:text-gray-600 transition-colors">
-                  Create and configure
+                  Create and Configure
                 </button>
                 <button
                   onClick={() => {
@@ -653,8 +658,8 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     <Monitor size={16} />
                   </div>
                   <div className="flex-1">
-                    <p className="text-[13px] font-bold">My devices</p>
-                    <p className="text-[10px] opacity-60">Default group</p>
+                    <p className="text-[13px] font-bold">My Devices</p>
+                    <p className="text-[10px] opacity-60">Default Group</p>
                   </div>
                   {(!actionModal.device.tags || actionModal.device.tags.length === 0) && <Check size={16} />}
                 </button>
@@ -689,10 +694,10 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                     setActionModal(null);
                     setShowAddGroupModal(true);
                   }}
-                  className="w-full py-4 bg-gray-50 dark:bg-white/5 text-black dark:text-white rounded-2xl text-[12px] font-black uppercase tracking-[0.1em] hover:bg-gray-100 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-gray-50 dark:bg-white/5 text-black dark:text-white rounded-2xl text-[12px] font-black hover:bg-gray-100 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus size={16} />
-                  Create new group
+                  Create New Group
                 </button>
               </div>
             </div>

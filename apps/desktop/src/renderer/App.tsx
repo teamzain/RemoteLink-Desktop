@@ -1497,13 +1497,15 @@ export default function App() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [addKey, setAddKey] = useState('');
     const [addPassword, setAddPassword] = useState('');
+    const [addName, setAddName] = useState('');
+    const [addGroup, setAddGroup] = useState('My computers');
+    const [addDescription, setAddDescription] = useState('');
     const [showAddPassword, setShowAddPassword] = useState(false);
 
     const [contextMenuMsg, setContextMenuMsg] = useState(''); // Tooltip offline
     const [contextMenuId, setContextMenuId] = useState<string | null>(null);
     const [globalError, setGlobalError] = useState('');
-
-    const [actionModal, setActionModal] = useState<{ type: 'rename' | 'password' | 'remove' | 'regenerate', device: any } | null>(null);
+    const [actionModal, setActionModal] = useState<{ type: 'rename' | 'password' | 'remove' | 'regenerate' | 'assign-group', device: any } | null>(null);
     const [showActionPassword, setShowActionPassword] = useState(false);
     const [actionValue, setActionValue] = useState('');
 
@@ -1871,10 +1873,18 @@ export default function App() {
 
     const handleAddDevice = async () => {
         try {
-            await api.post('/api/devices/add-existing', { accessKey: addKey.replace(/\s/g, ''), password: addPassword });
+            await api.post('/api/devices/add-existing', { 
+                accessKey: addKey.replace(/\s/g, ''), 
+                password: addPassword,
+                name: addName || undefined,
+                tags: addGroup !== 'My computers' ? [addGroup] : []
+            });
             setShowAddModal(false);
             setAddKey('');
             setAddPassword('');
+            setAddName('');
+            setAddDescription('');
+            setAddGroup('My computers');
             pollDevices();
         } catch (e: any) {
             setGlobalError(e.response?.data?.error || e.message || 'Network error adding device');
@@ -3606,7 +3616,7 @@ export default function App() {
                             </div>
                         ) : currentView === 'support' ? (
                             /* --- SNOW UI SUPPORT VIEW --- */
-                            <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
+                            <div className="w-full h-full animate-in fade-in duration-700 px-8">
                                 <SnowSupport />
                             </div>
                         ) : (currentView as any) === 'chat' ? (
@@ -3619,7 +3629,7 @@ export default function App() {
                             />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
-                            <div className="w-full h-full animate-in fade-in duration-700 pt-2">
+                            <div className="w-full h-full animate-in fade-in duration-700">
                                 {/* @ts-ignore */}
                                 <SnowDevices
                                     devices={devices}
@@ -3637,7 +3647,7 @@ export default function App() {
                                 />
                             </div>
                         ) : (currentView as string) === 'members' ? (
-                            <div className="w-full h-full pt-8 animate-in fade-in duration-700">
+                            <div className="w-full h-full animate-in fade-in duration-700">
                                 <SnowMembers />
                             </div>
                         ) : (currentView as string) === 'organizations' ? (
@@ -3649,7 +3659,7 @@ export default function App() {
                                 />
                             </div>
                         ) : (currentView as string) === 'analytics' ? (
-                            <div className="w-full h-full pt-8 animate-in fade-in duration-700">
+                            <div className="w-full h-full animate-in fade-in duration-700">
                                 <SnowAnalytics
                                     onSelectOrg={(orgId) => {
                                         setOrgDetailId(orgId);
@@ -3659,26 +3669,14 @@ export default function App() {
                                 />
                             </div>
                         ) : (currentView as string) === 'org-detail' ? (
-                            <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
+                            <div className="w-full h-full animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
                                 <SnowOrgDetail
-                                    orgId={orgDetailId!}
+                                    orgId={orgDetailId!}
                                     onBack={() => setCurrentView('analytics')}
                                 />
                             </div>
                         ) : null}
                     </div>
-
-                    {/* ── Global Footer (Inside Main) ────────────────────── */}
-                    {!showSplash && isSplashComplete && (
-                        <footer className="h-7 shrink-0 bg-[#E6EAF0] dark:bg-[#0A101D] border-t border-[#D0D5DD] dark:border-[rgba(255,255,255,0.05)] flex items-center w-full z-[99999] overflow-hidden">
-                            <div className="flex-1 h-full flex items-center justify-start px-4">
-                                <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                                    {hostStatus?.includes('Online') || hostStatus?.includes('WebRTC') || isAuthenticated ? 'Ready to connect (secure connection)' : 'Not connected'}
-                                </span>
-                            </div>
-                        </footer>
-                    )}
                 </main>
 
                 <SnowNotificationPanel 
@@ -3784,40 +3782,106 @@ export default function App() {
 
             {/* Add Device Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="w-full max-w-md bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
-                        <div className="flex justify-between items-center mb-8">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-[#F8F9FA] rounded-[18px] flex items-center justify-center text-[#1C1C1C] shadow-sm border border-[rgba(28,28,28,0.04)]">
-                                    <Plus className="w-6 h-6" />
-                                </div>
-                                <h3 className="text-lg font-bold text-[#1C1C1C] tracking-tight uppercase">Import Node</h3>
-                            </div>
-                            <button onClick={() => setShowAddModal(false)} className="p-2 text-[#1C1C1C] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-xl transition-colors"><X className="w-5 h-5" /></button>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300 font-lato">
+                    <div className="w-full max-w-xl bg-white p-0 rounded-[28px] shadow-2xl border border-[rgba(28,28,28,0.08)] overflow-hidden animate-in zoom-in-95 duration-300">
+                        {/* Modal Header */}
+                        <div className="px-8 pt-8 pb-4 flex items-center justify-between">
+                            <h3 className="text-[20px] font-semibold text-[#1C1C1C]">Add remote device</h3>
+                            <button 
+                                onClick={() => setShowAddModal(false)} 
+                                className="p-2 text-gray-400 hover:text-black transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
                         </div>
 
-                        <div className="space-y-6 mb-10">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] ml-1">Network ID</label>
-                                <input type="text" placeholder="000 000 000" value={addKey} onChange={e => setAddKey(formatCode(e.target.value))} className="purity-input font-mono  
- tracking-[0.2em]" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-[0.2em] ml-1">Security Token</label>
-                                <div className="relative">
-                                    <input type={showAddPassword ? "text" : "password"} placeholder="••••••••" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="purity-input font-mono  
- pr-12" />
-                                    <button onClick={() => setShowAddPassword(!showAddPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1C1C1C] hover:text-[#1C1C1C] transition-colors">
-                                        {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
+                        <div className="px-8 pb-8">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">Device Name</label>
+                                    <div className="relative">
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. Office PC" 
+                                            value={addName}
+                                            onChange={e => setAddName(e.target.value)}
+                                            className="w-full h-12 px-4 bg-[#F9FAFB] border border-gray-200 rounded-xl text-[14px] font-medium focus:border-blue-600 focus:bg-white outline-none transition-all placeholder:text-gray-400"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">Group</label>
+                                    <div className="relative">
+                                        <select 
+                                            value={addGroup}
+                                            onChange={e => setAddGroup(e.target.value)}
+                                            className="w-full h-12 px-4 bg-[#F9FAFB] border border-gray-200 rounded-xl text-[14px] font-medium focus:border-blue-600 focus:bg-white outline-none transition-all appearance-none cursor-pointer"
+                                        >
+                                            <option value="My computers">My computers</option>
+                                            {Array.from(new Set(devices.flatMap(d => d.tags || []))).map(tag => (
+                                                <option key={tag} value={tag}>{tag}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                    </div>
                                 </div>
                             </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">RemoteLink ID</label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="000 000 000" 
+                                        value={addKey}
+                                        onChange={e => setAddKey(formatCode(e.target.value))}
+                                        className="w-full h-12 px-4 bg-[#F9FAFB] border border-gray-200 rounded-xl text-[14px] font-medium focus:border-blue-600 focus:bg-white outline-none transition-all placeholder:text-gray-400 font-mono"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">Password</label>
+                                    <div className="relative">
+                                        <input 
+                                            type={showAddPassword ? "text" : "password"} 
+                                            placeholder="••••••••" 
+                                            value={addPassword}
+                                            onChange={e => setAddPassword(e.target.value)}
+                                            className="w-full h-12 px-4 bg-[#F9FAFB] border border-gray-200 rounded-xl text-[14px] font-medium focus:border-blue-600 focus:bg-white outline-none transition-all placeholder:text-gray-400"
+                                        />
+                                        <button 
+                                            onClick={() => setShowAddPassword(!showAddPassword)}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors"
+                                        >
+                                            {showAddPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-8">
+                                <textarea 
+                                    placeholder="Description" 
+                                    value={addDescription}
+                                    onChange={e => setAddDescription(e.target.value)}
+                                    className="w-full h-24 p-4 bg-white border border-gray-200 rounded-xl text-[14px] font-medium focus:border-blue-600 outline-none transition-all placeholder:text-gray-400 resize-none"
+                                />
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button 
+                                    onClick={handleAddDevice}
+                                    disabled={!addKey || !addPassword}
+                                    className={`px-10 py-2.5 rounded-xl text-[14px] font-semibold transition-all ${(!addKey || !addPassword) ? 'bg-[#F0F2F5] text-gray-400 cursor-not-allowed' : 'bg-[#F0F2F5] text-[#1C1C1C] hover:bg-[#E8EAED]'}`}
+                                >
+                                    Add
+                                </button>
+                            </div>
                         </div>
-                        <button onClick={handleAddDevice} disabled={!addKey || !addPassword} className="snow-btn w-full disabled:opacity-50 tracking-widest">ADD TO MESH NETWORK</button>
                     </div>
                 </div>
             )}
-               {actionModal && actionModal.type !== 'assign-group' && (
+
+            {actionModal && actionModal.type !== 'assign-group' && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="w-full max-w-sm bg-white p-10 rounded-[32px] shadow-2xl border border-[rgba(28,28,28,0.1)] animate-in zoom-in-95 duration-300">
                         <div className="mb-8 text-center">

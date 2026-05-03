@@ -65,7 +65,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const decoded = verifyToken(token);
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
-    let { accessKey, password } = request.body as any;
+    let { accessKey, password, name, tags } = request.body as any;
     if (!accessKey || !password) return reply.code(400).send({ error: 'accessKey and password required' });
     accessKey = String(accessKey).replace(/\s/g, '');
     console.log(`[Device-Debug] Attempting to add existing device: ${accessKey}`);
@@ -85,6 +85,17 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (!isMatch) {
       console.log(`[Device-Debug] Password mismatch for device: ${accessKey}`);
       return reply.code(401).send({ error: 'Incorrect password' });
+    }
+
+    // Update device name/tags if provided
+    if (name || (tags && Array.isArray(tags))) {
+      await prisma.device.update({
+        where: { id: device.id },
+        data: {
+          name: name || undefined,
+          tags: (tags && Array.isArray(tags)) ? { set: tags } : undefined
+        }
+      });
     }
 
     // Safe to link
