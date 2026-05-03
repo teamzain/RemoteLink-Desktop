@@ -27,7 +27,7 @@ interface Ticket {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  'Open': 'bg-blue-100 text-blue-600',
+  'Open': 'bg-amber-100 text-[#D4A017]',
   'In Review': 'bg-[#71DD8C]/20 text-[#3aaa5c]',
   'Closed': 'bg-slate-100 text-slate-500',
 };
@@ -39,7 +39,7 @@ export const SnowSupport: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
   const commonTopics = [
-    { title: t('global_device_optimization', lang), icon: Globe, color: 'text-blue-500', bg: 'bg-blue-50/50', desc: t('global_device_optimization_desc', lang) },
+    { title: t('global_device_optimization', lang), icon: Globe, color: 'text-[#D4A017]', bg: 'bg-amber-50/50', desc: t('global_device_optimization_desc', lang) },
     { title: t('identity_access_keys', lang), icon: ShieldCheck, color: 'text-[#10B981]', bg: 'bg-[#10B981]/10', desc: t('identity_access_keys_desc', lang) },
     { title: t('p2p_signaling_relays', lang), icon: Zap, color: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', desc: t('p2p_signaling_relays_desc', lang) },
   ];
@@ -127,7 +127,7 @@ export const SnowSupport: React.FC = () => {
 
       {/* Support Hero */}
       <div className="bg-[#1C1C1C] rounded-[40px] p-12 text-white relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-blue-600/20 blur-[100px] -mr-32 -mt-32 rounded-full" />
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#D4A017]/20 blur-[100px] -mr-32 -mt-32 rounded-full" />
 
         <div className="relative z-10 max-w-xl">
           <h1 className="text-4xl font-extrabold tracking-tight mb-4">{t('how_can_help', lang)}</h1>
@@ -217,7 +217,7 @@ export const SnowSupport: React.FC = () => {
               <button
                 onClick={handleSubmitCase}
                 disabled={!newSubject.trim() || caseStatus === 'submitting'}
-                className="w-full h-9 rounded-xl bg-[#1C1C1C] text-white text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-40 hover:opacity-90 transition-all"
+                className="w-full h-9 rounded-xl bg-[#00193F] text-white text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-40 hover:bg-[#002255] transition-all"
               >
                 {caseStatus === 'submitting' && <Loader2 size={13} className="animate-spin" />}
                 {caseStatus === 'submitted' && <Check size={13} />}
@@ -269,7 +269,7 @@ export const SnowSupport: React.FC = () => {
             </p>
             <button
               onClick={() => setShowChatModal(true)}
-              className="w-full py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold shadow-lg shadow-black/10 hover:opacity-95 transition-all"
+              className="w-full py-3 bg-[#00193F] text-white rounded-2xl text-xs font-bold shadow-lg shadow-blue-900/10 hover:bg-[#002255] transition-all"
             >
               {t('start_chat_case', lang)}
             </button>
@@ -305,7 +305,7 @@ export const SnowSupport: React.FC = () => {
             </div>
             <div className="flex items-center gap-3 p-4 bg-blue-50/50 rounded-2xl border border-blue-100/50 mb-6">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-              <p className="text-xs text-blue-700 font-medium">3 {t('engineers_available_short', lang)} · Avg wait: ~2 min</p>
+              <p className="text-xs text-amber-700 font-medium">3 {t('engineers_available_short', lang)} · Avg wait: ~2 min</p>
             </div>
             <p className="text-xs text-[rgba(28,28,28,0.5)] mb-6 leading-relaxed">
               {t('chat_modal_desc', lang)}
@@ -314,7 +314,7 @@ export const SnowSupport: React.FC = () => {
               <button onClick={() => setShowChatModal(false)} className="flex-1 py-3 bg-[#F9F9FA] text-[#1C1C1C] rounded-2xl text-xs font-bold border border-[rgba(28,28,28,0.06)] hover:border-[rgba(28,28,28,0.2)] transition-all">
                 {t('cancel', lang)}
               </button>
-              <button onClick={() => setShowChatModal(false)} className="flex-1 py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold hover:opacity-90 transition-all">
+              <button onClick={() => setShowChatModal(false)} className="flex-1 py-3 bg-[#00193F] text-white rounded-2xl text-xs font-bold hover:bg-[#002255] transition-all">
                 {t('join_queue', lang)}
               </button>
             </div>
@@ -363,7 +363,7 @@ export const SnowSupport: React.FC = () => {
                   <button
                     onClick={handleSendReport}
                     disabled={!reportSubject.trim() || !reportBody.trim() || reportStatus === 'sending'}
-                    className="flex-1 py-3 bg-[#1C1C1C] text-white rounded-2xl text-xs font-bold disabled:opacity-40 flex items-center justify-center gap-2 hover:opacity-90 transition-all"
+                    className="flex-1 py-3 bg-[#00193F] text-white rounded-2xl text-xs font-bold disabled:opacity-40 flex items-center justify-center gap-2 hover:bg-[#002255] transition-all"
                   >
                     {reportStatus === 'sending' && <Loader2 size={13} className="animate-spin" />}
                     {reportStatus === 'sending' ? t('sending', lang) : t('send_report', lang)}

@@ -597,6 +597,39 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // 8. Update Device Tags (Grouping)
+  fastify.patch('/:id/tags', async (request: FastifyRequest, reply: FastifyReply) => {
+    const authHeader = request.headers.authorization;
+    if (!authHeader) return reply.code(401).send({ error: 'Unauthorized' });
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
+
+    const { id } = request.params as { id: string };
+    const { tags } = request.body as { tags: string[] };
+
+    if (!Array.isArray(tags)) return reply.code(400).send({ error: 'tags must be an array of strings' });
+
+    const device = await prisma.device.findUnique({ where: { id } });
+    if (!device) return reply.code(404).send({ error: 'Device not found' });
+
+    // Only owner or admin can update tags
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user) return reply.code(401).send({ error: 'User not found' });
+
+    if (device.ownerId !== user.id && user.role !== 'SUPER_ADMIN' && user.role !== 'PLATFORM_OWNER') {
+      return reply.code(403).send({ error: 'Not authorized to manage tags for this device' });
+    }
+
+    const updated = await prisma.device.update({
+      where: { id },
+      data: { tags }
+    });
+
+    return reply.send({ success: true, tags: updated.tags });
+  });
+
   // Status Check (Unauthenticated Viewer Step 1)
   fastify.get('/status', async (request: FastifyRequest, reply: FastifyReply) => {
     let { key } = request.query as any;

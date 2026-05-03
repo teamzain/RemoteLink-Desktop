@@ -36,8 +36,10 @@ const UpdateBanner: React.FC = () => {
       setVisible(true);
     });
 
+    // @ts-ignore
     window.electronAPI.isPackaged?.().then((isPackaged: boolean) => {
       if (isPackaged) {
+        // @ts-ignore
         window.electronAPI.updates.check().catch((err: any) => {
           setError(err?.message || 'Unable to check for updates.');
           setStatus('error');
@@ -72,14 +74,14 @@ const UpdateBanner: React.FC = () => {
         {/* Progress Bar Background */}
         {status === 'downloading' && (
           <div 
-            className="absolute bottom-0 left-0 h-1 bg-blue-500 transition-all duration-300"
+            className="absolute bottom-0 left-0 h-1 bg-[#D4A017] transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         )}
 
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-          {status === 'available' && <Download className="w-5 h-5 text-blue-400" />}
-          {status === 'downloading' && <RefreshCw className="w-5 h-5 text-blue-400 animate-spin" />}
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#D4A017]/10 flex items-center justify-center">
+          {status === 'available' && <Download className="w-5 h-5 text-amber-400" />}
+          {status === 'downloading' && <RefreshCw className="w-5 h-5 text-amber-400 animate-spin" />}
           {status === 'downloaded' && <CheckCircle className="w-5 h-5 text-emerald-400" />}
           {status === 'error' && <AlertCircle className="w-5 h-5 text-rose-400" />}
         </div>
@@ -103,7 +105,7 @@ const UpdateBanner: React.FC = () => {
           {status === 'available' && (
             <button
               onClick={handleDownload}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
+              className="px-4 py-1.5 bg-[#00193F] hover:bg-[#002255] text-white text-xs font-medium rounded-lg transition-colors"
             >
               Update Now
             </button>

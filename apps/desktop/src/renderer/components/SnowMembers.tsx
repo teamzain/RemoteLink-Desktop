@@ -209,7 +209,7 @@ export const SnowMembers: React.FC = () => {
         </div>
         <button
           onClick={() => { setShowInviteModal(true); setSelectedDeviceIds([]); setDeviceSearch(''); setInviteEmail(''); setInviteAccessType('none'); setInviteError(null); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#1C1C1C] text-white rounded-xl text-sm font-bold shadow-lg shadow-black/10 hover:bg-[#2C2C2C] transition-all transform active:scale-95"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#00193F] text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/10 hover:bg-[#002255] transition-all transform active:scale-95"
         >
           <UserPlus size={18} />
           Invite Member
@@ -220,7 +220,7 @@ export const SnowMembers: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-6 bg-white rounded-3xl border border-[rgba(28,28,28,0.04)] shadow-sm">
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+            <div className="p-2 bg-amber-50 text-[#D4A017] rounded-lg">
               <Users size={20} />
             </div>
             <span className="text-xs font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-widest">Total Members</span>
@@ -266,7 +266,7 @@ export const SnowMembers: React.FC = () => {
               <tr key={member.id} className="hover:bg-[rgba(28,28,28,0.01)] transition-colors group">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-sm">
+                    <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-[#D4A017] font-bold text-sm">
                       {member.name?.[0] || member.email[0].toUpperCase()}
                     </div>
                     <div>
@@ -278,7 +278,7 @@ export const SnowMembers: React.FC = () => {
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${member.role === 'DEPARTMENT_MANAGER' ? 'bg-purple-50 text-purple-600' :
                     member.role === 'SUPER_ADMIN' ? 'bg-amber-50 text-amber-600' :
-                    member.role === 'OPERATOR' ? 'bg-blue-50 text-blue-600' :
+                    member.role === 'OPERATOR' ? 'bg-amber-50 text-[#D4A017]' :
                       'bg-slate-50 text-slate-500'
                     }`}>
                     {member.role.replace('_', ' ')}
@@ -288,7 +288,7 @@ export const SnowMembers: React.FC = () => {
                   {member.allowedDeviceIds?.includes('__all__') ? (
                     <span className="text-xs text-emerald-600 font-semibold">Full org access</span>
                   ) : member.allowedDeviceIds && member.allowedDeviceIds.length > 0 ? (
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-[#D4A017]">
                       <Monitor size={13} />
                       {member.allowedDeviceIds.length} device{member.allowedDeviceIds.length !== 1 ? 's' : ''}
                     </span>
@@ -303,7 +303,7 @@ export const SnowMembers: React.FC = () => {
                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100">
                     <button
                       onClick={() => openEditAccess(member)}
-                      className="p-2 text-[rgba(28,28,28,0.2)] hover:text-blue-600 transition-colors"
+                      className="p-2 text-[rgba(28,28,28,0.2)] hover:text-[#D4A017] transition-colors"
                       title="Edit device access"
                     >
                       <Pencil size={15} />
@@ -362,7 +362,7 @@ export const SnowMembers: React.FC = () => {
 
         {isRestricted && (
           <div className="py-24 flex flex-col items-center justify-center text-center px-6">
-            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-[28px] flex items-center justify-center mb-8 shadow-sm">
+            <div className="w-20 h-20 bg-amber-50 text-[#D4A017] rounded-[28px] flex items-center justify-center mb-8 shadow-sm">
               <Users size={40} strokeWidth={1.5} />
             </div>
             <h2 className="text-2xl font-bold text-[#1C1C1C] mb-3 tracking-tight">Team Management Restricted</h2>
@@ -479,7 +479,7 @@ export const SnowMembers: React.FC = () => {
                     )}
                   </div>
                   {editDeviceIds.length > 0 && (
-                    <p className="text-[10px] text-blue-600 font-medium px-1">{editDeviceIds.length} device{editDeviceIds.length !== 1 ? 's' : ''} selected</p>
+                    <p className="text-[10px] text-[#D4A017] font-medium px-1">{editDeviceIds.length} device{editDeviceIds.length !== 1 ? 's' : ''} selected</p>
                   )}
                 </>
               )}
@@ -601,7 +601,7 @@ export const SnowMembers: React.FC = () => {
                       )}
                     </div>
                     {selectedDeviceIds.length > 0 && (
-                      <p className="mt-1.5 text-[10px] text-blue-600 font-medium px-1">{selectedDeviceIds.length} device{selectedDeviceIds.length !== 1 ? 's' : ''} selected</p>
+                      <p className="mt-1.5 text-[10px] text-[#D4A017] font-medium px-1">{selectedDeviceIds.length} device{selectedDeviceIds.length !== 1 ? 's' : ''} selected</p>
                     )}
                   </>
                 )}

@@ -28,7 +28,7 @@ export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notificatio
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm font-semibold text-[#1C1C1C] tracking-tight">System Notifications</h3>
           {notifications.length > 0 && (
-            <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+            <span className="flex h-2 w-2 rounded-full bg-[#D4A017] animate-pulse" />
           )}
         </div>
         <div className="flex flex-col gap-6">
@@ -72,10 +72,10 @@ export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notificatio
                   {device.device_type?.toLowerCase() === 'ios' || device.device_type?.toLowerCase() === 'android' ? <Smartphone size={14} /> : <Monitor size={14} />}
                </div>
                <div className="flex flex-col min-w-0 flex-1">
-                 <span className="text-sm text-[#1C1C1C] group-hover:text-blue-600 transition-colors font-medium truncate tracking-tight">{device.device_name || 'Unnamed'}</span>
+                 <span className="text-sm text-[#1C1C1C] group-hover:text-[#D4A017] transition-colors font-medium truncate tracking-tight">{device.device_name || 'Unnamed'}</span>
                  <span className="text-[10px] text-[rgba(28,28,28,0.4)] font-medium truncate">{device.access_key}</span>
                </div>
-               <ExternalLink size={12} className="text-[rgba(28,28,28,0.1)] group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all transform translate-x-1 group-hover:translate-x-0" />
+               <ExternalLink size={12} className="text-[rgba(28,28,28,0.1)] group-hover:text-amber-400 opacity-0 group-hover:opacity-100 transition-all transform translate-x-1 group-hover:translate-x-0" />
              </div>
           ))}
           {devices.length === 0 && (

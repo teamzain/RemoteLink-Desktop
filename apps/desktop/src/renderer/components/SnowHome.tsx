@@ -144,7 +144,6 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
               {!collapsed && (
                 <>
                   <span className="flex-1 text-left truncate">{item.label}</span>
-                  {item.arrow && <ChevronRight size={12} className="opacity-50 shrink-0" />}
                 </>
               )}
             </button>

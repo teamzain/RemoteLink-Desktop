@@ -23,7 +23,8 @@ import {
   Hash,
   Copy,
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  Monitor
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -66,7 +67,8 @@ export const SnowChat: React.FC<{
     acceptInvite,
     rejectInvite,
     connectWebSocket, 
-    disconnectWebSocket 
+    disconnectWebSocket,
+    isLoading
   } = useChatStore();
 
   const [showAddContact, setShowAddContact] = useState(false);
@@ -254,6 +256,17 @@ export const SnowChat: React.FC<{
       setSessionInviteMessage(err.response?.data?.error || err.message || 'Could not send session invite.');
     }
   };
+
+  if (isLoading && conversations.length === 0) {
+    return (
+      <div className="flex-1 h-full flex items-center justify-center bg-white dark:bg-[#080808] font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="w-10 h-10 animate-spin text-[#00193F]" />
+          <p className="text-sm font-medium text-gray-500 animate-pulse">Initializing Remote 365 Chat...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full w-full bg-white dark:bg-[#080808] font-sans">
@@ -877,7 +890,7 @@ export const SnowChat: React.FC<{
                 disabled={(addMode === 'contact' ? !inviteEmail : !groupName || !groupEmails) || isInviting}
                 className={`px-6 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 ${
                   (addMode === 'contact' ? inviteEmail : groupName && groupEmails) && !isInviting
-                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                    ? 'bg-[#00193F] text-white hover:bg-[#002255]' 
                     : 'bg-[#F0F2F5] dark:bg-[#2A2A2A] text-gray-400 dark:text-[#666666] pointer-events-none'
                 }`}
               >
@@ -929,7 +942,7 @@ export const SnowChat: React.FC<{
                 disabled={!memberEmails || isInviting}
                 className={`px-6 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 ${
                   memberEmails && !isInviting
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-[#00193F] text-white hover:bg-[#002255]'
                     : 'bg-[#F0F2F5] dark:bg-[#2A2A2A] text-gray-400 dark:text-[#666666] pointer-events-none'
                 }`}
               >

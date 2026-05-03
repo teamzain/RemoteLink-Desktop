@@ -257,7 +257,7 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
         <div>
           <h1 className="text-2xl font-extrabold text-[#1C1C1C] tracking-tight">{name || email}</h1>
           <p className="text-xs font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-widest mt-1 flex items-center gap-2">
-            <Shield size={12} className="text-blue-500" />
+            <Shield size={12} className="text-[#D4A017]" />
             {user?.role?.replace('_', ' ')}
             {user?.role !== 'SUPER_ADMIN' && ` · ${user?.plan} Plan`}
           </p>
@@ -390,7 +390,7 @@ export const SnowUserSettings: React.FC<SnowUserSettingsProps> = ({
                           <div>
                              <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-[#1C1C1C]">{s.ip}</span>
-                                {s.isCurrent && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[8px] font-bold uppercase rounded-md tracking-wider">Current</span>}
+                                {s.isCurrent && <span className="px-1.5 py-0.5 bg-amber-50 text-[#D4A017] text-[8px] font-bold uppercase rounded-md tracking-wider">Current</span>}
                              </div>
                              <p className="text-[10px] font-medium text-[rgba(28,28,28,0.4)] mt-0.5">{s.userAgent}</p>
                           </div>

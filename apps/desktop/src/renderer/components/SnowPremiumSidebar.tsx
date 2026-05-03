@@ -71,9 +71,6 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
           >
             <item.icon size={18} className={`${currentView === item.id ? 'text-white' : 'text-[rgba(255,255,255,0.6)]'}`} />
             {!isCollapsed && <span className="text-sm font-medium whitespace-nowrap">{item.label}</span>}
-            {!isCollapsed && item.id === 'devices' && (
-              <ChevronRight size={14} className="ml-auto opacity-40" />
-            )}
           </button>
         ))}
         

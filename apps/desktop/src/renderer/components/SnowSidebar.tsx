@@ -67,16 +67,16 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
 
   const navItemClass = (isActive: boolean) => `
     relative flex items-center w-full h-8 px-3 rounded-lg transition-all duration-200 group
-    ${isActive ? 'bg-[rgba(28,28,28,0.05)]' : 'hover:bg-[rgba(28,28,28,0.02)]'}
+    ${isActive ? 'bg-amber-50 shadow-sm border border-amber-100/50' : 'hover:bg-[rgba(28,28,28,0.02)]'}
   `;
 
   const textClass = (isActive: boolean) => `
-    text-sm font-normal leading-5 transition-colors whitespace-nowrap
-    ${isActive ? 'text-[#1C1C1C]' : 'text-[#1C1C1C] opacity-80 group-hover:opacity-100'}
+    text-sm font-semibold leading-5 transition-colors whitespace-nowrap
+    ${isActive ? 'text-[#D4A017]' : 'text-[#1C1C1C] opacity-80 group-hover:opacity-100'}
   `;
 
   const indicatorClass = (isActive: boolean) => `
-    absolute left-0 top-2 w-1.5 h-4 bg-[#1C1C1C] rounded-r-lg transition-opacity
+    absolute left-0 top-2 w-1 h-4 bg-[#D4A017] rounded-r-lg transition-opacity
     ${isActive ? 'opacity-100' : 'opacity-0'}
   `;
 
@@ -85,7 +85,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
 
       {/* Brand Logo Section */}
       <div className="flex items-center gap-3 px-5 pt-8 mb-10 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>
-        <div className="w-10 h-10 rounded-xl bg-[#1C1C1C] flex items-center justify-center shadow-lg shadow-black/10 overflow-hidden border border-white/5">
+        <div className="w-10 h-10 rounded-xl bg-[#D4A017] flex items-center justify-center shadow-lg shadow-amber-500/20 overflow-hidden border border-white/5">
           <img src={logo} alt="Sync" className="w-8 h-8 object-contain" />
         </div>
         <div className="flex flex-col">
@@ -107,7 +107,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(isDashboard)} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <PieChart size={16} className={isDashboard ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <PieChart size={16} className={isDashboard ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(isDashboard)}>Overview</span>
               </div>
             </button>
@@ -118,7 +118,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(isHost)} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <Radio size={16} className={isHost ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <Radio size={16} className={isHost ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(isHost)}>Host Device</span>
               </div>
             </button>
@@ -129,7 +129,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(currentView === 'connect')} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <Zap size={16} className={currentView === 'connect' ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <Zap size={16} className={currentView === 'connect' ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(currentView === 'connect')}>Quick Connect</span>
               </div>
             </button>
@@ -140,7 +140,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(isDevices)} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <Monitor size={16} className={isDevices ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <Monitor size={16} className={isDevices ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(isDevices)}>All Devices</span>
               </div>
             </button>
@@ -157,7 +157,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(isSettings || isProfile)} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <Settings size={16} className={isSettings || isProfile ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <Settings size={16} className={isSettings || isProfile ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(isSettings || isProfile)}>Settings</span>
               </div>
             </button>
@@ -169,7 +169,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
               >
                 <div className={indicatorClass(isMembers)} />
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Users size={16} className={isMembers ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                  <Users size={16} className={isMembers ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                   <span className={textClass(isMembers)}>Members</span>
                 </div>
               </button>
@@ -183,7 +183,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
                 >
                   <div className={indicatorClass(isOrgs)} />
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Building2 size={16} className={isOrgs ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                    <Building2 size={16} className={isOrgs ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                     <span className={textClass(isOrgs)}>Organizations</span>
                   </div>
                 </button>
@@ -194,7 +194,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
                 >
                   <div className={indicatorClass(isAnalytics)} />
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <TrendingUp size={16} className={isAnalytics ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                    <TrendingUp size={16} className={isAnalytics ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                     <span className={textClass(isAnalytics)}>Platform Analytics</span>
                   </div>
                 </button>
@@ -207,7 +207,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(isDocs)} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <BookOpen size={16} className={isDocs ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <BookOpen size={16} className={isDocs ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(isDocs)}>Documentation</span>
               </div>
             </button>
@@ -225,7 +225,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
               >
                 <div className={indicatorClass(isBilling)} />
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <CreditCard size={16} className={isBilling ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                  <CreditCard size={16} className={isBilling ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                   <span className={textClass(isBilling)}>Subscriptions</span>
                 </div>
               </button>
@@ -237,7 +237,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({
             >
               <div className={indicatorClass(isSupport)} />
               <div className="flex items-center gap-2.5 min-w-0">
-                <LifeBuoy size={16} className={isSupport ? 'text-[#1C1C1C]' : 'text-[rgba(28,28,28,0.4)]'} />
+                <LifeBuoy size={16} className={isSupport ? 'text-[#D4A017]' : 'text-[rgba(28,28,28,0.4)]'} />
                 <span className={textClass(isSupport)}>Support Hub</span>
               </div>
             </button>

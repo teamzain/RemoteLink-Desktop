@@ -713,7 +713,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                             videoRef.current?.play().then(() => setIsAutoPlayBlocked(false)).catch(console.error);
                         }}
                     >
-                        <div className="w-16 h-16 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center mb-4 animate-pulse">
+                        <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-blue-500/40 flex items-center justify-center mb-4 animate-pulse">
                             <Play size={32} className="text-blue-400 fill-blue-400" />
                         </div>
                         <span className="text-white/80 font-bold text-sm tracking-widest uppercase">Click to Resume Stream</span>
@@ -807,7 +807,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#060608] animate-in fade-in duration-500">
                         {/* Ambient glow */}
                         <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/5 blur-[160px] rounded-full" />
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4A017]/5 blur-[160px] rounded-full" />
                         </div>
 
                         {/* Logo mark */}
@@ -829,12 +829,12 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                                 return (
                                     <React.Fragment key={step}>
                                         <div className="flex flex-col items-center gap-1.5">
-                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${active ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-white/80'}`}>
+                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${active ? 'bg-amber-500/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-white/80'}`}>
                                                 {active ? <CheckCircle2 size={12} /> : <div className="w-1.5 h-1.5 rounded-full bg-white/20" />}
                                             </div>
                                             <span className={`text-[8px] font-bold uppercase tracking-widest ${active ? 'text-blue-400/60' : 'text-white/15'}`}>{step}</span>
                                         </div>
-                                        {i < 2 && <div className={`w-8 h-px mb-4 ${active ? 'bg-blue-500/30' : 'bg-white/10'}`} />}
+                                        {i < 2 && <div className={`w-8 h-px mb-4 ${active ? 'bg-amber-500/30' : 'bg-white/10'}`} />}
                                     </React.Fragment>
                                 );
                             })}
@@ -945,7 +945,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 {/* Controls */}
                 <div className="flex items-center gap-0.5">
-                    <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-blue-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
+                    <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-amber-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
                         <Search size={13} />
                     </button>
                     <button onClick={() => { if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullScreen(true); } else { document.exitFullscreen(); setIsFullScreen(false); } }} title="Fullscreen" className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
@@ -960,11 +960,11 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     {isMobileDevice ? (
                         [
                             { icon: ChevronLeft, action: 1, title: 'Back (Esc)', color: '' },
-                            { icon: Home, action: 2, title: 'Home (Alt+H)', color: 'hover:text-blue-400 hover:bg-blue-500/10' },
+                            { icon: Home, action: 2, title: 'Home (Alt+H)', color: 'hover:text-blue-400 hover:bg-amber-500/10' },
                             { icon: Layers, action: 3, title: 'Recents (Alt+R)', color: '' },
                             { icon: BellDot, action: 4, title: 'Notifications (Alt+N)', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
                             { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
-                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-blue-500/10' }
+                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-amber-500/10' }
                         ].map(({ icon: Icon, action, title, color }) => (
                             <button key={action} onClick={() => {
                                 if (typeof action === 'number') {
@@ -983,7 +983,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                             { icon: Globe, action: 'browser', title: 'Browser', color: '' },
                             { icon: Folder, action: 'explorer', title: 'Explorer', color: '' },
                             { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
-                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-blue-500/10' },
+                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-amber-500/10' },
                             { icon: Power, action: 'shutdown', title: 'Shutdown', color: 'hover:text-red-400 hover:bg-red-500/10' },
                         ].map(({ icon: Icon, action, title, color }) => (
                             <button key={action} onClick={() => onControlEvent({ type: 'action', action })} title={title}
@@ -1062,7 +1062,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     if (fileInputRef.current) fileInputRef.current.value = '';
                 }} />
                 <button onClick={() => fileInputRef.current?.click()} title="Transfer File"
-                    className="w-8 h-8 rounded-xl flex items-center justify-center bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all">
+                    className="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/10 border border-blue-500/20 text-blue-400 hover:bg-amber-500/20 transition-all">
                     <Plus size={13} />
                 </button>
 
@@ -2941,7 +2941,7 @@ export default function App() {
                                         type="button"
                                         onClick={handleFindDevice}
                                         disabled={viewerStatus === 'connecting' || !sessionCode}
-                                        className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-amber-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : null}
                                         Continue
@@ -2965,7 +2965,7 @@ export default function App() {
                                         type="button"
                                         onClick={handleConnectToHost}
                                         disabled={viewerStatus === 'connecting' || !accessPassword}
-                                        className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-amber-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         {viewerStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : <Zap size={16} />}
                                         Connect
@@ -3011,7 +3011,7 @@ export default function App() {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-blue-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-amber-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     {loading && <RefreshCw size={16} className="animate-spin" />}
                                     Continue
@@ -3042,7 +3042,7 @@ export default function App() {
                                 <span className="text-slate-400">New to Remote 365? </span>
                                 <button 
                                     onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
-                                    className="text-blue-600 font-semibold hover:underline"
+                                    className="text-[#D4A017] font-semibold hover:underline"
                                 >
                                     {authMode === 'login' ? 'Create an account' : 'Sign in'}
                                 </button>
@@ -3063,7 +3063,7 @@ export default function App() {
 
 
     return (
-        <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex flex-col overflow-hidden font-inter selection:bg-blue-500/20 select-none">
+        <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex flex-col overflow-hidden font-inter selection:bg-amber-500/20 select-none">
             <div className="flex-1 flex flex-row min-h-0 w-full relative">
             <UpdateBanner />
             <SnowSplashScreen isReady={!loading} onFinished={() => setIsSplashComplete(true)} />
@@ -3096,8 +3096,8 @@ export default function App() {
             {pendingViewerRequest && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="w-full max-w-sm bg-white rounded-[28px] border border-[rgba(28,28,28,0.08)] shadow-2xl p-8 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
-                            <Monitor className="text-blue-600 w-8 h-8" />
+                        <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center">
+                            <Monitor className="text-[#D4A017] w-8 h-8" />
                                   <div className="text-center">
                             <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">{t('new_connection_request', user?.language)}</h2>
                             <p className="text-sm font-medium text-[#000000] leading-relaxed">
@@ -3107,7 +3107,7 @@ export default function App() {
                         <div className="w-full flex flex-col items-center gap-1">
                             <div className="w-full bg-[#F8F9FA] rounded-2xl h-2 overflow-hidden cursor-none">
                                 <div
-                                    className="h-full bg-blue-500 transition-all duration-1000 ease-linear"
+                                    className="h-full bg-amber-500 transition-all duration-1000 ease-linear"
                                     style={{ width: `${(pendingViewerRequest.countdown / 30) * 100}%` }}
                                 />
                             </div>
@@ -3217,7 +3217,7 @@ export default function App() {
                                     <input
                                         type="text"
                                         placeholder="Search device, contact, group or feature. Type an ID to connect."
-                                        className="w-full h-10 pl-11 pr-20 bg-white dark:bg-white/5 border border-blue-500 dark:border-blue-400 rounded-xl text-sm outline-none shadow-[0_0_0_1px_rgba(59,130,246,0.1)] transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
+                                        className="w-full h-10 pl-11 pr-20 bg-white dark:bg-white/5 border border-[#D4A017] dark:border-amber-500 rounded-xl text-sm outline-none shadow-[0_0_0_1px_rgba(212,160,23,0.1)] transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
                                     />
                                     <div className="absolute inset-y-0 right-3 flex items-center">
                                         <span className="text-[10px] font-medium text-[#757575] dark:text-[#A0A0A0] bg-[#F4F7F9] dark:bg-white/5 px-1.5 py-0.5 rounded border border-[#D1D1D1] dark:border-white/10">Ctrl + K</span>
@@ -3268,7 +3268,7 @@ export default function App() {
                                         onClick={() => setShowUserDropdown(!showUserDropdown)}
                                         className="relative group cursor-pointer"
                                     >
-                                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-sm overflow-hidden">
+                                        <div className="w-8 h-8 rounded-full bg-[#D4A017] flex items-center justify-center text-white text-xs font-bold shadow-sm overflow-hidden">
                                             {user?.avatar ? (
                                                 <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
                                             ) : (() => {
@@ -3300,7 +3300,7 @@ export default function App() {
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] leading-tight">{user?.name || 'User'}</span>
-                                                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
+                                                    <span className="text-[11px] font-bold text-[#D4A017] dark:text-blue-400 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
                                                     <div className="flex items-center gap-1 mt-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 px-1.5 py-0.5 -ml-1.5 rounded transition-colors">
                                                         <span className="text-xs text-[#757575] dark:text-[#A0A0A0]">{t('online_status', user?.language)}</span>
                                                         <ChevronDown size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
@@ -3373,9 +3373,9 @@ export default function App() {
                             </header>
                             
                             {/* License Banner */}
-                            <div className="h-8 w-full flex items-center justify-center bg-[#EEF2FC] dark:bg-blue-900/10 flex-shrink-0 font-sans border-b border-[rgba(0,0,0,0.03)] dark:border-white/5">
+                            <div className="h-8 w-full flex items-center justify-center bg-amber-50 dark:bg-amber-900/10 flex-shrink-0 font-sans border-b border-[rgba(0,0,0,0.03)] dark:border-white/5">
                                 <span className="text-[11px] text-[#4A4A4A] dark:text-[#A0A0A0]">
-                                    {t('free_license_banner', user?.language)} <button className="text-blue-600 dark:text-blue-400 hover:underline ml-1">{t('upgrade_plan', user?.language)}</button>
+                                    {t('free_license_banner', user?.language)} <button className="text-[#D4A017] dark:text-amber-500 hover:underline ml-1">{t('upgrade_plan', user?.language)}</button>
                                 </span>
                             </div>
                         </>
@@ -3454,7 +3454,7 @@ export default function App() {
                                     }}
                                 />
                             </div>
-                        ) : selectedDevice ? (
+                        ) : (selectedDevice && currentView !== 'devices') ? (
                             /* --- INDIVIDUAL DEVICE PREVIEW VIEW --- */
                             <div className="max-w-4xl mx-auto min-h-full py-12 flex flex-col items-center justify-center animate-in fade-in slide-in-from-bottom-8 duration-500 font-inter">
                                 <div className="relative mb-6">
@@ -3490,7 +3490,7 @@ export default function App() {
                                             handleDeviceClick(selectedDevice);
                                         }}
                                         disabled={viewerStatus === 'connecting' || user?.role === 'VIEWER'}
-                                        className={`flex-1 py-3.5 rounded-2xl font-bold text-[11px] uppercase tracking-widest text-white shadow-lg shadow-black/10 flex items-center justify-center gap-2 transition active:scale-[0.98] ${user?.role === 'VIEWER' ? 'bg-[rgba(28,28,28,0.1)] cursor-not-allowed' : 'bg-[#1C1C1C]'}`}
+                                        className={`flex-1 py-3.5 rounded-2xl font-bold text-[11px] uppercase tracking-widest text-white shadow-lg shadow-black/10 flex items-center justify-center gap-2 transition active:scale-[0.98] ${user?.role === 'VIEWER' ? 'bg-[rgba(28,28,28,0.1)] cursor-not-allowed' : 'bg-[#00193F] hover:bg-[#002255]'}`}
                                     >
                                         {viewerStatus === 'connecting' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <>Establish Link <Zap size={14} /></>}
                                     </button>
@@ -3513,8 +3513,8 @@ export default function App() {
                             <div className="w-full pt-8 animate-in fade-in duration-700">
                                 <div className="bg-white rounded-[32px] border border-[rgba(28,28,28,0.15)] p-8 shadow-sm">
                                     <div className="flex items-center gap-4 mb-8">
-                                        <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
-                                            <Activity className="text-blue-600" size={24} />
+                                        <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center">
+                                            <Activity className="text-[#D4A017]" size={24} />
                                         </div>
                                         <div>
                                             <h2 className="text-xl font-bold text-[#1C1C1C]">Active Remote Sessions</h2>
@@ -3537,7 +3537,7 @@ export default function App() {
                                             <div className="p-6 rounded-2xl bg-[#F8F9FA] border border-[rgba(28,28,28,0.02)] flex items-center justify-between">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                                                        <Monitor className="text-blue-500" size={20} />
+                                                        <Monitor className="text-[#D4A017]" size={20} />
                                                     </div>
                                                     <div>
                                                         <span className="text-sm font-bold text-[#1C1C1C]">Encrypted P2P Link</span>
@@ -3620,14 +3620,17 @@ export default function App() {
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */
                             <div className="w-full h-full animate-in fade-in duration-700 pt-2">
+                                {/* @ts-ignore */}
                                 <SnowDevices
                                     devices={devices}
                                     user={user}
                                     searchQuery={searchQuery}
                                     setSearchQuery={setSearchQuery}
+                                    selectedDevice={selectedDevice}
                                     setSelectedDevice={setSelectedDevice}
                                     handleDeviceClick={handleDeviceClick}
                                     setActionModal={setActionModal}
+                                    actionModal={actionModal}
                                     setShowAddModal={setShowAddModal}
                                     handleBulkDelete={handleBulkDelete}
                                 />
@@ -3891,7 +3894,7 @@ export default function App() {
                 <div className="fixed inset-0 z-[300] bg-[#1C1C1C]/20 backdrop-blur-md flex items-center justify-center p-6 animate-in zoom-in duration-300">
                     <div className="bg-white border border-[rgba(28,28,28,0.15)] shadow-2xl rounded-[32px] p-10 w-[500px] max-w-full flex flex-col items-center  
  relative">
-                        <div className={`w-20 h-20 rounded-[24px] flex items-center justify-center mb-8 shadow-sm border ${fileReceivedModal.isRemote ? 'bg-blue-50 text-blue-500 border-blue-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'}`}>
+                        <div className={`w-20 h-20 rounded-[24px] flex items-center justify-center mb-8 shadow-sm border ${fileReceivedModal.isRemote ? 'bg-amber-50 text-[#D4A017] border-blue-100' : 'bg-emerald-50 text-emerald-500 border-emerald-100'}`}>
                             <DownloadCloud className="w-10 h-10" />
                         </div>
                         <h3 className="text-2xl font-black text-[#1C1C1C] mb-1 uppercase tracking-tighter">
