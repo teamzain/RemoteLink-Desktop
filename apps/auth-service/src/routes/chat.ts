@@ -8,6 +8,16 @@ const getInviteInstallUrl = () => {
   return process.env.DESKTOP_DOWNLOAD_URL || 'http://159.65.84.190/downloads/desktop/';
 };
 
+const getSafeJoinLink = (sessionLink: string) => {
+  try {
+    const parsed = new URL(sessionLink);
+    parsed.searchParams.delete('password');
+    return parsed.toString();
+  } catch {
+    return sessionLink.replace(/([?&])password=[^&]*/i, '$1').replace(/[?&]$/, '');
+  }
+};
+
 const sendSessionInviteEmail = async ({
   to,
   senderName,
@@ -257,10 +267,6 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     if (!cleanCode || !sessionLink) {
       return reply.code(400).send({ error: 'Session code and link are required' });
     }
-    if (!conversationId && !cleanEmail) {
-      return reply.code(400).send({ error: 'Choose a chat or enter an email address' });
-    }
-
     try {
       const sender = await (prisma as any).user.findUnique({
         where: { id: userId },
@@ -302,8 +308,45 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         : null;
       if (targetUser && !targetUserIds.includes(targetUser.id)) targetUserIds.push(targetUser.id);
 
+      const collaboratorUsers = conversationId
+        ? conversation.participants
+            .filter((p: any) => p.userId !== userId)
+            .map((p: any) => ({ userId: p.userId, email: p.user.email, name: p.user.name }))
+        : [];
+
+      if (targetUser && cleanEmail && !collaboratorUsers.some((c: any) => c.email === cleanEmail)) {
+        collaboratorUsers.push({ userId: targetUser.id, email: targetUser.email, name: null });
+      } else if (cleanEmail && !collaboratorUsers.some((c: any) => c.email === cleanEmail)) {
+        collaboratorUsers.push({ userId: null, email: cleanEmail, name: null });
+      }
+
+      const remoteSession = await (prisma as any).remoteSession.create({
+        data: {
+          name: cleanName,
+          sessionCode: cleanCode,
+          joinLink: getSafeJoinLink(sessionLink),
+          conversationId: conversationId || null,
+          createdById: userId,
+          collaborators: {
+            create: collaboratorUsers.map((collaborator: any) => ({
+              userId: collaborator.userId || null,
+              email: collaborator.email,
+              name: collaborator.name || null
+            }))
+          }
+        },
+        include: {
+          collaborators: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' as const }
+          },
+          createdBy: { select: { id: true, name: true, email: true } }
+        }
+      });
+
       const invitePayload = {
         kind: 'remote-session-invite',
+        remoteSessionId: remoteSession.id,
         sessionName: cleanName,
         sessionCode: cleanCode,
         sessionPassword: sessionPassword || '',
@@ -363,10 +406,49 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       return reply.send({
         success: true,
         existingUser: Boolean(targetUser || targetUserIds.length > 0),
-        message
+        message,
+        remoteSession
       });
     } catch (err) {
       console.error('[Chat API] Failed to create session invite', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  fastify.get('/remote-sessions', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+
+    try {
+      const currentUser = await (prisma as any).user.findUnique({
+        where: { id: userId },
+        select: { email: true }
+      });
+
+      const visibilityFilters: any[] = [
+        { createdById: userId },
+        { collaborators: { some: { userId } } }
+      ];
+      if (currentUser?.email) {
+        visibilityFilters.push({ collaborators: { some: { email: currentUser.email } } });
+      }
+
+      const sessions = await (prisma as any).remoteSession.findMany({
+        where: {
+          OR: visibilityFilters
+        },
+        include: {
+          collaborators: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' as const }
+          },
+          createdBy: { select: { id: true, name: true, email: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return reply.send(sessions);
+    } catch (err) {
+      console.error('[Chat API] Failed to fetch remote sessions', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });

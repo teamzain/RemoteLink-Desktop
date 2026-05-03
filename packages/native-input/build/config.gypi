@@ -415,20 +415,20 @@
     "fallback_to_build": "true",
     "fetch_retries": "5",
     "fetch_retry_maxtimeout": "120000",
-    "globalconfig": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm\\etc\\npmrc",
-    "global_prefix": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm",
+    "globalconfig": "C:\\nvm4w\\nodejs\\etc\\npmrc",
+    "global_prefix": "C:\\nvm4w\\nodejs",
     "init_module": "C:\\Users\\Zain Ul Abidden\\.npm-init.js",
     "local_prefix": "D:\\Work\\RemoteLink-Desktop",
-    "node_gyp": "C:\\Program Files\\nodejs\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
-    "npm_version": "11.12.1",
+    "node_gyp": "C:\\Users\\Zain Ul Abidden\\AppData\\Local\\nvm\\v20.11.1\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
+    "npm_version": "10.2.4",
     "platform": "win32",
-    "prefix": "C:\\Users\\Zain Ul Abidden\\AppData\\Roaming\\npm",
+    "prefix": "C:\\nvm4w\\nodejs",
     "runtime": "electron",
     "target": "28.3.3",
     "target_libc": "unknown",
     "target_platform": "win32",
     "update_binary": "true",
     "userconfig": "C:\\Users\\Zain Ul Abidden\\.npmrc",
-    "user_agent": "npm/11.12.1 node/v24.15.0 win32 x64 workspaces/true"
+    "user_agent": "npm/10.2.4 node/v20.11.1 win32 x64 workspaces/true"
   }
 }

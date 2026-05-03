@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Monitor, 
   Copy, 
@@ -13,7 +13,8 @@ import {
   MoreHorizontal,
   Mail,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { t } from '../lib/translations';
 import { useAuthStore } from '../store/authStore';
@@ -53,6 +54,8 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const [sessionEmail, setSessionEmail] = useState('');
   const [sessionInviteStatus, setSessionInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [sessionInviteMessage, setSessionInviteMessage] = useState('');
+  const [remoteSessions, setRemoteSessions] = useState<any[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
   const formatId = (id: string | null) => {
     if (!id) return '--- --- ---';
@@ -78,6 +81,22 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const sessionCode = (localAuthKey || '').replace(/\s/g, '');
   const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCode)}&password=${encodeURIComponent(devicePassword || '')}`;
 
+  const fetchRemoteSessions = async () => {
+    setLoadingSessions(true);
+    try {
+      const { data } = await api.get('/api/chat/remote-sessions');
+      setRemoteSessions(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('[RemoteSupport] Failed to fetch remote sessions', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'sessions') fetchRemoteSessions();
+  }, [activeTab]);
+
   const handleStartSessionInvite = async () => {
     if (!sessionCode) {
       setSessionInviteStatus('error');
@@ -89,14 +108,15 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
     setSessionInviteMessage('');
     try {
       if (!isOnline) onStartHosting();
-      if (sessionEmail.trim()) {
-        await api.post('/api/chat/session-invites', {
-          email: sessionEmail.trim(),
-          sessionName,
-          sessionCode,
-          sessionPassword: devicePassword,
-          sessionLink
-        });
+      const { data } = await api.post('/api/chat/session-invites', {
+        email: sessionEmail.trim() || undefined,
+        sessionName,
+        sessionCode,
+        sessionPassword: devicePassword,
+        sessionLink
+      });
+      if (data?.remoteSession) {
+        setRemoteSessions((prev) => [data.remoteSession, ...prev.filter((session) => session.id !== data.remoteSession.id)]);
       }
       await navigator.clipboard?.writeText(sessionLink);
       setSessionInviteStatus('sent');
@@ -263,10 +283,81 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 </div>
               </div>
             </div>
+          ) : remoteSessions.length > 0 ? (
+            <div className="bg-white dark:bg-[#0F0F0F] rounded-2xl border border-gray-100 dark:border-white/5 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-[#F5F5F5]">Sessions</h3>
+                  <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0]">Created sessions and invited collaborators.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchRemoteSessions}
+                    className="w-9 h-9 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center"
+                    title="Refresh sessions"
+                  >
+                    <RefreshCw size={15} className={loadingSessions ? 'animate-spin' : ''} />
+                  </button>
+                  <button
+                    onClick={() => setShowAddSessionModal(true)}
+                    className="px-4 py-2 bg-[#1D6DF5] text-white rounded-lg text-[12px] font-bold hover:bg-blue-700 transition-colors"
+                  >
+                    New session
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 dark:bg-white/5">
+                    <tr className="text-[11px] uppercase tracking-wider text-gray-400 dark:text-[#A0A0A0]">
+                      <th className="px-6 py-3 font-bold">Session</th>
+                      <th className="px-6 py-3 font-bold">Code</th>
+                      <th className="px-6 py-3 font-bold">Collaborators</th>
+                      <th className="px-6 py-3 font-bold">Status</th>
+                      <th className="px-6 py-3 font-bold">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+                    {remoteSessions.map((session) => {
+                      const collaborators = session.collaborators || [];
+                      return (
+                        <tr key={session.id} className="text-[13px] text-gray-700 dark:text-[#D1D1D1]">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-gray-900 dark:text-[#F5F5F5]">{session.name}</div>
+                            <div className="text-[11px] text-gray-400">By {session.createdBy?.name || session.createdBy?.email || 'You'}</div>
+                          </td>
+                          <td className="px-6 py-4 font-mono">{formatId(session.sessionCode)}</td>
+                          <td className="px-6 py-4">
+                            {collaborators.length === 0 ? (
+                              <span className="text-gray-400">No collaborators yet</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {collaborators.map((collaborator: any) => (
+                                  <span key={collaborator.id} className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-white/5 px-3 py-1 text-[12px]">
+                                    <Users size={12} />
+                                    {collaborator.user?.name || collaborator.name || collaborator.email}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600">
+                              {session.status || 'ACTIVE'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-500">{new Date(session.createdAt).toLocaleString()}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
             <div className="bg-white dark:bg-[#0F0F0F] rounded-2xl border border-gray-100 dark:border-white/5 p-12 text-center animate-in slide-in-from-bottom-4 duration-500">
                <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                 <Clock size={40} className="text-gray-300" />
+                 {loadingSessions ? <RefreshCw size={40} className="text-gray-300 animate-spin" /> : <Clock size={40} className="text-gray-300" />}
                </div>
                <h3 className="text-xl font-bold text-gray-800 dark:text-[#F5F5F5] mb-2">No active sessions</h3>
                <p className="text-gray-400 dark:text-[#A0A0A0] max-w-sm mx-auto">

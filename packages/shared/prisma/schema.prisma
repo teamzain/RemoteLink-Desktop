@@ -45,6 +45,8 @@ model User {
   guideRequests        GuideRequest[]
   conversations        ConversationParticipant[]
   messages             Message[]       @relation("SentMessages")
+  createdRemoteSessions RemoteSession[] @relation("CreatedRemoteSessions")
+  remoteSessionCollaborations RemoteSessionCollaborator[]
 }
 
 model Organization {
@@ -281,4 +283,33 @@ model Message {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+}
+
+model RemoteSession {
+  id             String                      @id @default(uuid())
+  name           String
+  sessionCode    String
+  joinLink       String?                     @db.Text
+  conversationId String?
+  createdById    String
+  status         String                      @default("ACTIVE")
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  endedAt        DateTime?
+  createdBy      User                        @relation("CreatedRemoteSessions", fields: [createdById], references: [id], onDelete: Cascade)
+  collaborators  RemoteSessionCollaborator[]
+}
+
+model RemoteSessionCollaborator {
+  id        String        @id @default(uuid())
+  sessionId String
+  userId    String?
+  email     String
+  name      String?
+  status    String        @default("INVITED")
+  createdAt DateTime      @default(now())
+  session   RemoteSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User?         @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, email])
 }
