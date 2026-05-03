@@ -3633,6 +3633,7 @@ export default function App() {
                                     actionModal={actionModal}
                                     setShowAddModal={setShowAddModal}
                                     handleBulkDelete={handleBulkDelete}
+                                    onRefresh={pollDevices}
                                 />
                             </div>
                         ) : (currentView as string) === 'members' ? (
@@ -3816,7 +3817,7 @@ export default function App() {
                     </div>
                 </div>
             )}
-               {actionModal && (
+               {actionModal && actionModal.type !== 'assign-group' && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="w-full max-w-sm bg-white p-10 rounded-[32px] shadow-2xl border border-[rgba(28,28,28,0.1)] animate-in zoom-in-95 duration-300">
                         <div className="mb-8 text-center">

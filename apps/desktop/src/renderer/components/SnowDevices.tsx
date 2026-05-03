@@ -61,6 +61,7 @@ export interface SnowDevicesProps {
   actionModal: any;
   setShowAddModal: (show: boolean) => void;
   handleBulkDelete: (ids: string[]) => void;
+  onRefresh: () => void;
 }
 
 export const SnowDevices: React.FC<SnowDevicesProps> = ({
@@ -74,7 +75,8 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   setActionModal,
   actionModal,
   setShowAddModal,
-  handleBulkDelete
+  handleBulkDelete,
+  onRefresh
 }) => {
   const { user: authUser } = useAuthStore();
   const lang = authUser?.language;
@@ -86,6 +88,14 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   const [isUpdatingTags, setIsUpdatingTags] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string>('all');
   const [groupSearch, setGroupSearch] = useState('');
+  const [createdGroups, setCreatedGroups] = useState<string[]>(() => {
+    const saved = localStorage.getItem('custom_device_groups');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('custom_device_groups', JSON.stringify(createdGroups));
+  }, [createdGroups]);
 
   const dynamicGroups = useMemo(() => {
     const allTags = new Set<string>();
@@ -102,16 +112,21 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
       result.push({ id: `tag-${tag}`, name: tag, icon: Folder });
     });
 
+    // Add empty created groups that don't have tags yet
+    createdGroups.forEach(groupName => {
+      if (!allTags.has(groupName)) {
+        result.push({ id: `tag-${groupName}`, name: groupName, icon: Folder });
+      }
+    });
+
     return result;
-  }, [devices]);
+  }, [devices, createdGroups]);
 
   const handleUpdateTags = async (deviceId: string, tags: string[]) => {
     setIsUpdatingTags(true);
     try {
-      await api.patch(`/devices/${deviceId}/tags`, { tags });
-      // Trigger a refresh or local update if possible. 
-      // Since devices is a prop, we assume the parent will re-fetch or we can just rely on local state if we want immediate feedback.
-      // For now we'll just assume the prop updates.
+      await api.patch(`/api/devices/${deviceId}/tags`, { tags });
+      if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Failed to update tags:', err);
     } finally {
@@ -590,13 +605,13 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                 <button
                   onClick={() => {
                     if (newGroupName.trim()) {
-                      // Creating a group is just adding a tag to the UI until a device is assigned
+                      setCreatedGroups(prev => [...new Set([...prev, newGroupName.trim()])]);
                       setShowAddGroupModal(false);
                       setNewGroupName('');
                     }
                   }}
                   disabled={!newGroupName.trim()}
-                  className="px-8 py-3 bg-[#F0F2F5] dark:bg-white/5 text-gray-400 dark:text-white/20 rounded-xl text-[14px] font-bold disabled:opacity-50 transition-all"
+                  className={`px-8 py-3 rounded-xl text-[14px] font-bold transition-all ${newGroupName.trim() ? 'bg-[#00193F] text-white shadow-lg hover:opacity-90' : 'bg-[#F0F2F5] dark:bg-white/5 text-gray-400 dark:text-white/20 cursor-not-allowed'}`}
                 >
                   Add
                 </button>
@@ -644,8 +659,11 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                   {(!actionModal.device.tags || actionModal.device.tags.length === 0) && <Check size={16} />}
                 </button>
 
-                {/* Custom Tags */}
-                {Array.from(new Set(devices.flatMap(d => d.tags || []))).sort().map(tag => (
+                {/* Custom Tags & Created Groups */}
+                {Array.from(new Set([
+                  ...devices.flatMap(d => d.tags || []),
+                  ...createdGroups
+                ])).sort().map(tag => (
                   <button 
                     key={tag}
                     onClick={() => {
