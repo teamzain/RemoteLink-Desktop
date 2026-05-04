@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
   approveViewer: (viewerId: string) => ipcRenderer.send('host:approve-viewer', viewerId),
   denyViewer: (viewerId: string) => ipcRenderer.send('host:deny-viewer', viewerId),
+  approveControl: (viewerId: string) => ipcRenderer.send('host:approve-control', viewerId),
+  denyControl: (viewerId: string) => ipcRenderer.send('host:deny-control', viewerId),
   onViewerRequest: (callback: (data: { viewerId: string; viewerClientId?: string }) => void) => {
     const listener = (_: any, data: any) => callback(data);
     ipcRenderer.on('host:viewer-request', listener);
@@ -69,6 +71,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_: any, data: any) => callback(data);
     ipcRenderer.on('host:viewer-request-cancelled', listener);
     return () => ipcRenderer.removeListener('host:viewer-request-cancelled', listener);
+  },
+  onControlRequest: (callback: (data: { viewerId: string; requestedAt?: number }) => void) => {
+    const listener = (_: any, data: any) => callback(data);
+    ipcRenderer.on('host:control-request', listener);
+    return () => ipcRenderer.removeListener('host:control-request', listener);
   },
   saveFileLocally: (name: string, data: Uint8Array) => ipcRenderer.invoke('host:save-file-locally', name, data),
   sendFileToViewer: () => ipcRenderer.send('host:send-file'),

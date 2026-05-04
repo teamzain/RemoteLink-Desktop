@@ -68,6 +68,7 @@ interface VideoPlayerProps {
     remoteCursor: { x: number, y: number, visible: boolean } | null;
     showDiagnostics: boolean;
     setShowDiagnostics: (val: boolean) => void;
+    controlStatus: 'granted' | 'pending' | 'denied';
 }
 const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     viewerStatus,
@@ -81,7 +82,8 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     controlChannelRef,
     remoteCursor,
     showDiagnostics,
-    setShowDiagnostics
+    setShowDiagnostics,
+    controlStatus
 }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -945,6 +947,19 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 {/* Controls */}
                 <div className="flex items-center gap-0.5">
+                    <button
+                        onClick={() => onControlEvent({ type: 'request-control' })}
+                        title={controlStatus === 'granted' ? 'Control granted' : controlStatus === 'pending' ? 'Control pending' : 'Request control'}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
+                            controlStatus === 'granted'
+                                ? 'bg-emerald-500/15 border-emerald-400/25 text-emerald-300'
+                                : controlStatus === 'pending'
+                                    ? 'bg-amber-500/15 border-amber-400/25 text-amber-300'
+                                    : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'
+                        }`}
+                    >
+                        <MousePointer2 size={13} />
+                    </button>
                     <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-amber-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
                         <Search size={13} />
                     </button>
@@ -1219,6 +1234,7 @@ export default function App() {
     const [remoteCursor, setRemoteCursor] = useState<{ x: number, y: number, visible: boolean } | null>(null);
     const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
     const [showDiagnostics, setShowDiagnostics] = useState(false);
+    const [controlStatus, setControlStatus] = useState<'granted' | 'pending' | 'denied'>('denied');
 
     const handleJoinSessionInvite = (code: string, password?: string) => {
         setSessionCode(formatCode(code));
@@ -1352,12 +1368,8 @@ export default function App() {
     const [hostAccessKey, setHostAccessKey] = useState('');
     const [devicePassword, setDevicePassword] = useState(getStoredDevicePassword);
     const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(() => {
-        const stored = localStorage.getItem('is_auto_host_enabled');
-        if (stored === null) {
-            localStorage.setItem('is_auto_host_enabled', 'true');
-            return true;
-        }
-        return stored === 'true';
+        localStorage.setItem('is_auto_host_enabled', 'true');
+        return true;
     });
     const [showHostPassword, setShowHostPassword] = useState(false);
     const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
@@ -1589,6 +1601,7 @@ export default function App() {
             pcRef.current = null;
         }
         setRemoteStream(null);
+        setControlStatus('denied');
         setViewerStatus('idle');
         pollDevices();
     };
@@ -1942,6 +1955,7 @@ export default function App() {
 
     const [deviceId, setDeviceId] = useState('');
     const [pendingViewerRequest, setPendingViewerRequest] = useState<{ viewerId: string; countdown: number } | null>(null);
+    const [pendingControlRequest, setPendingControlRequest] = useState<{ viewerId: string; countdown: number } | null>(null);
 
 
     const [lockoutSeconds, setLockoutSeconds] = useState(0);
@@ -2007,7 +2021,12 @@ export default function App() {
         const unsubCancel = eAPI.onViewerRequestCancelled?.((data: { viewerId: string }) => {
             setPendingViewerRequest(prev => prev?.viewerId === data.viewerId ? null : prev);
         });
-        return () => { unsubReq?.(); unsubCancel?.(); };
+        const unsubControl = eAPI.onControlRequest?.((data: { viewerId: string }) => {
+            if (!data.viewerId) return;
+            setPendingControlRequest({ viewerId: data.viewerId, countdown: 20 });
+            playUISound('connect');
+        });
+        return () => { unsubReq?.(); unsubCancel?.(); unsubControl?.(); };
     }, [isElectron, isViewerWindow, isAuthenticated]);
 
     useEffect(() => {
@@ -2022,6 +2041,19 @@ export default function App() {
         }, 1000);
         return () => clearTimeout(t);
     }, [pendingViewerRequest]);
+
+    useEffect(() => {
+        if (!pendingControlRequest) return;
+        if (pendingControlRequest.countdown <= 0) {
+            (window as any).electronAPI?.denyControl?.(pendingControlRequest.viewerId);
+            setPendingControlRequest(null);
+            return;
+        }
+        const t = setTimeout(() => {
+            setPendingControlRequest(prev => prev ? { ...prev, countdown: prev.countdown - 1 } : null);
+        }, 1000);
+        return () => clearTimeout(t);
+    }, [pendingControlRequest]);
 
     const fetchBillingInfo = async () => {
         try {
@@ -2418,6 +2450,14 @@ export default function App() {
                                     setFileReceivedModal({ ...data, isRemote: true });
                                 } else if (data.type === 'ping') {
                                     setLastPingTime(Date.now());
+                                } else if (data.type === 'control-granted') {
+                                    setControlStatus('granted');
+                                    addNotification('Remote control granted.', 'system');
+                                } else if (data.type === 'control-pending') {
+                                    setControlStatus('pending');
+                                } else if (data.type === 'control-denied') {
+                                    setControlStatus('denied');
+                                    addNotification('Remote control was denied.', 'system');
                                 }
                             } catch (err) { }
                         };
@@ -2813,6 +2853,7 @@ export default function App() {
                         remoteCursor={remoteCursor}
                         showDiagnostics={showDiagnostics}
                         setShowDiagnostics={setShowDiagnostics}
+                        controlStatus={controlStatus}
                         onControlEvent={(event: any) => {
                             if (controlChannelRef.current?.readyState !== 'open') {
                                 console.warn('[Viewer] Control channel not open yet. Event ignored.');
@@ -3105,6 +3146,7 @@ export default function App() {
                         remoteCursor={remoteCursor}
                         showDiagnostics={showDiagnostics}
                         setShowDiagnostics={setShowDiagnostics}
+                        controlStatus={controlStatus}
                     />
                 </div>
             )}
@@ -3153,6 +3195,53 @@ export default function App() {
                             </button>
                         </div>
               </div>
+                    </div>
+                </div>
+            )}
+
+            {pendingControlRequest && (
+                <div className="fixed inset-0 z-[210] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-white rounded-[28px] border border-[rgba(28,28,28,0.08)] shadow-2xl p-8 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center">
+                            <MousePointer2 className="text-[#1D6DF5] w-8 h-8" />
+                        </div>
+                        <div className="text-center">
+                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">Control request</h2>
+                            <p className="text-sm font-medium text-[#000000] leading-relaxed">
+                                A viewer wants keyboard and mouse control of this device.
+                            </p>
+                        </div>
+                        <div className="w-full flex flex-col items-center gap-1">
+                            <div className="w-full bg-[#F8F9FA] rounded-2xl h-2 overflow-hidden cursor-none">
+                                <div
+                                    className="h-full bg-blue-500 transition-all duration-1000 ease-linear"
+                                    style={{ width: `${(pendingControlRequest.countdown / 20) * 100}%` }}
+                                />
+                            </div>
+                            <p className="text-[10px] font-bold text-[#1C1C1C] uppercase tracking-widest">
+                                Auto denying in {pendingControlRequest.countdown}s
+                            </p>
+                        </div>
+                        <div className="flex gap-3 w-full">
+                            <button
+                                onClick={() => {
+                                    (window as any).electronAPI?.denyControl?.(pendingControlRequest.viewerId);
+                                    setPendingControlRequest(null);
+                                }}
+                                className="flex-1 py-3.5 rounded-2xl border border-[rgba(28,28,28,0.1)] text-[11px] font-bold uppercase tracking-widest text-[#000000] hover:bg-[rgba(28,28,28,0.04)] transition-colors"
+                            >
+                                Deny
+                            </button>
+                            <button
+                                onClick={() => {
+                                    (window as any).electronAPI?.approveControl?.(pendingControlRequest.viewerId);
+                                    setPendingControlRequest(null);
+                                }}
+                                className="flex-1 py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all"
+                            >
+                                Allow
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -3416,8 +3505,8 @@ export default function App() {
                                 lockoutSeconds={lockoutSeconds}
                                 onCopyAccessKey={copyAccessKey}
                                 onToggleAutoHost={() => {
-                                    setIsAutoHostEnabled(!isAutoHostEnabled);
-                                    localStorage.setItem('is_auto_host_enabled', (!isAutoHostEnabled).toString());
+                                    setIsAutoHostEnabled(true);
+                                    localStorage.setItem('is_auto_host_enabled', 'true');
                                 }}
                                 onOpenSetPassword={() => setShowSetPasswordModal(true)}
                                 onStartHosting={handleStartHosting}
@@ -3559,8 +3648,8 @@ export default function App() {
                                     accessKey={hostAccessKey}
                                     isAutoHost={isAutoHostEnabled}
                                     setIsAutoHost={(val: boolean) => {
-                                        setIsAutoHostEnabled(val);
-                                        localStorage.setItem('is_auto_host_enabled', String(val));
+                                        setIsAutoHostEnabled(true);
+                                        localStorage.setItem('is_auto_host_enabled', 'true');
                                     }}
                                     handleStartHosting={handleStartHosting}
                                     handleStopHosting={handleStopHosting}
@@ -3598,12 +3687,10 @@ export default function App() {
                                     serverIP={serverIP}
                                     isAutoHostEnabled={isAutoHostEnabled}
                                     setIsAutoHostEnabled={(val) => {
-                                        setIsAutoHostEnabled(val);
-                                        localStorage.setItem('is_auto_host_enabled', String(val));
-                                        if (val && hostStatus !== 'status') {
+                                        setIsAutoHostEnabled(true);
+                                        localStorage.setItem('is_auto_host_enabled', 'true');
+                                        if (hostStatus !== 'status') {
                                             handleStartHosting();
-                                        } else if (!val && hostStatus === 'status') {
-                                            handleStopHosting();
                                         }
                                     }}
                                     onRenameDevice={() => setActionModal({ type: 'rename', device: null })}

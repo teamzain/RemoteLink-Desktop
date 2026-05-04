@@ -83,6 +83,8 @@ let lastViewerJoinId = '';
 let lastLogBytes = 0;
 let pingInterval: NodeJS.Timeout | null = null;
 let initPollInterval: NodeJS.Timeout | null = null;
+let controlGranted = false;
+let pendingControlViewerId: string | null = null;
 
 // Streaming Accumulators (Annex-B Aggregator)
 let bufferAccumulator = Buffer.alloc(0);
@@ -222,6 +224,24 @@ ipcMain.on('host:approve-viewer', (_event: any, viewerId: string) => {
 ipcMain.on('host:deny-viewer', (_event: any, viewerId: string) => {
   if (hostSignalingWs?.readyState === WebSocket.OPEN) {
     hostSignalingWs.send(JSON.stringify({ type: 'join-deny', viewerId }));
+  }
+});
+
+ipcMain.on('host:approve-control', (_event: any, viewerId: string) => {
+  if (viewerId !== currentViewerId && viewerId !== pendingControlViewerId) return;
+  controlGranted = true;
+  pendingControlViewerId = null;
+  if (dataChannel && dataChannel.isOpen()) {
+    dataChannel.sendMessage(JSON.stringify({ type: 'control-granted' }));
+  }
+});
+
+ipcMain.on('host:deny-control', (_event: any, viewerId: string) => {
+  if (viewerId !== currentViewerId && viewerId !== pendingControlViewerId) return;
+  controlGranted = false;
+  pendingControlViewerId = null;
+  if (dataChannel && dataChannel.isOpen()) {
+    dataChannel.sendMessage(JSON.stringify({ type: 'control-denied' }));
   }
 });
 
@@ -377,6 +397,8 @@ function cleanUpWebRTC() {
   iceCandidatesQueue = [];
   hasRemoteDescription = false;
   currentViewerId = null;
+  controlGranted = false;
+  pendingControlViewerId = null;
   if (clipboardInterval) { clearInterval(clipboardInterval); clipboardInterval = null; }
   if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
 }
@@ -583,8 +605,9 @@ function startStreaming() {
   stopStreaming();
 
   const ffmpegPath = getFFmpegPath();
-  const fps = '60';
-  const bitrate = '8000k'; // Adaptive High quality â€” 8Mbps (Optimized for clarity)
+  const fps = process.env.REMOTE365_STREAM_FPS || '30';
+  const bitrate = process.env.REMOTE365_STREAM_BITRATE || '3500k';
+  const maxWidth = process.env.REMOTE365_STREAM_MAX_WIDTH || '1600';
   const frameInterval = Math.floor(1000 / parseInt(fps));
 
   initPollInterval = setInterval(() => {
@@ -618,7 +641,7 @@ function startStreaming() {
       '-i', '-', // feed from stdin
       // Fix: Use bitwise AND or explicit trunc for 16-pixel macroblock alignment without circular 'oh' references.
       // This enforces width=multiple of 16 and height=multiple of 16 to satisfy complex HW encoders on laptops.
-      '-vf', 'scale=w=trunc(min(iw\\,1920)/16)*16:h=trunc(ih*min(1\\,1920/iw)/16)*16,format=yuv420p',
+      '-vf', `scale=w=trunc(min(iw\\,${maxWidth})/16)*16:h=trunc(ih*min(1\\,${maxWidth}/iw)/16)*16,format=yuv420p`,
     ] : [
       '-f', 'gdigrab',
       '-framerate', fps,
@@ -627,7 +650,7 @@ function startStreaming() {
       '-video_size', `${physWidth}x${physHeight}`,
       '-i', 'desktop',
       // High-performance scaling with 16-pixel macroblock alignment for both axes.
-      '-vf', 'scale=w=trunc(min(iw\\,1920)/16)*16:h=trunc(ih*min(1\\,1920/iw)/16)*16,format=yuv420p',
+      '-vf', `scale=w=trunc(min(iw\\,${maxWidth})/16)*16:h=trunc(ih*min(1\\,${maxWidth}/iw)/16)*16,format=yuv420p`,
     ];
 
     const encoderArgs = getEncoderArgs(detectedEncoder, bitrate, fps);
@@ -656,7 +679,7 @@ function startStreaming() {
         // Reuse frame
       }
 
-      if (lastFrameBuffer) {
+      if (lastFrameBuffer && (ffmpegProcess.stdin.writableLength || 0) < lastFrameBuffer.length * 2) {
         try { ffmpegProcess.stdin.write(lastFrameBuffer); }
         catch (err: any) { if (captureInterval) { clearInterval(captureInterval); captureInterval = null; } }
       }
@@ -875,6 +898,9 @@ function initiateHostWebRTC(viewerId: string) {
   dataChannel = peerConnection.createDataChannel("control");
   dataChannel.onOpen(() => {
     log.info('[Host] Control DataChannel open. Starting Heartbeat & Clipboard loops...');
+    controlGranted = true;
+    pendingControlViewerId = null;
+    dataChannel.sendMessage(JSON.stringify({ type: 'control-granted' }));
 
     // 1. Start Ping Heartbeat (1s)
     if (pingInterval) clearInterval(pingInterval);
@@ -913,6 +939,10 @@ function handleControlMessage(msg: any) {
   try {
     // 1. Handle Binary File Chunks
     if (Buffer.isBuffer(msg)) {
+      if (!controlGranted) {
+        log.warn('[Host] Ignoring file transfer because viewer does not have control.');
+        return;
+      }
       const view = new DataView(msg.buffer, msg.byteOffset, 4);
       const headerLen = view.getUint32(0, true);
       const headerStr = msg.slice(4, 4 + headerLen).toString();
@@ -956,6 +986,26 @@ function handleControlMessage(msg: any) {
 
     // 2. Handle JSON Commands
     const event = JSON.parse(msg.toString());
+
+    if (event.type === 'request-control') {
+      pendingControlViewerId = currentViewerId;
+      mainWindow?.webContents.send('host:control-request', {
+        viewerId: currentViewerId,
+        requestedAt: Date.now()
+      });
+      if (dataChannel && dataChannel.isOpen()) {
+        dataChannel.sendMessage(JSON.stringify({ type: 'control-pending' }));
+      }
+      return;
+    }
+
+    const requiresControl = !['ping', 'request-keyframe'].includes(event.type);
+    if (requiresControl && !controlGranted) {
+      if (dataChannel && dataChannel.isOpen()) {
+        dataChannel.sendMessage(JSON.stringify({ type: 'control-denied' }));
+      }
+      return;
+    }
 
     switch (event.type) {
       case 'mousemove':
@@ -1029,6 +1079,9 @@ function setupSignalingHandlers(ws: WebSocket) {
     if (data.type === 'registered') {
       currentHostSessionId = data.sessionId;
       mainWindow?.webContents.send('host:status', `Online: ${data.sessionId}`);
+    } else if (data.type === 'registration-error') {
+      log.error(`[Host] Registration denied: ${data.error}`);
+      mainWindow?.webContents.send('host:status', 'error');
     } else if (data.type === 'viewer-request') {
       // Forward the approval dialog request to the renderer
       mainWindow?.webContents.send('host:viewer-request', {

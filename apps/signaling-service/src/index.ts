@@ -6,6 +6,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
+import { createHmac } from 'crypto';
 import { redisPublisher, redisSubscriber, verifyToken, EventChannel, prisma } from '@remotelink/shared';
 
 const PORT = parseInt(process.env.PORT || '3002', 10);
@@ -64,7 +65,104 @@ async function broadcastPresence(sessionId: string, status: 'online' | 'offline'
   }
 }
 
+async function canRegisterHost(accessKey: string, token?: string): Promise<{ ok: boolean; error?: string }> {
+  const device = await (prisma as any).device.findUnique({
+    where: { accessKey },
+    select: { id: true, ownerId: true, organizationId: true }
+  });
+
+  if (!device) {
+    return { ok: false, error: 'Device is not registered' };
+  }
+
+  if (!device.ownerId) {
+    return { ok: true };
+  }
+
+  if (!token) {
+    console.warn(`[Signaling] Legacy host registration without token for owned device: ${accessKey}`);
+    return { ok: true };
+  }
+
+  const decoded = verifyToken(token);
+  if (!decoded?.userId) {
+    return { ok: false, error: 'Invalid host token' };
+  }
+
+  if (decoded.userId === device.ownerId) {
+    return { ok: true };
+  }
+
+  const user = await (prisma as any).user.findUnique({
+    where: { id: decoded.userId },
+    select: { role: true, organizationId: true }
+  });
+
+  const canAdminDevice = user?.organizationId === device.organizationId &&
+    ['SUPER_ADMIN', 'PLATFORM_OWNER', 'DEPARTMENT_MANAGER'].includes(user.role);
+
+  return canAdminDevice
+    ? { ok: true }
+    : { ok: false, error: 'Not authorized to host this device' };
+}
+
+function canForwardRemoteSignal(senderId: string, targetId: string, messageType: string): boolean {
+  const senderSessionId = reverseRegistry.get(senderId);
+  const senderViewerSession = viewerRegistry.get(senderId);
+
+  if (senderSessionId) {
+    if (messageType === 'answer') return false;
+    return viewerRegistry.get(targetId) === senderSessionId;
+  }
+
+  if (senderViewerSession) {
+    const hostId = sessionRegistry.get(senderViewerSession);
+    if (targetId !== hostId) return false;
+    return ['request-offer', 'answer', 'ice-candidate'].includes(messageType);
+  }
+
+  return false;
+}
+
 const normalizeMeetingId = (meetingId: string) => String(meetingId || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+const base64Url = (payload: Buffer | string) =>
+  Buffer.from(payload).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+function createLiveKitJoinConfig(room: string, userId: string, name: string) {
+  const livekitUrl = process.env.LIVEKIT_URL;
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+  if (!livekitUrl || !apiKey || !apiSecret) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const claims = {
+    iss: apiKey,
+    sub: userId,
+    name,
+    nbf: now - 10,
+    exp: now + 60 * 60,
+    video: {
+      room,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true
+    }
+  };
+
+  const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(claims))}`;
+  const signature = createHmac('sha256', apiSecret).update(unsigned).digest();
+
+  return {
+    provider: 'livekit',
+    url: livekitUrl,
+    room,
+    token: `${unsigned}.${base64Url(signature)}`
+  };
+}
 
 const leaveMeetingRoom = (connectionId: string) => {
   const meetingId = connectionToMeeting.get(connectionId);
@@ -235,7 +333,14 @@ async function startServer() {
             if (sessionId) sessionId = String(sessionId).replace(/\s/g, '').toLowerCase();
 
             if (!sessionId || sessionId.trim() === '') {
-              sessionId = Math.floor(100000000 + Math.random() * 900000000).toString();
+              ws.send(JSON.stringify({ type: 'registration-error', error: 'Access key required' }));
+              break;
+            }
+
+            const authResult = await canRegisterHost(sessionId, data.token);
+            if (!authResult.ok) {
+              ws.send(JSON.stringify({ type: 'registration-error', error: authResult.error || 'Host registration denied' }));
+              break;
             }
 
             sessionRegistry.set(sessionId, connectionId);
@@ -378,6 +483,11 @@ async function startServer() {
               if (resolvedId) targetId = resolvedId;
             }
 
+            if (!targetId || !canForwardRemoteSignal(connectionId, targetId, data.type)) {
+              ws.send(JSON.stringify({ type: 'signal-error', error: 'Signal target is not authorized for this session' }));
+              break;
+            }
+
             const targetWs = localClients.get(targetId);
             if (targetWs && targetWs.readyState === WebSocket.OPEN) {
               targetWs.send(JSON.stringify({
@@ -461,7 +571,8 @@ async function startServer() {
               type: 'meeting-joined',
               meetingId,
               participants,
-              meeting: { id: meeting.id, name: meeting.name, sessionCode: meeting.sessionCode }
+              meeting: { id: meeting.id, name: meeting.name, sessionCode: meeting.sessionCode },
+              sfu: createLiveKitJoinConfig(meetingId, decoded.userId, participantUser.name)
             }));
             break;
           }
