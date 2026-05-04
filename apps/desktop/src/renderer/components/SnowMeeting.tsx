@@ -53,17 +53,44 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
   const meetingCode = String(meetingId || '').trim();
   const meetingLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
 
+  const getAvailableMediaStream = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+    const hasCamera = devices.some((device) => device.kind === 'videoinput');
+    const hasMic = devices.some((device) => device.kind === 'audioinput');
+
+    if (hasCamera || hasMic) {
+      return navigator.mediaDevices.getUserMedia({
+        video: hasCamera,
+        audio: hasMic
+      });
+    }
+
+    const attempts: MediaStreamConstraints[] = [
+      { video: true, audio: true },
+      { video: true, audio: false },
+      { video: false, audio: true }
+    ];
+
+    for (const constraints of attempts) {
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err: any) {
+        if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') continue;
+        throw err;
+      }
+    }
+
+    throw new DOMException('No camera or microphone was found.', 'NotFoundError');
+  };
+
   const requestMedia = async () => {
       try {
         localStreamRef.current?.getTracks().forEach(t => t.stop());
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
+        const stream = await getAvailableMediaStream();
         localStreamRef.current = stream;
         setLocalStream(stream);
-        setIsCameraOff(false);
-        setIsMuted(false);
+        setIsCameraOff(stream.getVideoTracks().length === 0);
+        setIsMuted(stream.getAudioTracks().length === 0);
         setMediaReady(true);
         setMeetingError(null);
         if (localVideoRef.current) {
@@ -76,7 +103,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
         setMediaReady(true);
         setIsCameraOff(true);
         setIsMuted(true);
-        setMeetingError('Camera or microphone access was blocked. You can still join and invite people.');
+        setMeetingError('No camera or microphone was found. You can still join and invite people.');
       }
   };
 
@@ -170,8 +197,18 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
 
     peersRef.current.set(targetId, pc);
 
-    if (localStream) {
+    const hasAudioTrack = Boolean(localStream?.getAudioTracks().length);
+    const hasVideoTrack = Boolean(localStream?.getVideoTracks().length);
+
+    if (localStream?.getTracks().length) {
       localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    if (!hasAudioTrack) {
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+    }
+    if (!hasVideoTrack) {
+      pc.addTransceiver('video', { direction: 'recvonly' });
     }
 
     pc.onicecandidate = (e) => {
@@ -343,7 +380,9 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
                 <div className="w-24 h-24 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500 mb-4 border border-blue-500/20">
                   <span className="text-3xl font-bold">{user?.name?.charAt(0) || 'U'}</span>
                 </div>
-                <p className="text-sm font-medium text-gray-500">{localStream ? 'Camera is off' : 'Camera and microphone are unavailable'}</p>
+                <p className="text-sm font-medium text-gray-500">
+                  {localStream ? 'Camera is off' : 'No camera or microphone found'}
+                </p>
                 {!localStream && (
                   <button
                     onClick={requestMedia}

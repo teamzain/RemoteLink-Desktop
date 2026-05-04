@@ -56,6 +56,9 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const [sessionInviteMessage, setSessionInviteMessage] = useState('');
   const [remoteSessions, setRemoteSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [showJoinSessionModal, setShowJoinSessionModal] = useState(false);
+  const [joinSessionCode, setJoinSessionCode] = useState('');
+  const [joinSessionPassword, setJoinSessionPassword] = useState('');
 
   const formatId = (id: string | null) => {
     if (!id) return '--- --- ---';
@@ -127,6 +130,15 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
       setSessionInviteStatus('error');
       setSessionInviteMessage(err.response?.data?.error || err.message || 'Could not create session invite.');
     }
+  };
+
+  const handleJoinSession = () => {
+    const cleanCode = joinSessionCode.replace(/\D/g, '');
+    if (!cleanCode) return;
+    onJoinSessionInvite?.(cleanCode, joinSessionPassword.trim() || undefined);
+    setShowJoinSessionModal(false);
+    setJoinSessionCode('');
+    setJoinSessionPassword('');
   };
 
   return (
@@ -304,12 +316,18 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                   >
                     New session
                   </button>
+                  <button
+                    onClick={() => setShowJoinSessionModal(true)}
+                    className="px-4 py-2 bg-[#00193F] text-white rounded-lg text-[12px] font-bold hover:bg-[#002255] transition-colors"
+                  >
+                    Join a session
+                  </button>
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-gray-50 dark:bg-white/5">
-                    <tr className="text-[11px] uppercase tracking-wider text-gray-400 dark:text-[#A0A0A0]">
+                    <tr className="text-[12px] text-gray-500 dark:text-[#A0A0A0]">
                       <th className="px-6 py-3 font-bold">Session</th>
                       <th className="px-6 py-3 font-bold">Code</th>
                       <th className="px-6 py-3 font-bold">Collaborators</th>
@@ -363,12 +381,20 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                <p className="text-gray-400 dark:text-[#A0A0A0] max-w-sm mx-auto">
                  Once you start a remote control session, it will appear here for easy management.
                </p>
-               <button 
-                 onClick={() => setShowAddSessionModal(true)}
-                 className="mt-8 px-8 py-3 bg-[#1D6DF5] text-white rounded-xl font-bold text-[14px] hover:opacity-90 transition-all shadow-lg shadow-blue-500/20"
-               >
-                 Start a new session
-               </button>
+               <div className="mt-8 flex items-center justify-center gap-3">
+                 <button 
+                   onClick={() => setShowAddSessionModal(true)}
+                   className="px-8 py-3 bg-[#1D6DF5] text-white rounded-xl font-bold text-[14px] hover:opacity-90 transition-all shadow-lg shadow-blue-500/20"
+                 >
+                   Start a new session
+                 </button>
+                 <button 
+                   onClick={() => setShowJoinSessionModal(true)}
+                   className="px-8 py-3 bg-[#00193F] text-white rounded-xl font-bold text-[14px] hover:bg-[#002255] transition-all shadow-lg shadow-blue-950/10"
+                 >
+                   Join a session
+                 </button>
+               </div>
             </div>
           )}
 
@@ -469,6 +495,57 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showJoinSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#1C1C1C] rounded-[24px] w-full max-w-md shadow-2xl p-6 font-sans">
+            <div className="mb-6">
+              <h3 className="text-[22px] font-bold text-[#1C1C1C] dark:text-[#F5F5F5]">Join a session</h3>
+              <p className="text-[13px] text-gray-500 dark:text-[#A0A0A0] mt-1">Enter the Remote 365 session code shared by the host.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Session code</label>
+                <input
+                  value={joinSessionCode}
+                  onChange={(e) => setJoinSessionCode(formatId(e.target.value))}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
+                  placeholder="000 000 000"
+                  className="mt-2 w-full h-12 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0A0A0A] text-[16px] font-mono tracking-wider text-gray-900 dark:text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Password</label>
+                <input
+                  value={joinSessionPassword}
+                  onChange={(e) => setJoinSessionPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJoinSession()}
+                  placeholder="Optional"
+                  className="mt-2 w-full h-12 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0A0A0A] text-[14px] text-gray-900 dark:text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-7 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowJoinSessionModal(false)}
+                className="px-4 py-2 text-[13px] font-bold text-gray-500 hover:text-gray-800 dark:hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleJoinSession}
+                disabled={!joinSessionCode.replace(/\D/g, '')}
+                className="px-6 py-2.5 rounded-xl bg-[#00193F] text-white disabled:opacity-50 text-[13px] font-bold hover:bg-[#002255] transition-colors"
+              >
+                Join session
+              </button>
             </div>
           </div>
         </div>

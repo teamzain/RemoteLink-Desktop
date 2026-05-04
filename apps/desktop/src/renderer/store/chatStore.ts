@@ -35,6 +35,7 @@ interface ChatState {
   activeChatId: string | null;
   ws: WebSocket | null;
   isLoading: boolean;
+  loadingMessages: Record<string, boolean>;
 
   setActiveChat: (id: string | null) => void;
   onNewMessage?: (msg: any, convId: string) => void;
@@ -88,6 +89,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeChatId: null,
   ws: null,
   isLoading: false,
+  loadingMessages: {},
 
   setActiveChat: (id) => {
     console.log('[chatStore] setActiveChat called with:', id);
@@ -112,15 +114,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   fetchMessages: async (conversationId: string) => {
     try {
+      set((state) => ({
+        loadingMessages: {
+          ...state.loadingMessages,
+          [conversationId]: true
+        }
+      }));
       const { data } = await api.get(`/api/chat/conversations/${conversationId}/messages`);
       set((state) => ({
         messages: {
           ...state.messages,
           [conversationId]: data
+        },
+        loadingMessages: {
+          ...state.loadingMessages,
+          [conversationId]: false
         }
       }));
     } catch (err) {
       console.error('Failed to fetch messages:', err);
+      set((state) => ({
+        loadingMessages: {
+          ...state.loadingMessages,
+          [conversationId]: false
+        }
+      }));
     }
   },
 

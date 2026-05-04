@@ -254,10 +254,10 @@ export const SnowMembers: React.FC = () => {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-[#F9F9FA] border-b border-[rgba(28,28,28,0.04)]">
-              <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">User</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Role</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Device Access</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.1em]">Joined</th>
+              <th className="px-6 py-4 text-[12px] font-semibold text-[rgba(28,28,28,0.45)]">User</th>
+              <th className="px-6 py-4 text-[12px] font-semibold text-[rgba(28,28,28,0.45)]">Role</th>
+              <th className="px-6 py-4 text-[12px] font-semibold text-[rgba(28,28,28,0.45)]">Device Access</th>
+              <th className="px-6 py-4 text-[12px] font-semibold text-[rgba(28,28,28,0.45)]">Joined</th>
               <th className="px-6 py-4 text-right"></th>
             </tr>
           </thead>

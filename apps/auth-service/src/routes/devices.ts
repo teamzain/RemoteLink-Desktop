@@ -8,6 +8,18 @@ function generateAccessKey(): string {
   return randomInt(0, 1000000000).toString().padStart(9, '0');
 }
 
+function generateAccessPassword(): string {
+  return randomInt(0, 100000000).toString().padStart(8, '0');
+}
+
+async function generateUniqueAccessKey(): Promise<string> {
+  let accessKey = generateAccessKey();
+  while (await prisma.device.findUnique({ where: { accessKey } })) {
+    accessKey = generateAccessKey();
+  }
+  return accessKey;
+}
+
 async function mapDevice(device: any, userId: string): Promise<any> {
   const cleanKey = String(device.accessKey).replace(/\s/g, '');
   const presence = await redisPublisher.get(`presence:${cleanKey}`);
@@ -266,12 +278,18 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       }
 
       if (existing) {
-        // If the device is found by accessKey, strictly verify it belongs to the current user
-        if (existing.ownerId !== decoded.userId) {
+        // If the access key belongs to another user, do not take it over.
+        // Unowned self-registered devices can be claimed by the signed-in installer.
+        if (existing.ownerId && existing.ownerId !== decoded.userId) {
           console.warn(`[Device-Debug] Conflict: Access key ${accessKey} is already owned by another user (${existing.ownerId}). Generating a new one for user ${decoded.userId}.`);
           existing = null; // Proceed as if not found to generate a new key
         } else {
           let updateData: any = {};
+          if (!existing.ownerId) {
+            updateData.ownerId = decoded.userId;
+            updateData.organizationId = organizationId;
+            updateData.departmentId = departmentId;
+          }
 
           // Always sync the name if provided and different
           if (deviceName && deviceName !== existing.name) {
@@ -683,17 +701,34 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   // Idempotent: safe to call on every app start.
   fastify.post('/self-register', async (request: FastifyRequest, reply: FastifyReply) => {
     let { accessKey, name, password } = request.body as any;
-    if (!accessKey) return reply.code(400).send({ error: 'accessKey required' });
-    accessKey = String(accessKey).replace(/\s/g, '');
+    accessKey = accessKey ? String(accessKey).replace(/\s/g, '') : '';
     const machineName = String(name || 'Unknown Machine').slice(0, 64);
+    let installerUser: any = null;
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.replace('Bearer ', ''));
+      if (decoded?.userId) {
+        installerUser = await prisma.user.findUnique({ where: { id: decoded.userId } });
+      }
+    }
 
-    const existing = await prisma.device.findUnique({ where: { accessKey } });
+    const existing = accessKey
+      ? await prisma.device.findUnique({ where: { accessKey } })
+      : null;
+
     if (existing) {
       const updateData: any = {};
+      let autoPassword: string | undefined;
+      if (!existing.ownerId && installerUser) {
+        updateData.ownerId = installerUser.id;
+        updateData.organizationId = installerUser.organizationId;
+        updateData.departmentId = installerUser.departmentId;
+      }
       if (machineName && machineName !== existing.name) updateData.name = machineName;
-      // Only set password if device has none — don't overwrite a user-configured one
-      if (password && !existing.accessPasswordHash) {
-        updateData.accessPasswordHash = await bcrypt.hash(password, 10);
+      // Only set password if device has none. Never overwrite a user-configured one.
+      if (!existing.accessPasswordHash) {
+        autoPassword = password ? String(password) : generateAccessPassword();
+        updateData.accessPasswordHash = await bcrypt.hash(autoPassword, 10);
       }
       const updated = Object.keys(updateData).length > 0
         ? await prisma.device.update({ where: { id: existing.id }, data: updateData })
@@ -703,16 +738,29 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         access_key: updated.accessKey,
         name: updated.name,
         has_password: !!updated.accessPasswordHash,
+        auto_password: !password ? autoPassword : undefined,
       });
     }
 
-    // New device — auto-generate password if caller didn't supply one
-    const autoPassword = password || Math.random().toString(36).slice(-8).toUpperCase() +
-      Math.floor(Math.random() * 10);
+    if (!accessKey) {
+      accessKey = await generateUniqueAccessKey();
+    } else if (await prisma.device.findUnique({ where: { accessKey } })) {
+      accessKey = await generateUniqueAccessKey();
+    }
+
+    // New device: server issues a reusable access password when the app has none yet.
+    const autoPassword = password ? String(password) : generateAccessPassword();
     const passwordHash = await bcrypt.hash(autoPassword, 10);
 
     const device = await prisma.device.create({
-      data: { accessKey, name: machineName, accessPasswordHash: passwordHash },
+      data: {
+        accessKey,
+        name: machineName,
+        accessPasswordHash: passwordHash,
+        ownerId: installerUser?.id,
+        organizationId: installerUser?.organizationId,
+        departmentId: installerUser?.departmentId,
+      },
     });
 
     return reply.code(201).send({

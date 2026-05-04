@@ -1096,17 +1096,9 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     );
 });
 
-const generateDevicePassword = () => Math.floor(10000000 + Math.random() * 90000000).toString();
-
-const getOrCreateDevicePassword = () => {
+const getStoredDevicePassword = () => {
     if (typeof window === 'undefined') return '';
-
-    const stored = localStorage.getItem('device_password');
-    if (stored) return stored;
-
-    const generated = generateDevicePassword();
-    localStorage.setItem('device_password', generated);
-    return generated;
+    return localStorage.getItem('device_password') || '';
 };
 
 const formatCode = (val: string) => {
@@ -1358,7 +1350,7 @@ export default function App() {
     const [hostMessage, setHostMessage] = useState('');
     const [hostError, setHostError] = useState('');
     const [hostAccessKey, setHostAccessKey] = useState('');
-    const [devicePassword, setDevicePassword] = useState(getOrCreateDevicePassword);
+    const [devicePassword, setDevicePassword] = useState(getStoredDevicePassword);
     const [isAutoHostEnabled, setIsAutoHostEnabled] = useState(() => {
         const stored = localStorage.getItem('is_auto_host_enabled');
         if (stored === null) {
@@ -1649,8 +1641,8 @@ export default function App() {
 
         const removeHostStatusListener = (window as any).electronAPI.onHostStatus((status: string) => {
             console.log(`[Renderer] Host Status: ${status}`);
-            if (status.startsWith('Registered:')) {
-                const sid = status.split('Registered: ')[1];
+            if (status.startsWith('Registered:') || status.startsWith('Online:')) {
+                const sid = status.replace(/^Registered:\s*/, '').replace(/^Online:\s*/, '');
                 setHostSessionId(sid);
                 setHostStatus('status');
             } else if (status.startsWith('WebRTC:')) {
@@ -2045,7 +2037,7 @@ export default function App() {
             const creds = isElectron ? await (window as any).electronAPI.getToken() : { token: accessToken };
             if (!creds?.token) return;
 
-            let localKey = isElectron ? await (window as any).electronAPI.getDeterministicKey() : null;
+            let localKey = isElectron ? localStorage.getItem('remote365_device_access_key') : null;
             let deviceUuid = '';
 
             // 1. Fetch what the server thinks are our devices
@@ -2061,8 +2053,14 @@ export default function App() {
 
             if (!localKey || !existingInDb) {
                 // We have no key, or our key was deleted from the server.
-                // BUT: If the API call failed (fetchedDevices is not an array), don't unregister!
-                if (Array.isArray(fetchedDevices)) {
+                // Self-registered machines may be usable before they are attached to an account.
+                if (localKey) {
+                    console.log(`[Identity] Keeping self-registered host identity: ${localKey}`);
+                    setIsLocalHostRegistered(true);
+                    setHostAccessKey(localKey);
+                    setLocalAuthKey(localKey);
+                    setHostSessionId(localKey);
+                } else if (Array.isArray(fetchedDevices)) {
                     console.log(`[Identity] Current machine is not registered as a node.`);
                     setIsLocalHostRegistered(false);
                     setDeviceId('');
@@ -2079,6 +2077,7 @@ export default function App() {
             if (localKey && existingInDb) {
                 setDeviceId(deviceUuid);
                 setHostAccessKey(localKey);
+                setLocalAuthKey(localKey);
                 setHostSessionId(localKey); // Update the visual registration code
             }
         } catch (e: any) {
@@ -2093,15 +2092,17 @@ export default function App() {
                 ? await (window as any).electronAPI.getMachineName()
                 : 'Remote 365 Web User';
 
-            let localKey = isElectron ? await (window as any).electronAPI.getDeterministicKey() : null;
+            let localKey = isElectron ? localStorage.getItem('remote365_device_access_key') : null;
 
             const { data: newDevice } = await api.post('/api/devices/register', {
                 name: machineName,
                 accessKey: localKey || undefined
             });
 
+            localStorage.setItem('remote365_device_access_key', newDevice.access_key);
             setDeviceId(newDevice.id);
             setHostAccessKey(newDevice.access_key);
+            setLocalAuthKey(newDevice.access_key);
             setHostSessionId(newDevice.access_key);
             setIsLocalHostRegistered(true);
 
@@ -2127,23 +2128,19 @@ export default function App() {
     // --- Persistent Hosting Auto-Start ---
     useEffect(() => {
         // If all required identity info is loaded and auto-host is enabled, start hosting.
-        // hostStatus "" or "idle" means it hasn't started yet.
-        // BYPASS: SUPER_ADMIN and DEPARTMENT_MANAGER must always host manually as per request.
-        const isBypassRole = user?.role === 'SUPER_ADMIN' || user?.role === 'DEPARTMENT_MANAGER' || user?.role === 'PLATFORM_OWNER';
-
-        if (isAuthenticated && !isBypassRole && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
+        // This keeps the machine online for unattended access while the app is running.
+        if (isElectron && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
             console.log('[Auto-Host] Identity ready, initiating automatic start...');
             hasAutoStartedHost.current = true;
             handleStartHosting();
         }
-    }, [isAuthenticated, user?.role, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
+    }, [isElectron, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled, hostStatus]);
 
     useEffect(() => {
-        if (!isElectron || !(window as any).electronAPI?.getDeterministicKey) return;
+        if (!isElectron) return;
         (async () => {
-            const k = await (window as any).electronAPI.getDeterministicKey();
-            if (!k) return;
-            setLocalAuthKey(k);
+            const storedAccessKey = localStorage.getItem('remote365_device_access_key') || '';
+            if (storedAccessKey) setLocalAuthKey(storedAccessKey);
 
             // Register this machine in the DB without requiring a login so that
             // viewers can look it up via access key even before the host signs in.
@@ -2154,12 +2151,15 @@ export default function App() {
 
                 const storedPwd = localStorage.getItem('device_password') || '';
                 const { data } = await api.post('/api/devices/self-register', {
-                    accessKey: k,
+                    accessKey: storedAccessKey || undefined,
                     name: machineName,
                     password: storedPwd || undefined,
                 });
 
+                localStorage.setItem('remote365_device_access_key', data.access_key);
+                setLocalAuthKey(data.access_key);
                 setHostAccessKey(data.access_key);
+                setHostSessionId(data.access_key);
                 setDeviceId(data.id);
                 setIsLocalHostRegistered(true);
 
@@ -3068,6 +3068,16 @@ export default function App() {
         );
     }
 
+    const deviceStatusLabel =
+        hostStatus === 'status' ? 'Online and ready' :
+        hostStatus === 'connecting' ? 'Connecting' :
+        hostStatus === 'error' ? 'Connection issue' :
+        'Offline';
+    const deviceStatusDot =
+        hostStatus === 'status' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' :
+        hostStatus === 'connecting' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.35)] animate-pulse' :
+        hostStatus === 'error' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.35)]' :
+        'bg-gray-300';
 
     return (
         <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex flex-col overflow-hidden font-inter selection:bg-amber-500/20 select-none">
@@ -3672,10 +3682,15 @@ export default function App() {
                     <footer className="h-8 shrink-0 bg-white dark:bg-[#0F0F0F] border-t border-[rgba(0,0,0,0.06)] dark:border-white/5 flex items-center justify-between px-6 z-[100] font-sans">
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${hostStatus === 'status' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-300'}`} />
+                                <div className={`w-2 h-2 rounded-full ${deviceStatusDot}`} />
                                 <span className="text-[11px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">
-                                    {hostStatus === 'status' ? 'Ready to connect' : 'Offline'}
+                                    {deviceStatusLabel}
                                 </span>
+                                {hostMessage && hostStatus !== 'status' && (
+                                    <span className="max-w-[260px] truncate text-[10px] text-gray-400">
+                                        {hostMessage}
+                                    </span>
+                                )}
                             </div>
                         </div>
 

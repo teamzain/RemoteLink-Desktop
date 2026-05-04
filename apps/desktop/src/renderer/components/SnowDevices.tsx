@@ -176,6 +176,12 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
     return group ? group.name : 'All Managed Devices';
   }, [activeGroup, dynamicGroups]);
 
+  const deviceStats = useMemo(() => {
+    const online = filteredDevices.filter(d => d.is_online).length;
+    const offline = filteredDevices.length - online;
+    return { total: filteredDevices.length, online, offline };
+  }, [filteredDevices]);
+
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredDevices.length && filteredDevices.length > 0) {
       setSelectedIds([]);
@@ -197,28 +203,28 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
   };
 
   return (
-    <div className="flex h-full w-full bg-white overflow-hidden animate-in fade-in duration-500 font-lato">
+    <div className="flex h-full w-full bg-[#F6F8FB] overflow-hidden animate-in fade-in duration-500 font-lato">
 
       {/* Left Groups Sidebar */}
-      <div className="w-72 bg-[#FCFCFC] flex flex-col font-lato text-black">
+      <div className="w-80 bg-white border-r border-slate-200/80 flex flex-col font-lato text-slate-950">
         {/* Group Search */}
-        <div className="p-4 border-b border-[rgba(0,0,0,0.04)]">
+        <div className="p-5 border-b border-slate-100">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-black" />
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Search groups"
               value={groupSearch}
               onChange={(e) => setGroupSearch(e.target.value)}
-              className="w-full h-9 bg-slate-50 border-none rounded-xl pl-9 pr-3 text-[13px] font-medium outline-none focus:ring-1 focus:ring-blue-600/20 transition-all text-black font-lato placeholder:text-slate-400"
+              className="w-full h-11 bg-slate-50 border border-slate-100 rounded-xl pl-10 pr-3 text-[13px] font-medium outline-none focus:ring-2 focus:ring-blue-600/10 focus:border-blue-200 transition-all text-slate-900 font-lato placeholder:text-slate-400"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-7">
           {/* Recent Section */}
           <div className="space-y-1">
-            <button className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-semibold text-black hover:bg-[rgba(0,0,0,0.03)] rounded-xl transition-colors font-lato">
+            <button className="w-full flex items-center gap-3 px-3.5 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors font-lato">
               <History size={16} />
               Recent connections
             </button>
@@ -226,14 +232,14 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
           {/* Content List */}
           <div className="space-y-1">
-            <p className="px-3 text-[11px] font-bold text-slate-400 mb-2 font-lato">
+            <p className="px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 font-lato">
               Content List
             </p>
             {dynamicGroups.slice(0, 2).map(group => (
               <button
                 key={group.id}
                 onClick={() => setActiveGroup(group.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] font-semibold rounded-xl transition-all font-lato ${activeGroup === group.id ? 'bg-blue-50 text-blue-600' : 'text-black hover:bg-[rgba(0,0,0,0.03)]'}`}
+                className={`w-full flex items-center gap-3 px-3.5 py-3 text-[13px] font-semibold rounded-xl transition-all font-lato ${activeGroup === group.id ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-700 hover:bg-slate-50'}`}
               >
                 <group.icon size={18} />
                 {group.name}
@@ -244,12 +250,12 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
           {/* All Groups */}
           <div className="space-y-1">
             <div className="px-3 flex items-center justify-between mb-2">
-              <p className="text-[11px] font-bold text-slate-400 font-lato">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-lato">
                 All Groups
               </p>
               <button
                 onClick={() => setShowAddGroupModal(true)}
-                className="text-black hover:opacity-100 transition-opacity"
+                className="w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 flex items-center justify-center transition-colors"
               >
                 <Plus size={14} />
               </button>
@@ -260,9 +266,9 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                 <button
                   key={group.id}
                   onClick={() => setActiveGroup(group.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] font-semibold rounded-xl transition-all ${activeGroup === group.id ? 'bg-blue-50 text-blue-600' : 'text-black hover:bg-[rgba(0,0,0,0.03)]'}`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-3 text-[13px] font-semibold rounded-xl transition-all ${activeGroup === group.id ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <group.icon size={16} className={activeGroup === group.id ? 'text-blue-600' : 'text-black'} />
+                  <group.icon size={16} className={activeGroup === group.id ? 'text-blue-700' : 'text-slate-600'} />
                   <span className="truncate">{group.name}</span>
                 </button>
               ))}
@@ -272,53 +278,87 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col bg-white overflow-hidden font-lato text-black">
+      <div className="flex-1 flex flex-col overflow-hidden font-lato text-slate-950">
 
         {/* Header */}
-        <div className="px-8 pt-4 pb-4">
-          <div className="flex items-center justify-between mb-2">
+        <div className="px-9 pt-7 pb-5">
+          <div className="flex items-start justify-between gap-6 mb-6">
             <div>
-              <h1 className="text-2xl font-semibold text-black flex items-center gap-3 font-lato">
+              <h1 className="text-[28px] leading-tight font-bold text-slate-950 flex items-center gap-3 font-lato tracking-tight">
                 {activeGroupName}
               </h1>
-              <p className="text-[13px] text-black mt-1 font-lato font-medium">
-                Overview of the devices in this group.
+              <p className="text-[13px] text-slate-500 mt-2 font-lato font-medium">
+                Monitor device availability, organize groups, and start secure remote access.
               </p>
             </div>
             <div className="flex items-center gap-3 font-lato">
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#00193F] text-white rounded-xl text-[13px] font-semibold hover:bg-[#002255] transition-all shadow-lg shadow-blue-900/10 active:scale-95"
+                className="flex items-center gap-2 px-5 py-3 bg-[#00193F] text-white rounded-xl text-[13px] font-bold hover:bg-[#002255] transition-all shadow-lg shadow-blue-950/15 active:scale-95"
               >
                 <Plus size={18} />
                 Add Device
               </button>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { label: 'Total devices', value: deviceStats.total, icon: Monitor, tone: 'bg-blue-50 text-blue-700 border-blue-100' },
+              { label: 'Online now', value: deviceStats.online, icon: Zap, tone: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+              { label: 'Offline', value: deviceStats.offline, icon: MonitorOff, tone: 'bg-slate-50 text-slate-600 border-slate-200' },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white border border-slate-200/70 rounded-2xl px-5 py-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[12px] font-semibold text-slate-500">{stat.label}</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-950">{stat.value}</p>
+                  </div>
+                  <div className={`w-11 h-11 rounded-xl border flex items-center justify-center ${stat.tone}`}>
+                    <stat.icon size={20} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Toolbar */}
-        <div className="px-8 py-2 flex items-center justify-between font-lato">
-          <div className="flex items-center gap-2">
+        <div className="px-9 pb-4 flex items-center justify-between font-lato">
+          <div className="flex items-center gap-3">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-black" />
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search devices"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 h-9 bg-slate-50 border-none rounded-xl pl-9 pr-3 text-[13px] font-medium outline-none focus:ring-1 focus:ring-blue-600/20 transition-all text-black font-lato placeholder:text-slate-400"
+                className="w-80 h-11 bg-white border border-slate-200 rounded-xl pl-10 pr-3 text-[13px] font-medium outline-none focus:ring-2 focus:ring-blue-600/10 focus:border-blue-200 transition-all text-slate-900 font-lato placeholder:text-slate-400 shadow-sm"
               />
             </div>
 
-            <button className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-colors font-lato">
-              <Columns size={16} />
-              Columns
-            </button>
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'online', label: 'Online' },
+                { id: 'offline', label: 'Offline' },
+              ].map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setFilterStatus(filter.id as any)}
+                  className={`px-3.5 py-2 rounded-lg text-[12px] font-bold transition-all ${filterStatus === filter.id ? 'bg-[#00193F] text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
 
-            <button className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-colors font-lato">
+            <button
+              onClick={() => setSortOrder(sortOrder === 'name' ? 'status' : sortOrder === 'status' ? 'last_seen' : 'name')}
+              className="flex items-center gap-2 h-11 px-4 text-[12px] font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors font-lato shadow-sm"
+            >
               <ListFilter size={16} />
-              Filters
+              Sort: {sortOrder === 'last_seen' ? 'Last seen' : sortOrder === 'status' ? 'Status' : 'Name'}
             </button>
           </div>
 
@@ -337,7 +377,7 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
                 Remove Selected ({selectedIds.length})
               </button>
             )}
-            <div className="flex items-center p-1 bg-[rgba(0,0,0,0.03)] rounded-xl">
+            <div className="flex items-center p-1 bg-white border border-slate-200 rounded-xl shadow-sm">
               <button className="p-1.5 bg-white shadow-sm rounded-lg text-[#D4A017]">
                 <LayoutGrid size={16} />
               </button>
@@ -349,116 +389,101 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
         </div>
 
         {/* Device Table */}
-        <div className="flex-1 overflow-auto px-8 pb-8 font-lato">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-white z-10 font-lato">
-              <tr className="border-b border-[rgba(0,0,0,0.04)]">
-                <th className="w-10 py-4 text-left font-lato">
-                  <div
-                    onClick={toggleSelectAll}
-                    className={`w-4 h-4 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${selectedIds.length === filteredDevices.length && filteredDevices.length > 0 ? 'bg-[#00193F] border-[#00193F]' : 'bg-white border-[rgba(0,0,0,0.15)]'}`}
-                  >
-                    {selectedIds.length === filteredDevices.length && filteredDevices.length > 0 && <Check size={10} className="text-white" />}
-                  </div>
-                </th>
-                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 font-lato">
-                  <div className="flex items-center gap-2">
-                    Name <ArrowUpDown size={12} className="opacity-40" />
-                  </div>
-                </th>
-                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 font-lato">
-                  RemoteLink ID
-                </th>
-                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 font-lato">
-                  Status
-                </th>
-                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 text-nowrap font-lato">
-                  Last Online
-                </th>
-                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 text-nowrap font-lato">
-                  Personal Password
-                </th>
-                <th className="px-4 py-4 text-left text-[11px] font-bold text-slate-500 text-nowrap font-lato">
-                  Services
-                </th>
-                <th className="w-12 py-4 text-right font-lato"></th>
-              </tr>
-            </thead>
-            <tbody className="font-lato">
-              {filteredDevices.map((device) => {
-                const isSelected = selectedIds.includes(device.id);
-                const isRowSelected = selectedDevice?.id === device.id;
-                return (
-                  <tr
-                    key={device.id}
-                    onClick={() => setSelectedDevice(device)}
-                    className={`border-b border-[rgba(0,0,0,0.02)] transition-all group cursor-pointer ${isRowSelected ? 'bg-blue-50/50' : isSelected ? 'bg-blue-50/30' : 'hover:bg-slate-50'}`}
-                  >
-                    <td className="py-4 font-lato" onClick={e => e.stopPropagation()}>
-                      <div
-                        onClick={(e) => toggleSelect(device.id, e)}
-                        className={`w-4 h-4 rounded-md border flex items-center justify-center cursor-pointer transition-colors ${isSelected ? 'bg-[#00193F] border-[#00193F]' : 'bg-white border-[rgba(0,0,0,0.15)] group-hover:border-[#00193F]'}`}
-                      >
-                        {isSelected && <Check size={10} className="text-white" />}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 font-lato">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${device.is_online ? 'bg-blue-50 text-blue-600' : 'bg-[rgba(0,0,0,0.04)] text-black'}`}>
-                          {device.device_type?.toLowerCase().includes('phone') ? <Smartphone size={18} /> : <Monitor size={18} />}
-                        </div>
-                        <div>
-                          <p className={`text-[13px] font-semibold transition-colors flex items-center gap-2 font-lato ${isRowSelected ? 'text-blue-600' : 'text-black group-hover:text-blue-600'}`}>
-                            {device.device_name || 'Unnamed Host'}
-                            {device.id === authUser?.id && (
-                              <span className="text-[10px] font-semibold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded-md">This Device</span>
-                            )}
-                          </p>
-                          <p className="text-[11px] text-black font-medium mt-0.5 font-lato">#{device.access_key?.slice(0, 3)} group</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-[13px] font-mono text-black font-medium font-lato">
-                      {formatID(device.access_key)}
-                    </td>
-                    <td className="px-4 py-4 font-lato">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black ${device.is_online ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${device.is_online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                        {device.is_online ? 'Online' : 'Offline'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 text-[13px] text-black font-medium font-lato">
-                      {device.is_online ? 'Now' : device.last_seen ? new Date(device.last_seen).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-4 py-4 text-[13px] text-black font-medium font-lato">
-                      {device.access_key ? 'Yes' : 'No'}
-                    </td>
-                    <td className="px-4 py-4 text-[13px] text-black font-medium font-lato">
-                      —
-                    </td>
-                    <td className="py-4 text-right font-lato" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1 px-4">
-                        <button
-                          onClick={() => setActionModal({ type: 'assign-group', device })}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                          title="Assign to group"
+        <div className="flex-1 overflow-auto px-9 pb-9 font-lato">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 bg-white z-10 font-lato">
+                <tr className="border-b border-slate-200">
+                  <th className="w-12 py-3 pl-4 text-left font-lato">
+                    <div
+                      onClick={toggleSelectAll}
+                      className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedIds.length === filteredDevices.length && filteredDevices.length > 0 ? 'bg-[#00193F] border-[#00193F]' : 'bg-white border-slate-300'}`}
+                    >
+                      {selectedIds.length === filteredDevices.length && filteredDevices.length > 0 && <Check size={10} className="text-white" />}
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-[12px] font-semibold text-slate-500 font-lato">Name</th>
+                  <th className="px-4 py-3 text-left text-[12px] font-semibold text-slate-500 font-lato">RemoteLink ID</th>
+                  <th className="px-4 py-3 text-left text-[12px] font-semibold text-slate-500 font-lato">Status</th>
+                  <th className="px-4 py-3 text-left text-[12px] font-semibold text-slate-500 font-lato">Last Online</th>
+                  <th className="px-4 py-3 text-left text-[12px] font-semibold text-slate-500 font-lato">Password</th>
+                  <th className="w-36 py-3 pr-4 text-right font-lato"></th>
+                </tr>
+              </thead>
+              <tbody className="font-lato">
+                {filteredDevices.map((device) => {
+                  const isSelected = selectedIds.includes(device.id);
+                  const isRowSelected = selectedDevice?.id === device.id;
+                  return (
+                    <tr
+                      key={device.id}
+                      onClick={() => setSelectedDevice(device)}
+                      className={`border-b border-slate-100 transition-colors group cursor-pointer ${isRowSelected ? 'bg-blue-50' : isSelected ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
+                    >
+                      <td className="py-3 pl-4 font-lato" onClick={e => e.stopPropagation()}>
+                        <div
+                          onClick={(e) => toggleSelect(device.id, e)}
+                          className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${isSelected ? 'bg-[#00193F] border-[#00193F]' : 'bg-white border-slate-300 group-hover:border-slate-500'}`}
                         >
-                          <Folder size={16} />
-                        </button>
-                        <button
-                          onClick={() => setActionModal({ type: 'rename', device })}
-                          className="p-2 text-slate-400 hover:text-black hover:bg-[rgba(0,0,0,0.04)] rounded-lg transition-all"
-                          title="More options"
-                        >
-                          <MoreVertical size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          {isSelected && <Check size={10} className="text-white" />}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-lato">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${device.is_online ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {device.device_type?.toLowerCase().includes('phone') ? <Smartphone size={16} /> : <Monitor size={16} />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-[13px] font-semibold truncate ${isRowSelected ? 'text-blue-700' : 'text-slate-950'}`}>
+                              {device.device_name || 'Unnamed Host'}
+                            </p>
+                            <p className="text-[11px] text-slate-500 font-medium truncate">{(device.tags || []).join(', ') || 'My Computers'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[12px] font-mono text-slate-950 font-semibold font-lato">{formatID(device.access_key)}</td>
+                      <td className="px-4 py-3 font-lato">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${device.is_online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${device.is_online ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                          {device.is_online ? 'Online' : 'Offline'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[12px] text-slate-600 font-medium font-lato">
+                        {device.is_online ? 'Now' : device.last_seen ? new Date(device.last_seen).toLocaleDateString() : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] text-slate-600 font-medium font-lato">{device.access_key ? 'Yes' : 'No'}</td>
+                      <td className="py-3 pr-4 text-right font-lato" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleDeviceClick(device)}
+                            disabled={!device.is_online}
+                            className="px-3 py-1.5 text-[12px] font-semibold text-white bg-[#00193F] disabled:bg-transparent disabled:text-slate-300 rounded-md hover:bg-[#002255] transition-colors"
+                            title="Connect"
+                          >
+                            Connect
+                          </button>
+                          <button
+                            onClick={() => setActionModal({ type: 'assign-group', device })}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                            title="Assign to group"
+                          >
+                            <Folder size={15} />
+                          </button>
+                          <button
+                            onClick={() => setActionModal({ type: 'rename', device })}
+                            className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+                            title="More options"
+                          >
+                            <MoreVertical size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {filteredDevices.length === 0 && (
             <div className="py-32 flex flex-col items-center justify-center text-black gap-4 animate-in fade-in duration-700 font-lato">
@@ -476,28 +501,28 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
 
       {/* Right Detail Sidebar */}
       {selectedDevice && (
-        <div className="w-96 border-l border-[rgba(0,0,0,0.06)] bg-[#FDFDFD] flex flex-col font-lato animate-in slide-in-from-right duration-300 shadow-2xl">
+        <div className="w-96 border-l border-slate-200 bg-white flex flex-col font-lato animate-in slide-in-from-right duration-300 shadow-2xl">
           {/* Sidebar Header */}
-          <div className="p-6 border-b border-[rgba(0,0,0,0.04)] flex items-center justify-between">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-50 text-[#D4A017] rounded-xl flex items-center justify-center">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${selectedDevice.is_online ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
                 {selectedDevice.device_type?.toLowerCase().includes('phone') ? <Smartphone size={20} /> : <Monitor size={20} />}
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-black truncate max-w-[180px]">
+                <h2 className="text-sm font-bold text-slate-950 truncate max-w-[180px]">
                   {selectedDevice.device_name || 'Unnamed Host'}
                 </h2>
                 <div className="flex items-center gap-2 mt-0.5">
                   {selectedDevice.id === authUser?.id && (
                     <span className="text-[9px] font-semibold px-1.5 py-0.5 bg-amber-50 text-[#D4A017] rounded-md">This Device</span>
                   )}
-                  <span className="text-[10px] font-semibold text-black">#{selectedDevice.access_key?.slice(0, 3)} Group</span>
+                  <span className="text-[10px] font-semibold text-slate-500">#{selectedDevice.access_key?.slice(0, 3)} Group</span>
                 </div>
               </div>
             </div>
             <button
               onClick={() => setSelectedDevice(null)}
-              className="p-2 text-black hover:bg-[rgba(0,0,0,0.04)] rounded-xl transition-all"
+              className="p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-all"
             >
               <X size={18} />
             </button>
@@ -510,9 +535,9 @@ export const SnowDevices: React.FC<SnowDevicesProps> = ({
               <button
                 onClick={() => handleDeviceClick(selectedDevice)}
                 disabled={!selectedDevice.is_online}
-                className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-[14px] font-semibold transition-all shadow-lg ${selectedDevice.is_online ? 'bg-[#00193F] text-white hover:bg-[#002255] shadow-blue-900/10' : 'bg-[rgba(0,0,0,0.05)] text-black cursor-not-allowed shadow-none'}`}
+                className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-[14px] font-bold transition-all shadow-lg ${selectedDevice.is_online ? 'bg-[#00193F] text-white hover:bg-[#002255] shadow-blue-900/10' : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'}`}
               >
-                Establish Link
+                Connect to Device
                 <Zap size={14} fill={selectedDevice.is_online ? "currentColor" : "none"} />
               </button>
             </div>

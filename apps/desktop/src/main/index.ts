@@ -132,7 +132,22 @@ autoUpdater.setFeedURL({
   url: UPDATE_FEED_URL
 });
 
-ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
+const isMissingUpdateManifest = (err: any) => {
+  const message = String(err?.message || err || '');
+  return message.includes('latest.yml') && (message.includes('404') || message.includes('Not Found'));
+};
+
+ipcMain.handle('update:check', async () => {
+  try {
+    return await autoUpdater.checkForUpdates();
+  } catch (err) {
+    if (isMissingUpdateManifest(err)) {
+      log.warn('[Updater] No latest.yml manifest is published yet. Skipping update banner.');
+      return null;
+    }
+    throw err;
+  }
+});
 ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
 ipcMain.handle('update:quitAndInstall', () => autoUpdater.quitAndInstall());
 
@@ -156,8 +171,12 @@ autoUpdater.on('update-downloaded', (info: any) => {
 });
 
 autoUpdater.on('error', (err: any) => {
+  if (isMissingUpdateManifest(err)) {
+    log.warn('[Updater] No update manifest found at feed URL.');
+    return;
+  }
   log.error('[Updater] Error:', err);
-  mainWindow?.webContents.send('update:error', err.message);
+  mainWindow?.webContents.send('update:error', 'Unable to check for updates right now.');
 });
 
 ipcMain.handle('system:getMachineName', () => os.hostname());
@@ -1375,7 +1394,13 @@ app.whenReady().then(() => {
   // Check for updates on startup. The renderer also checks when the banner mounts,
   // which covers the case where this event fires before React listeners are ready.
   if (app.isPackaged) {
-    autoUpdater.checkForUpdates().catch((e: any) => log.error('[Updater] Failed initial check:', e));
+    autoUpdater.checkForUpdates().catch((e: any) => {
+      if (isMissingUpdateManifest(e)) {
+        log.warn('[Updater] No update manifest found during startup check.');
+        return;
+      }
+      log.error('[Updater] Failed initial check:', e);
+    });
   }
 });
 

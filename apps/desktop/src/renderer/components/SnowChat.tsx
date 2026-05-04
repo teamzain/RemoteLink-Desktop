@@ -24,7 +24,8 @@ import {
   Copy,
   ExternalLink,
   CheckCircle2,
-  Monitor
+  Monitor,
+  Loader2
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -68,7 +69,8 @@ export const SnowChat: React.FC<{
     rejectInvite,
     connectWebSocket, 
     disconnectWebSocket,
-    isLoading
+    isLoading,
+    loadingMessages
   } = useChatStore();
 
   const [showAddContact, setShowAddContact] = useState(false);
@@ -77,6 +79,7 @@ export const SnowChat: React.FC<{
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState('');
@@ -108,6 +111,7 @@ export const SnowChat: React.FC<{
   }, []);
 
   const activeMessages = activeChatId ? (messages[activeChatId] || []) : [];
+  const isActiveChatLoading = Boolean(activeChatId && loadingMessages[activeChatId]);
   
   // Auto-scroll to bottom
   useEffect(() => {
@@ -271,8 +275,8 @@ export const SnowChat: React.FC<{
     return (
       <div className="flex-1 h-full flex items-center justify-center bg-white dark:bg-[#080808] font-sans">
         <div className="flex flex-col items-center gap-4">
-          <RefreshCw className="w-10 h-10 animate-spin text-[#00193F]" />
-          <p className="text-sm font-medium text-gray-500 animate-pulse">Initializing Remote 365 Chat...</p>
+          <Loader2 className="w-6 h-6 animate-spin text-[#00193F]" />
+          <p className="text-sm font-medium text-gray-500">Loading chats...</p>
         </div>
       </div>
     );
@@ -422,15 +426,30 @@ export const SnowChat: React.FC<{
                 <h2 className="text-[20px] font-medium text-[#111111] dark:text-[#F5F5F5]">
                   {getChatName(activeConversation)}
                 </h2>
-                <p className="text-[14px] text-gray-500 dark:text-[#A0A0A0]">
-                  {activeConversation?.isGroup
-                    ? `${activeGroupMembers.length} member${activeGroupMembers.length === 1 ? '' : 's'}`
-                    : activeParticipant?.email || 'Direct Message'}
-                </p>
+                {activeConversation?.isGroup ? (
+                  <button
+                    onClick={() => setShowMembersModal(true)}
+                    className="text-[14px] text-gray-500 dark:text-[#A0A0A0] hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
+                  >
+                    {activeGroupMembers.length} member{activeGroupMembers.length === 1 ? '' : 's'}
+                  </button>
+                ) : (
+                  <p className="text-[14px] text-gray-500 dark:text-[#A0A0A0]">
+                    {activeParticipant?.email || 'Direct Message'}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-3">
+              {activeConversation?.isGroup && (
+                <button
+                  onClick={() => setShowMembersModal(true)}
+                  className="px-4 py-2.5 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 text-[13px] font-medium rounded-full hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                >
+                  Members
+                </button>
+              )}
               {activeConversation?.status === 'ACCEPTED' && (
                 <button
                   onClick={handleOpenSessionModal}
@@ -586,7 +605,12 @@ export const SnowChat: React.FC<{
               </div>
             ) : (
               <>
-                {activeMessages.length === 0 ? (
+                {isActiveChatLoading ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center">
+                    <Loader2 size={24} className="animate-spin text-[#00193F] dark:text-blue-400 mb-3" />
+                    <p className="text-[13px] font-medium text-gray-500 dark:text-gray-400">Loading messages...</p>
+                  </div>
+                ) : activeMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center">
                     <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 text-gray-400 rounded-full flex items-center justify-center mb-4">
                       <FileText size={32} />
@@ -958,6 +982,73 @@ export const SnowChat: React.FC<{
               >
                 {isInviting ? <RefreshCw size={16} className="animate-spin" /> : null}
                 {isInviting ? 'Adding...' : 'Add members'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Members Modal */}
+      {showMembersModal && activeConversation?.isGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#1C1C1C] rounded-[20px] w-[460px] max-h-[80vh] shadow-2xl p-6 font-sans relative flex flex-col">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-[22px] font-semibold text-[#111111] dark:text-[#F5F5F5]">Group members</h3>
+                <p className="text-[13px] text-gray-500 dark:text-[#A0A0A0] mt-1">
+                  {getChatName(activeConversation)} - {activeGroupMembers.length} member{activeGroupMembers.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowMembersModal(false)}
+                className="text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"
+              >
+                <X size={22} strokeWidth={1.8} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-2 pr-1">
+              {activeGroupMembers.map((member: any) => {
+                const memberName = member.user?.name || member.user?.email || 'Unknown member';
+                const isYou = member.userId === user?.id;
+                return (
+                  <div key={member.userId} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                    {member.user?.avatar ? (
+                      <img src={member.user.avatar} alt={memberName} className="w-11 h-11 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-11 h-11 rounded-full bg-[#F0F2F5] dark:bg-white/10 text-gray-600 dark:text-gray-200 flex items-center justify-center font-semibold">
+                        {memberName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-[14px] font-semibold text-gray-900 dark:text-white truncate">{memberName}</p>
+                        {isYou && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300">You</span>}
+                      </div>
+                      <p className="text-[12px] text-gray-500 dark:text-[#A0A0A0] truncate">{member.user?.email}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 pt-5 border-t border-gray-100 dark:border-white/10 flex justify-end gap-3">
+              <button
+                onClick={() => setShowMembersModal(false)}
+                className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowMembersModal(false);
+                  setInviteError(null);
+                  setShowAddMembersModal(true);
+                }}
+                className="px-4 py-2.5 rounded-xl text-[13px] font-bold bg-[#00193F] text-white hover:bg-[#002255] transition-colors flex items-center gap-2"
+              >
+                <UserPlus size={15} />
+                Add members
               </button>
             </div>
           </div>
