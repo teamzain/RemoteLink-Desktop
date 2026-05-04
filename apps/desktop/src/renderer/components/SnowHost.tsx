@@ -27,6 +27,7 @@ interface SnowHostProps {
   openPasswordModal: () => void;
   bandwidth: string;
   activeUsers: number;
+  devicePassword?: string;
   isRegistered?: boolean;
   onRegister?: () => void;
 }
@@ -42,6 +43,7 @@ export const SnowHost: React.FC<SnowHostProps> = ({
   openPasswordModal,
   bandwidth,
   activeUsers,
+  devicePassword,
   isRegistered = true,
   onRegister
 }) => {
@@ -129,12 +131,9 @@ export const SnowHost: React.FC<SnowHostProps> = ({
                </button>
              )}
              {isOnline ? (
-               <button 
-                 onClick={handleStopHosting}
-                 className="h-11 px-6 bg-red-50 text-red-600 rounded-xl font-bold text-sm hover:bg-red-100 transition-all flex items-center gap-2 border border-red-100"
-               >
-                 <Power size={16} /> {t('stop_hosting', lang)}
-               </button>
+               <div className="h-11 px-6 flex items-center gap-2 text-[#71DD8C] font-bold text-xs uppercase tracking-widest">
+                  <CheckCircle2 size={16} /> {t('live', lang)}
+               </div>
              ) : (
                <button 
                  onClick={handleStartHosting}
@@ -185,28 +184,35 @@ export const SnowHost: React.FC<SnowHostProps> = ({
           </div>
 
           <div className="flex flex-col gap-3">
-             <div className="flex items-center justify-between py-2 border-b border-[rgba(0,0,0,0.04)]">
-                <div className="flex flex-col">
-                   <span className="text-xs font-bold text-[#1C1C1C]">{t('auto_start', lang)}</span>
-                   <span className="text-[10px] text-[rgba(28,28,28,0.4)]">{t('launch_on_boot', lang)}</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={isAutoHost} onChange={(e) => setIsAutoHost(e.target.checked)} />
-                  <div className="w-9 h-5 bg-[rgba(28,28,28,0.1)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1C1C1C]"></div>
-                </label>
-             </div>
 
-             <div className="flex items-center justify-between py-2">
-                <div className="flex flex-col">
-                   <span className="text-xs font-bold text-[#1C1C1C]">{t('device_password', lang)}</span>
-                   <span className="text-[10px] text-[rgba(28,28,28,0.4)]">{t('encrypted_pin', lang)}</span>
+
+             <div className="flex flex-col gap-2 py-2">
+                <div className="flex items-center justify-between mb-1">
+                   <div className="flex flex-col">
+                      <span className="text-xs font-bold text-[#1C1C1C]">{t('device_password', lang)}</span>
+                      <span className="text-[10px] text-[rgba(28,28,28,0.4)]">System generated or custom</span>
+                   </div>
+                   <button 
+                     onClick={openPasswordModal}
+                     className="px-3 py-1.5 bg-[rgba(28,28,28,0.02)] hover:bg-[rgba(28,28,28,0.05)] border border-[rgba(28,28,28,0.1)] rounded-lg text-xs font-bold text-[#1C1C1C] transition-all flex items-center gap-1.5"
+                   >
+                     <Lock size={12} /> {t('configure', lang)}
+                   </button>
                 </div>
-                <button 
-                  onClick={openPasswordModal}
-                  className="px-3 py-1.5 bg-[rgba(28,28,28,0.02)] hover:bg-[rgba(28,28,28,0.05)] border border-[rgba(28,28,28,0.1)] rounded-lg text-xs font-bold text-[#1C1C1C] transition-all"
-                >
-                  {t('configure', lang)}
-                </button>
+                
+                <div className="bg-[#F9F9FA] rounded-xl p-3 border border-[rgba(28,28,28,0.06)] flex items-center justify-between">
+                   <span className="text-sm font-mono font-bold text-[#1C1C1C] tracking-widest">{devicePassword || '••••••••'}</span>
+                   <button 
+                     onClick={() => {
+                        if (devicePassword) {
+                            navigator.clipboard.writeText(devicePassword);
+                        }
+                     }}
+                     className="w-8 h-8 flex items-center justify-center rounded-lg bg-white hover:bg-[rgba(28,28,28,0.05)] border border-[rgba(28,28,28,0.06)] text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-all"
+                   >
+                     <Copy size={14} />
+                   </button>
+                </div>
              </div>
           </div>
           

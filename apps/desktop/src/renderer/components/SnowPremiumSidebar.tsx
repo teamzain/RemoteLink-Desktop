@@ -33,7 +33,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
 
   const bottomItems = [
     { id: 'notifications', label: t('notifications', user?.language), icon: Bell },
-    { id: 'settings', label: t('admin_settings', user?.language), icon: Settings },
+    { id: 'admin_settings', label: t('admin_settings', user?.language), icon: Settings },
     { id: 'feedback', label: t('feedback', user?.language), icon: MessageCircle },
     { id: 'help', label: t('help', user?.language), icon: HelpCircle },
   ];

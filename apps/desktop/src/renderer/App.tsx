@@ -1667,13 +1667,16 @@ export default function App() {
                     fireNotification('Session Ended', 'The remote session was disconnected.');
                 }
                 playUISound('disconnect');
+                if (isAutoHostEnabled && !manuallyStoppedHost.current) {
+                    setTimeout(() => handleStartHosting(), 5000);
+                }
             }
         });
 
         // Auto-host on mount logic moved to reactive effect
 
         return () => removeHostStatusListener();
-    }, [isElectron]);
+    }, [isElectron, isAutoHostEnabled]);
 
     // Reactive Auto-Host: Waits until device is initialized (hostAccessKey)
     useEffect(() => {
@@ -3197,7 +3200,62 @@ export default function App() {
                                                             currentView === 'billing' ? t('billing_title', user?.language) :
                                                                 currentView === 'profile' ? t('profile_title_nav', user?.language) :
                                                                     currentView === 'support' ? t('support_title_nav', user?.language) :
-                                                                        currentView === 'documentation' ? t('docs_title_nav', user?.language) : currentView}
+                                                                        currentView === 'documentation' ? t('docs_title_nav', user?.language) :
+                                                                            currentView === 'admin_settings' ? 'Admin Settings' : currentView}
+                                    </h1>
+                                    
+                                    <div className="flex items-center gap-4 text-[#757575] dark:text-[#A0A0A0]">
+                                        <button 
+                                            onClick={handleBack}
+                                            disabled={historyIndex === 0}
+                                            className={`transition-colors ${historyIndex > 0 ? 'hover:text-[#1C1C1C] dark:hover:text-white' : 'opacity-30 cursor-not-allowed'}`}
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={handleForward}
+                                            disabled={historyIndex === history.length - 1}
+                                            className={`transition-colors ${historyIndex < history.length - 1 ? 'hover:text-[#1C1C1C] dark:hover:text-white' : 'opacity-30 cursor-not-allowed'}`}
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 max-w-sm mx-8 relative">
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#757575] dark:text-[#A0A0A0]">
+                                        <Search size={16} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Search device, contact, group or feature. Type an ID to connect."
+                                        className="w-full h-10 pl-11 pr-20 bg-white dark:bg-white/5 border border-[#D4A017] dark:border-amber-500 rounded-xl text-sm outline-none shadow-[0_0_0_1px_rgba(212,160,23,0.1)] transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
+                                    />
+                                    <div className="absolute inset-y-0 right-3 flex items-center">
+                                        <span className="text-[10px] font-medium text-[#757575] dark:text-[#A0A0A0] bg-[#F4F7F9] dark:bg-white/5 px-1.5 py-0.5 rounded border border-[#D1D1D1] dark:border-white/10">Ctrl + K</span>
+                                    </div>
+
+                                    {/* Search Dropdown Mockup */}
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1C1C1C] border border-gray-100 dark:border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200">
+                                        <div className="flex items-center gap-2 p-2 border-b border-gray-50 dark:border-white/5">
+                                            <button className="px-3 py-1.5 bg-gray-100 dark:bg-white/5 rounded-lg text-[12px] font-medium text-gray-900 dark:text-white">All</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Monitor size={14} /> Devices</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Layers size={14} /> Groups</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><User size={14} /> Contacts</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Zap size={14} /> Features</button>
+                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><HelpCircle size={14} /> Help</button>
+                                        </div>
+                                        <div className="p-6">
+                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2">Search and make your first connection</h3>
+                                            <p className="text-[13px] text-gray-500 leading-relaxed">
+                                                Your most recent connections will appear here once they are completed, making it easier for you to find and reuse them in the future.
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 dark:bg-white/5 flex justify-end">
+                                            <button className="text-gray-400 hover:text-gray-600 transition-colors"><Settings size={16} /></button>
+                                                                            currentView === 'admin_settings' ? 'Admin Settings' : currentView}
                                     </h1>
                                     
                                     <div className="flex items-center gap-4 text-[#757575] dark:text-[#A0A0A0]">
@@ -3257,7 +3315,6 @@ export default function App() {
                             </div>
 
                             <div className="flex items-center gap-5 text-[#757575] dark:text-[#A0A0A0]">
-                                <button className="hover:text-[#1C1C1C] dark:hover:text-white transition-colors" title={t('documentation_tooltip', user?.language)} onClick={() => setCurrentView('documentation')}><Book size={18} /></button>
                                 <button className="hover:text-[#1C1C1C] dark:hover:text-white transition-colors" title={t('settings_tooltip', user?.language)} onClick={() => setCurrentView('settings')}><Settings size={18} /></button>
                                 <button 
                                     className={`hover:text-[#1C1C1C] dark:hover:text-white transition-colors relative ${showNotifications ? 'text-[#1C1C1C] dark:text-white' : ''}`} 
@@ -3580,6 +3637,7 @@ export default function App() {
                                     openPasswordModal={() => setActionModal({ type: 'password', device: null })}
                                     bandwidth={hostStats.bandwidth}
                                     activeUsers={hostStats.activeUsers}
+                                    devicePassword={devicePassword}
                                     isRegistered={isLocalHostRegistered}
                                     onRegister={handleRegisterLocalDevice}
                                 />
@@ -3593,6 +3651,10 @@ export default function App() {
                             /* --- SNOW UI DOCUMENTATION VIEW --- */
                             <div className="w-full h-full animate-in fade-in duration-700">
                                 <SnowDocumentation onNavigateToSupport={() => setCurrentView('support')} />
+                            </div>
+                        ) : currentView === 'admin_settings' ? (
+                            <div className="w-full h-full animate-in fade-in duration-700 bg-white dark:bg-[#0F0F0F]">
+                                <SnowAdminSettings setCurrentView={setCurrentView} user={user} />
                             </div>
                         ) : currentView === 'profile' ? (
                             /* --- PROFILE ALIASED TO SETTINGS --- */
@@ -3679,6 +3741,40 @@ export default function App() {
                     </div>
                 </main>
 
+                {/* --- Global Status Footer --- */}
+                {!showSplash && isSplashComplete && (
+                    <footer className="h-8 shrink-0 bg-white dark:bg-[#0F0F0F] border-t border-[rgba(0,0,0,0.06)] dark:border-white/5 flex items-center justify-between px-6 z-[100] font-sans">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${hostStatus === 'status' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-gray-300'}`} />
+                                <span className="text-[11px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">
+                                    {hostStatus === 'status' ? 'Ready to connect' : 'Offline'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F9FAFB] dark:bg-white/5 rounded-lg border border-[rgba(0,0,0,0.03)] dark:border-white/5 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(hostAccessKey);
+                                    addNotification('ID copied to clipboard', 'system');
+                                }}
+                            >
+                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">ID</span>
+                                <span className="text-[11px] font-mono font-bold text-[#1C1C1C] dark:text-white tracking-widest">{formatCode(hostAccessKey || '--- --- ---')}</span>
+                                <Copy size={10} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            
+                            {user?.role === 'SUPER_ADMIN' && activeSessionCount > 0 && (
+                                <div className="flex items-center gap-2 text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">
+                                    <Activity size={10} />
+                                    <span className="text-[10px] font-bold uppercase">{activeSessionCount} Active Sessions</span>
+                                </div>
+                            )}
+                        </div>
+                    </footer>
+                )}
+
                 <SnowNotificationPanel 
                     isOpen={showNotifications} 
                     onClose={() => setShowNotifications(false)} 
@@ -3754,7 +3850,7 @@ export default function App() {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#1C1C1C]/20 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="w-full max-w-md bg-white p-8 rounded-[24px] shadow-2xl border border-[rgba(28,28,28,0.15)] animate-in zoom-in-95 duration-300">
                         <div className="flex justify-between items-center mb-8">
-                            <h3 className="text-xl font-bold text-[#1C1C1C] tracking-tight uppercase">Authentication Required</h3>
+                            <h3 className="text-xl font-bold text-[#1C1C1C]">Authentication Required</h3>
                             <button onClick={() => setShowPasswordPrompt(null)} className="p-2 text-[#1C1C1C] hover:text-[#1C1C1C] hover:bg-[#F8F9FA] rounded-xl transition-colors"><X className="w-5 h-5" /></button>
                         </div>
                         <div className="relative mb-8">
@@ -3773,9 +3869,9 @@ export default function App() {
                         </div>
                         <label className="flex items-center gap-3 cursor-pointer mb-8 p-4 rounded-2xl bg-[#F8F9FA] border border-[rgba(28,28,28,0.04)] hover:border-[rgba(28,28,28,0.1)] transition-all">
                             <input type="checkbox" checked={promptRemember} onChange={e => setPromptRemember(e.target.checked)} className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-[#1C1C1C] focus:ring-[#1C1C1C]" />
-                            <span className="text-xs font-bold text-[#1C1C1C] uppercase tracking-widest">Remember this machine</span>
+                            <span className="text-[13px] font-medium text-[#757575]">Remember this machine</span>
                         </label>
-                        <button onClick={submitPasswordPrompt} disabled={!promptPassword || viewerStatus === 'connecting'} className="snow-btn w-full">ESTABLISH SECURE LINK</button>
+                        <button onClick={submitPasswordPrompt} disabled={!promptPassword || viewerStatus === 'connecting'} className="snow-btn w-full">Establish secure link</button>
                     </div>
                 </div>
             )}
@@ -3798,7 +3894,7 @@ export default function App() {
                         <div className="px-8 pb-8">
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div className="space-y-1">
-                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">Device Name</label>
+                                    <label className="text-[12px] font-medium text-[#757575] ml-1">Device Name</label>
                                     <div className="relative">
                                         <input 
                                             type="text" 
@@ -3810,7 +3906,7 @@ export default function App() {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">Group</label>
+                                    <label className="text-[12px] font-medium text-[#757575] ml-1">Group</label>
                                     <div className="relative">
                                         <select 
                                             value={addGroup}
@@ -3829,7 +3925,7 @@ export default function App() {
 
                             <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div className="space-y-1">
-                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">RemoteLink ID</label>
+                                    <label className="text-[12px] font-medium text-[#757575] ml-1">RemoteLink ID</label>
                                     <input 
                                         type="text" 
                                         placeholder="000 000 000" 
@@ -3839,7 +3935,7 @@ export default function App() {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider ml-1">Password</label>
+                                    <label className="text-[12px] font-medium text-[#757575] ml-1">Password</label>
                                     <div className="relative">
                                         <input 
                                             type={showAddPassword ? "text" : "password"} 
@@ -3890,12 +3986,12 @@ export default function App() {
                                  actionModal.type === 'password' ? <KeyRound size={24} className="text-[#1C1C1C]" /> :
                                  <Trash2 size={24} className="text-red-500" />}
                             </div>
-                            <h3 className="text-xl font-bold text-[#1C1C1C] mb-2 tracking-tight uppercase">
+                            <h3 className="text-xl font-bold text-[#1C1C1C] mb-2">
                                 {actionModal.type === 'rename' ? 'Modify Identity' :
                                     actionModal.type === 'password' ? 'Hardware Key' :
                                         actionModal.type === 'remove' ? 'Sever Connection' : ''}
                             </h3>
-                            <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] leading-relaxed uppercase tracking-[0.2em] max-w-[240px] mx-auto">
+                            <p className="text-[13px] font-medium text-[#757575] leading-relaxed max-w-[240px] mx-auto">
                                 {actionModal.type === 'rename' ? 'Set a persistent nickname for this machine.' :
                                     actionModal.type === 'password' ? 'Update the hardware access credentials.' :
                                         actionModal.type === 'remove' ? `Unlink ${actionModal.device.device_name} from your account?` : ''}

@@ -34,7 +34,8 @@
       "Bash(tasklist)",
       "Bash(git commit -m ' *)",
       "Bash(git commit *)",
-      "PowerShell(Get-Process | Where-Object { $_.Name -match 'electron|Connect' } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force \"d:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release2\\\\win-unpacked\" -ErrorAction SilentlyContinue; Write-Host \"done\")"
+      "PowerShell(Get-Process | Where-Object { $_.Name -match 'electron|Connect' } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force \"d:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release2\\\\win-unpacked\" -ErrorAction SilentlyContinue; Write-Host \"done\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('main:', d.get\\('main'\\)\\); print\\('module:', d.get\\('module'\\)\\)\")"
     ],
     "additionalDirectories": [
       "d:\\Work\\RemoteLink-Desktop\\downloads"

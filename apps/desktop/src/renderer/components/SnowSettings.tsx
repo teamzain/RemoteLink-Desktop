@@ -156,18 +156,7 @@ export const SnowSettings: React.FC<SnowSettingsProps> = ({
                     className="w-60 bg-white border border-[rgba(28,28,28,0.2)] rounded px-2 py-1 text-xs outline-none focus:border-blue-500 shadow-sm"
                   />
                 </div>
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <input 
-                    type="checkbox" 
-                    className="w-4 h-4 rounded border-[rgba(28,28,28,0.2)] text-blue-600 focus:ring-0"
-                    checked={isAutoHostEnabled}
-                    onChange={(e) => {
-                      setIsAutoHostEnabled(e.target.checked);
-                      localStorage.setItem('is_auto_host_enabled', String(e.target.checked));
-                    }}
-                  />
-                  <span className="text-xs text-[#1C1C1C]">Start Remote 365 with Windows</span>
-                </label>
+
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-[#1C1C1C]">Choose a theme</span>
                   <select 

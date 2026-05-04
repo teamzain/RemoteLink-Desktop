@@ -372,30 +372,6 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
             </div>
           )}
 
-          {/* Quick Actions Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-            <div className="p-6 bg-white dark:bg-[#111111] rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all cursor-pointer group">
-              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 mb-4">
-                <Zap size={20} />
-              </div>
-              <h4 className="text-[14px] font-bold text-gray-800 dark:text-[#F5F5F5] mb-1">Instant Support</h4>
-              <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0]">Connect to a remote device without installation.</p>
-            </div>
-            <div className="p-6 bg-white dark:bg-[#111111] rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all cursor-pointer group">
-              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center text-emerald-600 mb-4">
-                <Shield size={20} />
-              </div>
-              <h4 className="text-[14px] font-bold text-gray-800 dark:text-[#F5F5F5] mb-1">Secure Unattended</h4>
-              <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0]">Set up permanent access with custom password.</p>
-            </div>
-            <div className="p-6 bg-white dark:bg-[#111111] rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all cursor-pointer group">
-              <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center text-purple-600 mb-4">
-                <MoreHorizontal size={20} />
-              </div>
-              <h4 className="text-[14px] font-bold text-gray-800 dark:text-[#F5F5F5] mb-1">More tools</h4>
-              <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0]">File transfer, chat, and system diagnostics.</p>
-            </div>
-          </div>
         </div>
       </div>
 

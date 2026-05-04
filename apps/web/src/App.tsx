@@ -1,10 +1,13 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import Landing from './pages/Landing'
+import Downloads from './pages/Downloads'
 import FeaturesPage from './pages/landing/FeaturesPage'
 import SolutionsPage from './pages/landing/SolutionsPage'
 import PricingPage from './pages/landing/PricingPage'
 import ResourcesPage from './pages/landing/ResourcesPage'
+import EnterprisePage from './pages/landing/EnterprisePage'
+import ProductPage from './pages/landing/ProductPage'
 import DashboardHome from './pages/dashboard/DashboardHome'
 import Devices from './pages/dashboard/Devices'
 import Billing from './pages/dashboard/Billing'
@@ -43,10 +46,13 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/downloads" element={<Downloads />} />
       <Route path="/features" element={<FeaturesPage />} />
       <Route path="/solutions" element={<SolutionsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/resources" element={<ResourcesPage />} />
+      <Route path="/enterprise" element={<EnterprisePage />} />
+      <Route path="/product" element={<ProductPage />} />
 
       {/* Dashboard Routes (Protected) */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
