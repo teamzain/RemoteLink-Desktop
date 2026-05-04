@@ -2205,6 +2205,10 @@ export default function App() {
             handleJoinSessionInvite(payload.code, payload.password);
         });
 
+        const removeMeetingJoin = (window as any).electronAPI.onMeetingJoinLink?.((payload: { code: string }) => {
+            setActiveMeetingId(payload.code);
+        });
+
         // Listen for 2FA token
         const removeTemp2fa = (window as any).electronAPI.onTemp2faToken?.((token: string) => {
             setTemp2faToken(token);
@@ -2479,6 +2483,7 @@ export default function App() {
                 removeAuthSuccess?.();
                 removeOnboarding?.();
                 removeSessionJoin?.();
+                removeMeetingJoin?.();
                 removeTemp2fa?.();
                 removeHostListener();
                 removeSignalingListener();

@@ -1154,6 +1154,19 @@ function handleDeepLink(url: string) {
       }
     }
 
+    if (parsed.host === 'meeting') {
+      const code = parsed.searchParams.get('code');
+      if (code) {
+        log.info('[DeepLink] Received meeting join link:', code);
+        mainWindow?.webContents.send('meeting:join-link', { code });
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    }
+
     if (parsed.host === 'auth' && parsed.pathname === '/callback') {
       const accessToken = parsed.searchParams.get('accessToken');
       const refreshToken = parsed.searchParams.get('refreshToken');
@@ -1282,6 +1295,10 @@ process.on('unhandledRejection', (reason: any, promise: any) => {
 
 app.whenReady().then(() => {
   log.info('[Host] App is ready. Initializing subsystems...');
+
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(['media', 'display-capture'].includes(permission));
+  });
 
   // Force auto-launch for seamless reconnects on restart
   if (app.isPackaged) {
