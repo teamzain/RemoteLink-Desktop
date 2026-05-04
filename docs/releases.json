@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-04T18:42:31.162Z",
+  "generatedAt": "2026-05-04T19:34:03.722Z",
   "releases": [
+    {
+      "version": "1.1.8",
+      "tag": "v1.1.8",
+      "publishedAt": "2026-05-04T19:34:03.596Z",
+      "notes": "Logged-out meeting creation and expanded device settings",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.8.exe",
+          "size": 135249068,
+          "sha256": "150ac50a691fa17eddb6f37f994db4bb04505c46d5a9fa3e38ab9a65bdd3040d",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.8/Connect-X.Setup.1.1.8.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.8.exe.blockmap",
+          "size": 120580,
+          "sha256": "3fc6629ee8e45af3073363085e66b0614063707e84e551d6eae5ce533a92d7cd",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.8/Connect-X.Setup.1.1.8.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 347,
+          "sha256": "4465321dec0381471d8e20c9d1775358e31c00ab9e619bc70310289344a18fd5",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.8/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.7",
       "tag": "v1.1.7",
