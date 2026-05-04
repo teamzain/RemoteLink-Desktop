@@ -188,6 +188,14 @@ ipcMain.handle('system:log', (_event: any, msg: any, level: any) => {
   const l = level as 'info' | 'warn' | 'error';
   (log as any)[l]?.(msg);
 });
+
+function minimizeHostWindowForRemoteSession(reason: string) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) return;
+  log.info(`[Host] Minimizing host window for remote session: ${reason}`);
+  mainWindow.minimize();
+}
+
 ipcMain.handle('auth:getToken', () => getAuthTokens());
 ipcMain.handle('auth:setToken', (_event: any, t: any, r: any) => setAuthTokens(t, r));
 ipcMain.handle('auth:deleteToken', () => fs.unlink(AUTH_STORE_PATH).then(() => true).catch(() => false));
@@ -218,6 +226,7 @@ ipcMain.handle('host:stop', () => {
 ipcMain.on('host:approve-viewer', (_event: any, viewerId: string) => {
   if (hostSignalingWs?.readyState === WebSocket.OPEN) {
     hostSignalingWs.send(JSON.stringify({ type: 'join-approve', viewerId }));
+    minimizeHostWindowForRemoteSession('viewer-approved');
   }
 });
 
@@ -231,6 +240,7 @@ ipcMain.on('host:approve-control', (_event: any, viewerId: string) => {
   if (viewerId !== currentViewerId && viewerId !== pendingControlViewerId) return;
   controlGranted = true;
   pendingControlViewerId = null;
+  minimizeHostWindowForRemoteSession('control-approved');
   if (dataChannel && dataChannel.isOpen()) {
     dataChannel.sendMessage(JSON.stringify({ type: 'control-granted' }));
   }
@@ -263,7 +273,12 @@ ipcMain.handle('host:set-capture-screen', (_: any, displayId: any) => {
   return true;
 });
 ipcMain.handle('clipboard:readText', () => clipboard.readText());
-ipcMain.handle('clipboard:writeText', (_event: any, text: any) => { lastClipboardText = text; clipboard.writeText(text); });
+ipcMain.handle('clipboard:writeText', (_event: any, text: any) => {
+  const value = String(text ?? '');
+  lastClipboardText = value;
+  clipboard.writeText(value);
+  return true;
+});
 ipcMain.handle('viewer:open-window', (_event: any, sessionId: any, serverIP: any, token: any, deviceName: any, deviceType: any) => {
   if (viewerWindows.has(sessionId)) {
     viewerWindows.get(sessionId)?.focus();
@@ -694,7 +709,7 @@ function startStreaming() {
         const ny = Math.max(0, Math.min(1, (y - selectedDisplay.bounds.y) / selectedDisplay.bounds.height));
         dataChannel.sendMessage(JSON.stringify({ type: 'cursor', x: nx, y: ny, visible: true }));
       } catch (err) { }
-    }, 33);
+    }, 16);
 
     ffmpegProcess.stdin?.on('error', (err: any) => {
       if (captureInterval) { clearInterval(captureInterval); captureInterval = null; }
@@ -848,8 +863,7 @@ function initiateHostWebRTC(viewerId: string) {
 
       // Prevent "Inception" infinite recursion naturally by hiding the Host UI
       if (mainWindow && !mainWindow.isDestroyed()) {
-        log.info('[Host] Auto-minimizing Host window to prevent capture recursion.');
-        mainWindow.minimize();
+        minimizeHostWindowForRemoteSession('webrtc-connected');
       }
 
       if (isPreBuffering) {
@@ -901,6 +915,7 @@ function initiateHostWebRTC(viewerId: string) {
     controlGranted = true;
     pendingControlViewerId = null;
     dataChannel.sendMessage(JSON.stringify({ type: 'control-granted' }));
+    minimizeHostWindowForRemoteSession('control-channel-open');
 
     // 1. Start Ping Heartbeat (1s)
     if (pingInterval) clearInterval(pingInterval);
@@ -1102,6 +1117,7 @@ function setupSignalingHandlers(ws: WebSocket) {
 
       lastViewerJoinId = viewerId;
       lastViewerJoinTime = now;
+      minimizeHostWindowForRemoteSession('viewer-joined');
       initiateHostWebRTC(viewerId);
     } else if (data.type === 'answer') {
       try {

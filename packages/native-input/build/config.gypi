@@ -419,8 +419,8 @@
     "global_prefix": "C:\\nvm4w\\nodejs",
     "init_module": "C:\\Users\\Zain Ul Abidden\\.npm-init.js",
     "local_prefix": "D:\\Work\\RemoteLink-Desktop",
-    "node_gyp": "C:\\Users\\Zain Ul Abidden\\AppData\\Local\\nvm\\v20.11.1\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
-    "npm_version": "10.2.4",
+    "node_gyp": "C:\\Users\\Zain Ul Abidden\\AppData\\Local\\nvm\\v22.22.2\\node_modules\\npm\\node_modules\\node-gyp\\bin\\node-gyp.js",
+    "npm_version": "10.9.7",
     "platform": "win32",
     "prefix": "C:\\nvm4w\\nodejs",
     "runtime": "electron",
@@ -429,6 +429,6 @@
     "target_platform": "win32",
     "update_binary": "true",
     "userconfig": "C:\\Users\\Zain Ul Abidden\\.npmrc",
-    "user_agent": "npm/10.2.4 node/v20.11.1 win32 x64 workspaces/true"
+    "user_agent": "npm/10.9.7 node/v22.22.2 win32 x64 workspaces/true"
   }
 }

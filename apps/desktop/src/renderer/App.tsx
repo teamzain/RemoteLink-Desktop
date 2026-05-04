@@ -99,7 +99,6 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [lastPacketTime, setLastPacketTime] = useState<number | null>(null);
     const [decodeErrors, setDecodeErrors] = useState(0);
     const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
-    const [localMouse, setLocalMouse] = useState<{ x: number, y: number } | null>(null);
     const [isAutoPlayBlocked, setIsAutoPlayBlocked] = useState(false);
     const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
 
@@ -565,7 +564,6 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         }
                         if (zoomMode === 'fit') return; // Don't spam layout with hover moves on mobile
                     }
-                    setLocalMouse({ x: e.clientX, y: e.clientY });
                     const now = Date.now();
                     if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
                     lastMouseMoveRef.current = now;
@@ -633,7 +631,6 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     // Let's filter it generally if no button is pushed for mobile.
                 }
 
-                setLocalMouse({ x: e.clientX, y: e.clientY });
                 const now = Date.now();
                 if (now - lastMouseMoveRef.current < MOUSE_THROTTLE_MS) return;
                 lastMouseMoveRef.current = now;
@@ -702,7 +699,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                             }
                         }}
                         onMouseEnter={() => { }}
-                        onMouseLeave={() => setLocalMouse(null)}
+                        onMouseLeave={() => { }}
                         {...videoProps}
                     />
                 </div>
@@ -754,11 +751,11 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 {/* Remote Cursor Overlay */}
                 {remoteCursor && remoteCursor.visible && (
                     <div
-                        className="absolute pointer-events-none z-50 transition-all duration-75"
+                        className="absolute pointer-events-none z-50 will-change-transform"
                         style={{
                             left: `${remoteCursor.x * 100}%`,
                             top: `${remoteCursor.y * 100}%`,
-                            transform: 'translate(-3px, -3px)'
+                            transform: 'translate3d(-3px, -3px, 0)'
                         }}
                     >
                         <MousePointer2 size={20} className="text-white fill-[#1C1C1C] drop-shadow-md" />
@@ -1436,7 +1433,7 @@ export default function App() {
     // Throttled mouse movement
     const lastMouseMoveRef = useRef<number>(0);
     const lastBufferWarningRef = useRef<number>(0);
-    const MOUSE_THROTTLE_MS = 33; // Optimized: 33ms (~30fps) significantly reduces DataChannel congestion
+    const MOUSE_THROTTLE_MS = 16; // ~60fps for smoother desktop control without flooding the channel
 
     const onControlEvent = (event: any) => {
         const channel = controlChannelRef.current;
@@ -1482,6 +1479,16 @@ export default function App() {
         setCurrentView('dashboard');
     };
     const lastClipboardRef = useRef<string>('');
+
+    const writeClipboardText = async (text: string) => {
+        const value = String(text ?? '');
+        if (!value) return;
+        if (isElectron && (window as any).electronAPI?.clipboard?.writeText) {
+            await (window as any).electronAPI.clipboard.writeText(value);
+            return;
+        }
+        await navigator.clipboard.writeText(value);
+    };
 
 
     // --- New Device Management State ---
@@ -2618,8 +2625,9 @@ export default function App() {
     };
 
     const copyAccessKey = () => {
-        navigator.clipboard.writeText(hostAccessKey);
-        // Simple visual feedback could go here
+        const key = String(hostAccessKey || localStorage.getItem('remote365_device_access_key') || '').replace(/\D/g, '');
+        if (!key) return;
+        writeClipboardText(formatCode(key));
     };
 
     const handleStartHosting = async () => {
@@ -3784,7 +3792,9 @@ export default function App() {
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F9FAFB] dark:bg-white/5 rounded-lg border border-[rgba(0,0,0,0.03)] dark:border-white/5 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group"
                                 onClick={() => {
-                                    navigator.clipboard.writeText(hostAccessKey);
+                                    const key = String(hostAccessKey || localStorage.getItem('remote365_device_access_key') || '').replace(/\D/g, '');
+                                    if (!key) return;
+                                    writeClipboardText(formatCode(key));
                                     addNotification('ID copied to clipboard', 'system');
                                 }}
                             >
