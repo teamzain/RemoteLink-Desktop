@@ -504,26 +504,24 @@ async function startServer() {
             if (!meetingId) break;
 
             const decoded = token ? verifyToken(token) : null;
-            if (!decoded?.userId) {
-              ws.send(JSON.stringify({ type: 'meeting-error', error: 'Authentication is required to join this meeting.' }));
-              break;
+            const participantUserId = decoded?.userId || user?.id || `guest-${connectionId}`;
+            const participantName = String(user?.name || '').trim() || (decoded?.userId ? 'Participant' : 'Guest');
+
+            let meeting: { id: string; name: string; sessionCode: string } | null = null;
+            try {
+              meeting = await (prisma as any).remoteSession.findFirst({
+                where: {
+                  sessionCode: meetingId,
+                  type: 'VIDEO_MEETING',
+                  status: 'ACTIVE'
+                },
+                select: { id: true, name: true, sessionCode: true }
+              });
+            } catch (err) {
+              console.warn('[Signaling] Meeting lookup failed, continuing with an ad-hoc room:', err);
             }
 
-            const meeting = await (prisma as any).remoteSession.findFirst({
-              where: {
-                sessionCode: meetingId,
-                type: 'VIDEO_MEETING',
-                status: 'ACTIVE'
-              },
-              select: { id: true, name: true, sessionCode: true }
-            });
-
-            if (!meeting) {
-              ws.send(JSON.stringify({ type: 'meeting-error', error: 'Meeting not found or already ended.' }));
-              break;
-            }
-
-            console.log(`[Signaling] User ${user?.name || connectionId} joining meeting: ${meetingId}`);
+            console.log(`[Signaling] User ${participantName || connectionId} joining meeting: ${meetingId}`);
 
             leaveMeetingRoom(connectionId);
             
@@ -533,8 +531,8 @@ async function startServer() {
             
             const room = meetingRooms.get(meetingId)!;
             const participantUser = {
-              id: decoded.userId,
-              name: user?.name || 'Participant',
+              id: participantUserId,
+              name: participantName,
               avatar: user?.avatar || null
             };
             meetingParticipants.set(connectionId, participantUser);
@@ -571,8 +569,8 @@ async function startServer() {
               type: 'meeting-joined',
               meetingId,
               participants,
-              meeting: { id: meeting.id, name: meeting.name, sessionCode: meeting.sessionCode },
-              sfu: createLiveKitJoinConfig(meetingId, decoded.userId, participantUser.name)
+              meeting: meeting || { id: meetingId, name: `Meeting ${meetingId.toUpperCase()}`, sessionCode: meetingId },
+              sfu: createLiveKitJoinConfig(meetingId, participantUserId, participantUser.name)
             }));
             break;
           }

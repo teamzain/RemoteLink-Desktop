@@ -25,6 +25,14 @@ interface SnowMeetingProps {
   onLeave: () => void;
 }
 
+const normalizeMeetingCode = (value: string) => String(value || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+const formatMeetingCode = (value: string) => {
+  const clean = String(value || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  if (clean.length === 9) return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6, 9)}`;
+  return clean || String(value || '').trim();
+};
+
 export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) => {
   const { user } = useAuthStore();
   const { ws, connectWebSocket } = useChatStore();
@@ -50,7 +58,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
     connectWebSocket();
   }, [connectWebSocket]);
 
-  const meetingCode = String(meetingId || '').trim();
+  const roomId = normalizeMeetingCode(meetingId);
+  const meetingCode = formatMeetingCode(roomId);
   const meetingLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
 
   const getAvailableMediaStream = async () => {
@@ -128,7 +137,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       hasJoinedRef.current = true;
       ws.send(JSON.stringify({
         type: 'meeting-join',
-        meetingId,
+        meetingId: roomId,
         token,
         user: { id: user?.id, name: user?.name, avatar: user?.avatar }
       }));
@@ -139,7 +148,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       ws.addEventListener('open', joinMeeting, { once: true });
       return () => ws.removeEventListener('open', joinMeeting);
     }
-  }, [ws, mediaReady, meetingId, user?.id, user?.name, user?.avatar]);
+  }, [ws, mediaReady, roomId, user?.id, user?.name, user?.avatar]);
 
   // Signaling Listener integration
   useEffect(() => {
@@ -215,7 +224,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       if (e.candidate && ws) {
         ws.send(JSON.stringify({
           type: 'meeting-signal',
-          meetingId,
+          meetingId: roomId,
           targetConnectionId: targetId,
           signal: { type: 'candidate', candidate: e.candidate }
         }));
@@ -233,7 +242,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
         pc.setLocalDescription(offer);
         ws?.send(JSON.stringify({
           type: 'meeting-signal',
-          meetingId,
+          meetingId: roomId,
           targetConnectionId: targetId,
           signal: offer
         }));
@@ -254,7 +263,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       await pc.setLocalDescription(answer);
       ws?.send(JSON.stringify({
         type: 'meeting-signal',
-        meetingId,
+        meetingId: roomId,
         targetConnectionId: senderId,
         signal: answer
       }));
@@ -301,7 +310,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       await api.post('/api/chat/session-invites', {
         email: cleanEmail,
         sessionName: `${user?.name || 'Remote 365'} meeting`,
-        sessionCode: meetingCode,
+        sessionCode: roomId,
         sessionPassword: '',
         sessionLink: meetingLink,
         type: 'VIDEO_MEETING'
@@ -316,7 +325,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
   };
 
   const handleLeave = () => {
-    ws?.send(JSON.stringify({ type: 'meeting-leave', meetingId }));
+    ws?.send(JSON.stringify({ type: 'meeting-leave', meetingId: roomId }));
     onLeave();
   };
 
@@ -330,7 +339,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
             <Video size={18} />
           </div>
           <div>
-            <h2 className="text-[15px] font-bold tracking-tight">Meeting: {meetingId}</h2>
+            <h2 className="text-[15px] font-bold tracking-tight">Meeting: {meetingCode}</h2>
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${meetingError ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
               <span className="text-[11px] text-gray-400 font-medium">
