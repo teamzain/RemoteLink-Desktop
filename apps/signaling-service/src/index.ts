@@ -20,6 +20,8 @@ const viewerRegistry = new Map<string, string>(); // viewerConnectionId -> sessi
 const meetingRooms = new Map<string, Set<string>>();
 // connectionId -> meetingId (for cleanup)
 const connectionToMeeting = new Map<string, string>();
+// connectionId -> display metadata for meeting participants
+const meetingParticipants = new Map<string, { id?: string; name?: string; avatar?: string | null }>();
 // Pending connections waiting for host approval
 const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
 
@@ -61,6 +63,36 @@ async function broadcastPresence(sessionId: string, status: 'online' | 'offline'
     }
   }
 }
+
+const normalizeMeetingId = (meetingId: string) => String(meetingId || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+const leaveMeetingRoom = (connectionId: string) => {
+  const meetingId = connectionToMeeting.get(connectionId);
+  if (!meetingId) return;
+
+  const room = meetingRooms.get(meetingId);
+  if (room) {
+    room.delete(connectionId);
+    if (room.size === 0) {
+      meetingRooms.delete(meetingId);
+    } else {
+      const leaveNotification = JSON.stringify({
+        type: 'meeting-participant-left',
+        meetingId,
+        participantConnectionId: connectionId
+      });
+      for (const pId of room) {
+        const pWs = localClients.get(pId);
+        if (pWs && pWs.readyState === WebSocket.OPEN) {
+          pWs.send(leaveNotification);
+        }
+      }
+    }
+  }
+
+  connectionToMeeting.delete(connectionId);
+  meetingParticipants.delete(connectionId);
+};
 
 // Broadcast total active viewer sessions to all connected clients
 function broadcastGlobalStats() {
@@ -357,16 +389,45 @@ async function startServer() {
             break;
 
           case 'meeting-join': {
-            const { meetingId, user } = data;
+            const meetingId = normalizeMeetingId(data.meetingId);
+            const { user, token } = data;
             if (!meetingId) break;
 
+            const decoded = token ? verifyToken(token) : null;
+            if (!decoded?.userId) {
+              ws.send(JSON.stringify({ type: 'meeting-error', error: 'Authentication is required to join this meeting.' }));
+              break;
+            }
+
+            const meeting = await (prisma as any).remoteSession.findFirst({
+              where: {
+                sessionCode: meetingId,
+                type: 'VIDEO_MEETING',
+                status: 'ACTIVE'
+              },
+              select: { id: true, name: true, sessionCode: true }
+            });
+
+            if (!meeting) {
+              ws.send(JSON.stringify({ type: 'meeting-error', error: 'Meeting not found or already ended.' }));
+              break;
+            }
+
             console.log(`[Signaling] User ${user?.name || connectionId} joining meeting: ${meetingId}`);
+
+            leaveMeetingRoom(connectionId);
             
             if (!meetingRooms.has(meetingId)) {
               meetingRooms.set(meetingId, new Set());
             }
             
             const room = meetingRooms.get(meetingId)!;
+            const participantUser = {
+              id: decoded.userId,
+              name: user?.name || 'Participant',
+              avatar: user?.avatar || null
+            };
+            meetingParticipants.set(connectionId, participantUser);
             
             // Notify others in the room
             const joinNotification = JSON.stringify({
@@ -374,7 +435,7 @@ async function startServer() {
               meetingId,
               participant: {
                 connectionId,
-                user: user || { id: connectionToUser.get(connectionId), name: 'Unknown' }
+                user: participantUser
               }
             });
 
@@ -392,14 +453,15 @@ async function startServer() {
             const participants = [];
             for (const pId of room) {
               if (pId !== connectionId) {
-                participants.push({ connectionId: pId });
+                participants.push({ connectionId: pId, user: meetingParticipants.get(pId) });
               }
             }
 
             ws.send(JSON.stringify({
               type: 'meeting-joined',
               meetingId,
-              participants
+              participants,
+              meeting: { id: meeting.id, name: meeting.name, sessionCode: meeting.sessionCode }
             }));
             break;
           }
@@ -407,6 +469,12 @@ async function startServer() {
           case 'meeting-signal': {
             const { targetConnectionId, signal, meetingId } = data;
             if (!targetConnectionId || !signal) break;
+
+            const currentMeetingId = connectionToMeeting.get(connectionId);
+            if (!currentMeetingId || normalizeMeetingId(meetingId) !== currentMeetingId) break;
+
+            const room = meetingRooms.get(currentMeetingId);
+            if (!room?.has(targetConnectionId)) break;
 
             const tWs = localClients.get(targetConnectionId);
             if (tWs && tWs.readyState === WebSocket.OPEN) {
@@ -421,30 +489,7 @@ async function startServer() {
           }
 
           case 'meeting-leave': {
-            const mId = data.meetingId || connectionToMeeting.get(connectionId);
-            if (!mId) break;
-
-            const room = meetingRooms.get(mId);
-            if (room) {
-              room.delete(connectionId);
-              if (room.size === 0) {
-                meetingRooms.delete(mId);
-              } else {
-                // Notify others
-                const leaveNotification = JSON.stringify({
-                  type: 'meeting-participant-left',
-                  meetingId: mId,
-                  participantConnectionId: connectionId
-                });
-                for (const pId of room) {
-                  const pWs = localClients.get(pId);
-                  if (pWs && pWs.readyState === WebSocket.OPEN) {
-                    pWs.send(leaveNotification);
-                  }
-                }
-              }
-            }
-            connectionToMeeting.delete(connectionId);
+            leaveMeetingRoom(connectionId);
             break;
           }
         }
@@ -511,29 +556,7 @@ async function startServer() {
       }
 
       // Meeting cleanup
-      const meetingId = connectionToMeeting.get(connectionId);
-      if (meetingId) {
-        const room = meetingRooms.get(meetingId);
-        if (room) {
-          room.delete(connectionId);
-          if (room.size === 0) {
-            meetingRooms.delete(meetingId);
-          } else {
-            const leaveNotification = JSON.stringify({
-              type: 'meeting-participant-left',
-              meetingId,
-              participantConnectionId: connectionId
-            });
-            for (const pId of room) {
-              const pWs = localClients.get(pId);
-              if (pWs && pWs.readyState === WebSocket.OPEN) {
-                pWs.send(leaveNotification);
-              }
-            }
-          }
-        }
-        connectionToMeeting.delete(connectionId);
-      }
+      leaveMeetingRoom(connectionId);
     });
 
     let pingsMissed = 0;

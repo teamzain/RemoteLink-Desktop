@@ -1,6 +1,6 @@
 import React from 'react';
 import logo from '../assets/logo.png';
-import { Home, Network, Monitor, MessageSquare, Settings, HelpCircle, MessageCircle, MoreHorizontal, ChevronRight, Menu, ChevronLeft, Bell } from 'lucide-react';
+import { Home, Network, Monitor, MessageSquare, Settings, HelpCircle, MessageCircle, MoreHorizontal, ChevronRight, Menu, ChevronLeft, Bell, Video } from 'lucide-react';
 import { t } from '../lib/translations';
 
 interface SidebarProps {
@@ -29,6 +29,7 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
     { id: 'connect', label: t('remote_support', user?.language), icon: Network },
     { id: 'devices', label: t('devices', user?.language), icon: Monitor },
     { id: 'chat', label: t('chat', user?.language), icon: MessageSquare },
+    { id: 'meetings', label: t('meetings', user?.language) || 'Meetings', icon: Video },
   ];
 
   const bottomItems = [

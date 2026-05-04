@@ -18,6 +18,13 @@ const getSafeJoinLink = (sessionLink: string) => {
   }
 };
 
+const generateMeetingCode = () => {
+  const raw = Math.floor(100000000 + Math.random() * 900000000).toString();
+  return `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6, 9)}`;
+};
+
+const normalizeMeetingCode = (code: string) => String(code || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
 const sendSessionInviteEmail = async ({
   to,
   senderName,
@@ -263,7 +270,9 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const sessionType = type || 'REMOTE_CONTROL';
 
     const cleanEmail = email?.trim().toLowerCase();
-    const cleanCode = String(sessionCode || '').replace(/\s/g, '');
+    const cleanCode = sessionType === 'VIDEO_MEETING'
+      ? normalizeMeetingCode(sessionCode)
+      : String(sessionCode || '').replace(/\s/g, '');
     const cleanName = (sessionName || 'Remote support session').trim();
 
     if (!cleanCode || !sessionLink) {
@@ -454,6 +463,139 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       return reply.send(sessions);
     } catch (err) {
       console.error('[Chat API] Failed to fetch remote sessions', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  fastify.post('/meetings', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { name } = request.body as { name?: string };
+    const cleanName = (name || 'Remote 365 meeting').trim().slice(0, 120);
+
+    try {
+      const createdBy = await (prisma as any).user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true }
+      });
+      if (!createdBy) return reply.code(404).send({ error: 'User not found' });
+
+      let meetingCode = '';
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const candidate = generateMeetingCode();
+        const exists = await (prisma as any).remoteSession.findFirst({
+          where: {
+            type: 'VIDEO_MEETING',
+            sessionCode: normalizeMeetingCode(candidate),
+            status: 'ACTIVE'
+          },
+          select: { id: true }
+        });
+        if (!exists) {
+          meetingCode = candidate;
+          break;
+        }
+      }
+
+      if (!meetingCode) {
+        return reply.code(503).send({ error: 'Could not allocate a meeting code. Please try again.' });
+      }
+
+      const normalizedCode = normalizeMeetingCode(meetingCode);
+      const joinLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
+      const meeting = await (prisma as any).remoteSession.create({
+        data: {
+          name: cleanName,
+          sessionCode: normalizedCode,
+          joinLink,
+          createdById: userId,
+          type: 'VIDEO_MEETING',
+          status: 'ACTIVE'
+        },
+        include: {
+          collaborators: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' as const }
+          },
+          createdBy: { select: { id: true, name: true, email: true } }
+        }
+      });
+
+      return reply.send({ ...meeting, displayCode: meetingCode });
+    } catch (err) {
+      console.error('[Meetings API] Failed to create meeting', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  fastify.get('/meetings', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+
+    try {
+      const currentUser = await (prisma as any).user.findUnique({
+        where: { id: userId },
+        select: { email: true }
+      });
+
+      const visibilityFilters: any[] = [
+        { createdById: userId },
+        { collaborators: { some: { userId } } }
+      ];
+      if (currentUser?.email) {
+        visibilityFilters.push({ collaborators: { some: { email: currentUser.email } } });
+      }
+
+      const meetings = await (prisma as any).remoteSession.findMany({
+        where: {
+          type: 'VIDEO_MEETING',
+          OR: visibilityFilters
+        },
+        include: {
+          collaborators: {
+            include: { user: { select: { id: true, name: true, email: true, avatar: true } } },
+            orderBy: { createdAt: 'asc' as const }
+          },
+          createdBy: { select: { id: true, name: true, email: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 30
+      });
+
+      return reply.send(meetings.map((meeting: any) => ({
+        ...meeting,
+        displayCode: `${meeting.sessionCode.slice(0, 3)}-${meeting.sessionCode.slice(3, 6)}-${meeting.sessionCode.slice(6, 9)}`
+      })));
+    } catch (err) {
+      console.error('[Meetings API] Failed to fetch meetings', err);
+      return reply.code(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  fastify.post('/meetings/:id/end', async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = (request as any).userId;
+    const { id } = request.params as { id: string };
+
+    try {
+      const meeting = await (prisma as any).remoteSession.findFirst({
+        where: {
+          id,
+          type: 'VIDEO_MEETING',
+          createdById: userId
+        }
+      });
+      if (!meeting) return reply.code(403).send({ error: 'Only the meeting creator can end this meeting' });
+
+      const updated = await (prisma as any).remoteSession.update({
+        where: { id },
+        data: { status: 'ENDED', endedAt: new Date() },
+        include: {
+          collaborators: true,
+          createdBy: { select: { id: true, name: true, email: true } }
+        }
+      });
+
+      return reply.send(updated);
+    } catch (err) {
+      console.error('[Meetings API] Failed to end meeting', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
     }
   });

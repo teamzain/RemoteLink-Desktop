@@ -10,7 +10,7 @@ import { SnowRemoteSupport } from './SnowRemoteSupport';
 import logo from '../assets/logo.png';
 
 interface SnowHomeProps {
-  localAuthKey: string | null;
+  hostAccessKey: string | null;
   hostStatus: string;
   devicePassword: string;
   isAutoHostEnabled: boolean;
@@ -75,8 +75,8 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
   };
 
   const copyId = () => {
-    if (!props.localAuthKey) return;
-    navigator.clipboard.writeText(props.localAuthKey);
+    if (!props.hostAccessKey) return;
+    navigator.clipboard.writeText(props.hostAccessKey);
     setCopiedId(true); setTimeout(() => setCopiedId(false), 2000);
   };
   const copyPwd = () => {
@@ -255,7 +255,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
         <main className="flex-1 overflow-auto">
           {activeNav === 'remote' ? (
             <SnowRemoteSupport 
-              localAuthKey={props.localAuthKey}
+              localAuthKey={props.hostAccessKey}
               devicePassword={props.devicePassword}
               onCopyAccessKey={props.onCopyAccessKey}
               onOpenSetPassword={props.onOpenSetPassword}
@@ -323,7 +323,7 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
                         <div className="text-[10px] font-semibold text-gray-400 dark:text-[#A0A0A0] uppercase tracking-widest mb-1">Your ID</div>
                         <div className="flex items-center gap-2">
                           <span className="text-[16px] font-bold text-gray-800 dark:text-[#F5F5F5] tracking-wider">
-                            {fmt(props.localAuthKey || '')}
+                            {fmt(props.hostAccessKey || '')}
                           </span>
                           <button onClick={copyId} className="text-gray-400 dark:text-[#A0A0A0] hover:text-gray-600 dark:hover:text-white transition-colors shrink-0">
                             {copiedId ? <CheckCircle2 size={13} className="text-emerald-500" /> : <Copy size={13} />}

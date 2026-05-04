@@ -26,50 +26,76 @@ interface SnowMeetingProps {
 
 export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) => {
   const { user } = useAuthStore();
-  const { ws } = useChatStore();
+  const { ws, connectWebSocket } = useChatStore();
   
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [activeLayout, setActiveLayout] = useState<'grid' | 'focus'>('grid');
+  const [meetingError, setMeetingError] = useState<string | null>(null);
   
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const hasJoinedRef = useRef(false);
+
+  useEffect(() => {
+    connectWebSocket();
+  }, [connectWebSocket]);
 
   // Initialize Media
   useEffect(() => {
+    let streamToCleanup: MediaStream | null = null;
+
     async function initMedia() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
         });
+        streamToCleanup = stream;
         setLocalStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
 
-        // Join the meeting via signaling
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            type: 'meeting-join',
-            meetingId,
-            user: { id: user?.id, name: user?.name, avatar: user?.avatar }
-          }));
-        }
       } catch (err) {
         console.error('[Meeting] Failed to get media:', err);
+        setMeetingError('Camera or microphone access was blocked.');
       }
     }
 
     initMedia();
 
     return () => {
-      localStream?.getTracks().forEach(t => t.stop());
+      streamToCleanup?.getTracks().forEach(t => t.stop());
       peersRef.current.forEach(pc => pc.close());
     };
   }, []);
+
+  useEffect(() => {
+    async function joinMeeting() {
+      if (!ws || ws.readyState !== WebSocket.OPEN || !localStream || hasJoinedRef.current) return;
+
+      const token = (window as any).electronAPI
+        ? (await (window as any).electronAPI.getToken())?.token
+        : localStorage.getItem('access_token');
+
+      hasJoinedRef.current = true;
+      ws.send(JSON.stringify({
+        type: 'meeting-join',
+        meetingId,
+        token,
+        user: { id: user?.id, name: user?.name, avatar: user?.avatar }
+      }));
+    }
+
+    joinMeeting();
+    if (ws && ws.readyState !== WebSocket.OPEN) {
+      ws.addEventListener('open', joinMeeting, { once: true });
+      return () => ws.removeEventListener('open', joinMeeting);
+    }
+  }, [ws, localStream, meetingId, user?.id, user?.name, user?.avatar]);
 
   // Signaling Listener integration
   useEffect(() => {
@@ -80,10 +106,19 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       
       switch (data.type) {
         case 'meeting-joined':
+          setMeetingError(null);
           // Existing participants
           data.participants.forEach((p: any) => {
+            setParticipants(prev => {
+              if (prev.find(existing => existing.connectionId === p.connectionId)) return prev;
+              return [...prev, { ...p }];
+            });
             initiatePeerConnection(p.connectionId, true);
           });
+          break;
+
+        case 'meeting-error':
+          setMeetingError(data.error || 'Could not join this meeting.');
           break;
 
         case 'meeting-participant-joined':
@@ -214,8 +249,10 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
           <div>
             <h2 className="text-[15px] font-bold tracking-tight">Meeting: {meetingId}</h2>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] text-gray-400 font-medium">LIVE • {participants.length + 1} Participants</span>
+              <span className={`w-2 h-2 rounded-full ${meetingError ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
+              <span className="text-[11px] text-gray-400 font-medium">
+                {meetingError ? meetingError : `LIVE - ${participants.length + 1} Participants`}
+              </span>
             </div>
           </div>
         </div>

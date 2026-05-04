@@ -222,6 +222,11 @@ export const SnowChat: React.FC<{
   const sessionCodeGenerated = (localAuthKey || '').replace(/\s/g, '');
   const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCodeGenerated)}&password=${encodeURIComponent(devicePassword || '')}`;
 
+  const createMeetingCode = () => {
+    const raw = Math.floor(100000000 + Math.random() * 900000000).toString();
+    return `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6, 9)}`;
+  };
+
   const handleOpenSessionModal = () => {
     setSessionInviteEmail(activeConversation?.isGroup ? '' : (activeParticipant?.email || ''));
     setSessionName(activeConversation?.isGroup ? `${getChatName(activeConversation)} support session` : 'Remote support session');
@@ -231,7 +236,7 @@ export const SnowChat: React.FC<{
   };
 
   const handleSendSessionInvite = async () => {
-    if (!activeChatId || !sessionCodeGenerated) {
+    if (!activeChatId || (sessionType === 'REMOTE_CONTROL' && !sessionCodeGenerated)) {
       setSessionInviteStatus('error');
       setSessionInviteMessage('This device is still getting its RemoteLink ID.');
       return;
@@ -240,13 +245,18 @@ export const SnowChat: React.FC<{
     setSessionInviteStatus('sending');
     setSessionInviteMessage('');
     try {
+      const meetingCode = sessionType === 'VIDEO_MEETING' ? createMeetingCode() : sessionCodeGenerated;
+      const inviteLink = sessionType === 'VIDEO_MEETING'
+        ? `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`
+        : sessionLink;
+
       await api.post('/api/chat/session-invites', {
         conversationId: activeChatId,
         email: sessionInviteEmail.trim() || undefined,
         sessionName,
-        sessionCode: sessionCodeGenerated,
+        sessionCode: meetingCode,
         sessionPassword: sessionType === 'VIDEO_MEETING' ? '' : devicePassword,
-        sessionLink,
+        sessionLink: inviteLink,
         type: sessionType
       });
       setSessionInviteStatus('sent');

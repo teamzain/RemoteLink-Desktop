@@ -269,7 +269,7 @@ const SecurityCenterTab = () => {
   );
 };
 
-export const SnowAdminSettings: React.FC<{ setCurrentView?: (v: string) => void, user?: any }> = ({ setCurrentView, user }) => {
+export const SnowAdminSettings: React.FC<{ setCurrentView?: (v: any) => void, user?: any }> = ({ setCurrentView, user }) => {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Legacy Settings State

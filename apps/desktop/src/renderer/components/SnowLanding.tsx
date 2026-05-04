@@ -1,161 +1,283 @@
 import React, { useState } from 'react';
-import { Monitor, KeyRound, ArrowRight, Shield, RefreshCw, Zap, Settings, Globe, Plus, LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { Monitor, KeyRound, ArrowRight, Shield, RefreshCw, Zap, Settings, Globe, Plus, LogIn, UserPlus, Eye, EyeOff, Radio, Lock, CheckCircle2, AlertTriangle, Clock, Copy } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 interface SnowLandingProps {
-  localAuthKey: string | null;
+  hostAccessKey: string | null;
+  hostStatus: string;
   devicePassword: string;
+  isAutoHostEnabled: boolean;
+  isAuthenticated: boolean;
+  connectStep: 1 | 2;
+  sessionCode: string;
+  accessPassword: string;
+  connectError: string | null;
+  connectStatus: string;
+  targetDeviceName: string | null;
+  lockoutSeconds: number;
+  onCopyAccessKey: () => void;
+  onToggleAutoHost: () => void;
+  onOpenSetPassword: () => void;
+  onStartHosting: () => void;
+  onStopHosting: () => void;
   onSignIn: () => void;
   onSignUp: () => void;
-  onFindDevice: () => void;
-  sessionCode: string;
   onSessionCodeChange: (code: string) => void;
-  formatCode: (code: string) => string;
-  connectStatus: string;
-  connectError: string | null;
+  onAccessPasswordChange: (pwd: string) => void;
+  onFindDevice: () => void;
+  onConnectToHost: () => void;
+  onBackToStep1: () => void;
+  isElectron: boolean;
 }
 
 export const SnowLanding: React.FC<SnowLandingProps> = ({
-  localAuthKey,
+  hostAccessKey,
+  hostStatus,
   devicePassword,
+  isAutoHostEnabled,
+  isAuthenticated,
+  connectStep,
+  sessionCode,
+  accessPassword,
+  connectError,
+  connectStatus,
+  targetDeviceName,
+  lockoutSeconds,
+  onCopyAccessKey,
+  onToggleAutoHost,
+  onOpenSetPassword,
+  onStartHosting,
+  onStopHosting,
   onSignIn,
   onSignUp,
-  onFindDevice,
-  sessionCode,
   onSessionCodeChange,
-  formatCode,
-  connectStatus,
-  connectError
+  onAccessPasswordChange,
+  onFindDevice,
+  onConnectToHost,
+  onBackToStep1,
+  isElectron,
 }) => {
-  const [showPwd, setShowPwd] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
 
-  const fmt = (code: string) => {
-    if (!code) return '--- --- ---';
-    const c = code.replace(/\D/g, '');
-    return (c.match(/.{1,3}/g) || [c]).join(' ');
+  const formatCode = (code: string) => {
+    if (!code) return '';
+    const c = code.replace(/[^0-9]/g, '');
+    if (c.length === 9) return `${c.slice(0,3)} ${c.slice(3,6)} ${c.slice(6,9)}`;
+    return c.match(/.{1,3}/g)?.join(' ') || c;
   };
 
+  const handleCopy = () => {
+    onCopyAccessKey();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const isHosting = hostStatus === 'status' || hostStatus === 'connecting';
+  const canHost = isElectron && isAuthenticated;
+
   return (
-    <div className="flex h-full w-full overflow-hidden font-inter select-none">
-      {/* Left side: Hero/Blue Section */}
-      <div className="w-1/2 bg-[#00193F] flex flex-col items-center justify-center p-12 text-white relative">
-        <div className="absolute top-8 left-8 flex items-center gap-3">
-          <img src={logo} className="w-8 h-8 object-contain" alt="" />
-          <span className="text-xl font-bold tracking-tight">Remote 365</span>
-        </div>
-
-        <div className="max-w-md text-center space-y-8 animate-in fade-in slide-in-from-left-8 duration-700">
-          <h1 className="text-5xl font-extrabold tracking-tight leading-tight">
-            Access and support from anywhere
-          </h1>
-          
-          <div className="space-y-4">
-            <button 
-              onClick={onSignIn}
-              className="px-8 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full font-bold text-sm transition-all backdrop-blur-sm"
-            >
-              Sign in to Remote 365
-            </button>
-            <p className="text-sm text-white/60">
-              Don't have an account? <button onClick={onSignUp} className="text-white hover:underline font-semibold">Create one here</button>
-            </p>
+    <div className="h-full w-full flex overflow-hidden bg-[#F8F9FA] font-inter select-none">
+      {/* LEFT PANEL — Your Machine */}
+      <div className="flex-1 flex flex-col items-center justify-center px-8 lg:px-16 py-10 overflow-y-auto">
+        <div className="w-full max-w-md">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-lg shadow-black/10">
+              <Monitor size={22} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-[#1C1C1C] tracking-tight">Your Machine</h1>
+              <p className="text-[10px] font-bold text-[rgba(28,28,28,0.3)] uppercase tracking-[0.2em]">Share these credentials to allow remote access</p>
+            </div>
           </div>
-        </div>
 
-        {/* Subtle decorative elements */}
-        <div className="absolute bottom-12 left-12 flex gap-4 opacity-30">
-          <Shield size={20} />
-          <Globe size={20} />
-          <Zap size={20} />
+          {/* Access Key Card */}
+          <div className="bg-white rounded-[24px] border border-[rgba(28,28,28,0.06)] p-6 mb-4 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <KeyRound size={14} className="text-[rgba(28,28,28,0.4)]" />
+                <span className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] uppercase tracking-wider">Access Key</span>
+              </div>
+              {isHosting ? (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded-lg border border-green-100">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-[10px] font-bold text-green-600">Online</span>
+                </div>
+              ) : hostAccessKey ? (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg border border-gray-100">
+                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full" />
+                  <span className="text-[10px] font-bold text-gray-500">Offline</span>
+                </div>
+              ) : null}
+            </div>
+
+            {hostAccessKey ? (
+              <div className="flex items-center gap-3 mb-4">
+                <p className="text-3xl font-mono font-black text-[#1C1C1C] tracking-[0.15em] flex-1">
+                  {formatCode(hostAccessKey)}
+                </p>
+                <button onClick={handleCopy} className="p-2.5 rounded-xl bg-[#F8F9FA] hover:bg-[#1C1C1C] hover:text-white transition-all border border-[rgba(28,28,28,0.06)]">
+                  {copied ? <CheckCircle2 size={16} className="text-green-500" /> : <Copy size={16} />}
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-[rgba(28,28,28,0.3)] italic mb-4">Not registered yet</p>
+            )}
+
+            <div className="flex items-center justify-between py-3 border-t border-[rgba(28,28,28,0.04)]">
+              <div className="flex items-center gap-2">
+                <Lock size={13} className="text-[rgba(28,28,28,0.4)]" />
+                <span className="text-xs font-semibold text-[rgba(28,28,28,0.6)]">Connection Password</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-[rgba(28,28,28,0.5)]">{devicePassword ? `${devicePassword.length} chars set` : 'Not set'}</span>
+                <button onClick={onOpenSetPassword} className="text-[11px] font-bold text-blue-600 hover:opacity-80 transition-opacity">
+                  {devicePassword ? 'Change' : 'Set'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-3 border-t border-[rgba(28,28,28,0.04)]">
+              <div className="flex items-center gap-2">
+                <Radio size={13} className="text-[rgba(28,28,28,0.4)]" />
+                <span className="text-xs font-semibold text-[rgba(28,28,28,0.6)]">Allow unattended access</span>
+              </div>
+              <button onClick={onToggleAutoHost} className={`relative w-9 h-5 rounded-full transition-colors ${isAutoHostEnabled ? 'bg-[#1C1C1C]' : 'bg-gray-200'}`}>
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${isAutoHostEnabled ? 'translate-x-4' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {isElectron && (
+            <button
+              onClick={isHosting ? onStopHosting : onStartHosting}
+              disabled={!canHost && !isHosting}
+              className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all ${isHosting ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-[#1C1C1C] text-white hover:opacity-95'} disabled:opacity-40`}
+            >
+              {isHosting ? <><Radio size={14} /> Stop Broadcasting</> : <><Zap size={14} /> Start Broadcasting</>}
+            </button>
+          )}
+          {!isAuthenticated && (
+            <p className="text-[10px] text-center text-[rgba(28,28,28,0.3)] mt-2 font-medium">Sign in to enable full hosting and device management</p>
+          )}
         </div>
       </div>
 
-      {/* Right side: Connection Section */}
-      <div className="w-1/2 bg-white flex flex-col items-center justify-center p-12 relative rounded-l-[28px] overflow-hidden">
-        <button className="absolute top-8 right-8 text-gray-400 hover:text-gray-600 transition-colors">
-          <Settings size={20} />
-        </button>
-
-        <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-right-8 duration-700">
-          <div className="text-center space-y-1">
-            <p className="text-[13px] text-gray-500 font-medium">Share your ID and password with the supporter.</p>
-          </div>
-
-          {/* ID & Password Card */}
-          <div className="bg-[#F8F9FA] rounded-2xl border border-gray-100 p-6 space-y-6 shadow-sm">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Your ID</p>
-                <p className="text-2xl font-bold text-gray-800 tracking-wider">
-                  {fmt(localAuthKey || '')}
-                </p>
-              </div>
-              <Monitor className="text-gray-300 mt-1" size={24} />
+      {/* RIGHT PANEL — Connect to Remote */}
+      <div className="flex-1 flex flex-col items-center justify-center px-8 lg:px-16 py-8 bg-[#1C1C1C] relative overflow-y-auto">
+        <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-600/10 blur-[100px] rounded-full -mr-20 -mt-20 pointer-events-none" />
+        <div className="w-full max-w-md relative z-10">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center">
+              <Globe size={20} className="text-white" />
             </div>
-
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Password</p>
-                <p className="text-lg font-bold text-gray-800 tracking-widest">
-                  {showPwd ? (devicePassword || '--------') : '••••••••'}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setShowPwd(!showPwd)}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                  title={showPwd ? 'Hide password' : 'Show password'}
-                >
-                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-                <KeyRound className="text-gray-300 mt-2" size={20} />
-              </div>
+            <div>
+              <h1 className="text-lg font-black text-white tracking-tight">Connect to Remote</h1>
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-wider">Enter a host access key to join</p>
             </div>
           </div>
 
-          <div className="relative flex items-center justify-center">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
-            <span className="relative z-10 bg-white px-3 text-[11px] text-gray-400 uppercase tracking-widest font-bold">Or</span>
-          </div>
-
-          {/* Remote Control Input */}
-          <div className="space-y-4">
-            <p className="text-[13px] text-center text-gray-500 font-medium">Enter the session code provided by the supporter.</p>
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <p className="absolute -top-2.5 left-3 px-1 bg-white text-[10px] font-bold text-gray-400 uppercase tracking-tighter z-10">Session Code</p>
-                <input 
-                  type="text"
-                  placeholder="(e.g. 123 456 789)"
-                  value={sessionCode}
-                  onChange={(e) => onSessionCodeChange(formatCode(e.target.value))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onFindDevice(); }}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:border-blue-600 outline-none transition-all placeholder:text-gray-300"
-                />
+          {connectStep === 1 ? (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-1.5 ml-1">Device Access Key</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center text-white/20">
+                    <Monitor size={15} />
+                  </div>
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="000 000 000"
+                    maxLength={11}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-[16px] pl-11 pr-4 py-3.5 text-sm font-mono font-bold tracking-[0.15em] text-center focus:bg-white/10 focus:border-white/20 focus:ring-4 focus:ring-white/5 outline-none transition-all placeholder:text-white/20"
+                    value={sessionCode}
+                    onChange={e => onSessionCodeChange(formatCode(e.target.value))}
+                    onKeyDown={e => { if (e.key === 'Enter') onFindDevice(); }}
+                  />
+                </div>
               </div>
-              <button 
+              {connectError && (
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <AlertTriangle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] font-semibold text-red-300 leading-relaxed">{connectError}</p>
+                </div>
+              )}
+              <button
                 onClick={onFindDevice}
-                disabled={!sessionCode || sessionCode.replace(/\s/g, '').length < 9 || connectStatus === 'connecting'}
-                className="px-6 bg-[#F8F9FA] hover:bg-[#F0F2F5] text-[#A0A0A0] hover:text-[#1D6DF5] disabled:opacity-50 disabled:cursor-not-allowed border border-gray-100 rounded-lg text-sm font-bold transition-all flex items-center justify-center"
+                disabled={connectStatus === 'connecting' || !sessionCode}
+                className="w-full py-3.5 bg-white text-[#1C1C1C] rounded-2xl font-bold text-xs hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40"
               >
-                {connectStatus === 'connecting' ? <RefreshCw size={16} className="animate-spin" /> : 'Join session'}
+                {connectStatus === 'connecting' ? <Clock size={15} className="animate-spin" /> : <ArrowRight size={15} />}
+                Connect
               </button>
             </div>
-            
-            {connectError && (
-              <p className="text-center text-[12px] text-red-500 font-medium">{connectError}</p>
-            )}
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 mb-2">
+                <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Monitor size={14} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Target Device</p>
+                  <p className="text-sm font-bold text-white font-mono">{formatCode(sessionCode)}</p>
+                  {targetDeviceName && <p className="text-[10px] text-white/50 font-medium">{targetDeviceName}</p>}
+                </div>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              </div>
 
-            <div className="pt-4 space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-[12px] text-gray-500 group-hover:text-gray-700 transition-colors">Start RemoteLink with Windows</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-[12px] text-gray-500 group-hover:text-gray-700 transition-colors">Grant Easy Access to this device</span>
-              </label>
+              <div>
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-1.5 ml-1">Device Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center text-white/20">
+                    <Lock size={15} />
+                  </div>
+                  <input
+                    autoFocus
+                    type={showPwd ? 'text' : 'password'}
+                    placeholder="Enter password"
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-[16px] pl-11 pr-11 py-3.5 text-sm font-medium focus:bg-white/10 focus:border-white/20 focus:ring-4 focus:ring-white/5 outline-none transition-all placeholder:text-white/20"
+                    value={accessPassword}
+                    onChange={e => onAccessPasswordChange(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') onConnectToHost(); }}
+                  />
+                  <button onClick={() => setShowPwd(!showPwd)} className="absolute inset-y-0 right-4 flex items-center text-white/30 hover:text-white transition-colors">
+                    {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {lockoutSeconds > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <Clock size={13} className="text-red-400 shrink-0" />
+                  <p className="text-[11px] font-semibold text-red-300">Too many attempts. Try again in {lockoutSeconds}s.</p>
+                </div>
+              )}
+              {connectError && !lockoutSeconds && (
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-xl">
+                  <AlertTriangle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] font-semibold text-red-300 leading-relaxed">{connectError}</p>
+                </div>
+              )}
+
+              <button
+                onClick={onConnectToHost}
+                disabled={connectStatus === 'connecting' || !accessPassword || lockoutSeconds > 0}
+                className="w-full py-3.5 bg-white text-[#1C1C1C] rounded-2xl font-bold text-xs hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+              >
+                {connectStatus === 'connecting' ? <Clock size={15} className="animate-spin" /> : <Zap size={15} />}
+                Establish Link
+              </button>
+              <button onClick={onBackToStep1} className="w-full text-center text-[11px] font-bold text-white/30 hover:text-white transition-colors py-2">
+                Change Device
+              </button>
             </div>
+          )}
+
+          <div className="mt-6 pt-6 border-t border-white/10 text-center">
+            <button onClick={onSignIn} className="text-[11px] font-bold text-white/40 hover:text-white transition-colors flex items-center justify-center gap-1.5 mx-auto">
+              <LogIn size={13} /> Have an account? Sign in to see your saved devices.
+            </button>
           </div>
         </div>
       </div>

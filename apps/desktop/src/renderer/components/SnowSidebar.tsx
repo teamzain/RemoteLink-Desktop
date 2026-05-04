@@ -24,9 +24,9 @@ import {
 } from 'lucide-react';
 
 interface SnowSidebarProps {
-  currentView: 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail';
+  currentView: 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail' | 'meetings';
   selectedDevice: any;
-  setCurrentView: (view: 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect') => void;
+  setCurrentView: (view: 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'meetings') => void;
   setSelectedDevice: (device: any) => void;
   handleLogout: () => void;
   user: any;

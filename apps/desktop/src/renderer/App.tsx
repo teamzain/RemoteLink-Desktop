@@ -32,12 +32,12 @@ import { SnowOnboard } from './components/SnowOnboard';
 import { SnowNotificationPanel } from './components/SnowNotificationPanel';
 
 import { SnowAnalytics } from './components/SnowAnalytics';
-import { SnowHome } from './components/SnowHome';
 import { SnowLanding } from './components/SnowLanding';
 import { SnowRemoteSupport } from './components/SnowRemoteSupport';
 import { SnowChat } from './components/SnowChat';
 import { SnowOrgDetail } from './components/SnowOrgDetail';
 import { SnowMeeting } from './components/SnowMeeting';
+import { SnowMeetingsHome } from './components/SnowMeetingsHome';
 import UpdateBanner from './components/UpdateBanner';
 import { playUISound, fireNotification } from './components/SnowUserSettings';
 import { useChatStore } from './store/chatStore';
@@ -1159,12 +1159,12 @@ export default function App() {
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
-    type ViewType = 'home' | 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail';
+    type ViewType = 'dashboard' | 'devices' | 'settings' | 'host' | 'billing' | 'documentation' | 'profile' | 'support' | 'members' | 'organizations' | 'analytics' | 'connect' | 'org-detail' | 'admin_settings' | 'meetings';
     const [currentView, _setCurrentView] = useState<ViewType>(() => {
         const stored = localStorage.getItem('last_view') as ViewType;
-        return stored || 'home';
+        return stored || 'dashboard';
     });
-    const [history, setHistory] = useState<ViewType[]>(['home']);
+    const [history, setHistory] = useState<ViewType[]>(['dashboard']);
     const [historyIndex, setHistoryIndex] = useState(0);
 
     const setCurrentView = (view: ViewType | ((prev: ViewType) => ViewType)) => {
@@ -1475,7 +1475,7 @@ export default function App() {
     const handleLogout = async () => {
         await storeLogout();
         setAuth({} as any, '', '');
-        setCurrentView('home');
+        setCurrentView('dashboard');
     };
     const lastClipboardRef = useRef<string>('');
 
@@ -2137,17 +2137,6 @@ export default function App() {
             handleStartHosting();
         }
     }, [isAuthenticated, user?.role, hostAccessKey, deviceId, devicePassword, isAutoHostEnabled]);
-
-    // --- Guest Auto-Host: start hosting once self-register completes, no login needed ---
-    useEffect(() => {
-        if (isAuthenticated) return; // authenticated path handled above
-        if (!hostAccessKey || !devicePassword) return;
-        if (hasAutoStartedHost.current || manuallyStoppedHost.current) return;
-        if (hostStatus !== 'idle' && hostStatus !== '') return;
-        console.log('[Auto-Host] Guest identity ready, starting host automatically...');
-        hasAutoStartedHost.current = true;
-        handleStartHosting();
-    }, [isAuthenticated, hostAccessKey, devicePassword, hostStatus]);
 
     useEffect(() => {
         if (!isElectron || !(window as any).electronAPI?.getDeterministicKey) return;
@@ -3190,10 +3179,10 @@ export default function App() {
                         <>
                             <header className="h-[56px] flex items-center justify-between px-6 flex-shrink-0 z-10 w-full bg-white dark:bg-[#0F0F0F] border-b border-[rgba(0,0,0,0.06)] dark:border-[rgba(255,255,255,0.1)] font-sans">
                                 <div className="flex items-center gap-12">
-                                <div className="flex items-center gap-6">
+                                    <div className="flex items-center gap-6">
                                     <h1 className="text-base font-bold text-[#1C1C1C] dark:text-[#F5F5F5] tracking-tight min-w-[60px]">
                                         {selectedDevice ? t('terminal_title', user?.language) :
-                                            (currentView === 'home' || currentView === 'dashboard') ? t('home_title', user?.language) :
+                                            currentView === 'dashboard' ? t('home_title', user?.language) :
                                                 currentView === 'host' ? t('host_title', user?.language) :
                                                     currentView === 'devices' ? t('devices_title', user?.language) :
                                                         currentView === 'settings' ? t('settings_title', user?.language) :
@@ -3201,61 +3190,8 @@ export default function App() {
                                                                 currentView === 'profile' ? t('profile_title_nav', user?.language) :
                                                                     currentView === 'support' ? t('support_title_nav', user?.language) :
                                                                         currentView === 'documentation' ? t('docs_title_nav', user?.language) :
-                                                                            currentView === 'admin_settings' ? 'Admin Settings' : currentView}
-                                    </h1>
-                                    
-                                    <div className="flex items-center gap-4 text-[#757575] dark:text-[#A0A0A0]">
-                                        <button 
-                                            onClick={handleBack}
-                                            disabled={historyIndex === 0}
-                                            className={`transition-colors ${historyIndex > 0 ? 'hover:text-[#1C1C1C] dark:hover:text-white' : 'opacity-30 cursor-not-allowed'}`}
-                                        >
-                                            <ChevronLeft size={18} />
-                                        </button>
-                                        <button 
-                                            onClick={handleForward}
-                                            disabled={historyIndex === history.length - 1}
-                                            className={`transition-colors ${historyIndex < history.length - 1 ? 'hover:text-[#1C1C1C] dark:hover:text-white' : 'opacity-30 cursor-not-allowed'}`}
-                                        >
-                                            <ChevronRight size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 max-w-sm mx-8 relative">
-                                <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center text-[#757575] dark:text-[#A0A0A0]">
-                                        <Search size={16} />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Search device, contact, group or feature. Type an ID to connect."
-                                        className="w-full h-10 pl-11 pr-20 bg-white dark:bg-white/5 border border-[#D4A017] dark:border-amber-500 rounded-xl text-sm outline-none shadow-[0_0_0_1px_rgba(212,160,23,0.1)] transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
-                                    />
-                                    <div className="absolute inset-y-0 right-3 flex items-center">
-                                        <span className="text-[10px] font-medium text-[#757575] dark:text-[#A0A0A0] bg-[#F4F7F9] dark:bg-white/5 px-1.5 py-0.5 rounded border border-[#D1D1D1] dark:border-white/10">Ctrl + K</span>
-                                    </div>
-
-                                    {/* Search Dropdown Mockup */}
-                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1C1C1C] border border-gray-100 dark:border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200">
-                                        <div className="flex items-center gap-2 p-2 border-b border-gray-50 dark:border-white/5">
-                                            <button className="px-3 py-1.5 bg-gray-100 dark:bg-white/5 rounded-lg text-[12px] font-medium text-gray-900 dark:text-white">All</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Monitor size={14} /> Devices</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Layers size={14} /> Groups</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><User size={14} /> Contacts</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Zap size={14} /> Features</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><HelpCircle size={14} /> Help</button>
-                                        </div>
-                                        <div className="p-6">
-                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2">Search and make your first connection</h3>
-                                            <p className="text-[13px] text-gray-500 leading-relaxed">
-                                                Your most recent connections will appear here once they are completed, making it easier for you to find and reuse them in the future.
-                                            </p>
-                                        </div>
-                                        <div className="p-3 bg-gray-50 dark:bg-white/5 flex justify-end">
-                                            <button className="text-gray-400 hover:text-gray-600 transition-colors"><Settings size={16} /></button>
-                                                                            currentView === 'admin_settings' ? 'Admin Settings' : currentView}
+                                                                            currentView === 'admin_settings' ? 'Admin Settings' :
+                                                                                currentView === 'meetings' ? 'Meetings' : currentView}
                                     </h1>
                                     
                                     <div className="flex items-center gap-4 text-[#757575] dark:text-[#A0A0A0]">
@@ -3448,58 +3384,38 @@ export default function App() {
                         </>
                     )}
 
-                    <div className={`flex-1 ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
                         {!isAuthenticated ? (
                             <SnowLanding
-                                localAuthKey={localAuthKey}
+                                hostAccessKey={hostAccessKey}
+                                hostStatus={hostStatus}
                                 devicePassword={devicePassword}
+                                isAutoHostEnabled={isAutoHostEnabled}
+                                isAuthenticated={isAuthenticated}
+                                connectStep={viewerStep}
+                                sessionCode={sessionCode}
+                                accessPassword={accessPassword}
+                                connectError={viewerError}
+                                connectStatus={viewerStatus}
+                                targetDeviceName={targetDeviceName}
+                                lockoutSeconds={lockoutSeconds}
+                                onCopyAccessKey={copyAccessKey}
+                                onToggleAutoHost={() => {
+                                    setIsAutoHostEnabled(!isAutoHostEnabled);
+                                    localStorage.setItem('is_auto_host_enabled', (!isAutoHostEnabled).toString());
+                                }}
+                                onOpenSetPassword={() => setShowSetPasswordModal(true)}
+                                onStartHosting={handleStartHosting}
+                                onStopHosting={handleStopHosting}
                                 onSignIn={() => { setShowAuthModal(true); setAuthMode('login'); }}
                                 onSignUp={() => { setShowAuthModal(true); setAuthMode('signup'); }}
-                                onFindDevice={handleFindDevice}
-                                sessionCode={sessionCode}
                                 onSessionCodeChange={setSessionCode}
-                                formatCode={formatCode}
-                                connectStatus={viewerStatus}
-                                connectError={viewerError || null}
+                                onAccessPasswordChange={setAccessPassword}
+                                onFindDevice={handleFindDevice}
+                                onConnectToHost={handleConnectToHost}
+                                onBackToStep1={() => setViewerStep(1)}
+                                isElectron={isElectron}
                             />
-                        ) : currentView === 'home' ? (
-                            <div className={`w-full h-full overflow-hidden animate-in fade-in duration-700`}>
-                                <SnowHome
-                                    localAuthKey={localAuthKey}
-                                    hostStatus={hostStatus}
-                                    devicePassword={devicePassword}
-                                    isAutoHostEnabled={isAutoHostEnabled}
-                                    onCopyAccessKey={copyAccessKey}
-                                    onToggleAutoHost={() => {
-                                        const nextValue = !isAutoHostEnabled;
-                                        setIsAutoHostEnabled(nextValue);
-                                        localStorage.setItem('is_auto_host_enabled', String(nextValue));
-                                    }}
-                                    onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
-                                    onStartHosting={handleStartHosting}
-                                    onStopHosting={handleStopHosting}
-                                    isElectron={isElectron}
-                                    isAuthenticated={isAuthenticated}
-                                    connectStep={viewerStep}
-                                    sessionCode={sessionCode}
-                                    accessPassword={accessPassword}
-                                    connectError={viewerError || null}
-                                    connectStatus={viewerStatus}
-                                    targetDeviceName={targetDeviceName}
-                                    lockoutSeconds={lockoutSeconds}
-                                    onSessionCodeChange={setSessionCode}
-                                    onAccessPasswordChange={setAccessPassword}
-                                    onFindDevice={handleFindDevice}
-                                    onConnectToHost={handleConnectToHost}
-                                    onBackToStep1={() => { setViewerStep(1); setViewerError(''); setViewerStatus('idle'); setAccessPassword(''); setLockoutSeconds(0); }}
-                                    onSignIn={() => { setShowAuthModal(true); setAuthMode('login'); }}
-                                    onSignUp={() => { setShowAuthModal(true); setAuthMode('signup'); }}
-                                    onOpenSettings={() => setCurrentView('settings')}
-                                    formatCode={formatCode}
-                                    user={user}
-                                    isRegistered={isLocalHostRegistered}
-                                />
-                            </div>
                         ) : (currentView === 'dashboard' && !selectedDevice) ? (
                             <div className="w-full flex flex-col animate-in fade-in duration-700">
                                 <SnowPremiumDashboard
@@ -3656,6 +3572,10 @@ export default function App() {
                             <div className="w-full h-full animate-in fade-in duration-700 bg-white dark:bg-[#0F0F0F]">
                                 <SnowAdminSettings setCurrentView={setCurrentView} user={user} />
                             </div>
+                        ) : currentView === 'meetings' ? (
+                            <div className="w-full h-full animate-in fade-in duration-700">
+                                <SnowMeetingsHome onJoinMeeting={setActiveMeetingId} user={user} />
+                            </div>
                         ) : currentView === 'profile' ? (
                             /* --- PROFILE ALIASED TO SETTINGS --- */
                             <div className="w-full h-full pt-8 animate-in fade-in duration-700 px-8">
@@ -3733,7 +3653,8 @@ export default function App() {
                         ) : (currentView as string) === 'org-detail' ? (
                             <div className="w-full h-full animate-in fade-in duration-700 px-8 overflow-y-auto custom-scrollbar">
                                 <SnowOrgDetail
-                                    orgId={orgDetailId!}
+
+                                    orgId={orgDetailId!}
                                     onBack={() => setCurrentView('analytics')}
                                 />
                             </div>
