@@ -78,7 +78,7 @@
 
     # Desktop App Downloads & Updates
     handle /downloads/* {
-        root * /var/www/downloads
+        root * /var/www
         file_server browse
     }
 

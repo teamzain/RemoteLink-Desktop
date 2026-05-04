@@ -116,6 +116,7 @@ services:
       DOMAIN: ${DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - /var/www/downloads:/var/www/downloads
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
