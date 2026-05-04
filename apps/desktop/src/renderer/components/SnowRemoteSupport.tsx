@@ -74,10 +74,18 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
 
   const handleCopyPwd = () => {
     if (devicePassword) {
-      navigator.clipboard.writeText(devicePassword);
+      const electronApi = (window as any).electronAPI;
+      if (electronApi?.clipboard?.writeText) electronApi.clipboard.writeText(devicePassword);
+      else navigator.clipboard.writeText(devicePassword);
       setCopiedPwd(true);
       setTimeout(() => setCopiedPwd(false), 2000);
     }
+  };
+
+  const copyText = (text: string) => {
+    const electronApi = (window as any).electronAPI;
+    if (electronApi?.clipboard?.writeText) return electronApi.clipboard.writeText(text);
+    return navigator.clipboard?.writeText(text);
   };
 
   const isOnline = hostStatus.includes('Online') || hostStatus.includes('WebRTC') || hostStatus.includes('Registered');
@@ -121,7 +129,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
       if (data?.remoteSession) {
         setRemoteSessions((prev) => [data.remoteSession, ...prev.filter((session) => session.id !== data.remoteSession.id)]);
       }
-      await navigator.clipboard?.writeText(sessionLink);
+      await copyText(sessionLink);
       setSessionInviteStatus('sent');
       setSessionInviteMessage(sessionEmail.trim()
         ? 'Invite sent by email. The join link was copied too.'
@@ -429,7 +437,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[14px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5] truncate max-w-[270px]">{sessionLink}</span>
-                  <button onClick={() => navigator.clipboard?.writeText(sessionLink)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                  <button onClick={() => copyText(sessionLink)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                     <Copy size={14} />
                   </button>
                 </div>
@@ -442,7 +450,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[14px] font-medium text-[#1C1C1C] dark:text-[#F5F5F5]">{formatId(sessionCode)}</span>
-                  <button onClick={() => navigator.clipboard?.writeText(sessionCode)} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                  <button onClick={() => copyText(formatId(sessionCode))} className="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
                     <Copy size={14} />
                   </button>
                 </div>

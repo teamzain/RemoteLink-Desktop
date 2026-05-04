@@ -72,6 +72,12 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copyText = (text: string) => {
+    const electronApi = (window as any).electronAPI;
+    if (electronApi?.clipboard?.writeText) return electronApi.clipboard.writeText(text);
+    return navigator.clipboard.writeText(text);
+  };
+
   const isHosting = hostStatus === 'status' || hostStatus === 'connecting';
 
   return (
@@ -116,7 +122,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
               </div>
               <div className="tv-icon-group">
                 <button onClick={onOpenSetPassword} className="tv-icon-button"><RefreshCw size={17} /></button>
-                <button onClick={() => devicePassword && navigator.clipboard.writeText(devicePassword)} className="tv-icon-button">
+                <button onClick={() => devicePassword && copyText(devicePassword)} className="tv-icon-button">
                   <Copy size={18} />
                 </button>
               </div>

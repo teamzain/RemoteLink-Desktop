@@ -205,7 +205,9 @@ export const SnowHost: React.FC<SnowHostProps> = ({
                    <button 
                      onClick={() => {
                         if (devicePassword) {
-                            navigator.clipboard.writeText(devicePassword);
+                            const electronApi = (window as any).electronAPI;
+                            if (electronApi?.clipboard?.writeText) electronApi.clipboard.writeText(devicePassword);
+                            else navigator.clipboard.writeText(devicePassword);
                         }
                      }}
                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white hover:bg-[rgba(28,28,28,0.05)] border border-[rgba(28,28,28,0.06)] text-[rgba(28,28,28,0.4)] hover:text-[#1C1C1C] transition-all"

@@ -76,12 +76,14 @@ export const SnowHome: React.FC<SnowHomeProps> = (props) => {
 
   const copyId = () => {
     if (!props.hostAccessKey) return;
-    navigator.clipboard.writeText(props.hostAccessKey);
+    props.onCopyAccessKey();
     setCopiedId(true); setTimeout(() => setCopiedId(false), 2000);
   };
   const copyPwd = () => {
     if (!props.devicePassword) return;
-    navigator.clipboard.writeText(props.devicePassword);
+    const api = (window as any).electronAPI;
+    if (api?.clipboard?.writeText) api.clipboard.writeText(props.devicePassword);
+    else navigator.clipboard.writeText(props.devicePassword);
     setCopiedPwd(true); setTimeout(() => setCopiedPwd(false), 2000);
   };
 
