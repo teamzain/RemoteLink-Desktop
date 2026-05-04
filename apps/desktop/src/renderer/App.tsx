@@ -2661,7 +2661,11 @@ export default function App() {
                 setHostStatus('error');
                 return;
             }
-            const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey);
+            const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey, {
+                deviceName: localStorage.getItem('remote365_device_name') || '',
+                quality: localStorage.getItem('remote365_video_quality') || 'balanced',
+                fps: localStorage.getItem('remote365_stream_fps') || '30',
+            });
             console.log(`[Host] Identity Registered with signaling: ${sessionId}`);
 
             if (!sessionId) throw new Error('Signaling server did not return a Session ID');
@@ -3526,6 +3530,8 @@ export default function App() {
                                 onFindDevice={handleFindDevice}
                                 onConnectToHost={handleConnectToHost}
                                 onBackToStep1={() => setViewerStep(1)}
+                                onJoinMeeting={(meetingId) => setActiveMeetingId(meetingId)}
+                                onCreateMeeting={(meetingId) => setActiveMeetingId(meetingId)}
                                 isElectron={isElectron}
                             />
                         ) : (currentView === 'dashboard' && !selectedDevice) ? (

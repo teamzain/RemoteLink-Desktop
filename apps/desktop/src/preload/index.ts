@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getToken: () => ipcRenderer.invoke('auth:getToken'),
   setToken: (token: string, refresh: string) => ipcRenderer.invoke('auth:setToken', token, refresh),
   deleteToken: () => ipcRenderer.invoke('auth:deleteToken'),
-  startHosting: (accessKey?: string) => ipcRenderer.invoke('host:start', accessKey),
+  startHosting: (accessKey?: string, settings?: any) => ipcRenderer.invoke('host:start', accessKey, settings),
   getHostStatus: () => ipcRenderer.invoke('host:getStatus'),
   stopHosting: () => ipcRenderer.invoke('host:stop'),
   connectToHost: (sessionId: string, serverIP?: string, token?: string, viewerClientId?: string) => ipcRenderer.invoke('viewer:connect', sessionId, serverIP, token, viewerClientId),

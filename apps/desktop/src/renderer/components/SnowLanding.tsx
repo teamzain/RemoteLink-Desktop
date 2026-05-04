@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock, Copy, Eye, EyeOff, Lock, LogIn, RefreshCw, Settings } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, Eye, EyeOff, Lock, LogIn, Monitor, RefreshCw, Settings, Video, Wand2, X } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 interface SnowLandingProps {
@@ -27,6 +27,8 @@ interface SnowLandingProps {
   onFindDevice: () => void;
   onConnectToHost: () => void;
   onBackToStep1: () => void;
+  onJoinMeeting: (meetingId: string) => void;
+  onCreateMeeting: (meetingId: string) => void;
   isElectron: boolean;
 }
 
@@ -36,6 +38,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   hostAccessKey,
   hostStatus,
   devicePassword,
+  isAutoHostEnabled,
   isAuthenticated,
   connectStep,
   sessionCode,
@@ -45,6 +48,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   targetDeviceName,
   lockoutSeconds,
   onCopyAccessKey,
+  onToggleAutoHost,
   onOpenSetPassword,
   onSignIn,
   onSignUp,
@@ -53,9 +57,23 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   onFindDevice,
   onConnectToHost,
   onBackToStep1,
+  onJoinMeeting,
+  onCreateMeeting,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+  const [joinMode, setJoinMode] = useState<'session' | 'meeting'>('session');
+  const [meetingCode, setMeetingCode] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+  const [startWithWindows, setStartWithWindows] = useState(() => localStorage.getItem('remote365_start_with_windows') !== 'false');
+  const [easyAccess, setEasyAccess] = useState(() => localStorage.getItem('is_auto_host_enabled') !== 'false');
+  const [syncClipboard, setSyncClipboard] = useState(() => localStorage.getItem('remote365_sync_clipboard') !== 'false');
+  const [autoMinimize, setAutoMinimize] = useState(() => localStorage.getItem('remote365_auto_minimize_host') !== 'false');
+  const [deviceName, setDeviceName] = useState(() => localStorage.getItem('remote365_device_name') || '');
+  const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('remote365_video_quality') || 'balanced');
+  const [streamFps, setStreamFps] = useState(() => localStorage.getItem('remote365_stream_fps') || '30');
+  const [requirePassword, setRequirePassword] = useState(() => localStorage.getItem('remote365_require_password') !== 'false');
+  const [showConnectionAlerts, setShowConnectionAlerts] = useState(() => localStorage.getItem('remote365_connection_alerts') !== 'false');
 
   const formatCode = (code: string) => {
     if (!code) return '';
@@ -65,6 +83,22 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   };
 
   const displayAccessKey = hostAccessKey ? formatCode(hostAccessKey) : '';
+
+  const extractMeetingCode = (value: string) => {
+    const trimmed = value.trim();
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.searchParams.get('code') || parsed.pathname.split('/').filter(Boolean).pop() || trimmed;
+    } catch {
+      return trimmed;
+    }
+  };
+
+  const formatMeetingCode = (code: string) => {
+    const clean = String(code || '').replace(/[^a-zA-Z0-9]/g, '');
+    if (clean.length === 9) return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6, 9)}`;
+    return code.trim();
+  };
 
   const handleCopy = () => {
     if (displayAccessKey) onCopyAccessKey();
@@ -78,7 +112,62 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
     return navigator.clipboard.writeText(text);
   };
 
-  const isHosting = hostStatus === 'status' || hostStatus === 'connecting';
+  const updateStartWithWindows = (checked: boolean) => {
+    setStartWithWindows(checked);
+    localStorage.setItem('remote365_start_with_windows', String(checked));
+  };
+
+  const updateEasyAccess = (checked: boolean) => {
+    setEasyAccess(checked);
+    localStorage.setItem('is_auto_host_enabled', String(checked));
+    if (checked && !isAutoHostEnabled) onToggleAutoHost();
+  };
+
+  const updateSyncClipboard = (checked: boolean) => {
+    setSyncClipboard(checked);
+    localStorage.setItem('remote365_sync_clipboard', String(checked));
+  };
+
+  const updateAutoMinimize = (checked: boolean) => {
+    setAutoMinimize(checked);
+    localStorage.setItem('remote365_auto_minimize_host', String(checked));
+  };
+
+  const updateDeviceName = (value: string) => {
+    setDeviceName(value);
+    localStorage.setItem('remote365_device_name', value);
+  };
+
+  const updateVideoQuality = (value: string) => {
+    setVideoQuality(value);
+    localStorage.setItem('remote365_video_quality', value);
+  };
+
+  const updateStreamFps = (value: string) => {
+    setStreamFps(value);
+    localStorage.setItem('remote365_stream_fps', value);
+  };
+
+  const updateRequirePassword = (checked: boolean) => {
+    setRequirePassword(checked);
+    localStorage.setItem('remote365_require_password', String(checked));
+  };
+
+  const updateConnectionAlerts = (checked: boolean) => {
+    setShowConnectionAlerts(checked);
+    localStorage.setItem('remote365_connection_alerts', String(checked));
+  };
+
+  const handleJoinMeeting = () => {
+    const code = formatMeetingCode(extractMeetingCode(meetingCode));
+    if (code) onJoinMeeting(code);
+  };
+
+  const handleCreateMeeting = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const raw = Array.from({ length: 9 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+    onCreateMeeting(formatMeetingCode(raw));
+  };
 
   return (
     <div className="tv-landing">
@@ -97,7 +186,69 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
       </section>
 
       <section className="tv-access-panel">
-        <button className="tv-settings-button"><Settings size={18} /></button>
+        <button onClick={() => setShowSettings(true)} className="tv-settings-button" title="Settings"><Settings size={18} /></button>
+
+        {showSettings && (
+          <div className="tv-settings-modal-wrap">
+            <div className="tv-settings-modal">
+              <div className="tv-settings-head">
+                <div>
+                  <h3>Settings</h3>
+                  <p>Local access preferences</p>
+                </div>
+                <button onClick={() => setShowSettings(false)}><X size={16} /></button>
+              </div>
+
+              <div className="tv-settings-section">
+                <h4>Device</h4>
+                <label className="tv-settings-field">
+                  <span>Device name</span>
+                  <input
+                    type="text"
+                    placeholder="This laptop"
+                    value={deviceName}
+                    onChange={e => updateDeviceName(e.target.value)}
+                  />
+                </label>
+                <label><input type="checkbox" checked={startWithWindows} onChange={e => updateStartWithWindows(e.target.checked)} /> Start Remote 365 with Windows</label>
+                <label><input type="checkbox" checked={easyAccess} onChange={e => updateEasyAccess(e.target.checked)} /> Grant Easy Access to this device</label>
+                <label><input type="checkbox" checked={requirePassword} onChange={e => updateRequirePassword(e.target.checked)} /> Require password before remote access</label>
+              </div>
+
+              <div className="tv-settings-section">
+                <h4>Remote quality</h4>
+                <label className="tv-settings-field">
+                  <span>Video quality</span>
+                  <select value={videoQuality} onChange={e => updateVideoQuality(e.target.value)}>
+                    <option value="smooth">Smooth - lower bandwidth</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="sharp">Sharp - higher quality</option>
+                  </select>
+                </label>
+                <label className="tv-settings-field">
+                  <span>Frame rate</span>
+                  <select value={streamFps} onChange={e => updateStreamFps(e.target.value)}>
+                    <option value="15">15 FPS</option>
+                    <option value="30">30 FPS</option>
+                    <option value="60">60 FPS</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="tv-settings-section">
+                <h4>Session behavior</h4>
+                <label><input type="checkbox" checked={syncClipboard} onChange={e => updateSyncClipboard(e.target.checked)} /> Sync clipboard during sessions</label>
+                <label><input type="checkbox" checked={autoMinimize} onChange={e => updateAutoMinimize(e.target.checked)} /> Minimize app when a session starts</label>
+                <label><input type="checkbox" checked={showConnectionAlerts} onChange={e => updateConnectionAlerts(e.target.checked)} /> Show connection alerts</label>
+              </div>
+
+              <div className="tv-settings-actions">
+                <button onClick={onOpenSetPassword}>Change password</button>
+                <button onClick={() => setShowSettings(false)}>Done</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="tv-access-content">
           <p className="tv-helper-text">Share your ID and password with the supporter.</p>
@@ -130,9 +281,36 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
           </div>
 
           <div className="tv-or"><span />Or<span /></div>
-          <p className="tv-helper-text">Enter the session code provided by the supporter.</p>
+          <div className="tv-join-tabs">
+            <button className={joinMode === 'session' ? 'active' : ''} onClick={() => setJoinMode('session')}><Monitor size={14} /> Session</button>
+            <button className={joinMode === 'meeting' ? 'active' : ''} onClick={() => setJoinMode('meeting')}><Video size={14} /> Meeting</button>
+          </div>
+          <p className="tv-helper-text">
+            {joinMode === 'session' ? 'Enter the session code provided by the supporter.' : 'Enter a meeting code or invite link.'}
+          </p>
 
-          {connectStep === 1 ? (
+          {joinMode === 'meeting' ? (
+            <div className="tv-meeting-tools">
+              <div className="tv-session-row">
+                <label className="tv-session-field">
+                  <span>Meeting Code</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. 123-456-789"
+                    value={meetingCode}
+                    onChange={e => setMeetingCode(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleJoinMeeting(); }}
+                  />
+                </label>
+                <button onClick={handleJoinMeeting} disabled={!meetingCode.trim()} className="tv-join-button">
+                  Join meeting
+                </button>
+              </div>
+              <button onClick={handleCreateMeeting} className="tv-create-meeting-button">
+                <Wand2 size={15} /> Create new meeting
+              </button>
+            </div>
+          ) : connectStep === 1 ? (
             <div className="tv-session-row">
               <label className="tv-session-field">
                 <span>Session Code</span>
@@ -191,8 +369,8 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
           )}
 
           <div className="tv-options">
-            <label><input type="checkbox" checked readOnly /> Start Remote 365 with Windows <InfoDot /></label>
-            <label><input type="checkbox" checked readOnly /> Grant Easy Access to this device <InfoDot /></label>
+            <label><input type="checkbox" checked={startWithWindows} onChange={e => updateStartWithWindows(e.target.checked)} /> Start Remote 365 with Windows <InfoDot /></label>
+            <label><input type="checkbox" checked={easyAccess} onChange={e => updateEasyAccess(e.target.checked)} /> Grant Easy Access to this device <InfoDot /></label>
           </div>
 
           {!isAuthenticated && (

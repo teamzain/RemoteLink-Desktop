@@ -59,9 +59,7 @@ body {
   flex: 1.18 1 0;
   min-width: 0;
   color: #fff;
-  background:
-    radial-gradient(circle at 82% 45%, rgba(72, 155, 215, 0.78), transparent 34%),
-    linear-gradient(140deg, #07094d 0%, #071067 48%, #1239d6 100%);
+  background: #0D1B3D;
 }
 
 .tv-brand-top {
@@ -105,7 +103,7 @@ body {
   font-weight: 800;
 }
 
-.tv-signin-button:hover { background: #fff; color: #071067; }
+.tv-signin-button:hover { background: #fff; color: #0D1B3D; }
 .tv-brand-center p { margin: 18px 0 0; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.82); }
 .tv-brand-center p button { color: #fff; font-weight: 900; background: transparent; border: 0; padding: 0; }
 .tv-brand-center p button:hover { text-decoration: underline; }
@@ -136,6 +134,58 @@ body {
 }
 
 .tv-settings-button:hover { background: #f8fafc; color: #374151; }
+
+.tv-settings-modal-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(3px);
+}
+
+.tv-settings-modal {
+  width: min(520px, 100%);
+  max-height: min(720px, calc(100vh - 80px));
+  overflow-y: auto;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.tv-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #edf0f5;
+  margin-bottom: 12px;
+}
+
+.tv-settings-head h3 { margin: 0; color: #111827; font-size: 15px; font-weight: 900; }
+.tv-settings-head p { margin: 3px 0 0; color: #64748b; font-size: 12px; font-weight: 700; }
+.tv-settings-head button { width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #64748b; display: flex; align-items: center; justify-content: center; }
+.tv-settings-head button:hover { background: #f1f5f9; color: #111827; }
+.tv-settings-section { padding: 12px 0; border-bottom: 1px solid #edf0f5; display: flex; flex-direction: column; gap: 10px; }
+.tv-settings-section h4 { margin: 0 0 2px; color: #0f172a; font-size: 12px; font-weight: 900; letter-spacing: 0.02em; }
+.tv-settings-section label { display: flex; align-items: center; gap: 9px; min-height: 30px; color: #263244; font-size: 13px; font-weight: 800; }
+.tv-settings-section input[type="checkbox"] { width: 16px; height: 16px; }
+.tv-settings-field { align-items: stretch !important; flex-direction: column; gap: 6px !important; }
+.tv-settings-field span { color: #64748b; font-size: 11px; font-weight: 900; }
+.tv-settings-field input,
+.tv-settings-field select { width: 100%; height: 40px; border: 1px solid #d8dee8; border-radius: 8px; padding: 0 11px; color: #0f172a; font-size: 13px; font-weight: 800; outline: none; background: #fff; }
+.tv-settings-field input:focus,
+.tv-settings-field select:focus { border-color: #1d4ed8; box-shadow: 0 0 0 1px #1d4ed8; }
+.tv-settings-actions { padding-top: 14px; display: flex; justify-content: flex-end; gap: 8px; }
+.tv-settings-actions button { height: 38px; border-radius: 8px; font-size: 12px; font-weight: 900; padding: 0 14px; }
+.tv-settings-actions button:first-child { border: 1px solid #d8dee8; background: #fff; color: #334155; }
+.tv-settings-actions button:last-child { border: 0; background: #0D1B3D; color: #fff; }
 
 .tv-access-content {
   height: 100%;
@@ -181,12 +231,48 @@ body {
 .tv-or { margin: 14px 0; display: flex; align-items: center; gap: 12px; color: #6b7280; font-size: 12px; }
 .tv-or span { height: 1px; flex: 1; background: #e5e7eb; }
 
+.tv-join-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.tv-join-tabs button {
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tv-join-tabs button.active {
+  background: #fff;
+  color: #0D1B3D;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.tv-meeting-tools { display: flex; flex-direction: column; gap: 8px; }
+.tv-create-meeting-button { width: 100%; height: 42px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; color: #0D1B3D; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 900; }
+.tv-create-meeting-button:hover { background: #f8fafc; border-color: #cbd5e1; }
+
 .tv-session-row { display: flex; align-items: flex-end; gap: 8px; }
 .tv-session-field { flex: 1; }
-.tv-session-field span { position: relative; top: 8px; left: 8px; padding: 0 4px; background: #fff; color: #6b7280; font-size: 12px; }
-.tv-session-field input { width: 100%; height: 44px; border: 1px solid #9ca3af; border-radius: 4px; padding: 0 12px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; outline: none; }
+.tv-session-field span { position: relative; top: 8px; left: 8px; padding: 0 5px; background: #fff; color: #334155; font-size: 12px; font-weight: 800; }
+.tv-session-field input { width: 100%; height: 44px; border: 1px solid #9ca3af; border-radius: 4px; padding: 0 12px; color: #0f172a; font-size: 14px; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; outline: none; }
+.tv-session-field input::placeholder { color: #94a3b8; font-weight: 700; }
 .tv-session-field input:focus { border-color: #1d4ed8; box-shadow: 0 0 0 1px #1d4ed8; }
-.tv-join-button { height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: #eef1f6; color: #374151; font-size: 13px; font-weight: 800; white-space: nowrap; }
+.tv-join-button { height: 44px; padding: 0 18px; border: 0; border-radius: 6px; background: #e8edf5; color: #1f2937; font-size: 13px; font-weight: 900; white-space: nowrap; }
 .tv-join-button:disabled { color: #9ca3af; opacity: 0.75; }
 .tv-join-button:not(:disabled):hover { background: #e4e8f0; }
 
@@ -203,7 +289,7 @@ body {
 .tv-password-input-wrap button { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: #9ca3af; }
 .tv-connect-row { display: flex; gap: 8px; }
 .tv-connect-row button { height: 44px; border-radius: 6px; font-size: 13px; font-weight: 800; }
-.tv-connect-row button:first-child { flex: 1; border: 0; background: #071067; color: #fff; }
+.tv-connect-row button:first-child { flex: 1; border: 0; background: #0D1B3D; color: #fff; }
 .tv-connect-row button:first-child:disabled { opacity: 0.5; }
 .tv-connect-row button:last-child { border: 1px solid #e5e7eb; background: #fff; color: #4b5563; padding: 0 16px; }
 

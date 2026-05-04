@@ -85,6 +85,11 @@ let pingInterval: NodeJS.Timeout | null = null;
 let initPollInterval: NodeJS.Timeout | null = null;
 let controlGranted = false;
 let pendingControlViewerId: string | null = null;
+let hostStreamSettings = {
+  quality: 'balanced',
+  fps: '30',
+  deviceName: '',
+};
 
 // Streaming Accumulators (Annex-B Aggregator)
 let bufferAccumulator = Buffer.alloc(0);
@@ -204,9 +209,14 @@ ipcMain.handle('host:getStatus', async () => {
   if (hostSignalingWs && hostSignalingWs.readyState === 1) return { status: 'status', sessionId: currentHostSessionId };
   return { status: 'idle' };
 });
-ipcMain.handle('host:start', async (_: any, accessKey: any) => {
+ipcMain.handle('host:start', async (_: any, accessKey: any, settings: any = {}) => {
   const { token } = await getAuthTokens();
   const serverIP = process.env.CONNECT_X_SERVER_IP || '159.65.84.190';
+  hostStreamSettings = {
+    quality: ['smooth', 'balanced', 'sharp'].includes(settings?.quality) ? settings.quality : 'balanced',
+    fps: ['15', '30', '60'].includes(String(settings?.fps)) ? String(settings.fps) : '30',
+    deviceName: String(settings?.deviceName || '').trim(),
+  };
 
   // Ensure encoder is detected before starting host signaling
   if (!encoderDetected) await detectBestEncoder();
@@ -620,9 +630,15 @@ function startStreaming() {
   stopStreaming();
 
   const ffmpegPath = getFFmpegPath();
-  const fps = process.env.REMOTE365_STREAM_FPS || '30';
-  const bitrate = process.env.REMOTE365_STREAM_BITRATE || '3500k';
-  const maxWidth = process.env.REMOTE365_STREAM_MAX_WIDTH || '1600';
+  const qualityPresets: Record<string, { bitrate: string; maxWidth: string }> = {
+    smooth: { bitrate: '1800k', maxWidth: '1280' },
+    balanced: { bitrate: '3500k', maxWidth: '1600' },
+    sharp: { bitrate: '6000k', maxWidth: '1920' },
+  };
+  const preset = qualityPresets[hostStreamSettings.quality] || qualityPresets.balanced;
+  const fps = process.env.REMOTE365_STREAM_FPS || hostStreamSettings.fps || '30';
+  const bitrate = process.env.REMOTE365_STREAM_BITRATE || preset.bitrate;
+  const maxWidth = process.env.REMOTE365_STREAM_MAX_WIDTH || preset.maxWidth;
   const frameInterval = Math.floor(1000 / parseInt(fps));
 
   initPollInterval = setInterval(() => {

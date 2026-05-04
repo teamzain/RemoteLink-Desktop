@@ -3,7 +3,7 @@
     "productName":  "Connect-X",
     "electronVersion":  "28.3.3",
     "directories":  {
-                        "output":  "release5"
+                        "output":  "release6"
                     },
     "files":  [
                   "dist/**/*",
