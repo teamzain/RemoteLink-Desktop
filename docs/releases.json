@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T14:27:20.135Z",
+  "generatedAt": "2026-05-05T16:08:19.836Z",
   "releases": [
+    {
+      "version": "1.1.14",
+      "tag": "v1.1.14",
+      "publishedAt": "2026-05-05T16:08:19.719Z",
+      "notes": "Add logged-out meeting invites, meeting chat, and control approval",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.14.exe",
+          "size": 135250259,
+          "sha256": "dc2a8e07b207d09155e060d2323940254669f4c2cecff6accaf5b7bcd695f05b",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.14/Connect-X.Setup.1.1.14.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.14.exe.blockmap",
+          "size": 120573,
+          "sha256": "1a2e6a1dbfa4fc5e36994a34a954f6a9fa6a9e8b230f16fc196c0284133f1e8a",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.14/Connect-X.Setup.1.1.14.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "64e7d98e3af717b082de28754fc8cbf31bf71e8731a5818fea9a1d6379789fe3",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.14/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.13",
       "tag": "v1.1.13",
