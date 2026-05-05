@@ -1340,6 +1340,7 @@ if (!gotSingleInstanceLock) {
     if (url) handleDeepLink(url);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
       mainWindow.focus();
     }
   });

@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
-import { useChatStore } from '../store/chatStore';
 import api from '../lib/api';
 
 interface Participant {
@@ -31,6 +30,17 @@ interface SnowMeetingProps {
 
 const normalizeMeetingCode = (value: string) => String(value || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
+const getMeetingWsUrl = () => {
+  const envUrl = import.meta.env.VITE_SIGNAL_URL;
+  if (envUrl && envUrl.includes('localhost')) {
+    if (import.meta.env.VITE_API_URL?.includes('159.65.84.190')) {
+      return 'ws://159.65.84.190/api/signal';
+    }
+    return envUrl;
+  }
+  return envUrl || 'ws://159.65.84.190/api/signal';
+};
+
 const formatMeetingCode = (value: string) => {
   const clean = String(value || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
   if (clean.length === 9) return `${clean.slice(0, 3)}-${clean.slice(3, 6)}-${clean.slice(6, 9)}`;
@@ -39,9 +49,9 @@ const formatMeetingCode = (value: string) => {
 
 export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) => {
   const { user } = useAuthStore();
-  const { ws, connectWebSocket } = useChatStore();
   
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [ws, setWs] = useState<WebSocket | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
@@ -58,13 +68,28 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
   const hasJoinedRef = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => {
-    connectWebSocket();
-  }, [connectWebSocket]);
-
   const roomId = normalizeMeetingCode(meetingId);
   const meetingCode = formatMeetingCode(roomId);
   const meetingLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
+
+  useEffect(() => {
+    const meetingSocket = new WebSocket(getMeetingWsUrl());
+    setWs(meetingSocket);
+    meetingSocket.onopen = () => {
+      console.info(`[Meeting] Signaling connected for room ${roomId || '(pending)'}`);
+    };
+    meetingSocket.onerror = () => {
+      setMeetingError('Meeting connection failed. Please check your internet connection.');
+    };
+    meetingSocket.onclose = () => {
+      setWs((current) => current === meetingSocket ? null : current);
+    };
+
+    return () => {
+      hasJoinedRef.current = false;
+      meetingSocket.close();
+    };
+  }, [roomId]);
 
   const sendMediaState = (nextMuted = isMuted, nextCameraOff = isCameraOff) => {
     if (!ws || ws.readyState !== WebSocket.OPEN || !hasJoinedRef.current) return;
@@ -178,7 +203,12 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       const data = JSON.parse(event.data);
       
       switch (data.type) {
+        case 'ping':
+          ws.send(JSON.stringify({ type: 'pong' }));
+          break;
+
         case 'meeting-joined':
+          console.info(`[Meeting] Joined ${data.meetingId} with ${data.participants?.length || 0} remote participants.`);
           setMeetingError(null);
           // Existing participants
           data.participants.forEach((p: any) => {
