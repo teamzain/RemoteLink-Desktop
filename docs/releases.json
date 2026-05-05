@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T20:53:22.665Z",
+  "generatedAt": "2026-05-05T21:09:19.519Z",
   "releases": [
+    {
+      "version": "1.1.23",
+      "tag": "v1.1.23",
+      "publishedAt": "2026-05-05T21:09:19.405Z",
+      "notes": "Fix meeting remote video connection and fullscreen toggle",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.23.exe",
+          "size": 135250475,
+          "sha256": "f436aec43eba261b5198d15f3f0bfdbc465fe6f3ac6e82716233dd8720af50fc",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.23/Connect-X.Setup.1.1.23.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.23.exe.blockmap",
+          "size": 120693,
+          "sha256": "a52dd6b3c1979401ca0661dc4067ae9429ec5dac4a72aad3c702faf2752dfe13",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.23/Connect-X.Setup.1.1.23.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "d3634026a75db52390d788093de0e401ed00935dc36efc631cd2b6459d1dd513",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.23/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.22",
       "tag": "v1.1.22",

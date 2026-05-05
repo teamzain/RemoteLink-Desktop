@@ -207,6 +207,13 @@ ipcMain.handle('system:log', (_event: any, msg: any, level: any) => {
   const l = level as 'info' | 'warn' | 'error';
   (log as any)[l]?.(msg);
 });
+ipcMain.handle('window:toggle-fullscreen', (event: any) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return false;
+  const nextFullScreen = !win.isFullScreen();
+  win.setFullScreen(nextFullScreen);
+  return nextFullScreen;
+});
 
 function minimizeHostWindowForRemoteSession(reason: string) {
   if (!mainWindow || mainWindow.isDestroyed()) return;

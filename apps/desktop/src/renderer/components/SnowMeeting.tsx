@@ -92,6 +92,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const [shareSystemAudio, setShareSystemAudio] = useState(() => localStorage.getItem('remote365_meeting_share_system_audio') === 'true');
   
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const hasJoinedRef = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -138,15 +139,51 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     sendMeetingSignal(targetId, offer);
   };
 
+  const getPeerTransceiver = (pc: RTCPeerConnection, kind: 'audio' | 'video') => (
+    pc.getTransceivers().find((item) => item.sender.track?.kind === kind || item.receiver.track?.kind === kind)
+  );
+
+  const attachOutgoingTracks = async (pc: RTCPeerConnection, createMissing = false) => {
+    const videoTrack = getOutgoingVideoTrack();
+    const audioTrack = getOutgoingAudioTrack();
+    const tracks: Array<['video' | 'audio', MediaStreamTrack | null]> = [
+      ['video', videoTrack],
+      ['audio', audioTrack]
+    ];
+
+    for (const [kind, track] of tracks) {
+      let transceiver = getPeerTransceiver(pc, kind);
+      if (!transceiver && createMissing) {
+        transceiver = pc.addTransceiver(kind, { direction: 'sendrecv' });
+      }
+      if (transceiver) {
+        transceiver.direction = 'sendrecv';
+        await transceiver.sender.replaceTrack(track);
+      }
+    }
+  };
+
+  const flushPendingIceCandidates = async (targetId: string, pc: RTCPeerConnection) => {
+    const queued = pendingIceCandidatesRef.current.get(targetId) || [];
+    pendingIceCandidatesRef.current.delete(targetId);
+    for (const candidate of queued) {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch((err) => {
+        console.warn('[Meeting] Queued ICE candidate failed:', err);
+      });
+    }
+  };
+
   const replacePeerTrack = async (kind: 'audio' | 'video', track: MediaStreamTrack | null, renegotiate = false) => {
     await Promise.all([...peersRef.current.entries()].map(async ([targetId, pc]) => {
-      let transceiver = pc.getTransceivers().find((item) => item.sender.track?.kind === kind || item.receiver.track?.kind === kind);
+      let shouldRenegotiate = renegotiate;
+      let transceiver = getPeerTransceiver(pc, kind);
       if (!transceiver) {
         transceiver = pc.addTransceiver(kind, { direction: 'sendrecv' });
-        renegotiate = true;
+        shouldRenegotiate = true;
       }
+      transceiver.direction = 'sendrecv';
       await transceiver.sender.replaceTrack(track);
-      if (renegotiate) await renegotiatePeer(targetId, pc);
+      if (shouldRenegotiate) await renegotiatePeer(targetId, pc);
     }));
   };
 
@@ -375,22 +412,14 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     return () => ws.removeEventListener('message', handleMessage);
   }, [ws, localStream]);
 
-  const initiatePeerConnection = async (targetId: string, isOffer: boolean) => {
-    if (peersRef.current.has(targetId)) return;
-
+  const createPeerConnection = (targetId: string) => {
+    const existing = peersRef.current.get(targetId);
+    if (existing) return existing;
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
     });
 
     peersRef.current.set(targetId, pc);
-
-    const videoTrack = getOutgoingVideoTrack();
-    const audioTrack = getOutgoingAudioTrack();
-    const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
-    const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
-
-    await videoTransceiver.sender.replaceTrack(videoTrack);
-    await audioTransceiver.sender.replaceTrack(audioTrack);
 
     pc.onicecandidate = (e) => {
       if (e.candidate && ws) {
@@ -424,7 +453,21 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       });
     };
 
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') {
+        pc.restartIce?.();
+      }
+    };
+
+    return pc;
+  };
+
+  const initiatePeerConnection = async (targetId: string, isOffer: boolean) => {
+    if (peersRef.current.has(targetId)) return;
+    const pc = createPeerConnection(targetId);
+
     if (isOffer) {
+      await attachOutgoingTracks(pc, true);
       await renegotiatePeer(targetId, pc).catch((err) => console.warn('[Meeting] Offer failed:', err));
     }
   };
@@ -432,19 +475,29 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const handlePeerSignal = async (senderId: string, signal: any) => {
     let pc = peersRef.current.get(senderId);
     if (!pc) {
-       await initiatePeerConnection(senderId, false);
-       pc = peersRef.current.get(senderId)!;
+       pc = createPeerConnection(senderId);
     }
 
     if (signal.type === 'offer') {
       await pc.setRemoteDescription(new RTCSessionDescription(signal));
+      await flushPendingIceCandidates(senderId, pc);
+      await attachOutgoingTracks(pc, true);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendMeetingSignal(senderId, answer);
     } else if (signal.type === 'answer') {
       await pc.setRemoteDescription(new RTCSessionDescription(signal));
+      await flushPendingIceCandidates(senderId, pc);
     } else if (signal.type === 'candidate') {
-      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      if (!pc.remoteDescription) {
+        const queued = pendingIceCandidatesRef.current.get(senderId) || [];
+        queued.push(signal.candidate);
+        pendingIceCandidatesRef.current.set(senderId, queued);
+        return;
+      }
+      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch((err) => {
+        console.warn('[Meeting] ICE candidate failed:', err);
+      });
     }
   };
 
@@ -452,6 +505,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     const pc = peersRef.current.get(id);
     if (pc) pc.close();
     peersRef.current.delete(id);
+    pendingIceCandidatesRef.current.delete(id);
     setParticipants(prev => prev.filter(p => p.connectionId !== id));
   };
 
@@ -702,6 +756,10 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const toggleFullscreen = async () => {
     const target = document.documentElement;
     try {
+      if ((window as any).electronAPI?.toggleFullscreen) {
+        await (window as any).electronAPI.toggleFullscreen();
+        return;
+      }
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       } else {

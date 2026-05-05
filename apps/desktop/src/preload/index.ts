@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLocalIP: () => ipcRenderer.invoke('system:getLocalIP'),
   getDeterministicKey: () => ipcRenderer.invoke('system:getDeterministicKey'),
   getMachineName: () => ipcRenderer.invoke('system:getMachineName'),
+  toggleFullscreen: () => ipcRenderer.invoke('window:toggle-fullscreen'),
   openViewerWindow: (sessionId: string, serverIP: string, token: string, deviceName?: string, deviceType?: string) => ipcRenderer.invoke('viewer:open-window', sessionId, serverIP, token, deviceName, deviceType),
   openMeetingWindow: (meetingId: string) => ipcRenderer.invoke('meeting:open-window', meetingId),
   onHostStatus: (callback: (status: string) => void) => {
