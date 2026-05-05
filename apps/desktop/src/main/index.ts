@@ -1,4 +1,4 @@
-import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray } from 'electron';
+import { app, shell, dialog, BrowserWindow, ipcMain, safeStorage, clipboard, screen, Notification, session, Menu, Tray, desktopCapturer } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { join, basename, resolve } from 'path';
@@ -1456,6 +1456,29 @@ app.whenReady().then(() => {
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(['media', 'display-capture'].includes(permission));
+  });
+
+  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 320, height: 180 },
+        fetchWindowIcons: true
+      });
+      const primaryDisplayId = String(screen.getPrimaryDisplay().id);
+      const source = sources.find((item) => item.display_id === primaryDisplayId) || sources[0];
+      if (!source) {
+        callback({});
+        return;
+      }
+      callback({
+        video: source,
+        audio: 'loopback' as any
+      });
+    } catch (err: any) {
+      log.error(`[Meeting] Display media request failed: ${err.message}`);
+      callback({});
+    }
   });
 
   // Force auto-launch for seamless reconnects on restart

@@ -142,6 +142,19 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     }));
   };
 
+  const publishMediaState = (nextMuted = isMuted, nextCameraOff = isCameraOff, nextScreenSharing = isScreenSharing) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !hasJoinedRef.current) return;
+    ws.send(JSON.stringify({
+      type: 'meeting-media-state',
+      meetingId: roomId,
+      mediaState: {
+        isMuted: nextMuted,
+        isCameraOff: nextCameraOff,
+        isScreenSharing: nextScreenSharing
+      }
+    }));
+  };
+
   const getAvailableMediaStream = async () => {
     const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
     const hasCamera = devices.some((device) => device.kind === 'videoinput');
@@ -413,12 +426,44 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     sendMediaState(nextMuted, isCameraOff);
   };
 
-  const toggleCamera = () => {
-    if (!localStream) return;
-    const nextCameraOff = !isCameraOff;
-    localStream.getVideoTracks().forEach(t => t.enabled = !nextCameraOff);
-    setIsCameraOff(nextCameraOff);
-    sendMediaState(isMuted, nextCameraOff);
+  const toggleCamera = async () => {
+    if (isScreenSharing) return;
+
+    if (!isCameraOff) {
+      const current = localStreamRef.current;
+      current?.getVideoTracks().forEach((track) => {
+        track.stop();
+        current.removeTrack(track);
+      });
+      await replacePeerTrack('video', null);
+      setLocalStream(current && current.getTracks().length ? current : null);
+      setIsCameraOff(true);
+      if (localVideoRef.current) localVideoRef.current.srcObject = current || null;
+      publishMediaState(isMuted, true, false);
+      return;
+    }
+
+    try {
+      const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const videoTrack = cameraStream.getVideoTracks()[0];
+      const current = localStreamRef.current || new MediaStream();
+      current.getVideoTracks().forEach((track) => {
+        track.stop();
+        current.removeTrack(track);
+      });
+      if (videoTrack) current.addTrack(videoTrack);
+      localStreamRef.current = current;
+      setLocalStream(current);
+      await replacePeerTrack('video', videoTrack || null);
+      if (localVideoRef.current) localVideoRef.current.srcObject = current;
+      setIsCameraOff(false);
+      setMediaReady(true);
+      publishMediaState(isMuted, false, false);
+    } catch (err: any) {
+      setMeetingError(err?.message || 'Could not turn camera on.');
+      setIsCameraOff(true);
+      publishMediaState(isMuted, true, false);
+    }
   };
 
   const stopScreenShare = async () => {
@@ -433,11 +478,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       localVideoRef.current.srcObject = localStreamRef.current;
     }
     setIsScreenSharing(false);
-    ws?.send(JSON.stringify({
-      type: 'meeting-media-state',
-      meetingId: roomId,
-      mediaState: { isMuted, isCameraOff, isScreenSharing: false }
-    }));
+    publishMediaState(isMuted, isCameraOff, false);
   };
 
   const startScreenShare = async () => {
@@ -457,11 +498,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
         localVideoRef.current.srcObject = displayStream;
       }
       setIsScreenSharing(true);
-      ws?.send(JSON.stringify({
-        type: 'meeting-media-state',
-        meetingId: roomId,
-        mediaState: { isMuted, isCameraOff: false, isScreenSharing: true }
-      }));
+      publishMediaState(isMuted, false, true);
       screenVideo?.addEventListener('ended', () => stopScreenShare(), { once: true });
     } catch (err: any) {
       if (err?.name !== 'NotAllowedError') {
@@ -736,8 +773,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           
           <button 
             onClick={toggleCamera}
-            disabled={!localStream}
-            title={!localStream ? 'Camera is unavailable' : 'Toggle camera'}
+            disabled={isScreenSharing}
+            title={isScreenSharing ? 'Stop screen sharing before changing camera' : isCameraOff ? 'Turn camera on' : 'Turn camera off'}
             className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all disabled:opacity-45 ${isCameraOff ? 'bg-red-500 text-white' : 'bg-white/10 text-white hover:bg-white/20'}`}
           >
             {isCameraOff ? <VideoOff size={22} /> : <Video size={22} />}
@@ -1080,10 +1117,11 @@ const RemoteVideo: React.FC<{
           event.stopPropagation();
           onRequestControl?.();
         }}
-        className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-black/55 hover:bg-blue-600 text-white opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center border border-white/10"
+        className="absolute top-4 right-4 h-10 rounded-xl bg-blue-600/90 hover:bg-blue-700 text-white transition-all flex items-center justify-center gap-2 border border-white/10 px-3 shadow-lg"
         title="Request remote control"
       >
         <MousePointer2 size={17} />
+        <span className="text-xs font-bold">Control</span>
       </button>
     </motion.div>
   );
