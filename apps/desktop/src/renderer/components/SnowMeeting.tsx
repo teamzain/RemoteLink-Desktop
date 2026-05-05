@@ -228,14 +228,21 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       try {
         localStreamRef.current?.getTracks().forEach(t => t.stop());
         const stream = await getAvailableMediaStream();
+        const nextCameraOff = stream.getVideoTracks().length === 0;
+        const nextMuted = stream.getAudioTracks().length === 0;
         localStreamRef.current = stream;
         setLocalStream(stream);
-        setIsCameraOff(stream.getVideoTracks().length === 0);
-        setIsMuted(stream.getAudioTracks().length === 0);
+        setIsCameraOff(nextCameraOff);
+        setIsMuted(nextMuted);
         setMediaReady(true);
         setMeetingError(null);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
+        }
+        if (!screenStreamRef.current && peersRef.current.size) {
+          await replacePeerTrack('video', stream.getVideoTracks()[0] || getPlaceholderVideoTrack(), true);
+          await replacePeerTrack('audio', stream.getAudioTracks()[0] || null, true);
+          publishMediaState(nextMuted, nextCameraOff, false);
         }
       } catch (err) {
         console.info('[Meeting] Camera or microphone unavailable. Joining without local media.', err);
@@ -310,7 +317,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
               if (prev.find(existing => existing.connectionId === p.connectionId)) return prev;
               return [...prev, { ...p }];
             });
-            initiatePeerConnection(p.connectionId, true);
+            initiatePeerConnection(p.connectionId, true).catch((err) => console.warn('[Meeting] Peer init failed:', err));
           });
           break;
 
@@ -339,7 +346,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
 
         case 'meeting-participant-joined':
           // New participant
-          initiatePeerConnection(data.participant.connectionId, false);
+          initiatePeerConnection(data.participant.connectionId, false).catch((err) => console.warn('[Meeting] Peer init failed:', err));
           setParticipants(prev => {
             if (prev.find(p => p.connectionId === data.participant.connectionId)) return prev;
             return [...prev, { ...data.participant }];
@@ -368,7 +375,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     return () => ws.removeEventListener('message', handleMessage);
   }, [ws, localStream]);
 
-  const initiatePeerConnection = (targetId: string, isOffer: boolean) => {
+  const initiatePeerConnection = async (targetId: string, isOffer: boolean) => {
     if (peersRef.current.has(targetId)) return;
 
     const pc = new RTCPeerConnection({
@@ -382,8 +389,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
     const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
 
-    videoTransceiver.sender.replaceTrack(videoTrack);
-    audioTransceiver.sender.replaceTrack(audioTrack);
+    await videoTransceiver.sender.replaceTrack(videoTrack);
+    await audioTransceiver.sender.replaceTrack(audioTrack);
 
     pc.onicecandidate = (e) => {
       if (e.candidate && ws) {
@@ -418,14 +425,14 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     };
 
     if (isOffer) {
-      renegotiatePeer(targetId, pc).catch((err) => console.warn('[Meeting] Offer failed:', err));
+      await renegotiatePeer(targetId, pc).catch((err) => console.warn('[Meeting] Offer failed:', err));
     }
   };
 
   const handlePeerSignal = async (senderId: string, signal: any) => {
     let pc = peersRef.current.get(senderId);
     if (!pc) {
-       initiatePeerConnection(senderId, false);
+       await initiatePeerConnection(senderId, false);
        pc = peersRef.current.get(senderId)!;
     }
 
