@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T13:19:16.395Z",
+  "generatedAt": "2026-05-05T14:27:20.135Z",
   "releases": [
+    {
+      "version": "1.1.13",
+      "tag": "v1.1.13",
+      "publishedAt": "2026-05-05T14:27:20.014Z",
+      "notes": "Fix meeting join for logged-out users and restore hidden app window",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.13.exe",
+          "size": 135248519,
+          "sha256": "b2ffe243f4937d21364f6ed38d69b7a4e5af0c97b73ed2f09c8bb0b0a5242698",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.13/Connect-X.Setup.1.1.13.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.13.exe.blockmap",
+          "size": 120392,
+          "sha256": "0edd25ae6458122b33218ba6752ec369da7b4d75dd5637c71bafd80bdc7c8f11",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.13/Connect-X.Setup.1.1.13.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "be7b45d90438916cecddeb41acb0036d3de98b0f7654e754a726af5bcdcfb3f2",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.13/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.12",
       "tag": "v1.1.12",
