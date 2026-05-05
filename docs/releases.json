@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T20:35:55.358Z",
+  "generatedAt": "2026-05-05T20:53:22.665Z",
   "releases": [
+    {
+      "version": "1.1.22",
+      "tag": "v1.1.22",
+      "publishedAt": "2026-05-05T20:53:22.553Z",
+      "notes": "Fix meeting camera video on active peer connections",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.22.exe",
+          "size": 135249963,
+          "sha256": "3cb354d493601d115c3003624b967667b7f94b105c1dd16d079602802ebd27ac",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.22/Connect-X.Setup.1.1.22.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.22.exe.blockmap",
+          "size": 120503,
+          "sha256": "aa4eae3afcc15a4f3c8dbb9e1d74539f2c41d6e8f4d8e85f807fcef27fbe5043",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.22/Connect-X.Setup.1.1.22.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "c7f0784f01e1b6368eaa8fcc24d5cfadc8fa82d9b366289aea1dfbf074e08e3b",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.22/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.21",
       "tag": "v1.1.21",
