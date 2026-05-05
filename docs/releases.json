@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T19:37:50.279Z",
+  "generatedAt": "2026-05-05T19:52:32.192Z",
   "releases": [
+    {
+      "version": "1.1.19",
+      "tag": "v1.1.19",
+      "publishedAt": "2026-05-05T19:52:32.076Z",
+      "notes": "Fix meeting screen sharing visibility on participant machines",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.19.exe",
+          "size": 135249986,
+          "sha256": "22cfd5ac007c303c9c691df39283759bc2e5c0c28080d66ba78d2cd42998c066",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.19/Connect-X.Setup.1.1.19.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.19.exe.blockmap",
+          "size": 120738,
+          "sha256": "41fa7cbe59db6f50deae6e7e691f2b31fed533c2f2c48996586c6eb56fe6361a",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.19/Connect-X.Setup.1.1.19.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "7616dccdf10ad28e5963b5b87f3f0d2c4f787eb6fbe8be8fda0fc5285a5f8fac",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.19/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.18",
       "tag": "v1.1.18",
