@@ -618,6 +618,84 @@ async function startServer() {
             break;
           }
 
+          case 'meeting-chat': {
+            const currentMeetingId = connectionToMeeting.get(connectionId);
+            const meetingId = normalizeMeetingId(data.meetingId);
+            const message = String(data.message || '').trim();
+            if (!currentMeetingId || meetingId !== currentMeetingId || !message) break;
+
+            const room = meetingRooms.get(currentMeetingId);
+            if (!room) break;
+
+            const payload = JSON.stringify({
+              type: 'meeting-chat',
+              meetingId: currentMeetingId,
+              message: {
+                id: data.id || uuidv4(),
+                senderConnectionId: connectionId,
+                senderName: meetingParticipants.get(connectionId)?.name || 'Participant',
+                text: message.slice(0, 2000),
+                createdAt: Date.now()
+              }
+            });
+
+            for (const participantId of room) {
+              const pWs = localClients.get(participantId);
+              if (pWs && pWs.readyState === WebSocket.OPEN) {
+                pWs.send(payload);
+              }
+            }
+            break;
+          }
+
+          case 'meeting-control-request': {
+            const currentMeetingId = connectionToMeeting.get(connectionId);
+            const meetingId = normalizeMeetingId(data.meetingId);
+            const targetConnectionId = data.targetConnectionId;
+            if (!currentMeetingId || meetingId !== currentMeetingId || !targetConnectionId) break;
+
+            const room = meetingRooms.get(currentMeetingId);
+            if (!room?.has(targetConnectionId)) break;
+
+            const targetWs = localClients.get(targetConnectionId);
+            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+              targetWs.send(JSON.stringify({
+                type: 'meeting-control-request',
+                meetingId: currentMeetingId,
+                requestId: data.requestId || uuidv4(),
+                requesterConnectionId: connectionId,
+                requesterName: meetingParticipants.get(connectionId)?.name || 'Participant'
+              }));
+            }
+            break;
+          }
+
+          case 'meeting-control-response': {
+            const currentMeetingId = connectionToMeeting.get(connectionId);
+            const meetingId = normalizeMeetingId(data.meetingId);
+            const targetConnectionId = data.targetConnectionId;
+            if (!currentMeetingId || meetingId !== currentMeetingId || !targetConnectionId) break;
+
+            const room = meetingRooms.get(currentMeetingId);
+            if (!room?.has(targetConnectionId)) break;
+
+            const targetWs = localClients.get(targetConnectionId);
+            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+              targetWs.send(JSON.stringify({
+                type: 'meeting-control-response',
+                meetingId: currentMeetingId,
+                requestId: data.requestId,
+                approverConnectionId: connectionId,
+                approverName: meetingParticipants.get(connectionId)?.name || 'Participant',
+                approved: Boolean(data.approved),
+                accessKey: data.approved ? data.accessKey : undefined,
+                password: data.approved ? data.password : undefined,
+                deviceName: data.approved ? data.deviceName : undefined
+              }));
+            }
+            break;
+          }
+
           case 'meeting-signal': {
             const { targetConnectionId, signal, meetingId } = data;
             if (!targetConnectionId || !signal) break;

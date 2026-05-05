@@ -4166,6 +4166,9 @@ export default function App() {
                 <SnowMeeting 
                     meetingId={activeMeetingId} 
                     onLeave={() => setActiveMeetingId(null)} 
+                    hostAccessKey={hostAccessKey}
+                    devicePassword={devicePassword}
+                    serverIP={serverIP}
                 />
             )}
             </div>

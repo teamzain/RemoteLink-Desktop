@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { 
   Mic, MicOff, Video, VideoOff, PhoneOff, Users, 
   Settings, Maximize, Share, MessageSquare, 
-  MoreHorizontal, Shield, Grid, Layout, X, Copy, Mail, CheckCircle2, RefreshCw
+  MoreHorizontal, Shield, Grid, Layout, X, Copy, Mail, CheckCircle2, RefreshCw, MousePointer2, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
@@ -26,6 +26,23 @@ interface Participant {
 interface SnowMeetingProps {
   meetingId: string;
   onLeave: () => void;
+  hostAccessKey?: string | null;
+  devicePassword?: string;
+  serverIP?: string;
+}
+
+interface MeetingChatMessage {
+  id: string;
+  senderConnectionId: string;
+  senderName: string;
+  text: string;
+  createdAt: number;
+}
+
+interface ControlRequest {
+  requestId: string;
+  requesterConnectionId: string;
+  requesterName: string;
 }
 
 const normalizeMeetingCode = (value: string) => String(value || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -47,7 +64,7 @@ const formatMeetingCode = (value: string) => {
   return clean || String(value || '').trim();
 };
 
-export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) => {
+export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, hostAccessKey, devicePassword, serverIP = '159.65.84.190' }) => {
   const { user } = useAuthStore();
   
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -62,6 +79,11 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
+  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [chatMessages, setChatMessages] = useState<MeetingChatMessage[]>([]);
+  const [chatText, setChatText] = useState('');
+  const [controlRequest, setControlRequest] = useState<ControlRequest | null>(null);
+  const [controlStatus, setControlStatus] = useState('');
   
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -220,6 +242,25 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
           });
           break;
 
+        case 'meeting-chat':
+          if (data.message) {
+            setChatMessages(prev => prev.some(m => m.id === data.message.id) ? prev : [...prev, data.message]);
+            if (data.message.senderConnectionId !== 'local') setShowChatPanel(true);
+          }
+          break;
+
+        case 'meeting-control-request':
+          setControlRequest({
+            requestId: data.requestId,
+            requesterConnectionId: data.requesterConnectionId,
+            requesterName: data.requesterName || 'Participant'
+          });
+          break;
+
+        case 'meeting-control-response':
+          handleControlResponse(data);
+          break;
+
         case 'meeting-error':
           setMeetingError(data.error || 'Could not join this meeting.');
           break;
@@ -368,7 +409,22 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
 
     setInviteStatus('sending');
     setInviteMessage('');
+    const mailto = `mailto:${encodeURIComponent(cleanEmail)}?subject=${encodeURIComponent('Remote 365 meeting invite')}&body=${encodeURIComponent(`Join my Remote 365 meeting:\n\nCode: ${meetingCode}\nLink: ${meetingLink}`)}`;
     try {
+      const token = (window as any).electronAPI
+        ? (await (window as any).electronAPI.getToken())?.token
+        : localStorage.getItem('access_token');
+      if (!token) {
+        if ((window as any).electronAPI?.openExternal) {
+          await (window as any).electronAPI.openExternal(mailto);
+        } else {
+          window.location.href = mailto;
+        }
+        setInviteStatus('sent');
+        setInviteMessage('Opened your email app with the meeting invite.');
+        setInviteEmail('');
+        return;
+      }
       await api.post('/api/chat/session-invites', {
         email: cleanEmail,
         sessionName: `${user?.name || 'Remote 365'} meeting`,
@@ -383,6 +439,80 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
     } catch (err: any) {
       setInviteStatus('error');
       setInviteMessage(err.response?.data?.error || err.message || 'Could not send invite.');
+    }
+  };
+
+  const sendChatMessage = () => {
+    const text = chatText.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    ws.send(JSON.stringify({ type: 'meeting-chat', meetingId: roomId, id, message: text }));
+    setChatText('');
+  };
+
+  const requestParticipantControl = (participant: Participant) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    ws.send(JSON.stringify({
+      type: 'meeting-control-request',
+      meetingId: roomId,
+      requestId,
+      targetConnectionId: participant.connectionId
+    }));
+    setControlStatus(`Control request sent to ${participant.user?.name || 'participant'}.`);
+    setShowInvitePanel(true);
+  };
+
+  const respondToControlRequest = (approved: boolean) => {
+    if (!controlRequest || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const cleanAccessKey = String(hostAccessKey || '').replace(/\D/g, '');
+    if (approved && (!cleanAccessKey || !devicePassword)) {
+      setControlStatus('Your device access key or password is not ready yet.');
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'meeting-control-response',
+      meetingId: roomId,
+      requestId: controlRequest.requestId,
+      targetConnectionId: controlRequest.requesterConnectionId,
+      approved,
+      accessKey: cleanAccessKey,
+      password: devicePassword,
+      deviceName: user?.name || 'Remote 365 device'
+    }));
+    setControlStatus(approved ? `Approved control for ${controlRequest.requesterName}.` : `Denied control for ${controlRequest.requesterName}.`);
+    setControlRequest(null);
+  };
+
+  const handleControlResponse = async (data: any) => {
+    if (!data.approved) {
+      setControlStatus(`${data.approverName || 'Participant'} denied your control request.`);
+      setShowInvitePanel(true);
+      return;
+    }
+
+    try {
+      setControlStatus(`Opening remote control for ${data.deviceName || data.approverName || 'participant'}...`);
+      const { data: authData } = await api.post('/api/devices/verify-access', {
+        accessKey: String(data.accessKey || '').replace(/\D/g, ''),
+        password: data.password
+      });
+      if ((window as any).electronAPI?.openViewerWindow) {
+        await (window as any).electronAPI.openViewerWindow(
+          String(data.accessKey || '').replace(/\D/g, ''),
+          serverIP,
+          authData.token,
+          data.deviceName || data.approverName || 'Meeting participant',
+          'desktop'
+        );
+        setControlStatus('Remote control window opened.');
+      } else {
+        setControlStatus('Remote control requires the desktop app.');
+      }
+    } catch (err: any) {
+      setControlStatus(err.response?.data?.error || err.message || 'Could not open remote control.');
+    } finally {
+      setShowInvitePanel(true);
     }
   };
 
@@ -517,7 +647,11 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
             <Share size={22} />
           </button>
 
-          <button className="w-14 h-14 rounded-2xl bg-white/10 text-white hover:bg-white/20 flex items-center justify-center transition-all">
+          <button
+            onClick={() => setShowChatPanel(true)}
+            className="w-14 h-14 rounded-2xl bg-white/10 text-white hover:bg-white/20 flex items-center justify-center transition-all"
+            title="Meeting chat"
+          >
             <MessageSquare size={22} />
           </button>
 
@@ -543,6 +677,22 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       </div>
 
       <AnimatePresence>
+        {controlRequest && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-[130] w-full max-w-md rounded-2xl bg-[#151515] border border-white/10 shadow-2xl p-5"
+          >
+            <h3 className="text-base font-bold text-white">Remote control request</h3>
+            <p className="mt-1 text-sm text-gray-400">{controlRequest.requesterName} wants to use your PC.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => respondToControlRequest(false)} className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-bold">Deny</button>
+              <button onClick={() => respondToControlRequest(true)} className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold">Approve</button>
+            </div>
+          </motion.div>
+        )}
+
         {showInvitePanel && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -559,7 +709,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
               <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
                 <div>
                   <h3 className="text-base font-bold text-white">Invite people</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Share this Remote 365 meeting code.</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Share this Remote 365 meeting code. Login is not required.</p>
                 </div>
                 <button
                   onClick={() => setShowInvitePanel(false)}
@@ -619,6 +769,12 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
                   </div>
                 )}
 
+                {controlStatus && (
+                  <div className="rounded-xl px-4 py-3 text-sm bg-blue-500/10 text-blue-200 border border-blue-500/20">
+                    {controlStatus}
+                  </div>
+                )}
+
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Participants</span>
@@ -627,16 +783,65 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
                   <div className="mt-3 space-y-2">
                     <ParticipantRow name={`${user?.name || 'You'} (You)`} />
                     {participants.map((participant) => (
-                      <ParticipantRow
-                        key={participant.connectionId}
-                        name={participant.user?.name || 'Participant'}
-                        mediaState={participant.mediaState}
-                      />
+                      <div key={participant.connectionId} className="flex items-center gap-2">
+                        <ParticipantRow
+                          name={participant.user?.name || 'Participant'}
+                          mediaState={participant.mediaState}
+                        />
+                        <button
+                          onClick={() => requestParticipantControl(participant)}
+                          className="ml-auto w-8 h-8 rounded-lg bg-white/10 hover:bg-white/15 text-white flex items-center justify-center"
+                          title="Request remote control"
+                        >
+                          <MousePointer2 size={15} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+
+        {showChatPanel && (
+          <motion.div
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 24 }}
+            className="absolute right-5 top-20 bottom-28 z-[115] w-full max-w-sm rounded-2xl bg-[#111111] border border-white/10 shadow-2xl flex flex-col overflow-hidden"
+          >
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-white">Meeting chat</h3>
+                <p className="text-xs text-gray-500">{meetingCode}</p>
+              </div>
+              <button onClick={() => setShowChatPanel(false)} className="w-9 h-9 rounded-xl hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {chatMessages.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center mt-8">No messages yet.</p>
+              ) : chatMessages.map((message) => (
+                <div key={message.id} className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2">
+                  <div className="text-[11px] font-bold text-blue-300">{message.senderName}</div>
+                  <div className="mt-1 text-sm text-gray-200 break-words">{message.text}</div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-white/10 flex gap-2">
+              <input
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Message everyone..."
+                className="flex-1 h-11 rounded-xl bg-black/35 border border-white/10 px-3 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-blue-500"
+              />
+              <button onClick={sendChatMessage} className="w-11 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center">
+                <Send size={17} />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
