@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T16:08:19.836Z",
+  "generatedAt": "2026-05-05T17:00:07.606Z",
   "releases": [
+    {
+      "version": "1.1.15",
+      "tag": "v1.1.15",
+      "publishedAt": "2026-05-05T17:00:07.473Z",
+      "notes": "Fix device password changes and passwordless remote access",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.15.exe",
+          "size": 135250671,
+          "sha256": "bd203eccc9deedb918636c37591fb1f76999f24827c7f494ead1f28f95d43dbb",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.15/Connect-X.Setup.1.1.15.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.15.exe.blockmap",
+          "size": 120555,
+          "sha256": "3e125c1fab0f7ce1254914f6abdd0057f337b0970216c58ff8d3c19ecfad1fd1",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.15/Connect-X.Setup.1.1.15.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "59be2137921fde61169f5c2ac0c1559a5c4e27bd15cbe137295cc7171f03f8dc",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.15/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.14",
       "tag": "v1.1.14",
