@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T17:00:07.606Z",
+  "generatedAt": "2026-05-05T17:25:29.225Z",
   "releases": [
+    {
+      "version": "1.1.16",
+      "tag": "v1.1.16",
+      "publishedAt": "2026-05-05T17:25:29.111Z",
+      "notes": "Open meetings in separate windows, add screen sharing, meeting audio setting, and direct control requests",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.16.exe",
+          "size": 135251649,
+          "sha256": "48afb5efed2b28f3c119e51233145facdadd42667f134bae919fc70aef1c20b0",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.16/Connect-X.Setup.1.1.16.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.16.exe.blockmap",
+          "size": 120582,
+          "sha256": "24e2203788bf5a8ffdad20fe63e4a2b72d1145cb20c11306850af83d8be03cd9",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.16/Connect-X.Setup.1.1.16.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "da506a5318b7caf3a2ba3d2097f16a8ddd5d8ba86af955974e49763d01dc107a",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.16/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.15",
       "tag": "v1.1.15",
