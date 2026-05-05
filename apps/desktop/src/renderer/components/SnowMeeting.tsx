@@ -120,25 +120,32 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     };
   }, [roomId]);
 
-  const sendMediaState = (nextMuted = isMuted, nextCameraOff = isCameraOff) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !hasJoinedRef.current) return;
+  const sendMeetingSignal = (targetConnectionId: string, signal: any) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({
-      type: 'meeting-media-state',
+      type: 'meeting-signal',
       meetingId: roomId,
-      mediaState: {
-        isMuted: nextMuted,
-        isCameraOff: nextCameraOff,
-        isScreenSharing
-      }
+      targetConnectionId,
+      signal
     }));
   };
 
-  const replacePeerTrack = async (kind: 'audio' | 'video', track: MediaStreamTrack | null) => {
-    await Promise.all([...peersRef.current.values()].map(async (pc) => {
-      const sender = pc.getSenders().find((item) => item.track?.kind === kind);
-      if (sender) {
-        await sender.replaceTrack(track);
+  const renegotiatePeer = async (targetId: string, pc: RTCPeerConnection) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN || pc.signalingState !== 'stable') return;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendMeetingSignal(targetId, offer);
+  };
+
+  const replacePeerTrack = async (kind: 'audio' | 'video', track: MediaStreamTrack | null, renegotiate = false) => {
+    await Promise.all([...peersRef.current.entries()].map(async ([targetId, pc]) => {
+      let transceiver = pc.getTransceivers().find((item) => item.sender.track?.kind === kind || item.receiver.track?.kind === kind);
+      if (!transceiver) {
+        transceiver = pc.addTransceiver(kind, { direction: 'sendrecv' });
+        renegotiate = true;
       }
+      await transceiver.sender.replaceTrack(track);
+      if (renegotiate) await renegotiatePeer(targetId, pc);
     }));
   };
 
@@ -153,6 +160,10 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
         isScreenSharing: nextScreenSharing
       }
     }));
+  };
+
+  const sendMediaState = (nextMuted = isMuted, nextCameraOff = isCameraOff) => {
+    publishMediaState(nextMuted, nextCameraOff, isScreenSharing);
   };
 
   const getAvailableMediaStream = async () => {
@@ -338,52 +349,31 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     peersRef.current.set(targetId, pc);
 
     const outgoingScreen = screenStreamRef.current;
-    const outgoingTracks = [
-      ...(outgoingScreen?.getVideoTracks() || localStreamRef.current?.getVideoTracks() || []),
-      ...(outgoingScreen?.getAudioTracks().length ? outgoingScreen.getAudioTracks() : (localStreamRef.current?.getAudioTracks() || []))
-    ];
-    const hasAudioTrack = outgoingTracks.some(track => track.kind === 'audio');
-    const hasVideoTrack = outgoingTracks.some(track => track.kind === 'video');
+    const videoTrack = outgoingScreen?.getVideoTracks()[0] || localStreamRef.current?.getVideoTracks()[0] || null;
+    const audioTrack = (outgoingScreen?.getAudioTracks()[0] && shareSystemAudio)
+      ? outgoingScreen.getAudioTracks()[0]
+      : (localStreamRef.current?.getAudioTracks()[0] || null);
+    const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
+    const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
 
-    if (outgoingTracks.length) {
-      const streamForTrack = outgoingScreen || localStreamRef.current;
-      outgoingTracks.forEach(track => pc.addTrack(track, streamForTrack || new MediaStream([track])));
-    }
-
-    if (!hasAudioTrack) {
-      pc.addTransceiver('audio', { direction: 'recvonly' });
-    }
-    if (!hasVideoTrack) {
-      pc.addTransceiver('video', { direction: 'recvonly' });
-    }
+    videoTransceiver.sender.replaceTrack(videoTrack);
+    audioTransceiver.sender.replaceTrack(audioTrack);
 
     pc.onicecandidate = (e) => {
       if (e.candidate && ws) {
-        ws.send(JSON.stringify({
-          type: 'meeting-signal',
-          meetingId: roomId,
-          targetConnectionId: targetId,
-          signal: { type: 'candidate', candidate: e.candidate }
-        }));
+        sendMeetingSignal(targetId, { type: 'candidate', candidate: e.candidate });
       }
     };
 
     pc.ontrack = (e) => {
+      const stream = e.streams[0] || new MediaStream([e.track]);
       setParticipants(prev => prev.map(p => 
-        p.connectionId === targetId ? { ...p, stream: e.streams[0] } : p
+        p.connectionId === targetId ? { ...p, stream } : p
       ));
     };
 
     if (isOffer) {
-      pc.createOffer().then(offer => {
-        pc.setLocalDescription(offer);
-        ws?.send(JSON.stringify({
-          type: 'meeting-signal',
-          meetingId: roomId,
-          targetConnectionId: targetId,
-          signal: offer
-        }));
-      });
+      renegotiatePeer(targetId, pc).catch((err) => console.warn('[Meeting] Offer failed:', err));
     }
   };
 
@@ -398,12 +388,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       await pc.setRemoteDescription(new RTCSessionDescription(signal));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      ws?.send(JSON.stringify({
-        type: 'meeting-signal',
-        meetingId: roomId,
-        targetConnectionId: senderId,
-        signal: answer
-      }));
+      sendMeetingSignal(senderId, answer);
     } else if (signal.type === 'answer') {
       await pc.setRemoteDescription(new RTCSessionDescription(signal));
     } else if (signal.type === 'candidate') {
@@ -435,7 +420,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
         track.stop();
         current.removeTrack(track);
       });
-      await replacePeerTrack('video', null);
+      await replacePeerTrack('video', null, true);
       setLocalStream(current && current.getTracks().length ? current : null);
       setIsCameraOff(true);
       if (localVideoRef.current) localVideoRef.current.srcObject = current || null;
@@ -454,7 +439,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       if (videoTrack) current.addTrack(videoTrack);
       localStreamRef.current = current;
       setLocalStream(current);
-      await replacePeerTrack('video', videoTrack || null);
+      await replacePeerTrack('video', videoTrack || null, true);
       if (localVideoRef.current) localVideoRef.current.srcObject = current;
       setIsCameraOff(false);
       setMediaReady(true);
@@ -472,8 +457,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     screenStreamRef.current = null;
     const cameraVideo = localStreamRef.current?.getVideoTracks()[0] || null;
     const micAudio = localStreamRef.current?.getAudioTracks()[0] || null;
-    await replacePeerTrack('video', cameraVideo);
-    await replacePeerTrack('audio', micAudio);
+    await replacePeerTrack('video', cameraVideo, true);
+    await replacePeerTrack('audio', micAudio, true);
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
@@ -490,9 +475,9 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       const screenVideo = displayStream.getVideoTracks()[0];
       const systemAudio = displayStream.getAudioTracks()[0] || null;
       screenStreamRef.current = displayStream;
-      await replacePeerTrack('video', screenVideo || null);
+      await replacePeerTrack('video', screenVideo || null, true);
       if (shareSystemAudio && systemAudio) {
-        await replacePeerTrack('audio', systemAudio);
+        await replacePeerTrack('audio', systemAudio, true);
       }
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = displayStream;
@@ -642,6 +627,38 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     onLeave();
   };
 
+  const sharingTileIds = [
+    ...(isScreenSharing ? ['local'] : []),
+    ...participants.filter((participant) => participant.mediaState?.isScreenSharing).map((participant) => participant.connectionId)
+  ];
+  const primaryTileId = sharingTileIds.length
+    ? (focusedParticipantId && sharingTileIds.includes(focusedParticipantId) ? focusedParticipantId : sharingTileIds[0])
+    : (activeLayout === 'focus' && focusedParticipantId ? focusedParticipantId : null);
+  const hasSpotlightLayout = Boolean(primaryTileId);
+  const tileClassFor = (tileId: string) => {
+    if (!hasSpotlightLayout) return '';
+    return tileId === primaryTileId
+      ? 'col-start-1 row-start-1 row-span-4 min-h-0'
+      : 'col-start-2 min-h-0';
+  };
+  const hideTile = (tileId: string) => activeLayout === 'focus'
+    && !sharingTileIds.length
+    && Boolean(focusedParticipantId)
+    && focusedParticipantId !== tileId;
+
+  const toggleFullscreen = async () => {
+    const target = document.documentElement;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await target.requestFullscreen();
+      }
+    } catch (err) {
+      console.warn('[Meeting] Fullscreen failed:', err);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-[#0A0A0A] flex flex-col font-lato text-white animate-in fade-in duration-500">
       
@@ -691,6 +708,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       {/* Main Video Grid */}
       <div className="flex-1 p-6 overflow-hidden relative">
         <div className={`grid h-full gap-4 ${
+          hasSpotlightLayout ? 'grid-cols-[minmax(0,1fr)_minmax(220px,26vw)] grid-rows-4' :
           activeLayout === 'focus' ? 'grid-cols-1' :
           participants.length === 0 ? 'grid-cols-1' :
           participants.length === 1 ? 'grid-cols-2' :
@@ -702,14 +720,14 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           <motion.div 
             layout
             onClick={() => { setActiveLayout('focus'); setFocusedParticipantId('local'); }}
-            className={`relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group ${activeLayout === 'focus' && focusedParticipantId && focusedParticipantId !== 'local' ? 'hidden' : ''}`}
+            className={`relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group ${tileClassFor('local')} ${hideTile('local') ? 'hidden' : ''}`}
           >
             <video 
               ref={localVideoRef} 
               autoPlay 
               muted 
               playsInline 
-            className={`w-full h-full object-cover ${(!isScreenSharing && (isCameraOff || !localStream)) ? 'hidden' : ''}`}
+            className={`w-full h-full ${isScreenSharing ? 'object-contain bg-black' : 'object-cover'} ${(!isScreenSharing && (isCameraOff || !localStream)) ? 'hidden' : ''}`}
           />
             {(!isScreenSharing && (isCameraOff || !localStream)) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#151515]">
@@ -733,6 +751,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
             <div className="absolute bottom-4 left-4 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full text-[12px] font-bold border border-white/10 flex items-center gap-2">
               <span className="text-white">You (Organizer)</span>
               {isMuted && <MicOff size={12} className="text-red-500" />}
+              {isScreenSharing && <ScreenShare size={12} className="text-blue-300" />}
             </div>
           </motion.div>
 
@@ -742,7 +761,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
               <RemoteVideo
                 key={p.connectionId}
                 participant={p}
-                hidden={activeLayout === 'focus' && focusedParticipantId !== p.connectionId}
+                hidden={hideTile(p.connectionId)}
+                className={tileClassFor(p.connectionId)}
                 onFocus={() => { setActiveLayout('focus'); setFocusedParticipantId(p.connectionId); }}
                 onRequestControl={() => requestParticipantControl(p)}
               />
@@ -808,7 +828,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           <button onClick={() => setShowInvitePanel(true)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Participants and invites">
             <Users size={20} />
           </button>
-          <button onClick={() => document.documentElement.requestFullscreen?.()} className="p-2 text-gray-400 hover:text-white transition-colors" title="Fullscreen">
+          <button onClick={toggleFullscreen} className="p-2 text-gray-400 hover:text-white transition-colors" title="Fullscreen">
             <Maximize size={20} />
           </button>
           <button onClick={() => setShowInvitePanel(true)} className="p-2 text-gray-400 hover:text-white transition-colors" title="More meeting options">
@@ -1069,10 +1089,12 @@ const ParticipantRow: React.FC<{ name: string; mediaState?: Participant['mediaSt
 const RemoteVideo: React.FC<{
   participant: Participant;
   hidden?: boolean;
+  className?: string;
   onFocus?: () => void;
   onRequestControl?: () => void;
-}> = ({ participant, hidden, onFocus, onRequestControl }) => {
+}> = ({ participant, hidden, className = '', onFocus, onRequestControl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const shouldShowPlaceholder = !participant.stream || (!participant.mediaState?.isScreenSharing && participant.mediaState?.isCameraOff);
 
   useEffect(() => {
     if (videoRef.current && participant.stream) {
@@ -1087,15 +1109,15 @@ const RemoteVideo: React.FC<{
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
-      className={`relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group ${hidden ? 'hidden' : ''}`}
+      className={`relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group ${className} ${hidden ? 'hidden' : ''}`}
     >
       <video 
         ref={videoRef} 
         autoPlay 
         playsInline 
-        className="w-full h-full object-cover"
+        className={`w-full h-full ${participant.mediaState?.isScreenSharing ? 'object-contain bg-black' : 'object-cover'}`}
       />
-      {(!participant.stream || participant.mediaState?.isCameraOff) && (
+      {shouldShowPlaceholder && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#151515]">
           <div className="flex flex-col items-center">
             <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 mb-3 border border-white/5">

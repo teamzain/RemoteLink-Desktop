@@ -689,9 +689,9 @@ function startStreaming() {
 
   const ffmpegPath = getFFmpegPath();
   const qualityPresets: Record<string, { bitrate: string; maxWidth: string }> = {
-    smooth: { bitrate: '3000k', maxWidth: '1366' },
-    balanced: { bitrate: '6500k', maxWidth: '1920' },
-    sharp: { bitrate: '10000k', maxWidth: '2560' },
+    smooth: { bitrate: '4500k', maxWidth: '1600' },
+    balanced: { bitrate: '9000k', maxWidth: '2560' },
+    sharp: { bitrate: '14000k', maxWidth: '3840' },
   };
   const preset = qualityPresets[hostStreamSettings.quality] || qualityPresets.balanced;
   const fps = process.env.REMOTE365_STREAM_FPS || hostStreamSettings.fps || '60';
@@ -1098,12 +1098,16 @@ function handleControlMessage(msg: any) {
 
     switch (event.type) {
       case 'mousemove':
-        input.injectMouseMove(event.x, event.y);
+        {
+          const point = mapRemotePointToVirtualDesktop(event.x, event.y);
+          input.injectMouseMove(point.x, point.y);
+        }
         break;
       case 'mousedown': case 'mouseup':
         // Sync movement before click to ensure accuracy
         if (event.x !== undefined && event.y !== undefined) {
-          input.injectMouseMove(event.x, event.y);
+          const point = mapRemotePointToVirtualDesktop(event.x, event.y);
+          input.injectMouseMove(point.x, point.y);
         }
         const btns: any = { 0: 'left', 1: 'middle', 2: 'right' };
         input.injectMouseAction(btns[event.button] || 'left', event.type === 'mousedown' ? 'down' : 'up');
@@ -1383,6 +1387,22 @@ if (!gotSingleInstanceLock) {
       mainWindow.focus();
     }
   });
+}
+
+function mapRemotePointToVirtualDesktop(x: number, y: number) {
+  const displays = screen.getAllDisplays();
+  const selectedDisplay = displays.find((d: any) => d.id === selectedDisplayId) || screen.getPrimaryDisplay();
+  const virtualLeft = Math.min(...displays.map((display: any) => display.bounds.x));
+  const virtualTop = Math.min(...displays.map((display: any) => display.bounds.y));
+  const virtualRight = Math.max(...displays.map((display: any) => display.bounds.x + display.bounds.width));
+  const virtualBottom = Math.max(...displays.map((display: any) => display.bounds.y + display.bounds.height));
+  const absoluteX = selectedDisplay.bounds.x + Math.max(0, Math.min(1, x)) * selectedDisplay.bounds.width;
+  const absoluteY = selectedDisplay.bounds.y + Math.max(0, Math.min(1, y)) * selectedDisplay.bounds.height;
+
+  return {
+    x: (absoluteX - virtualLeft) / Math.max(1, virtualRight - virtualLeft),
+    y: (absoluteY - virtualTop) / Math.max(1, virtualBottom - virtualTop)
+  };
 }
 
 // --- Electron Initialization ---

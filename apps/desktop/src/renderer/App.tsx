@@ -102,6 +102,24 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const [isAutoPlayBlocked, setIsAutoPlayBlocked] = useState(false);
     const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
 
+    useEffect(() => {
+        const updateFullscreenState = () => setIsFullScreen(Boolean(document.fullscreenElement));
+        document.addEventListener('fullscreenchange', updateFullscreenState);
+        return () => document.removeEventListener('fullscreenchange', updateFullscreenState);
+    }, []);
+
+    const toggleViewerFullscreen = async () => {
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+            } else {
+                await (containerRef.current || viewerContainerRef.current || document.documentElement).requestFullscreen();
+            }
+        } catch (err) {
+            console.warn('[Viewer] Fullscreen failed:', err);
+        }
+    };
+
 
     // --- Black Screen Watchdog ---
     // If we have a stream but videoWidth is 0, request a recovery keyframe every 2s
@@ -749,7 +767,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 )}
 
                 {/* Remote Cursor Overlay */}
-                {remoteCursor && remoteCursor.visible && (
+                {!remoteStream && remoteCursor && remoteCursor.visible && (
                     <div
                         className="absolute pointer-events-none z-50 will-change-transform"
                         style={{
@@ -960,7 +978,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-amber-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
                         <Search size={13} />
                     </button>
-                    <button onClick={() => { if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setIsFullScreen(true); } else { document.exitFullscreen(); setIsFullScreen(false); } }} title="Fullscreen" className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
+                    <button onClick={toggleViewerFullscreen} title={isFullScreen ? 'Exit fullscreen' : 'Fullscreen'} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
                         <Maximize size={13} />
                     </button>
                 </div>
