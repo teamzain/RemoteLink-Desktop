@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T10:54:40.574Z",
+  "generatedAt": "2026-05-05T11:02:37.432Z",
   "releases": [
+    {
+      "version": "1.1.10",
+      "tag": "v1.1.10",
+      "publishedAt": "2026-05-05T11:02:37.320Z",
+      "notes": "Bump desktop updater to 1.1.10",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.10.exe",
+          "size": 135248660,
+          "sha256": "485eaee427662558a7c00f58838f48c5cbfa7ae3fbccb4f5dca4bbfff007c463",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.10/Connect-X.Setup.1.1.10.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.10.exe.blockmap",
+          "size": 120514,
+          "sha256": "a84a5404839c88b6843acd3c612d93d5641ef91e37f5414097a69016713f9787",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.10/Connect-X.Setup.1.1.10.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "42452634018f78be0495d17bb3d186a603d2a53c78f4ac3210125c6a7547d5bb",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.10/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.9",
       "tag": "v1.1.9",
