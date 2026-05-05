@@ -393,9 +393,28 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
 
     pc.ontrack = (e) => {
       const stream = e.streams[0] || new MediaStream([e.track]);
-      setParticipants(prev => prev.map(p => 
-        p.connectionId === targetId ? { ...p, stream } : p
-      ));
+      if (!stream.getTracks().includes(e.track)) {
+        stream.addTrack(e.track);
+      }
+      setParticipants(prev => {
+        const existing = prev.find((p) => p.connectionId === targetId);
+        if (!existing) {
+          return [...prev, {
+            connectionId: targetId,
+            stream,
+            user: { id: targetId, name: 'Participant' },
+            mediaState: { isMuted: false, isCameraOff: false, isScreenSharing: false }
+          }];
+        }
+        return prev.map(p => {
+          if (p.connectionId !== targetId) return p;
+          const nextStream = p.stream || stream;
+          if (!nextStream.getTracks().includes(e.track)) {
+            nextStream.addTrack(e.track);
+          }
+          return { ...p, stream: nextStream };
+        });
+      });
     };
 
     if (isOffer) {
@@ -1121,14 +1140,38 @@ const RemoteVideo: React.FC<{
   onRequestControl?: () => void;
 }> = ({ participant, hidden, className = '', onFocus, onRequestControl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hasIncomingVideo = Boolean(participant.stream?.getVideoTracks().some((track) => track.readyState === 'live'));
+  const [videoReady, setVideoReady] = useState(false);
+  const hasIncomingVideo = videoReady || Boolean(participant.stream?.getVideoTracks().some((track) => track.readyState === 'live'));
   const shouldShowPlaceholder = !hasIncomingVideo;
 
   useEffect(() => {
-    if (videoRef.current && participant.stream) {
-      videoRef.current.srcObject = participant.stream;
-      videoRef.current.play().catch(() => {});
+    const video = videoRef.current;
+    if (!video || !participant.stream) {
+      setVideoReady(false);
+      return;
     }
+
+    const updateReady = () => {
+      setVideoReady(Boolean(video.videoWidth && video.videoHeight) || participant.stream!.getVideoTracks().some((track) => track.readyState === 'live'));
+    };
+    video.srcObject = participant.stream;
+    video.addEventListener('loadedmetadata', updateReady);
+    video.addEventListener('resize', updateReady);
+    participant.stream.getVideoTracks().forEach((track) => {
+      track.addEventListener('unmute', updateReady);
+      track.addEventListener('ended', updateReady);
+    });
+    updateReady();
+    video.play().catch(() => {});
+
+    return () => {
+      video.removeEventListener('loadedmetadata', updateReady);
+      video.removeEventListener('resize', updateReady);
+      participant.stream?.getVideoTracks().forEach((track) => {
+        track.removeEventListener('unmute', updateReady);
+        track.removeEventListener('ended', updateReady);
+      });
+    };
   }, [participant.stream]);
 
   return (

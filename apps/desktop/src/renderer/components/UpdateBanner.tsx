@@ -7,6 +7,7 @@ const UpdateBanner: React.FC = () => {
   const [status, setStatus] = useState<'available' | 'downloading' | 'downloaded' | 'error' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [visible, setVisible] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
     if (!(window as any).electronAPI?.updates) return;
@@ -72,6 +73,7 @@ const UpdateBanner: React.FC = () => {
   };
 
   const handleInstall = () => {
+    setIsInstalling(true);
     // @ts-ignore
     window.electronAPI.updates.quitAndInstall();
   };
@@ -90,7 +92,7 @@ const UpdateBanner: React.FC = () => {
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#D4A017]/10 flex items-center justify-center">
           {status === 'available' && <Download className="w-5 h-5 text-amber-400" />}
           {status === 'downloading' && <RefreshCw className="w-5 h-5 text-amber-400 animate-spin" />}
-          {status === 'downloaded' && <CheckCircle className="w-5 h-5 text-emerald-400" />}
+          {status === 'downloaded' && (isInstalling ? <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin" /> : <CheckCircle className="w-5 h-5 text-emerald-400" />)}
           {status === 'error' && <AlertCircle className="w-5 h-5 text-rose-400" />}
         </div>
 
@@ -98,13 +100,13 @@ const UpdateBanner: React.FC = () => {
           <h4 className="text-sm font-semibold text-white">
             {status === 'available' && `Update Available: v${updateInfo?.version}`}
             {status === 'downloading' && `Downloading update... ${Math.round(progress)}%`}
-            {status === 'downloaded' && 'Update Ready to Install'}
+            {status === 'downloaded' && (isInstalling ? 'Restarting to Install...' : 'Update Ready to Install')}
             {status === 'error' && 'Update Error'}
           </h4>
           <p className="text-xs text-white/50">
             {status === 'available' && 'A new version of Remote 365 is ready for download.'}
             {status === 'downloading' && 'Please wait while we prepare the new version.'}
-            {status === 'downloaded' && 'Restart Remote 365 to apply the latest improvements.'}
+            {status === 'downloaded' && (isInstalling ? 'Please wait while Remote 365 closes and applies the update.' : 'Restart Remote 365 to apply the latest improvements.')}
             {status === 'error' && error}
           </p>
         </div>
@@ -121,9 +123,11 @@ const UpdateBanner: React.FC = () => {
           {status === 'downloaded' && (
             <button
               onClick={handleInstall}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg transition-colors"
+              disabled={isInstalling}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-700/70 disabled:cursor-wait text-white text-xs font-medium rounded-lg transition-colors inline-flex items-center gap-2"
             >
-              Restart to Update
+              {isInstalling && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              {isInstalling ? 'Restarting...' : 'Restart to Update'}
             </button>
           )}
           <button 
