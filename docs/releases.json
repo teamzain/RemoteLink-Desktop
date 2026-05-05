@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T17:36:59.841Z",
+  "generatedAt": "2026-05-05T19:37:50.279Z",
   "releases": [
+    {
+      "version": "1.1.18",
+      "tag": "v1.1.18",
+      "publishedAt": "2026-05-05T19:37:50.280Z",
+      "notes": "Improved meeting screen sharing layout, fullscreen, and remote input accuracy",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.18.exe",
+          "size": 135250388,
+          "sha256": "e1cd9aa223c590498a556b7f539b9ec4a7f9baf818fd89965926c445a9863dcd",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.18/Connect-X.Setup.1.1.18.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.18.exe.blockmap",
+          "size": 120280,
+          "sha256": "49956f5185d3d8132cea69b601c6a426c13bff6ed2ff7857304e7679dc21a632",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.18/Connect-X.Setup.1.1.18.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "d220abca4770c5619ec9988c89c22aade99353e6cf6c28eba5bbfb533646a393",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.18/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.17",
       "tag": "v1.1.17",
