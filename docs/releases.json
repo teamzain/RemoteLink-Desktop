@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T20:05:36.974Z",
+  "generatedAt": "2026-05-05T20:35:55.358Z",
   "releases": [
+    {
+      "version": "1.1.21",
+      "tag": "v1.1.21",
+      "publishedAt": "2026-05-05T20:26:41.745Z",
+      "notes": "Show update restart progress and fix meeting video stream attachment",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.21.exe",
+          "size": 135250059,
+          "sha256": "ed8501ccaef062e4f7ee8736ff139da43d32aa1d02f4886fecf332e5c383141b",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.21/Connect-X.Setup.1.1.21.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.21.exe.blockmap",
+          "size": 120332,
+          "sha256": "3cbf6b8236ad48f655dae4b818ede956c9f25225aa24b33377f67e3714092521",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.21/Connect-X.Setup.1.1.21.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "f1193ddfaeb2ffb2b57fb585d6a8b80e2b4e8dee724d4e3d46d89e6b3c5e2b11",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.21/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.20",
       "tag": "v1.1.20",
