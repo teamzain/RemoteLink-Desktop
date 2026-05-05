@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T11:02:37.432Z",
+  "generatedAt": "2026-05-05T12:41:21.982Z",
   "releases": [
+    {
+      "version": "1.1.11",
+      "tag": "v1.1.11",
+      "publishedAt": "2026-05-05T12:41:21.873Z",
+      "notes": "Fix meeting room joining and camera state sync",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.11.exe",
+          "size": 135249021,
+          "sha256": "89875bfd1e19f97f807b4380d80e15f68cc093a869c3d8bb1ddd25e8c8d312c6",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.11/Connect-X.Setup.1.1.11.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.11.exe.blockmap",
+          "size": 120335,
+          "sha256": "b9a5e2c94f8c0a0ac5b230053ecf0724249905fa55d6d67d590279f3dcd78483",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.11/Connect-X.Setup.1.1.11.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "f296253969e0a31a2df03137fd0dfd28caa1578d72d9cc1f8c59e2f015dc4273",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.11/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.10",
       "tag": "v1.1.10",

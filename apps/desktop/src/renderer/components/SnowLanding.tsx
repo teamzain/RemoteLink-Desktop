@@ -71,7 +71,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   const [autoMinimize, setAutoMinimize] = useState(() => localStorage.getItem('remote365_auto_minimize_host') !== 'false');
   const [deviceName, setDeviceName] = useState(() => localStorage.getItem('remote365_device_name') || '');
   const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('remote365_video_quality') || 'balanced');
-  const [streamFps, setStreamFps] = useState(() => localStorage.getItem('remote365_stream_fps') || '30');
+  const [streamFps, setStreamFps] = useState(() => localStorage.getItem('remote365_stream_fps') || '60');
   const [requirePassword, setRequirePassword] = useState(() => localStorage.getItem('remote365_require_password') !== 'false');
   const [showConnectionAlerts, setShowConnectionAlerts] = useState(() => localStorage.getItem('remote365_connection_alerts') !== 'false');
 

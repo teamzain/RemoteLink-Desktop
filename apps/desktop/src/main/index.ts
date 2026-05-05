@@ -87,7 +87,7 @@ let controlGranted = false;
 let pendingControlViewerId: string | null = null;
 let hostStreamSettings = {
   quality: 'balanced',
-  fps: '30',
+  fps: '60',
   deviceName: '',
 };
 
@@ -144,9 +144,22 @@ const isMissingUpdateManifest = (err: any) => {
   return message.includes('latest.yml') && (message.includes('404') || message.includes('Not Found'));
 };
 
-ipcMain.handle('update:check', async () => {
+let updateCheckInFlight = false;
+let updateCheckInterval: NodeJS.Timeout | null = null;
+
+async function checkForDesktopUpdates() {
+  if (updateCheckInFlight) return null;
+  updateCheckInFlight = true;
   try {
     return await autoUpdater.checkForUpdates();
+  } finally {
+    updateCheckInFlight = false;
+  }
+}
+
+ipcMain.handle('update:check', async () => {
+  try {
+    return await checkForDesktopUpdates();
   } catch (err) {
     if (isMissingUpdateManifest(err)) {
       log.warn('[Updater] No latest.yml manifest is published yet. Skipping update banner.');
@@ -214,7 +227,7 @@ ipcMain.handle('host:start', async (_: any, accessKey: any, settings: any = {}) 
   const serverIP = process.env.CONNECT_X_SERVER_IP || '159.65.84.190';
   hostStreamSettings = {
     quality: ['smooth', 'balanced', 'sharp'].includes(settings?.quality) ? settings.quality : 'balanced',
-    fps: ['15', '30', '60'].includes(String(settings?.fps)) ? String(settings.fps) : '30',
+    fps: ['15', '30', '60'].includes(String(settings?.fps)) ? String(settings.fps) : '60',
     deviceName: String(settings?.deviceName || '').trim(),
   };
 
@@ -454,7 +467,9 @@ function stopStreaming() {
 /** Build encoder-specific FFmpeg args for low-latency, high-quality streaming.
  *  ALL encoders must emit AUD NAL units so the frame splitter works correctly. */
 function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[] {
-  const gop = '10'; // keyframe every 10 frames â‰ˆ 167ms at 60fps
+  const bitrateKbps = parseInt(bitrate, 10) || 6500;
+  const bufferSize = `${Math.max(1500, Math.round(bitrateKbps * 0.75))}k`;
+  const gop = String(Math.max(10, Math.round((parseInt(fps, 10) || 60) / 2)));
   switch (encoder) {
     case 'h264_nvenc':
       return [
@@ -464,7 +479,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
-        '-bufsize', '1000k',       // Small buffer for instant delivery
+        '-bufsize', bufferSize,
         '-g', gop,
         '-bf', '0',
         '-rc-lookahead', '0',
@@ -480,7 +495,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
-        '-bufsize', '1000k',
+        '-bufsize', bufferSize,
         '-g', gop,
         '-bf', '0',
         '-bsf:v', 'dump_extra,h264_metadata=aud=insert',
@@ -493,7 +508,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
-        '-bufsize', '1000k',
+        '-bufsize', bufferSize,
         '-g', gop,
         '-bf', '0',
         '-bsf:v', 'dump_extra,h264_metadata=aud=insert',
@@ -507,7 +522,7 @@ function getEncoderArgs(encoder: string, bitrate: string, fps: string): string[]
         '-profile:v', 'baseline',
         '-b:v', bitrate,
         '-maxrate', bitrate,
-        '-bufsize', '1000k',
+        '-bufsize', bufferSize,
         '-g', gop,
         '-x264-params', `keyint=${gop}:bframes=0:aud=1`,
         '-bsf:v', 'dump_extra',
@@ -605,7 +620,6 @@ function drainNALBuffer() {
       const isSlice = (nalType === 1 || nalType === 5); // VCL slices
 
       if (isNewFrame && accessUnitBuffer.length > 0 && hasVcl) {
-        log.info(`[Host] Assembled frame: ${accessUnitBuffer.length} bytes. Sending...`);
         sendFrame(accessUnitBuffer);
         accessUnitBuffer = Buffer.alloc(0);
         hasVcl = false;
@@ -631,15 +645,15 @@ function startStreaming() {
 
   const ffmpegPath = getFFmpegPath();
   const qualityPresets: Record<string, { bitrate: string; maxWidth: string }> = {
-    smooth: { bitrate: '1800k', maxWidth: '1280' },
-    balanced: { bitrate: '3500k', maxWidth: '1600' },
-    sharp: { bitrate: '6000k', maxWidth: '1920' },
+    smooth: { bitrate: '3000k', maxWidth: '1366' },
+    balanced: { bitrate: '6500k', maxWidth: '1920' },
+    sharp: { bitrate: '10000k', maxWidth: '2560' },
   };
   const preset = qualityPresets[hostStreamSettings.quality] || qualityPresets.balanced;
-  const fps = process.env.REMOTE365_STREAM_FPS || hostStreamSettings.fps || '30';
+  const fps = process.env.REMOTE365_STREAM_FPS || hostStreamSettings.fps || '60';
   const bitrate = process.env.REMOTE365_STREAM_BITRATE || preset.bitrate;
   const maxWidth = process.env.REMOTE365_STREAM_MAX_WIDTH || preset.maxWidth;
-  const frameInterval = Math.floor(1000 / parseInt(fps));
+  const frameInterval = Math.max(8, Math.round(1000 / (parseInt(fps, 10) || 60)));
 
   initPollInterval = setInterval(() => {
     let physWidth = Math.round(width * selectedDisplay.scaleFactor);
@@ -756,7 +770,7 @@ function startStreaming() {
 function sendFrame(frame: Buffer) {
   if (isPreBuffering) {
     ffmpegPreChunks.push(frame);
-    if (ffmpegPreChunks.length > 60) ffmpegPreChunks.shift();
+    if (ffmpegPreChunks.length > 120) ffmpegPreChunks.shift();
     return;
   }
 
@@ -1479,13 +1493,20 @@ app.whenReady().then(() => {
   // Check for updates on startup. The renderer also checks when the banner mounts,
   // which covers the case where this event fires before React listeners are ready.
   if (app.isPackaged) {
-    autoUpdater.checkForUpdates().catch((e: any) => {
+    checkForDesktopUpdates().catch((e: any) => {
       if (isMissingUpdateManifest(e)) {
         log.warn('[Updater] No update manifest found during startup check.');
         return;
       }
       log.error('[Updater] Failed initial check:', e);
     });
+    if (updateCheckInterval) clearInterval(updateCheckInterval);
+    updateCheckInterval = setInterval(() => {
+      checkForDesktopUpdates().catch((e: any) => {
+        if (isMissingUpdateManifest(e)) return;
+        log.warn('[Updater] Background update check failed:', e?.message || e);
+      });
+    }, 60_000);
   }
 });
 
@@ -1607,6 +1628,10 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
+  }
 });
 
 // Ensure we don't quit when main window is closed

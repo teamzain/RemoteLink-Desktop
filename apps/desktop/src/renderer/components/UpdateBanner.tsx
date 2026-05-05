@@ -36,15 +36,22 @@ const UpdateBanner: React.FC = () => {
       setVisible(true);
     });
 
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const runCheck = () => {
+      // @ts-ignore
+      return window.electronAPI.updates.check().catch((err: any) => {
+        setError(err?.message || 'Unable to check for updates.');
+        setStatus('error');
+        setVisible(true);
+      });
+    };
+
     // @ts-ignore
     window.electronAPI.isPackaged?.().then((isPackaged: boolean) => {
       if (isPackaged) {
-        // @ts-ignore
-        window.electronAPI.updates.check().catch((err: any) => {
-          setError(err?.message || 'Unable to check for updates.');
-          setStatus('error');
-          setVisible(true);
-        });
+        runCheck();
+        pollTimer = setInterval(runCheck, 60_000);
       }
     });
 
@@ -53,6 +60,7 @@ const UpdateBanner: React.FC = () => {
       unProgress();
       unDownloaded();
       unError();
+      if (pollTimer) clearInterval(pollTimer);
     };
   }, []);
 

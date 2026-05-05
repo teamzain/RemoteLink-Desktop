@@ -2664,7 +2664,7 @@ export default function App() {
             const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey, {
                 deviceName: localStorage.getItem('remote365_device_name') || '',
                 quality: localStorage.getItem('remote365_video_quality') || 'balanced',
-                fps: localStorage.getItem('remote365_stream_fps') || '30',
+                fps: localStorage.getItem('remote365_stream_fps') || '60',
             });
             console.log(`[Host] Identity Registered with signaling: ${sessionId}`);
 
