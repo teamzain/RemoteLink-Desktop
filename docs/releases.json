@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T17:25:29.225Z",
+  "generatedAt": "2026-05-05T17:36:59.841Z",
   "releases": [
+    {
+      "version": "1.1.17",
+      "tag": "v1.1.17",
+      "publishedAt": "2026-05-05T17:36:59.729Z",
+      "notes": "Fix meeting screen sharing, visible remote control button, and camera hardware off toggle",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.17.exe",
+          "size": 135251097,
+          "sha256": "61884b37959ae2c70d163e4983a61829e2cf2aef59265c77b5457c1108c11e2d",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.17/Connect-X.Setup.1.1.17.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.17.exe.blockmap",
+          "size": 120462,
+          "sha256": "b20cab9910ede9f05a8f7422cd2e62aaf31ae3fe805c1c92bef0c30256127090",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.17/Connect-X.Setup.1.1.17.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "26fcd9a403a2e8bc5bf32e2646d7023f726bcd060e5a4141bfc2877aef1e89ea",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.17/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.16",
       "tag": "v1.1.16",
