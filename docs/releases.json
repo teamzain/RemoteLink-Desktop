@@ -1,28 +1,28 @@
 {
-  "generatedAt": "2026-05-04T20:30:10.326Z",
+  "generatedAt": "2026-05-05T10:54:40.574Z",
   "releases": [
     {
       "version": "1.1.9",
       "tag": "v1.1.9",
-      "publishedAt": "2026-05-04T20:30:10.209Z",
-      "notes": "Added Real-Time Chat feature",
+      "publishedAt": "2026-05-05T10:54:40.442Z",
+      "notes": "Fix ad-hoc meeting room joining",
       "assets": [
         {
           "name": "Connect-X Setup 1.1.9.exe",
-          "size": 135248447,
-          "sha256": "703ea146e635c9855ee86a9e215166a6ec7c97cee8f2878787287ebbaf57f50f",
+          "size": 135248478,
+          "sha256": "874942b8ada17ac9678565f30f415413b2b225594d9ca85de11985b591266ec1",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.9/Connect-X.Setup.1.1.9.exe"
         },
         {
           "name": "Connect-X Setup 1.1.9.exe.blockmap",
-          "size": 120253,
-          "sha256": "842d04c4d018a57453f6734a0809a34f6bd5f99dc3ba58f8e604efc8e6ca28b2",
+          "size": 120245,
+          "sha256": "6e2a40e3a94aafd929d552a4395895a864e77a823ce624f736763585eeb8d4f1",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.9/Connect-X.Setup.1.1.9.exe.blockmap"
         },
         {
           "name": "latest.yml",
           "size": 347,
-          "sha256": "c12cbc6a89fe3ddc6f48b3e490363bfd741d44205f1a49372207ab2d2934df39",
+          "sha256": "11a41629fe464c17c7972aeb8afd0f995d8d4bcd1c5ce3620e1ee0cb7edf6d88",
           "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.9/latest.yml"
         }
       ]
