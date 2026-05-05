@@ -72,6 +72,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   const [easyAccess, setEasyAccess] = useState(() => localStorage.getItem('is_auto_host_enabled') !== 'false');
   const [syncClipboard, setSyncClipboard] = useState(() => localStorage.getItem('remote365_sync_clipboard') !== 'false');
   const [autoMinimize, setAutoMinimize] = useState(() => localStorage.getItem('remote365_auto_minimize_host') !== 'false');
+  const [shareMeetingAudio, setShareMeetingAudio] = useState(() => localStorage.getItem('remote365_meeting_share_system_audio') === 'true');
   const [deviceName, setDeviceName] = useState(() => localStorage.getItem('remote365_device_name') || '');
   const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('remote365_video_quality') || 'balanced');
   const [streamFps, setStreamFps] = useState(() => localStorage.getItem('remote365_stream_fps') || '60');
@@ -134,6 +135,11 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   const updateAutoMinimize = (checked: boolean) => {
     setAutoMinimize(checked);
     localStorage.setItem('remote365_auto_minimize_host', String(checked));
+  };
+
+  const updateShareMeetingAudio = (checked: boolean) => {
+    setShareMeetingAudio(checked);
+    localStorage.setItem('remote365_meeting_share_system_audio', String(checked));
   };
 
   const updateDeviceName = (value: string) => {
@@ -251,6 +257,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
                 <h4>Session behavior</h4>
                 <label><input type="checkbox" checked={syncClipboard} onChange={e => updateSyncClipboard(e.target.checked)} /> Sync clipboard during sessions</label>
                 <label><input type="checkbox" checked={autoMinimize} onChange={e => updateAutoMinimize(e.target.checked)} /> Minimize app when a session starts</label>
+                <label><input type="checkbox" checked={shareMeetingAudio} onChange={e => updateShareMeetingAudio(e.target.checked)} /> Share desktop audio during meeting screen share</label>
                 <label><input type="checkbox" checked={showConnectionAlerts} onChange={e => updateConnectionAlerts(e.target.checked)} /> Show connection alerts</label>
               </div>
 

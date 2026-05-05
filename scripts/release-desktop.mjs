@@ -24,7 +24,7 @@ import { spawnSync } from 'node:child_process';
 
 const ROOT         = process.cwd();
 const DESKTOP_DIR  = path.join(ROOT, 'apps', 'desktop');
-const RELEASE_DIR  = path.join(DESKTOP_DIR, 'release13');
+const RELEASE_DIR  = path.join(DESKTOP_DIR, 'release14');
 const DOWNLOADS_DIR = path.join(ROOT, 'docs');
 const MANIFEST_PATH = path.join(DOWNLOADS_DIR, 'releases.json');
 

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDeterministicKey: () => ipcRenderer.invoke('system:getDeterministicKey'),
   getMachineName: () => ipcRenderer.invoke('system:getMachineName'),
   openViewerWindow: (sessionId: string, serverIP: string, token: string, deviceName?: string, deviceType?: string) => ipcRenderer.invoke('viewer:open-window', sessionId, serverIP, token, deviceName, deviceType),
+  openMeetingWindow: (meetingId: string) => ipcRenderer.invoke('meeting:open-window', meetingId),
   onHostStatus: (callback: (status: string) => void) => {
     const listener = (_: any, status: string) => callback(status);
     ipcRenderer.on('host:status', listener);

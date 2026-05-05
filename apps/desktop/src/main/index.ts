@@ -46,6 +46,7 @@ let mainWindow: BrowserWindow | null = null;
 let hostSignalingWs: WebSocket | null = null;
 const viewerWindows = new Map<string, BrowserWindow>();
 const viewerSignalingSockets = new Map<string, WebSocket>();
+const meetingWindows = new Map<string, BrowserWindow>();
 let tray: Tray | null = null;
 let isQuitting = false;
 let shownTrayHint = false;
@@ -337,6 +338,49 @@ ipcMain.handle('viewer:open-window', (_event: any, sessionId: any, serverIP: any
   viewerWindows.set(sessionId, viewerWin);
   return true;
 });
+
+function openMeetingWindow(meetingId: any) {
+  const cleanMeetingId = String(meetingId || '').replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+  if (!cleanMeetingId) return false;
+
+  if (meetingWindows.has(cleanMeetingId)) {
+    const existing = meetingWindows.get(cleanMeetingId);
+    if (existing && !existing.isDestroyed()) {
+      existing.show();
+      existing.focus();
+      return true;
+    }
+  }
+
+  const meetingWin = new BrowserWindow({
+    width: 1280,
+    height: 760,
+    minWidth: 960,
+    minHeight: 640,
+    backgroundColor: '#050505',
+    title: `Remote 365 Meeting ${cleanMeetingId}`,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      sandbox: true
+    }
+  });
+
+  const query = `?view=meeting&meetingId=${encodeURIComponent(cleanMeetingId)}`;
+  if (process.env.VITE_DEV_SERVER_URL) {
+    meetingWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}${query}`);
+  } else {
+    meetingWin.loadFile(join(__dirname, '../../dist/index.html'), {
+      query: { view: 'meeting', meetingId: cleanMeetingId }
+    });
+  }
+
+  meetingWin.on('closed', () => meetingWindows.delete(cleanMeetingId));
+  meetingWindows.set(cleanMeetingId, meetingWin);
+  return true;
+}
+
+ipcMain.handle('meeting:open-window', (_event: any, meetingId: any) => openMeetingWindow(meetingId));
 
 ipcMain.handle('viewer:connect', async (_event: any, sessionId: any, serverIP: any, token: any, viewerClientId: any) => {
   log.info(`[Viewer] Connecting to session: ${sessionId} at ${serverIP}`);
@@ -1276,12 +1320,7 @@ function handleDeepLink(url: string) {
       const code = parsed.searchParams.get('code');
       if (code) {
         log.info('[DeepLink] Received meeting join link:', code);
-        mainWindow?.webContents.send('meeting:join-link', { code });
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.show();
-          mainWindow.focus();
-        }
+        openMeetingWindow(code);
       }
     }
 

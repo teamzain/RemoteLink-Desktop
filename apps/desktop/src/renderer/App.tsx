@@ -1232,7 +1232,9 @@ export default function App() {
     const [accessPassword, setAccessPassword] = useState('');
     const [showManualPassword, setShowManualPassword] = useState(false);
     // Initialize as viewer window early if URL points to it
-    const isViewer = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'viewer';
+    const windowParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const isViewer = windowParams.get('view') === 'viewer';
+    const isMeetingWindow = windowParams.get('view') === 'meeting';
     const [isViewerWindow, setIsViewerWindow] = useState(isViewer);
     const [remoteCursor, setRemoteCursor] = useState<{ x: number, y: number, visible: boolean } | null>(null);
     const [onboardingToken, setOnboardingToken] = useState<string | null>(null);
@@ -1484,6 +1486,16 @@ export default function App() {
         setAuth({} as any, '', '');
         setCurrentView('dashboard');
     };
+
+    const openMeeting = async (meetingId: string) => {
+        const cleanMeetingId = String(meetingId || '').trim();
+        if (!cleanMeetingId) return;
+        if (isElectron && !isMeetingWindow && (window as any).electronAPI?.openMeetingWindow) {
+            await (window as any).electronAPI.openMeetingWindow(cleanMeetingId);
+            return;
+        }
+        setActiveMeetingId(cleanMeetingId);
+    };
     const lastClipboardRef = useRef<string>('');
 
     const writeClipboardText = async (text: string) => {
@@ -1584,7 +1596,7 @@ export default function App() {
                 setCurrentView('connect');
             }
         } else if (notification.target?.view === 'meeting') {
-            setActiveMeetingId(notification.target.meetingId);
+            openMeeting(notification.target.meetingId);
         }
     };
 
@@ -1623,6 +1635,14 @@ export default function App() {
     const viewerConnectedRef = useRef(false);
     const hasAutoStartedHost = useRef(false);
     const manuallyStoppedHost = useRef(false);
+    useEffect(() => {
+        if (!isMeetingWindow) return;
+        const params = new URLSearchParams(window.location.search);
+        const meetingId = params.get('meetingId') || params.get('code') || '';
+        if (meetingId) setActiveMeetingId(meetingId);
+        setLoading(false);
+    }, [isMeetingWindow]);
+
     useEffect(() => {
         if (viewerConnectedRef.current) return; // Guard for React Strict Mode double-fire
         const params = new URLSearchParams(window.location.search);
@@ -2253,7 +2273,7 @@ export default function App() {
         });
 
         const removeMeetingJoin = (window as any).electronAPI.onMeetingJoinLink?.((payload: { code: string }) => {
-            setActiveMeetingId(payload.code);
+            openMeeting(payload.code);
         });
 
         // Listen for 2FA token
@@ -2850,6 +2870,22 @@ export default function App() {
         }
         return clean.match(/.{1,3}/g)?.join(' ') || clean;
     };
+
+    if (isMeetingWindow) {
+        return activeMeetingId ? (
+            <SnowMeeting
+                meetingId={activeMeetingId}
+                onLeave={() => window.close()}
+                hostAccessKey={hostAccessKey}
+                devicePassword={devicePassword}
+                serverIP={serverIP}
+            />
+        ) : (
+            <div className="h-screen bg-[#0A0A0A] text-white flex items-center justify-center text-sm">
+                Opening meeting...
+            </div>
+        );
+    }
 
     // --- V8 ABSOLUTE PRIORITY ROUTING: Bypass EVERYTHING for Viewer Windows ---
     if (isViewerWindow || viewerStatus === 'streaming' || viewerStatus === 'connected' || viewerStatus === 'connection_lost') {
@@ -3558,8 +3594,8 @@ export default function App() {
                                 onFindDevice={handleFindDevice}
                                 onConnectToHost={handleConnectToHost}
                                 onBackToStep1={() => setViewerStep(1)}
-                                onJoinMeeting={(meetingId) => setActiveMeetingId(meetingId)}
-                                onCreateMeeting={(meetingId) => setActiveMeetingId(meetingId)}
+                                onJoinMeeting={openMeeting}
+                                onCreateMeeting={openMeeting}
                                 isElectron={isElectron}
                             />
                         ) : (currentView === 'dashboard' && !selectedDevice) ? (
@@ -3720,7 +3756,7 @@ export default function App() {
                             </div>
                         ) : currentView === 'meetings' ? (
                             <div className="w-full h-full animate-in fade-in duration-700">
-                                <SnowMeetingsHome onJoinMeeting={setActiveMeetingId} user={user} />
+                                <SnowMeetingsHome onJoinMeeting={openMeeting} user={user} />
                             </div>
                         ) : currentView === 'profile' ? (
                             /* --- PROFILE ALIASED TO SETTINGS --- */
@@ -3751,7 +3787,7 @@ export default function App() {
                                 localAuthKey={localAuthKey}
                                 devicePassword={devicePassword}
                                 onJoinSessionInvite={handleJoinSessionInvite}
-                                onJoinMeeting={(meetingId) => setActiveMeetingId(meetingId)}
+                                onJoinMeeting={openMeeting}
                             />
                         ) : currentView === 'devices' ? (
                             /* --- SNOW UI DEVICES VIEW --- */

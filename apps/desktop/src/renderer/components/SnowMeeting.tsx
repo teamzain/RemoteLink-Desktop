@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { 
   Mic, MicOff, Video, VideoOff, PhoneOff, Users, 
   Settings, Maximize, Share, MessageSquare, 
-  MoreHorizontal, Shield, Grid, Layout, X, Copy, Mail, CheckCircle2, RefreshCw, MousePointer2, Send
+  MoreHorizontal, Shield, Grid, Layout, X, Copy, Mail, CheckCircle2, RefreshCw, MousePointer2, Send,
+  ScreenShare, ScreenShareOff, Volume2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
@@ -19,6 +20,7 @@ interface Participant {
   mediaState?: {
     isMuted: boolean;
     isCameraOff: boolean;
+    isScreenSharing?: boolean;
   };
   isLocal?: boolean;
 }
@@ -73,6 +75,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [activeLayout, setActiveLayout] = useState<'grid' | 'focus'>('grid');
+  const [focusedParticipantId, setFocusedParticipantId] = useState<string | null>(null);
   const [meetingError, setMeetingError] = useState<string | null>(null);
   const [mediaReady, setMediaReady] = useState(false);
   const [showInvitePanel, setShowInvitePanel] = useState(false);
@@ -84,11 +87,15 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const [chatText, setChatText] = useState('');
   const [controlRequest, setControlRequest] = useState<ControlRequest | null>(null);
   const [controlStatus, setControlStatus] = useState('');
+  const [showSecurityPanel, setShowSecurityPanel] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [shareSystemAudio, setShareSystemAudio] = useState(() => localStorage.getItem('remote365_meeting_share_system_audio') === 'true');
   
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const hasJoinedRef = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
 
   const roomId = normalizeMeetingCode(meetingId);
   const meetingCode = formatMeetingCode(roomId);
@@ -120,7 +127,17 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       meetingId: roomId,
       mediaState: {
         isMuted: nextMuted,
-        isCameraOff: nextCameraOff
+        isCameraOff: nextCameraOff,
+        isScreenSharing
+      }
+    }));
+  };
+
+  const replacePeerTrack = async (kind: 'audio' | 'video', track: MediaStreamTrack | null) => {
+    await Promise.all([...peersRef.current.values()].map(async (pc) => {
+      const sender = pc.getSenders().find((item) => item.track?.kind === kind);
+      if (sender) {
+        await sender.replaceTrack(track);
       }
     }));
   };
@@ -185,6 +202,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
 
     return () => {
       localStreamRef.current?.getTracks().forEach(t => t.stop());
+      screenStreamRef.current?.getTracks().forEach(t => t.stop());
       peersRef.current.forEach(pc => pc.close());
     };
   }, []);
@@ -205,7 +223,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
         user: { id: user?.id, name: user?.name, avatar: user?.avatar },
         mediaState: {
           isMuted,
-          isCameraOff
+          isCameraOff,
+          isScreenSharing
         }
       }));
     }
@@ -215,7 +234,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       ws.addEventListener('open', joinMeeting, { once: true });
       return () => ws.removeEventListener('open', joinMeeting);
     }
-  }, [ws, mediaReady, roomId, user?.id, user?.name, user?.avatar, isMuted, isCameraOff]);
+  }, [ws, mediaReady, roomId, user?.id, user?.name, user?.avatar, isMuted, isCameraOff, isScreenSharing]);
 
   // Signaling Listener integration
   useEffect(() => {
@@ -305,11 +324,17 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
 
     peersRef.current.set(targetId, pc);
 
-    const hasAudioTrack = Boolean(localStream?.getAudioTracks().length);
-    const hasVideoTrack = Boolean(localStream?.getVideoTracks().length);
+    const outgoingScreen = screenStreamRef.current;
+    const outgoingTracks = [
+      ...(outgoingScreen?.getVideoTracks() || localStreamRef.current?.getVideoTracks() || []),
+      ...(outgoingScreen?.getAudioTracks().length ? outgoingScreen.getAudioTracks() : (localStreamRef.current?.getAudioTracks() || []))
+    ];
+    const hasAudioTrack = outgoingTracks.some(track => track.kind === 'audio');
+    const hasVideoTrack = outgoingTracks.some(track => track.kind === 'video');
 
-    if (localStream?.getTracks().length) {
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    if (outgoingTracks.length) {
+      const streamForTrack = outgoingScreen || localStreamRef.current;
+      outgoingTracks.forEach(track => pc.addTrack(track, streamForTrack || new MediaStream([track])));
     }
 
     if (!hasAudioTrack) {
@@ -396,6 +421,65 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     sendMediaState(isMuted, nextCameraOff);
   };
 
+  const stopScreenShare = async () => {
+    const screenStream = screenStreamRef.current;
+    screenStream?.getTracks().forEach(track => track.stop());
+    screenStreamRef.current = null;
+    const cameraVideo = localStreamRef.current?.getVideoTracks()[0] || null;
+    const micAudio = localStreamRef.current?.getAudioTracks()[0] || null;
+    await replacePeerTrack('video', cameraVideo);
+    await replacePeerTrack('audio', micAudio);
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+    setIsScreenSharing(false);
+    ws?.send(JSON.stringify({
+      type: 'meeting-media-state',
+      meetingId: roomId,
+      mediaState: { isMuted, isCameraOff, isScreenSharing: false }
+    }));
+  };
+
+  const startScreenShare = async () => {
+    try {
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: shareSystemAudio
+      } as DisplayMediaStreamOptions);
+      const screenVideo = displayStream.getVideoTracks()[0];
+      const systemAudio = displayStream.getAudioTracks()[0] || null;
+      screenStreamRef.current = displayStream;
+      await replacePeerTrack('video', screenVideo || null);
+      if (shareSystemAudio && systemAudio) {
+        await replacePeerTrack('audio', systemAudio);
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = displayStream;
+      }
+      setIsScreenSharing(true);
+      ws?.send(JSON.stringify({
+        type: 'meeting-media-state',
+        meetingId: roomId,
+        mediaState: { isMuted, isCameraOff: false, isScreenSharing: true }
+      }));
+      screenVideo?.addEventListener('ended', () => stopScreenShare(), { once: true });
+    } catch (err: any) {
+      if (err?.name !== 'NotAllowedError') {
+        setMeetingError(err?.message || 'Could not start screen sharing.');
+      }
+    }
+  };
+
+  const toggleScreenShare = () => {
+    if (isScreenSharing) stopScreenShare();
+    else startScreenShare();
+  };
+
+  const updateShareSystemAudio = (checked: boolean) => {
+    setShareSystemAudio(checked);
+    localStorage.setItem('remote365_meeting_share_system_audio', String(checked));
+  };
+
   const copyInvite = async () => {
     await navigator.clipboard?.writeText(`${meetingCode}\n${meetingLink}`);
     setInviteStatus('sent');
@@ -466,8 +550,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const respondToControlRequest = (approved: boolean) => {
     if (!controlRequest || !ws || ws.readyState !== WebSocket.OPEN) return;
     const cleanAccessKey = String(hostAccessKey || '').replace(/\D/g, '');
-    if (approved && (!cleanAccessKey || !devicePassword)) {
-      setControlStatus('Your device access key or password is not ready yet.');
+    if (approved && !cleanAccessKey) {
+      setControlStatus('Your device access key is not ready yet.');
       return;
     }
     ws.send(JSON.stringify({
@@ -477,7 +561,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       targetConnectionId: controlRequest.requesterConnectionId,
       approved,
       accessKey: cleanAccessKey,
-      password: devicePassword,
+      password: devicePassword || '',
       deviceName: user?.name || 'Remote 365 device'
     }));
     setControlStatus(approved ? `Approved control for ${controlRequest.requesterName}.` : `Denied control for ${controlRequest.requesterName}.`);
@@ -542,14 +626,26 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white">
-            <Grid size={18} onClick={() => setActiveLayout('grid')} className={activeLayout === 'grid' ? 'text-blue-500' : ''} />
+          <button
+            onClick={() => { setActiveLayout('grid'); setFocusedParticipantId(null); }}
+            className={`p-2 hover:bg-white/10 rounded-xl transition-colors ${activeLayout === 'grid' ? 'text-blue-500' : 'text-gray-400 hover:text-white'}`}
+            title="Grid view"
+          >
+            <Grid size={18} />
           </button>
-          <button className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white">
-            <Layout size={18} onClick={() => setActiveLayout('focus')} className={activeLayout === 'focus' ? 'text-blue-500' : ''} />
+          <button
+            onClick={() => { setActiveLayout('focus'); setFocusedParticipantId(prev => prev || 'local'); }}
+            className={`p-2 hover:bg-white/10 rounded-xl transition-colors ${activeLayout === 'focus' ? 'text-blue-500' : 'text-gray-400 hover:text-white'}`}
+            title="Focus view"
+          >
+            <Layout size={18} />
           </button>
           <div className="w-px h-6 bg-white/10 mx-2" />
-          <button className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white">
+          <button
+            onClick={() => setShowSecurityPanel(true)}
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-400 hover:text-white"
+            title="Meeting security and permissions"
+          >
             <Shield size={18} />
           </button>
         </div>
@@ -558,6 +654,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       {/* Main Video Grid */}
       <div className="flex-1 p-6 overflow-hidden relative">
         <div className={`grid h-full gap-4 ${
+          activeLayout === 'focus' ? 'grid-cols-1' :
           participants.length === 0 ? 'grid-cols-1' :
           participants.length === 1 ? 'grid-cols-2' :
           participants.length <= 3 ? 'grid-cols-2 grid-rows-2' :
@@ -567,22 +664,23 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           {/* Local Video */}
           <motion.div 
             layout
-            className="relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group"
+            onClick={() => { setActiveLayout('focus'); setFocusedParticipantId('local'); }}
+            className={`relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group ${activeLayout === 'focus' && focusedParticipantId && focusedParticipantId !== 'local' ? 'hidden' : ''}`}
           >
             <video 
               ref={localVideoRef} 
               autoPlay 
               muted 
               playsInline 
-            className={`w-full h-full object-cover ${isCameraOff || !localStream ? 'hidden' : ''}`}
+            className={`w-full h-full object-cover ${(!isScreenSharing && (isCameraOff || !localStream)) ? 'hidden' : ''}`}
           />
-            {(isCameraOff || !localStream) && (
+            {(!isScreenSharing && (isCameraOff || !localStream)) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#151515]">
                 <div className="w-24 h-24 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-500 mb-4 border border-blue-500/20">
                   <span className="text-3xl font-bold">{user?.name?.charAt(0) || 'U'}</span>
                 </div>
                 <p className="text-sm font-medium text-gray-500">
-                  {localStream ? 'Camera is off' : 'No camera or microphone found'}
+                  {isScreenSharing ? 'You are sharing your screen' : localStream ? 'Camera is off' : 'No camera or microphone found'}
                 </p>
                 {!localStream && (
                   <button
@@ -604,7 +702,13 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           {/* Remote Participants */}
           <AnimatePresence mode="popLayout">
             {participants.map((p) => (
-              <RemoteVideo key={p.connectionId} participant={p} />
+              <RemoteVideo
+                key={p.connectionId}
+                participant={p}
+                hidden={activeLayout === 'focus' && focusedParticipantId !== p.connectionId}
+                onFocus={() => { setActiveLayout('focus'); setFocusedParticipantId(p.connectionId); }}
+                onRequestControl={() => requestParticipantControl(p)}
+              />
             ))}
           </AnimatePresence>
         </div>
@@ -640,11 +744,11 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           </button>
 
           <button
-            onClick={() => setShowInvitePanel(true)}
-            className="w-14 h-14 rounded-2xl bg-white/10 text-white hover:bg-white/20 flex items-center justify-center transition-all"
-            title="Invite people"
+            onClick={toggleScreenShare}
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScreenSharing ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white/10 text-white hover:bg-white/20'}`}
+            title={isScreenSharing ? 'Stop screen sharing' : 'Share screen'}
           >
-            <Share size={22} />
+            {isScreenSharing ? <ScreenShareOff size={22} /> : <ScreenShare size={22} />}
           </button>
 
           <button
@@ -667,10 +771,10 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           <button onClick={() => setShowInvitePanel(true)} className="p-2 text-gray-400 hover:text-white transition-colors" title="Participants and invites">
             <Users size={20} />
           </button>
-          <button className="p-2 text-gray-400 hover:text-white transition-colors">
+          <button onClick={() => document.documentElement.requestFullscreen?.()} className="p-2 text-gray-400 hover:text-white transition-colors" title="Fullscreen">
             <Maximize size={20} />
           </button>
-          <button className="p-2 text-gray-400 hover:text-white transition-colors">
+          <button onClick={() => setShowInvitePanel(true)} className="p-2 text-gray-400 hover:text-white transition-colors" title="More meeting options">
             <MoreHorizontal size={20} />
           </button>
         </div>
@@ -804,6 +908,69 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
           </motion.div>
         )}
 
+        {showSecurityPanel && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[125] bg-black/45 backdrop-blur-sm flex items-center justify-center px-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 14 }}
+              className="w-full max-w-md rounded-2xl bg-[#111111] border border-white/10 shadow-2xl overflow-hidden"
+            >
+              <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-white">Meeting settings</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Screen, audio, and permission controls.</p>
+                </div>
+                <button
+                  onClick={() => setShowSecurityPanel(false)}
+                  className="w-9 h-9 rounded-xl hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center"
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <label className="flex items-center justify-between gap-4 rounded-xl bg-white/[0.04] border border-white/10 px-4 py-3">
+                  <span className="flex items-center gap-3">
+                    <Volume2 size={18} className="text-blue-300" />
+                    <span>
+                      <span className="block text-sm font-bold text-white">Share desktop audio</span>
+                      <span className="block text-xs text-gray-500">Includes audio from apps like YouTube during screen share.</span>
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={shareSystemAudio}
+                    onChange={(e) => updateShareSystemAudio(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                </label>
+
+                <button
+                  onClick={() => {
+                    setShowSecurityPanel(false);
+                    toggleScreenShare();
+                  }}
+                  className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  {isScreenSharing ? <ScreenShareOff size={18} /> : <ScreenShare size={18} />}
+                  {isScreenSharing ? 'Stop screen sharing' : 'Start screen sharing'}
+                </button>
+
+                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-200">
+                  Remote control is approval-only. When someone asks to use your PC, this window shows an Approve/Deny dialog before access opens.
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {showChatPanel && (
           <motion.div
             initial={{ opacity: 0, x: 24 }}
@@ -862,7 +1029,12 @@ const ParticipantRow: React.FC<{ name: string; mediaState?: Participant['mediaSt
   </div>
 );
 
-const RemoteVideo: React.FC<{ participant: Participant }> = ({ participant }) => {
+const RemoteVideo: React.FC<{
+  participant: Participant;
+  hidden?: boolean;
+  onFocus?: () => void;
+  onRequestControl?: () => void;
+}> = ({ participant, hidden, onFocus, onRequestControl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -874,10 +1046,11 @@ const RemoteVideo: React.FC<{ participant: Participant }> = ({ participant }) =>
   return (
     <motion.div 
       layout
+      onClick={onFocus}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.8 }}
-      className="relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl"
+      className={`relative bg-[#1A1A1A] rounded-3xl overflow-hidden border border-white/5 shadow-2xl group ${hidden ? 'hidden' : ''}`}
     >
       <video 
         ref={videoRef} 
@@ -900,7 +1073,18 @@ const RemoteVideo: React.FC<{ participant: Participant }> = ({ participant }) =>
       <div className="absolute bottom-4 left-4 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full text-[12px] font-bold border border-white/10 flex items-center gap-2">
         {participant.user?.name || 'Participant'}
         {participant.mediaState?.isMuted && <MicOff size={12} className="text-red-400" />}
+        {participant.mediaState?.isScreenSharing && <ScreenShare size={12} className="text-blue-300" />}
       </div>
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onRequestControl?.();
+        }}
+        className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-black/55 hover:bg-blue-600 text-white opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center border border-white/10"
+        title="Request remote control"
+      >
+        <MousePointer2 size={17} />
+      </button>
     </motion.div>
   );
 };
