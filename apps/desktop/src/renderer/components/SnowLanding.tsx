@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Copy, Eye, EyeOff, Lock, LogIn, Monitor, RefreshCw, Settings, Video, Wand2, X } from 'lucide-react';
 import logo from '../assets/logo.png';
+import api from '../lib/api';
 
 interface SnowLandingProps {
   hostAccessKey: string | null;
@@ -14,6 +15,7 @@ interface SnowLandingProps {
   connectError: string | null;
   connectStatus: string;
   targetDeviceName: string | null;
+  targetPasswordRequired: boolean;
   lockoutSeconds: number;
   onCopyAccessKey: () => void;
   onToggleAutoHost: () => void;
@@ -46,6 +48,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   connectError,
   connectStatus,
   targetDeviceName,
+  targetPasswordRequired,
   lockoutSeconds,
   onCopyAccessKey,
   onToggleAutoHost,
@@ -151,6 +154,15 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
   const updateRequirePassword = (checked: boolean) => {
     setRequirePassword(checked);
     localStorage.setItem('remote365_require_password', String(checked));
+    const accessKey = String(hostAccessKey || localStorage.getItem('remote365_device_access_key') || '').replace(/\D/g, '');
+    if (accessKey) {
+      api.post('/api/devices/self-register', {
+        accessKey,
+        name: localStorage.getItem('remote365_device_name') || undefined,
+        password: devicePassword || undefined,
+        passwordRequired: checked,
+      }).catch((err) => console.warn('[Settings] Failed to sync password requirement:', err?.message || err));
+    }
   };
 
   const updateConnectionAlerts = (checked: boolean) => {
@@ -338,22 +350,29 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
                 </div>
                 <i />
               </div>
-              <div className="tv-password-input-wrap">
-                <Lock size={15} />
-                <input
-                  autoFocus
-                  type={showPwd ? 'text' : 'password'}
-                  placeholder="Enter password"
-                  value={accessPassword}
-                  onChange={e => onAccessPasswordChange(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') onConnectToHost(); }}
-                />
-                <button onClick={() => setShowPwd(!showPwd)}>
-                  {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
+              {targetPasswordRequired ? (
+                <div className="tv-password-input-wrap">
+                  <Lock size={15} />
+                  <input
+                    autoFocus
+                    type={showPwd ? 'text' : 'password'}
+                    placeholder="Enter password"
+                    value={accessPassword}
+                    onChange={e => onAccessPasswordChange(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') onConnectToHost(); }}
+                  />
+                  <button onClick={() => setShowPwd(!showPwd)}>
+                    {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              ) : (
+                <div className="tv-passwordless-note">
+                  <CheckCircle2 size={16} />
+                  <span>This device allows passwordless access.</span>
+                </div>
+              )}
               <div className="tv-connect-row">
-                <button onClick={onConnectToHost} disabled={connectStatus === 'connecting' || !accessPassword || lockoutSeconds > 0}>
+                <button onClick={onConnectToHost} disabled={connectStatus === 'connecting' || (targetPasswordRequired && !accessPassword) || lockoutSeconds > 0}>
                   {connectStatus === 'connecting' ? 'Connecting...' : 'Connect'}
                 </button>
                 <button onClick={onBackToStep1}>Back</button>

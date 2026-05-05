@@ -288,6 +288,7 @@ body {
 .tv-password-input-wrap input { width: 100%; height: 44px; border: 1px solid #d1d5db; border-radius: 6px; padding: 0 42px 0 36px; font-size: 13px; outline: none; }
 .tv-password-input-wrap input:focus { border-color: #1d4ed8; box-shadow: 0 0 0 1px #1d4ed8; }
 .tv-password-input-wrap button { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: #9ca3af; }
+.tv-passwordless-note { height: 44px; border: 1px solid #bbf7d0; border-radius: 6px; background: #f0fdf4; color: #047857; display: flex; align-items: center; gap: 9px; padding: 0 12px; font-size: 13px; font-weight: 800; }
 .tv-connect-row { display: flex; gap: 8px; }
 .tv-connect-row button { height: 44px; border-radius: 6px; font-size: 13px; font-weight: 800; }
 .tv-connect-row button:first-child { flex: 1; border: 0; background: #0D1B3D; color: #fff; }

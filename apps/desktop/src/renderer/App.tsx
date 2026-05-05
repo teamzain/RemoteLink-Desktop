@@ -1113,6 +1113,11 @@ const getStoredDevicePassword = () => {
     return localStorage.getItem('device_password') || '';
 };
 
+const isRemotePasswordRequired = () => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('remote365_require_password') !== 'false';
+};
+
 const formatCode = (val: string) => {
     if (!val) return '';
     const clean = val.replace(/\D/g, '');
@@ -1159,6 +1164,7 @@ export default function App() {
     const [totpCode, setTotpCode] = useState('');
     const [viewerStep, setViewerStep] = useState<1 | 2>(1);
     const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
+    const [targetPasswordRequired, setTargetPasswordRequired] = useState(true);
     const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
@@ -1692,7 +1698,7 @@ export default function App() {
 
     // Reactive Auto-Host: Waits until device is initialized (hostAccessKey)
     useEffect(() => {
-        if (isElectron && !hasAutoStartedHost.current && isAutoHostEnabled && hostAccessKey && devicePassword) {
+        if (isElectron && !hasAutoStartedHost.current && isAutoHostEnabled && hostAccessKey && (devicePassword || !isRemotePasswordRequired())) {
             hasAutoStartedHost.current = true;
             console.log('[Auto-Host] Initialization complete. Starting host automatically...');
             setTimeout(() => {
@@ -2168,7 +2174,7 @@ export default function App() {
     useEffect(() => {
         // If all required identity info is loaded and auto-host is enabled, start hosting.
         // This keeps the machine online for unattended access while the app is running.
-        if (isElectron && hostAccessKey && deviceId && devicePassword && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
+        if (isElectron && hostAccessKey && deviceId && (devicePassword || !isRemotePasswordRequired()) && isAutoHostEnabled && !hasAutoStartedHost.current && !manuallyStoppedHost.current && (hostStatus === 'idle' || hostStatus === '')) {
             console.log('[Auto-Host] Identity ready, initiating automatic start...');
             hasAutoStartedHost.current = true;
             handleStartHosting();
@@ -2189,10 +2195,12 @@ export default function App() {
                     : 'Unknown Machine';
 
                 const storedPwd = localStorage.getItem('device_password') || '';
+                const passwordRequired = isRemotePasswordRequired();
                 const { data } = await api.post('/api/devices/self-register', {
                     accessKey: storedAccessKey || undefined,
                     name: machineName,
                     password: storedPwd || undefined,
+                    passwordRequired,
                 });
 
                 localStorage.setItem('remote365_device_access_key', data.access_key);
@@ -2643,7 +2651,9 @@ export default function App() {
                 throw new Error('Device not yet initialized. Please wait a moment.');
             }
 
-            if (!devicePassword) {
+            const passwordRequired = isRemotePasswordRequired();
+
+            if (passwordRequired && !devicePassword) {
                 setShowSetPasswordModal(true);
                 setHostStatus('idle');
                 return;
@@ -2653,7 +2663,14 @@ export default function App() {
             // already have the password set via /self-register).
             if (isAuthenticated && deviceId) {
                 localStorage.setItem('device_password', devicePassword);
-                await api.post('/api/devices/set-password', { deviceId, password: devicePassword });
+                await api.post('/api/devices/set-password', { deviceId, password: devicePassword || undefined, passwordRequired });
+            } else {
+                await api.post('/api/devices/self-register', {
+                    accessKey: hostAccessKey,
+                    name: localStorage.getItem('remote365_device_name') || undefined,
+                    password: devicePassword || undefined,
+                    passwordRequired,
+                });
             }
 
             if (!isElectron) {
@@ -2720,6 +2737,7 @@ export default function App() {
         setAccessPassword('');
         setLockoutSeconds(0);
         setTargetDeviceName(null);
+        setTargetPasswordRequired(true);
         try {
             const cleanKey = sessionCode.replace(/\s/g, '');
             let lookupData: any = null;
@@ -2757,23 +2775,31 @@ export default function App() {
             if (!lookupData?.online) throw new Error('That machine is offline. Ask the owner to open Remote 365 and check their connection.');
 
             setTargetDeviceName(lookupData?.name || null);
-            setViewerStep(2);
-            setViewerStatus('idle');
+            const requiresPassword = lookupData?.password_required !== false;
+            setTargetPasswordRequired(requiresPassword);
+            if (requiresPassword) {
+                setViewerStep(2);
+                setViewerStatus('idle');
+            } else {
+                await handleConnectToHost('');
+            }
         } catch (e: any) {
             setViewerStatus('error');
             setViewerError(e.response?.data?.error || e.message || 'Failed to find device.');
         }
     };
 
-    const handleConnectToHost = async () => {
-        if (!sessionCode || !accessPassword) return;
+    const handleConnectToHost = async (passwordOverride?: string) => {
+        const passwordForRequest = passwordOverride ?? accessPassword;
+        const requiresPasswordForRequest = passwordOverride === undefined ? targetPasswordRequired : false;
+        if (!sessionCode || (requiresPasswordForRequest && !passwordForRequest)) return;
         setViewerStatus('connecting');
         setViewerError('');
         try {
             // 1. Verify Access and Get Token
             const { data: authData } = await api.post('/api/devices/verify-access', {
                 accessKey: sessionCode.replace(/\s/g, ''),
-                password: accessPassword
+                password: passwordForRequest
             });
 
             // 2. Open a dedicated viewer window — this registers the session in
@@ -2792,6 +2818,7 @@ export default function App() {
                 setSessionCode('');
                 setAccessPassword('');
                 setTargetDeviceName(null);
+                setTargetPasswordRequired(true);
                 setShowAuthModal(false);
             } else {
                 showError('Browser Limitation', 'Remote viewer connections require the native desktop application.');
@@ -3514,6 +3541,7 @@ export default function App() {
                                 connectError={viewerError}
                                 connectStatus={viewerStatus}
                                 targetDeviceName={targetDeviceName}
+                                targetPasswordRequired={targetPasswordRequired}
                                 lockoutSeconds={lockoutSeconds}
                                 onCopyAccessKey={copyAccessKey}
                                 onToggleAutoHost={() => {

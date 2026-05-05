@@ -36,6 +36,7 @@ async function mapDevice(device: any, userId: string): Promise<any> {
     is_online: presence === 'online',
     is_owned: device.ownerId === userId,
     has_password: !!device.accessPasswordHash,
+    password_required: device.passwordRequired !== false,
     tags: device.tags || [],
     org_name: org?.name || null,
     org_slug: org?.slug || null,
@@ -138,7 +139,9 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Device not found' });
     }
 
-    if (!device.accessPasswordHash) {
+    const passwordRequired = device.passwordRequired !== false;
+
+    if (passwordRequired && !device.accessPasswordHash) {
       console.log(`[Device-Debug] verify-access: Device found but has no accessPasswordHash: ${accessKey}`);
       return reply.code(404).send({ error: 'Device has no access password set yet. Go to host settings and set one.' });
     }
@@ -182,8 +185,11 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       }
     }
 
-    if (!isTrusted) {
+    if (!isTrusted && passwordRequired) {
       if (!password) return reply.code(401).send({ error: 'Password required for untrusted device connections' });
+      if (!device.accessPasswordHash) {
+        return reply.code(404).send({ error: 'Device has no access password set yet. Go to host settings and set one.' });
+      }
 
       const lockoutKey = `lockout:${accessKey}`;
       const attempts = await redisPublisher.get(lockoutKey);
@@ -226,7 +232,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       accessKey: device.accessKey
     }, '5m');
 
-    return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted } });
+    return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted, passwordRequired } });
   });
 
   // 1. Register a new device for the current user or organization
@@ -606,21 +612,29 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
-    const { deviceId, password } = request.body as any;
+    const { deviceId, password, passwordRequired } = request.body as any;
 
-    if (!deviceId || !password) return reply.code(400).send({ error: 'DeviceID and password required' });
+    if (!deviceId || (!password && typeof passwordRequired !== 'boolean')) {
+      return reply.code(400).send({ error: 'DeviceID and password or passwordRequired setting required' });
+    }
 
     const device = await prisma.device.findUnique({ where: { id: deviceId } });
     if (!device || (device.ownerId !== decoded.userId && decoded.role !== 'SUPER_ADMIN')) {
       return reply.code(403).send({ error: 'Not authorized for this device' });
     }
 
-    const salt = await bcrypt.genSalt(12);
-    const hash = await bcrypt.hash(password, salt);
+    const updateData: any = {};
+    if (password) {
+      const salt = await bcrypt.genSalt(12);
+      updateData.accessPasswordHash = await bcrypt.hash(password, salt);
+    }
+    if (typeof passwordRequired === 'boolean') {
+      updateData.passwordRequired = passwordRequired;
+    }
 
     await prisma.device.update({
       where: { id: deviceId },
-      data: { accessPasswordHash: hash }
+      data: updateData
     });
 
     return reply.send({ success: true });
@@ -677,7 +691,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     const presence = await redisPublisher.get(`presence:${key}`);
     const online = presence === 'online';
 
-    return reply.send({ exists: true, online });
+    return reply.send({ exists: true, online, password_required: device.passwordRequired !== false });
   });
 
   // POST /connect/lookup (Guest Viewer Step 1)
@@ -686,21 +700,21 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (!accessKey) return reply.code(400).send({ error: 'Access Key required' });
     const key = String(accessKey).replace(/\s/g, '');
 
-    const device = await prisma.device.findUnique({ where: { accessKey: key }, select: { id: true, name: true, accessKey: true } });
+    const device = await prisma.device.findUnique({ where: { accessKey: key }, select: { id: true, name: true, accessKey: true, passwordRequired: true } });
     if (!device) return reply.code(404).send({ exists: false, error: 'No machine found with that access key' });
 
     const presence = await redisPublisher.get(`presence:${key}`);
     const online = presence === 'online';
     if (!online) return reply.code(409).send({ exists: true, online: false, error: 'That machine is offline. Ask the owner to open RemoteLink and check their connection.' });
 
-    return reply.send({ exists: true, online: true, name: device.name });
+    return reply.send({ exists: true, online: true, name: device.name, password_required: device.passwordRequired !== false });
   });
 
   // POST /self-register — unauthenticated host bootstrap
   // Registers this machine in the DB so viewers can look it up.
   // Idempotent: safe to call on every app start.
   fastify.post('/self-register', async (request: FastifyRequest, reply: FastifyReply) => {
-    let { accessKey, name, password } = request.body as any;
+    let { accessKey, name, password, passwordRequired } = request.body as any;
     accessKey = accessKey ? String(accessKey).replace(/\s/g, '') : '';
     const machineName = String(name || 'Unknown Machine').slice(0, 64);
     let installerUser: any = null;
@@ -725,9 +739,13 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         updateData.departmentId = installerUser.departmentId;
       }
       if (machineName && machineName !== existing.name) updateData.name = machineName;
-      // Only set password if device has none. Never overwrite a user-configured one.
-      if (!existing.accessPasswordHash) {
-        autoPassword = password ? String(password) : generateAccessPassword();
+      if (typeof passwordRequired === 'boolean') {
+        updateData.passwordRequired = passwordRequired;
+      }
+      if (password) {
+        updateData.accessPasswordHash = await bcrypt.hash(String(password), 10);
+      } else if (!existing.accessPasswordHash && existing.passwordRequired !== false) {
+        autoPassword = generateAccessPassword();
         updateData.accessPasswordHash = await bcrypt.hash(autoPassword, 10);
       }
       const updated = Object.keys(updateData).length > 0
@@ -738,6 +756,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         access_key: updated.accessKey,
         name: updated.name,
         has_password: !!updated.accessPasswordHash,
+        password_required: updated.passwordRequired !== false,
         auto_password: !password ? autoPassword : undefined,
       });
     }
@@ -749,14 +768,16 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     }
 
     // New device: server issues a reusable access password when the app has none yet.
-    const autoPassword = password ? String(password) : generateAccessPassword();
-    const passwordHash = await bcrypt.hash(autoPassword, 10);
+    const requiresPassword = typeof passwordRequired === 'boolean' ? passwordRequired : true;
+    const autoPassword = password ? String(password) : (requiresPassword ? generateAccessPassword() : '');
+    const passwordHash = autoPassword ? await bcrypt.hash(autoPassword, 10) : null;
 
     const device = await prisma.device.create({
       data: {
         accessKey,
         name: machineName,
         accessPasswordHash: passwordHash,
+        passwordRequired: requiresPassword,
         ownerId: installerUser?.id,
         organizationId: installerUser?.organizationId,
         departmentId: installerUser?.departmentId,
@@ -767,9 +788,10 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       id: device.id,
       access_key: device.accessKey,
       name: device.name,
-      has_password: true,
+      has_password: !!device.accessPasswordHash,
+      password_required: device.passwordRequired !== false,
       // Only returned on first registration so the app can display it to the user
-      auto_password: !password ? autoPassword : undefined,
+      auto_password: !password && autoPassword ? autoPassword : undefined,
     });
   });
 

@@ -147,6 +147,7 @@ model Device {
   id                 String          @id @default(uuid())
   accessKey          String          @unique
   accessPasswordHash String?
+  passwordRequired   Boolean         @default(true)
   name               String?
   deviceType         DeviceType      @default(WINDOWS)
   status             String          @default("OFFLINE")
