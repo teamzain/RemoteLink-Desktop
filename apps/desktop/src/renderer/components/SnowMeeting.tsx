@@ -1121,7 +1121,8 @@ const RemoteVideo: React.FC<{
   onRequestControl?: () => void;
 }> = ({ participant, hidden, className = '', onFocus, onRequestControl }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const shouldShowPlaceholder = !participant.stream || (!participant.mediaState?.isScreenSharing && participant.mediaState?.isCameraOff);
+  const hasIncomingVideo = Boolean(participant.stream?.getVideoTracks().some((track) => track.readyState === 'live'));
+  const shouldShowPlaceholder = !hasIncomingVideo;
 
   useEffect(() => {
     if (videoRef.current && participant.stream) {

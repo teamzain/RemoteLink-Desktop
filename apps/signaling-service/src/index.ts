@@ -539,7 +539,8 @@ async function startServer() {
             };
             const mediaState = {
               isMuted: Boolean(data.mediaState?.isMuted),
-              isCameraOff: Boolean(data.mediaState?.isCameraOff)
+              isCameraOff: Boolean(data.mediaState?.isCameraOff),
+              isScreenSharing: Boolean(data.mediaState?.isScreenSharing)
             };
             meetingParticipants.set(connectionId, participantUser);
             meetingMediaStates.set(connectionId, mediaState);
@@ -594,7 +595,8 @@ async function startServer() {
 
             const mediaState = {
               isMuted: Boolean(data.mediaState?.isMuted),
-              isCameraOff: Boolean(data.mediaState?.isCameraOff)
+              isCameraOff: Boolean(data.mediaState?.isCameraOff),
+              isScreenSharing: Boolean(data.mediaState?.isScreenSharing)
             };
             meetingMediaStates.set(connectionId, mediaState);
 
