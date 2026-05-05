@@ -17,6 +17,10 @@ interface Participant {
     name: string;
     avatar?: string;
   };
+  mediaState?: {
+    isMuted: boolean;
+    isCameraOff: boolean;
+  };
   isLocal?: boolean;
 }
 
@@ -62,6 +66,18 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
   const meetingCode = formatMeetingCode(roomId);
   const meetingLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
 
+  const sendMediaState = (nextMuted = isMuted, nextCameraOff = isCameraOff) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !hasJoinedRef.current) return;
+    ws.send(JSON.stringify({
+      type: 'meeting-media-state',
+      meetingId: roomId,
+      mediaState: {
+        isMuted: nextMuted,
+        isCameraOff: nextCameraOff
+      }
+    }));
+  };
+
   const getAvailableMediaStream = async () => {
     const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
     const hasCamera = devices.some((device) => device.kind === 'videoinput');
@@ -106,13 +122,13 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
           localVideoRef.current.srcObject = stream;
         }
       } catch (err) {
-        console.error('[Meeting] Failed to get media:', err);
+        console.info('[Meeting] Camera or microphone unavailable. Joining without local media.', err);
         localStreamRef.current = null;
         setLocalStream(null);
         setMediaReady(true);
         setIsCameraOff(true);
         setIsMuted(true);
-        setMeetingError('No camera or microphone was found. You can still join and invite people.');
+        setMeetingError(null);
       }
   };
 
@@ -139,7 +155,11 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
         type: 'meeting-join',
         meetingId: roomId,
         token,
-        user: { id: user?.id, name: user?.name, avatar: user?.avatar }
+        user: { id: user?.id, name: user?.name, avatar: user?.avatar },
+        mediaState: {
+          isMuted,
+          isCameraOff
+        }
       }));
     }
 
@@ -148,7 +168,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
       ws.addEventListener('open', joinMeeting, { once: true });
       return () => ws.removeEventListener('open', joinMeeting);
     }
-  }, [ws, mediaReady, roomId, user?.id, user?.name, user?.avatar]);
+  }, [ws, mediaReady, roomId, user?.id, user?.name, user?.avatar, isMuted, isCameraOff]);
 
   // Signaling Listener integration
   useEffect(() => {
@@ -181,6 +201,14 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
             if (prev.find(p => p.connectionId === data.participant.connectionId)) return prev;
             return [...prev, { ...data.participant }];
           });
+          break;
+
+        case 'meeting-media-state':
+          setParticipants(prev => prev.map(p =>
+            p.connectionId === data.participantConnectionId
+              ? { ...p, mediaState: data.mediaState }
+              : p
+          ));
           break;
 
         case 'meeting-signal':
@@ -283,14 +311,18 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
 
   const toggleMute = () => {
     if (!localStream) return;
-    localStream.getAudioTracks().forEach(t => t.enabled = isMuted);
-    setIsMuted(!isMuted);
+    const nextMuted = !isMuted;
+    localStream.getAudioTracks().forEach(t => t.enabled = !nextMuted);
+    setIsMuted(nextMuted);
+    sendMediaState(nextMuted, isCameraOff);
   };
 
   const toggleCamera = () => {
     if (!localStream) return;
-    localStream.getVideoTracks().forEach(t => t.enabled = isCameraOff);
-    setIsCameraOff(!isCameraOff);
+    const nextCameraOff = !isCameraOff;
+    localStream.getVideoTracks().forEach(t => t.enabled = !nextCameraOff);
+    setIsCameraOff(nextCameraOff);
+    sendMediaState(isMuted, nextCameraOff);
   };
 
   const copyInvite = async () => {
@@ -565,7 +597,11 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
                   <div className="mt-3 space-y-2">
                     <ParticipantRow name={`${user?.name || 'You'} (You)`} />
                     {participants.map((participant) => (
-                      <ParticipantRow key={participant.connectionId} name={participant.user?.name || 'Participant'} />
+                      <ParticipantRow
+                        key={participant.connectionId}
+                        name={participant.user?.name || 'Participant'}
+                        mediaState={participant.mediaState}
+                      />
                     ))}
                   </div>
                 </div>
@@ -578,12 +614,16 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave }) 
   );
 };
 
-const ParticipantRow: React.FC<{ name: string }> = ({ name }) => (
+const ParticipantRow: React.FC<{ name: string; mediaState?: Participant['mediaState'] }> = ({ name, mediaState }) => (
   <div className="flex items-center gap-3 text-sm text-gray-300">
     <div className="w-7 h-7 rounded-full bg-blue-600/20 text-blue-300 flex items-center justify-center text-xs font-bold">
       {name.charAt(0).toUpperCase()}
     </div>
     <span className="truncate">{name}</span>
+    <span className="ml-auto flex items-center gap-1 text-gray-500">
+      {mediaState?.isMuted && <MicOff size={13} className="text-red-400" />}
+      {mediaState?.isCameraOff && <VideoOff size={13} className="text-red-400" />}
+    </span>
   </div>
 );
 
@@ -610,18 +650,21 @@ const RemoteVideo: React.FC<{ participant: Participant }> = ({ participant }) =>
         playsInline 
         className="w-full h-full object-cover"
       />
-      {!participant.stream && (
+      {(!participant.stream || participant.mediaState?.isCameraOff) && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#151515]">
           <div className="flex flex-col items-center">
             <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 mb-3 border border-white/5">
               <span className="text-2xl font-bold">{participant.user?.name?.charAt(0) || 'P'}</span>
             </div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-widest">Connecting...</p>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-widest">
+              {participant.mediaState?.isCameraOff ? 'Camera is off' : 'Connecting...'}
+            </p>
           </div>
         </div>
       )}
-      <div className="absolute bottom-4 left-4 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full text-[12px] font-bold border border-white/10">
+      <div className="absolute bottom-4 left-4 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full text-[12px] font-bold border border-white/10 flex items-center gap-2">
         {participant.user?.name || 'Participant'}
+        {participant.mediaState?.isMuted && <MicOff size={12} className="text-red-400" />}
       </div>
     </motion.div>
   );

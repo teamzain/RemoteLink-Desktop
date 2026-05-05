@@ -23,6 +23,7 @@ const meetingRooms = new Map<string, Set<string>>();
 const connectionToMeeting = new Map<string, string>();
 // connectionId -> display metadata for meeting participants
 const meetingParticipants = new Map<string, { id?: string; name?: string; avatar?: string | null }>();
+const meetingMediaStates = new Map<string, { isMuted: boolean; isCameraOff: boolean }>();
 // Pending connections waiting for host approval
 const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
 
@@ -190,6 +191,7 @@ const leaveMeetingRoom = (connectionId: string) => {
 
   connectionToMeeting.delete(connectionId);
   meetingParticipants.delete(connectionId);
+  meetingMediaStates.delete(connectionId);
 };
 
 // Broadcast total active viewer sessions to all connected clients
@@ -535,7 +537,12 @@ async function startServer() {
               name: participantName,
               avatar: user?.avatar || null
             };
+            const mediaState = {
+              isMuted: Boolean(data.mediaState?.isMuted),
+              isCameraOff: Boolean(data.mediaState?.isCameraOff)
+            };
             meetingParticipants.set(connectionId, participantUser);
+            meetingMediaStates.set(connectionId, mediaState);
             
             // Notify others in the room
             const joinNotification = JSON.stringify({
@@ -543,7 +550,8 @@ async function startServer() {
               meetingId,
               participant: {
                 connectionId,
-                user: participantUser
+                user: participantUser,
+                mediaState
               }
             });
 
@@ -561,7 +569,11 @@ async function startServer() {
             const participants = [];
             for (const pId of room) {
               if (pId !== connectionId) {
-                participants.push({ connectionId: pId, user: meetingParticipants.get(pId) });
+                participants.push({
+                  connectionId: pId,
+                  user: meetingParticipants.get(pId),
+                  mediaState: meetingMediaStates.get(pId)
+                });
               }
             }
 
@@ -572,6 +584,37 @@ async function startServer() {
               meeting: meeting || { id: meetingId, name: `Meeting ${meetingId.toUpperCase()}`, sessionCode: meetingId },
               sfu: createLiveKitJoinConfig(meetingId, participantUserId, participantUser.name)
             }));
+            break;
+          }
+
+          case 'meeting-media-state': {
+            const currentMeetingId = connectionToMeeting.get(connectionId);
+            const meetingId = normalizeMeetingId(data.meetingId);
+            if (!currentMeetingId || meetingId !== currentMeetingId) break;
+
+            const mediaState = {
+              isMuted: Boolean(data.mediaState?.isMuted),
+              isCameraOff: Boolean(data.mediaState?.isCameraOff)
+            };
+            meetingMediaStates.set(connectionId, mediaState);
+
+            const room = meetingRooms.get(currentMeetingId);
+            if (!room) break;
+
+            const update = JSON.stringify({
+              type: 'meeting-media-state',
+              meetingId: currentMeetingId,
+              participantConnectionId: connectionId,
+              mediaState
+            });
+
+            for (const participantId of room) {
+              if (participantId === connectionId) continue;
+              const pWs = localClients.get(participantId);
+              if (pWs && pWs.readyState === WebSocket.OPEN) {
+                pWs.send(update);
+              }
+            }
             break;
           }
 
