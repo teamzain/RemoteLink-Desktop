@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T12:41:21.982Z",
+  "generatedAt": "2026-05-05T13:19:16.395Z",
   "releases": [
+    {
+      "version": "1.1.12",
+      "tag": "v1.1.12",
+      "publishedAt": "2026-05-05T13:19:16.283Z",
+      "notes": "Real-time update checks and smoother remote streaming",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.12.exe",
+          "size": 135248719,
+          "sha256": "ab3c0daf7f53f53f1204bcfdcfa082563669fc97928fad59f17f8794dbfaa0d4",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.12/Connect-X.Setup.1.1.12.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.12.exe.blockmap",
+          "size": 120508,
+          "sha256": "5a9c1d107c9021f5436bed241a54360049041fbc3d726a4c6ec7065e1d5e631f",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.12/Connect-X.Setup.1.1.12.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "c7ead3046b79167bbc122523b81b523bae7a03e2794a7dda06567c22df269a45",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.12/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.11",
       "tag": "v1.1.11",
