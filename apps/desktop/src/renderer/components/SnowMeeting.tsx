@@ -96,6 +96,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
   const hasJoinedRef = useRef(false);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const placeholderVideoTrackRef = useRef<MediaStreamTrack | null>(null);
 
   const roomId = normalizeMeetingCode(meetingId);
   const meetingCode = formatMeetingCode(roomId);
@@ -147,6 +148,33 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       await transceiver.sender.replaceTrack(track);
       if (renegotiate) await renegotiatePeer(targetId, pc);
     }));
+  };
+
+  const getPlaceholderVideoTrack = () => {
+    if (placeholderVideoTrackRef.current?.readyState === 'live') return placeholderVideoTrackRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = 16;
+    canvas.height = 9;
+    const context = canvas.getContext('2d');
+    context!.fillStyle = '#151515';
+    context!.fillRect(0, 0, canvas.width, canvas.height);
+    const stream = canvas.captureStream(1);
+    const track = stream.getVideoTracks()[0];
+    placeholderVideoTrackRef.current = track;
+    return track;
+  };
+
+  const getOutgoingVideoTrack = () => (
+    screenStreamRef.current?.getVideoTracks()[0]
+    || localStreamRef.current?.getVideoTracks()[0]
+    || getPlaceholderVideoTrack()
+  );
+
+  const getOutgoingAudioTrack = () => {
+    const screenAudio = screenStreamRef.current?.getAudioTracks()[0] || null;
+    return (shareSystemAudio && screenAudio)
+      ? screenAudio
+      : (localStreamRef.current?.getAudioTracks()[0] || null);
   };
 
   const publishMediaState = (nextMuted = isMuted, nextCameraOff = isCameraOff, nextScreenSharing = isScreenSharing) => {
@@ -227,6 +255,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     return () => {
       localStreamRef.current?.getTracks().forEach(t => t.stop());
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
+      placeholderVideoTrackRef.current?.stop();
       peersRef.current.forEach(pc => pc.close());
     };
   }, []);
@@ -348,11 +377,8 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
 
     peersRef.current.set(targetId, pc);
 
-    const outgoingScreen = screenStreamRef.current;
-    const videoTrack = outgoingScreen?.getVideoTracks()[0] || localStreamRef.current?.getVideoTracks()[0] || null;
-    const audioTrack = (outgoingScreen?.getAudioTracks()[0] && shareSystemAudio)
-      ? outgoingScreen.getAudioTracks()[0]
-      : (localStreamRef.current?.getAudioTracks()[0] || null);
+    const videoTrack = getOutgoingVideoTrack();
+    const audioTrack = getOutgoingAudioTrack();
     const videoTransceiver = pc.addTransceiver('video', { direction: 'sendrecv' });
     const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
 
@@ -420,7 +446,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
         track.stop();
         current.removeTrack(track);
       });
-      await replacePeerTrack('video', null, true);
+      await replacePeerTrack('video', getPlaceholderVideoTrack());
       setLocalStream(current && current.getTracks().length ? current : null);
       setIsCameraOff(true);
       if (localVideoRef.current) localVideoRef.current.srcObject = current || null;
@@ -439,7 +465,7 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       if (videoTrack) current.addTrack(videoTrack);
       localStreamRef.current = current;
       setLocalStream(current);
-      await replacePeerTrack('video', videoTrack || null, true);
+      await replacePeerTrack('video', videoTrack || getPlaceholderVideoTrack());
       if (localVideoRef.current) localVideoRef.current.srcObject = current;
       setIsCameraOff(false);
       setMediaReady(true);
@@ -455,10 +481,10 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
     const screenStream = screenStreamRef.current;
     screenStream?.getTracks().forEach(track => track.stop());
     screenStreamRef.current = null;
-    const cameraVideo = localStreamRef.current?.getVideoTracks()[0] || null;
+    const cameraVideo = localStreamRef.current?.getVideoTracks()[0] || getPlaceholderVideoTrack();
     const micAudio = localStreamRef.current?.getAudioTracks()[0] || null;
-    await replacePeerTrack('video', cameraVideo, true);
-    await replacePeerTrack('audio', micAudio, true);
+    await replacePeerTrack('video', cameraVideo);
+    await replacePeerTrack('audio', micAudio);
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
@@ -475,9 +501,10 @@ export const SnowMeeting: React.FC<SnowMeetingProps> = ({ meetingId, onLeave, ho
       const screenVideo = displayStream.getVideoTracks()[0];
       const systemAudio = displayStream.getAudioTracks()[0] || null;
       screenStreamRef.current = displayStream;
-      await replacePeerTrack('video', screenVideo || null, true);
+      if (!screenVideo) throw new Error('No screen video track was returned.');
+      await replacePeerTrack('video', screenVideo);
       if (shareSystemAudio && systemAudio) {
-        await replacePeerTrack('audio', systemAudio, true);
+        await replacePeerTrack('audio', systemAudio);
       }
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = displayStream;
@@ -1099,6 +1126,7 @@ const RemoteVideo: React.FC<{
   useEffect(() => {
     if (videoRef.current && participant.stream) {
       videoRef.current.srcObject = participant.stream;
+      videoRef.current.play().catch(() => {});
     }
   }, [participant.stream]);
 
