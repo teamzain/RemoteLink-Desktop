@@ -57,6 +57,8 @@ services:
       context: .
       dockerfile: ./apps/signaling-service/Dockerfile
     restart: always
+    ports:
+      - "3001:3002"
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       REDIS_URL: redis://redis:6379
