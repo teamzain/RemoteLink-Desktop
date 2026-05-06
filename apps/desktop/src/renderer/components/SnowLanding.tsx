@@ -379,7 +379,7 @@ export const SnowLanding: React.FC<SnowLandingProps> = ({
                 </div>
               )}
               <div className="tv-connect-row">
-                <button onClick={onConnectToHost} disabled={connectStatus === 'connecting' || (targetPasswordRequired && !accessPassword) || lockoutSeconds > 0}>
+                <button onClick={() => onConnectToHost()} disabled={connectStatus === 'connecting' || (targetPasswordRequired && !accessPassword) || lockoutSeconds > 0}>
                   {connectStatus === 'connecting' ? 'Connecting...' : 'Connect'}
                 </button>
                 <button onClick={onBackToStep1}>Back</button>

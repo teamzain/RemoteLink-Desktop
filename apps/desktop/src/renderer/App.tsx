@@ -3116,7 +3116,7 @@ export default function App() {
                                     {viewerError && <p className="text-[11px] text-red-500 font-medium">{viewerError}</p>}
                                     <button
                                         type="button"
-                                        onClick={handleConnectToHost}
+                                        onClick={() => handleConnectToHost()}
                                         disabled={viewerStatus === 'connecting' || !accessPassword}
                                         className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-amber-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
@@ -3622,7 +3622,7 @@ export default function App() {
                                 onSessionCodeChange={setSessionCode}
                                 onAccessPasswordChange={setAccessPassword}
                                 onFindDevice={handleFindDevice}
-                                onConnectToHost={handleConnectToHost}
+                                onConnectToHost={() => handleConnectToHost()}
                                 onBackToStep1={() => setViewerStep(1)}
                                 onJoinMeeting={openMeeting}
                                 onCreateMeeting={openMeeting}
