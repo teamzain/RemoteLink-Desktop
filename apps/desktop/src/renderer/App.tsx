@@ -3804,6 +3804,7 @@ export default function App() {
                                 setCurrentView={setCurrentView}
                                 localAuthKey={localAuthKey}
                                 devicePassword={devicePassword}
+                                serverIP={serverIP}
                                 onJoinSessionInvite={handleJoinSessionInvite}
                                 onJoinMeeting={openMeeting}
                             />

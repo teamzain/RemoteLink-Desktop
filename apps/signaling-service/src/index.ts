@@ -24,6 +24,7 @@ const connectionToMeeting = new Map<string, string>();
 // connectionId -> display metadata for meeting participants
 const meetingParticipants = new Map<string, { id?: string; name?: string; avatar?: string | null }>();
 const meetingMediaStates = new Map<string, { isMuted: boolean; isCameraOff: boolean }>();
+const meetingEmptyTimers = new Map<string, NodeJS.Timeout>();
 // Pending connections waiting for host approval
 const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
 
@@ -173,7 +174,31 @@ const leaveMeetingRoom = (connectionId: string) => {
   if (room) {
     room.delete(connectionId);
     if (room.size === 0) {
-      meetingRooms.delete(meetingId);
+      if (!meetingEmptyTimers.has(meetingId)) {
+        const timer = setTimeout(async () => {
+          const latestRoom = meetingRooms.get(meetingId);
+          if (latestRoom && latestRoom.size > 0) return;
+          meetingRooms.delete(meetingId);
+          meetingEmptyTimers.delete(meetingId);
+          try {
+            await (prisma as any).remoteSession.updateMany({
+              where: {
+                sessionCode: meetingId,
+                type: 'VIDEO_MEETING',
+                status: 'ACTIVE'
+              },
+              data: {
+                status: 'ENDED',
+                endedAt: new Date()
+              }
+            });
+            console.log(`[Meeting] Empty meeting ${meetingId} ended after 5 minutes.`);
+          } catch (err) {
+            console.warn(`[Meeting] Failed to end empty meeting ${meetingId}:`, err);
+          }
+        }, 5 * 60 * 1000);
+        meetingEmptyTimers.set(meetingId, timer);
+      }
     } else {
       const leaveNotification = JSON.stringify({
         type: 'meeting-participant-left',
@@ -526,6 +551,12 @@ async function startServer() {
             console.log(`[Signaling] User ${participantName || connectionId} joining meeting: ${meetingId}`);
 
             leaveMeetingRoom(connectionId);
+
+            const emptyTimer = meetingEmptyTimers.get(meetingId);
+            if (emptyTimer) {
+              clearTimeout(emptyTimer);
+              meetingEmptyTimers.delete(meetingId);
+            }
             
             if (!meetingRooms.has(meetingId)) {
               meetingRooms.set(meetingId, new Set());

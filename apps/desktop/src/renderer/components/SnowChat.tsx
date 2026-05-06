@@ -46,9 +46,10 @@ export const SnowChat: React.FC<{
   setCurrentView?: (view: any) => void;
   localAuthKey?: string | null;
   devicePassword?: string;
+  serverIP?: string;
   onJoinSessionInvite?: (code: string, password?: string) => void;
   onJoinMeeting?: (meetingId: string) => void;
-}> = ({ setCurrentView, localAuthKey, devicePassword, onJoinSessionInvite, onJoinMeeting }) => {
+}> = ({ setCurrentView, localAuthKey, devicePassword, serverIP = '159.65.84.190', onJoinSessionInvite, onJoinMeeting }) => {
   const { user } = useAuthStore();
   const { 
     conversations, 
@@ -100,6 +101,7 @@ export const SnowChat: React.FC<{
   const [actionStatus, setActionStatus] = useState('');
   const [accessApprovalRequest, setAccessApprovalRequest] = useState<any | null>(null);
   const [accessDurationMinutes, setAccessDurationMinutes] = useState(30);
+  const [selectedActionUserIds, setSelectedActionUserIds] = useState<string[]>([]);
   const [chatToast, setChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -109,10 +111,10 @@ export const SnowChat: React.FC<{
   useEffect(() => {
     fetchConversations();
     connectWebSocket();
-    const previousOnNewMessage = useChatStore.getState().onNewMessage;
+    const previousOnToastMessage = useChatStore.getState().onToastMessage;
     useChatStore.setState({
-      onNewMessage: (msg: any, convId: string) => {
-        previousOnNewMessage?.(msg, convId);
+      onToastMessage: (msg: any, convId: string) => {
+        previousOnToastMessage?.(msg, convId);
         if (msg.senderId === user?.id) return;
         const senderName = msg.sender?.name || msg.sender?.email || 'Someone';
         const payload = parseSessionInviteContent(msg.content);
@@ -137,7 +139,7 @@ export const SnowChat: React.FC<{
     }
     
     return () => {
-      useChatStore.setState({ onNewMessage: previousOnNewMessage });
+      useChatStore.setState({ onToastMessage: previousOnToastMessage });
       disconnectWebSocket();
     };
   }, [user?.id]);
@@ -265,8 +267,17 @@ export const SnowChat: React.FC<{
 
   const activeParticipant = activeConversation && !activeConversation.isGroup ? getOtherParticipant(activeConversation) : null;
   const activeGroupMembers = activeConversation?.isGroup ? (activeConversation.participants || []) : [];
+  const selectableGroupMembers = activeGroupMembers.filter((member: any) => member.userId !== user?.id);
   const sessionCodeGenerated = (localAuthKey || '').replace(/\s/g, '');
   const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCodeGenerated)}&password=${encodeURIComponent(devicePassword || '')}`;
+
+  useEffect(() => {
+    if (!activeConversation?.isGroup) {
+      setSelectedActionUserIds(activeParticipant?.id ? [activeParticipant.id] : []);
+      return;
+    }
+    setSelectedActionUserIds(selectableGroupMembers.map((member: any) => member.userId));
+  }, [activeChatId, activeConversation?.isGroup, activeParticipant?.id, selectableGroupMembers.length]);
 
   const createMeetingCode = () => {
     const raw = Math.floor(100000000 + Math.random() * 900000000).toString();
@@ -286,35 +297,48 @@ export const SnowChat: React.FC<{
     sendMessage(activeChatId, `${SESSION_INVITE_PREFIX}${JSON.stringify(payload)}`);
   };
 
+  const getActionTargetUserIds = () => {
+    if (activeConversation?.isGroup) return selectedActionUserIds;
+    return activeParticipant?.id ? [activeParticipant.id] : [];
+  };
+
   const handleQuickMeetingInvite = async () => {
     if (!activeChatId) return;
-    setActionStatus('Creating meeting invite...');
+    const targetUserIds = getActionTargetUserIds();
+    if (activeConversation?.isGroup && targetUserIds.length === 0) {
+      setActionStatus('Select at least one group member.');
+      return;
+    }
     const meetingCode = createMeetingCode();
     const meetingLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
-    try {
-      await api.post('/api/chat/session-invites', {
-        conversationId: activeChatId,
-        email: activeConversation?.isGroup ? undefined : activeParticipant?.email,
-        sessionName: `${getChatName(activeConversation)} meeting`,
-        sessionCode: meetingCode,
-        sessionPassword: '',
-        sessionLink: meetingLink,
-        type: 'VIDEO_MEETING'
-      });
-      setShowActionSheet(false);
-      setActionStatus('');
-    } catch (err: any) {
-      setActionStatus(err.response?.data?.error || err.message || 'Could not create meeting.');
-    }
+    sendStructuredChatMessage({
+      kind: 'remote-session-invite',
+      sessionName: `${getChatName(activeConversation)} meeting`,
+      sessionCode: meetingCode,
+      sessionPassword: '',
+      sessionLink: meetingLink,
+      sessionType: 'VIDEO_MEETING',
+      senderName: user?.name || user?.email || 'Someone',
+      targetUserIds,
+      createdAt: new Date().toISOString()
+    });
+    setShowActionSheet(false);
+    setActionStatus('');
   };
 
   const handleRemoteAccessRequest = () => {
     if (!activeChatId) return;
+    const targetUserIds = getActionTargetUserIds();
+    if (activeConversation?.isGroup && targetUserIds.length === 0) {
+      setActionStatus('Select at least one group member.');
+      return;
+    }
     sendStructuredChatMessage({
       kind: 'remote-access-request',
       requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       requesterId: user?.id,
       requesterName: user?.name || user?.email || 'Someone',
+      targetUserIds,
       createdAt: new Date().toISOString()
     });
     setShowActionSheet(false);
@@ -337,10 +361,41 @@ export const SnowChat: React.FC<{
       sessionCode: approved ? String(localAuthKey || '').replace(/\s/g, '') : '',
       sessionPassword: approved ? (devicePassword || '') : '',
       sessionLink: approved ? `remotelink://join?code=${encodeURIComponent(String(localAuthKey || '').replace(/\s/g, ''))}&password=${encodeURIComponent(devicePassword || '')}` : '',
+      targetUserIds: requestPayload.requesterId ? [requestPayload.requesterId] : [],
       createdAt: new Date().toISOString()
     });
     setAccessApprovalRequest(null);
     setActionStatus(approved ? 'Remote access approved.' : 'Remote access denied.');
+  };
+
+  const handleUseApprovedPc = async (sessionInvite: any) => {
+    const accessKey = String(sessionInvite.sessionCode || '').replace(/\D/g, '');
+    if (!accessKey) {
+      setActionStatus('The approved device ID is missing.');
+      return;
+    }
+
+    try {
+      setActionStatus('Opening remote viewer...');
+      const { data } = await api.post('/api/devices/verify-access', {
+        accessKey,
+        password: sessionInvite.sessionPassword || ''
+      });
+      if ((window as any).electronAPI?.openViewerWindow) {
+        await (window as any).electronAPI.openViewerWindow(
+          accessKey,
+          serverIP,
+          data.token,
+          sessionInvite.approverName || 'Approved PC',
+          'desktop'
+        );
+      } else {
+        onJoinSessionInvite?.(accessKey, sessionInvite.sessionPassword);
+      }
+      setActionStatus('');
+    } catch (err: any) {
+      setActionStatus(err.response?.data?.error || err.message || 'Could not open the approved PC.');
+    }
   };
 
   const handleSendSessionInvite = async () => {
@@ -747,6 +802,10 @@ export const SnowChat: React.FC<{
                     const isMe = msg.senderId === user?.id;
                     const sender = msg.sender;
                     const sessionInvite = parseSessionInviteContent(msg.content);
+                    const targetedUserIds = Array.isArray(sessionInvite?.targetUserIds) ? sessionInvite.targetUserIds : [];
+                    if (targetedUserIds.length > 0 && !isMe && !targetedUserIds.includes(user?.id)) {
+                      return null;
+                    }
                     
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -821,7 +880,7 @@ export const SnowChat: React.FC<{
                                     </p>
                                     {sessionInvite.approved && !isMe && (
                                       <button
-                                        onClick={() => onJoinSessionInvite?.(sessionInvite.sessionCode, sessionInvite.sessionPassword)}
+                                        onClick={() => handleUseApprovedPc(sessionInvite)}
                                         className="w-full py-2.5 rounded-xl text-[13px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
                                       >
                                         <Monitor size={14} />
@@ -949,6 +1008,33 @@ export const SnowChat: React.FC<{
                         <p className="text-[12px] text-gray-500 dark:text-gray-400 truncate">Ask for approval to use their PC.</p>
                       </div>
                     </button>
+                    {activeConversation?.isGroup && selectableGroupMembers.length > 0 && (
+                      <div className="mx-2 mt-2 pt-3 border-t border-gray-100 dark:border-white/10">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Send to</p>
+                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                          {selectableGroupMembers.map((member: any) => {
+                            const checked = selectedActionUserIds.includes(member.userId);
+                            const label = member.user?.name || member.user?.email || 'Member';
+                            return (
+                              <label key={member.userId} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) => {
+                                    setSelectedActionUserIds((current) => event.target.checked
+                                      ? [...new Set([...current, member.userId])]
+                                      : current.filter((id) => id !== member.userId)
+                                    );
+                                  }}
+                                  className="w-4 h-4 accent-blue-600"
+                                />
+                                <span className="text-[12px] font-medium text-gray-700 dark:text-gray-200 truncate">{label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     {actionStatus && (
                       <p className="px-3 pt-2 text-[12px] font-medium text-blue-600 dark:text-blue-300">{actionStatus}</p>
                     )}

@@ -41,6 +41,7 @@ interface ChatState {
   setActiveChat: (id: string | null) => void;
   markRead: (id: string) => void;
   onNewMessage?: (msg: any, convId: string) => void;
+  onToastMessage?: (msg: any, convId: string) => void;
   onInvite?: (conv: any) => void;
   onSessionInvite?: (invite: any) => void;
   onConversationEvent?: (event: { type: string; conversation?: ChatConversation; conversationId?: string; actorUserId?: string; reason?: string }) => void;
@@ -337,6 +338,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             // Trigger callback for notifications
             get().onNewMessage?.(message, conversationId);
+            get().onToastMessage?.(message, conversationId);
 
             const isUnread = state.activeChatId !== conversationId;
 

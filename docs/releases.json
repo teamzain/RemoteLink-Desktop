@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-06T00:32:16.632Z",
+  "generatedAt": "2026-05-06T16:42:54.728Z",
   "releases": [
+    {
+      "version": "1.1.25",
+      "tag": "v1.1.25",
+      "publishedAt": "2026-05-06T16:42:54.580Z",
+      "notes": "Fix chat remote access launch, notifications, group targeting, and meeting inactivity cleanup",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.25.exe",
+          "size": 135254815,
+          "sha256": "6762646139f9d0b22b171ebbd46ca240ceb4f2356c46c6639e5dcc3c9e88a757",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.25/Connect-X.Setup.1.1.25.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.25.exe.blockmap",
+          "size": 120395,
+          "sha256": "19c52cad612400494a10a23d24df7427fce0cc36814b9b4d2cd3da78ccbdc207",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.25/Connect-X.Setup.1.1.25.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "c3e5a315716e8abe13605db9486df9a22a56d9f98c805dcb2b76c07814a9bb17",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.25/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.24",
       "tag": "v1.1.24",
