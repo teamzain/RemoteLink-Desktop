@@ -33,6 +33,7 @@ interface ChatState {
   conversations: ChatConversation[];
   messages: Record<string, ChatMessage[]>;
   unreadCounts: Record<string, number>;
+  readReceipts: Record<string, Record<string, string>>;
   activeChatId: string | null;
   ws: WebSocket | null;
   isLoading: boolean;
@@ -90,6 +91,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   messages: {},
   unreadCounts: {},
+  readReceipts: {},
   activeChatId: null,
   ws: null,
   isLoading: false,
@@ -108,6 +110,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   markRead: (id) => {
+    const ws = get().ws;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'chat-read', conversationId: id, readAt: new Date().toISOString() }));
+    }
     set((state) => ({
       unreadCounts: { ...state.unreadCounts, [id]: 0 }
     }));
@@ -396,6 +402,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           get().onConversationEvent?.(data);
         } else if (data.type === 'chat-session-invite') {
           get().onSessionInvite?.(data.invite);
+        } else if (data.type === 'chat-read-receipt') {
+          const { conversationId, userId, readAt } = data;
+          if (!conversationId || !userId || !readAt) return;
+          set((state) => ({
+            readReceipts: {
+              ...state.readReceipts,
+              [conversationId]: {
+                ...(state.readReceipts[conversationId] || {}),
+                [userId]: readAt
+              }
+            }
+          }));
         }
       } catch (err) {
         console.error('[ChatStore] Failed to parse message', err);

@@ -354,6 +354,37 @@ async function startServer() {
             break;
           }
 
+          case 'chat-read': {
+            const readerId = connectionToUser.get(connectionId);
+            const conversationId = data.conversationId;
+            if (!readerId || !conversationId) break;
+
+            try {
+              const participants = await (prisma as any).conversationParticipant.findMany({
+                where: {
+                  conversationId,
+                  conversation: {
+                    status: 'ACCEPTED',
+                    participants: { some: { userId: readerId } }
+                  }
+                },
+                select: { userId: true }
+              });
+              if (!participants.length) break;
+
+              await redisPublisher.publish('chat:read-receipt', JSON.stringify({
+                type: 'chat-read-receipt',
+                conversationId,
+                userId: readerId,
+                readAt: data.readAt || new Date().toISOString(),
+                targetUserIds: participants.map((p: any) => p.userId)
+              }));
+            } catch (err) {
+              console.error('[Signaling] Failed to process chat-read', err);
+            }
+            break;
+          }
+
           case 'register':
             let sessionId = data.accessKey;
             // Standardize and ensure case-insensitivity at the perimeter
@@ -890,6 +921,10 @@ async function startServer() {
     if (err) console.error('[Signaling] Failed to subscribe to chat:session-invite', err);
   });
 
+  redisSubscriber.subscribe('chat:read-receipt', (err) => {
+    if (err) console.error('[Signaling] Failed to subscribe to chat:read-receipt', err);
+  });
+
   // Listen for Organization Updates
   redisSubscriber.subscribe(EventChannel.ORG_UPDATES, (err) => {
     if (err) console.error('[Signaling] Failed to subscribe to ORG_UPDATES', err);
@@ -951,6 +986,22 @@ async function startServer() {
         }
       } catch (err) {
         console.error('[Signaling] Failed to process chat:new-conversation:', err);
+      }
+    } else if (channel === 'chat:read-receipt') {
+      try {
+        const payload = JSON.parse(message);
+        const { targetUserIds } = payload;
+        targetUserIds.forEach((userId: string) => {
+          const conns = userConnections.get(userId);
+          conns?.forEach(connId => {
+            const clientWs = localClients.get(connId);
+            if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(JSON.stringify(payload));
+            }
+          });
+        });
+      } catch (err) {
+        console.error('[Signaling] Failed to process chat:read-receipt:', err);
       }
     } else if (channel === 'chat:conversation-updated') {
       try {

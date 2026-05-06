@@ -1281,6 +1281,11 @@ export default function App() {
                 const preview = sessionInvite
                     ? `${senderName} invited you to join ${sessionInvite.sessionName || 'a remote session'}`
                     : msg.content.substring(0, 80);
+                setGlobalChatToast({
+                    title: sessionInvite ? 'Remote 365 invite' : `Message from ${senderName}`,
+                    body: preview,
+                    chatId: convId
+                });
                 addNotification(preview, sessionInvite ? 'session' : 'message', sessionInvite ? 'Remote session invite' : `${senderName} sent you a message`, {
                     view: 'chat',
                     chatId: convId
@@ -1359,6 +1364,12 @@ export default function App() {
             }
         });
     }, [user?.id]);
+
+    useEffect(() => {
+        if (!globalChatToast) return;
+        const timeout = setTimeout(() => setGlobalChatToast(null), 4500);
+        return () => clearTimeout(timeout);
+    }, [globalChatToast]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -1561,6 +1572,7 @@ export default function App() {
         { id: 'boot-security', action: 'Security scan completed.', time: 'Just now', icon: ShieldCheck, color: 'bg-[#E6F1FD]', read: true },
         { id: 'boot-client', action: 'Client initialized.', time: 'Just now', icon: Activity, color: 'bg-[#E6F1FD]', read: true },
     ]);
+    const [globalChatToast, setGlobalChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
     const [activeSessionCount, setActiveSessionCount] = useState(0);
 
     const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' | 'message' | 'accepted' | 'removed' | 'blocked' = 'system', title?: string, target?: any) => {
@@ -3910,6 +3922,26 @@ export default function App() {
                     onClearAll={() => setNotifications([])}
                     onNotificationClick={handleNotificationClick}
                 />
+                {globalChatToast && (
+                    <button
+                        onClick={() => {
+                            setCurrentView('chat' as any);
+                            useChatStore.getState().setActiveChat(globalChatToast.chatId);
+                            setGlobalChatToast(null);
+                        }}
+                        className="fixed top-5 right-5 z-[250] w-[330px] rounded-2xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-4 text-left animate-in slide-in-from-top-3 fade-in duration-200"
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
+                                <MessageCircle size={18} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{globalChatToast.title}</p>
+                                <p className="text-[12px] text-gray-500 dark:text-gray-300 mt-0.5 line-clamp-2">{globalChatToast.body}</p>
+                            </div>
+                        </div>
+                    </button>
+                )}
             </div>
 
             {/* MODALS LAYER - Removed old settings modal in favor of full-page SnowPremiumSettings */}

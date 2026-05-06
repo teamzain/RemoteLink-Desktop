@@ -55,6 +55,7 @@ export const SnowChat: React.FC<{
     conversations, 
     messages, 
     unreadCounts,
+    readReceipts,
     activeChatId, 
     setActiveChat, 
     markRead,
@@ -103,6 +104,7 @@ export const SnowChat: React.FC<{
   const [accessDurationMinutes, setAccessDurationMinutes] = useState(30);
   const [selectedActionUserIds, setSelectedActionUserIds] = useState<string[]>([]);
   const [chatToast, setChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
@@ -175,6 +177,11 @@ export const SnowChat: React.FC<{
     if (!inputText.trim() || !activeChatId) return;
     sendMessage(activeChatId, inputText);
     setInputText('');
+  };
+
+  const addEmoji = (emoji: string) => {
+    setInputText((current) => `${current}${emoji}`);
+    setShowEmojiPicker(false);
   };
 
   const handleCreateChat = async () => {
@@ -382,19 +389,32 @@ export const SnowChat: React.FC<{
         password: sessionInvite.sessionPassword || ''
       });
       if ((window as any).electronAPI?.openViewerWindow) {
-        await (window as any).electronAPI.openViewerWindow(
+        const opened = await (window as any).electronAPI.openViewerWindow(
           accessKey,
           serverIP,
           data.token,
           sessionInvite.approverName || 'Approved PC',
           'desktop'
         );
+        if (opened === false) throw new Error('Viewer window did not open.');
       } else {
         onJoinSessionInvite?.(accessKey, sessionInvite.sessionPassword);
       }
+      setChatToast({
+        title: 'Opening remote PC',
+        body: 'Remote viewer is opening in a new window.',
+        chatId: activeChatId || ''
+      });
       setActionStatus('');
     } catch (err: any) {
-      setActionStatus(err.response?.data?.error || err.message || 'Could not open the approved PC.');
+      const message = err.response?.data?.error || err.message || 'Could not open the approved PC.';
+      setActionStatus(message);
+      setChatToast({
+        title: 'Could not open PC',
+        body: message,
+        chatId: activeChatId || ''
+      });
+      onJoinSessionInvite?.(accessKey, sessionInvite.sessionPassword);
     }
   };
 
@@ -806,6 +826,14 @@ export const SnowChat: React.FC<{
                     if (targetedUserIds.length > 0 && !isMe && !targetedUserIds.includes(user?.id)) {
                       return null;
                     }
+                    const receiptMap = readReceipts[msg.conversationId] || {};
+                    const readerIds = (activeConversation?.participants || [])
+                      .map((participant: any) => participant.userId)
+                      .filter((id: string) => id && id !== user?.id);
+                    const seenByAll = isMe && readerIds.length > 0 && readerIds.every((readerId: string) => {
+                      const readAt = receiptMap[readerId];
+                      return readAt && new Date(readAt).getTime() >= new Date(msg.createdAt).getTime();
+                    });
                     
                     return (
                       <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -949,9 +977,9 @@ export const SnowChat: React.FC<{
                             <span className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
                               {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               {isMe && idx === activeMessages.length - 1 && (
-                                <span className="inline-flex items-center gap-1 text-blue-500">
+                                <span className={`inline-flex items-center gap-1 ${seenByAll ? 'text-blue-500' : 'text-gray-400'}`}>
                                   <CheckCheck size={12} />
-                                  Seen
+                                  {seenByAll ? 'Seen' : 'Delivered'}
                                 </span>
                               )}
                             </span>
@@ -1059,7 +1087,25 @@ export const SnowChat: React.FC<{
                     placeholder="Type your message..." 
                     className="w-full bg-[#F0F2F5] dark:bg-white/5 text-[#111111] dark:text-[#F5F5F5] placeholder:text-gray-400 rounded-2xl py-3.5 pl-4 pr-12 text-[14px] outline-none focus:bg-white dark:focus:bg-[#1A1A1A] border border-transparent focus:border-gray-200 dark:focus:border-white/10 transition-all"
                   />
-                  <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0] transition-colors">
+                  {showEmojiPicker && (
+                    <div className="absolute right-0 bottom-[56px] w-[260px] rounded-3xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-3 z-40 animate-in slide-in-from-bottom-2 fade-in duration-200">
+                      <div className="grid grid-cols-8 gap-1">
+                        {['😀','😁','😂','😊','😍','😎','😢','😡','👍','👏','🙏','🔥','❤️','✅','👀','🎉','💻','📞','🎥','🛠️','🚀','⭐','☕','💬'].map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => addEmoji(emoji)}
+                            className="w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center text-[17px]"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowEmojiPicker((value) => !value)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0] transition-colors"
+                  >
                     <Smile size={20} />
                   </button>
                 </div>

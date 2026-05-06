@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-06T16:42:54.728Z",
+  "generatedAt": "2026-05-06T19:20:02.513Z",
   "releases": [
+    {
+      "version": "1.1.26",
+      "tag": "v1.1.26",
+      "publishedAt": "2026-05-06T19:20:02.406Z",
+      "notes": "Fix Use PC fallback, global chat toasts, read receipts, and emoji picker",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.26.exe",
+          "size": 135255223,
+          "sha256": "92acf85cde5ba1b57e203db837d1a93ed234bdd22eb134267fbd279148232374",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.26/Connect-X.Setup.1.1.26.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.26.exe.blockmap",
+          "size": 120642,
+          "sha256": "0b4679b8ce51bc7e04b0839cc0110a9dc6ada4f7bd0401ad4e15c136f56cdf55",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.26/Connect-X.Setup.1.1.26.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "eb5012cec7f73cf043624f304c9bea5bc2c229f2c15d1e7971a302457760ee87",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.26/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.25",
       "tag": "v1.1.25",
