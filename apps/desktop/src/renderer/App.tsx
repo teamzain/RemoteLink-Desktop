@@ -1184,6 +1184,7 @@ export default function App() {
     const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
     const [targetPasswordRequired, setTargetPasswordRequired] = useState(true);
     const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
+    const [globalChatToast, setGlobalChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
@@ -1572,7 +1573,6 @@ export default function App() {
         { id: 'boot-security', action: 'Security scan completed.', time: 'Just now', icon: ShieldCheck, color: 'bg-[#E6F1FD]', read: true },
         { id: 'boot-client', action: 'Client initialized.', time: 'Just now', icon: Activity, color: 'bg-[#E6F1FD]', read: true },
     ]);
-    const [globalChatToast, setGlobalChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
     const [activeSessionCount, setActiveSessionCount] = useState(0);
 
     const addNotification = (action: string, iconType: 'host' | 'security' | 'session' | 'system' | 'message' | 'accepted' | 'removed' | 'blocked' = 'system', title?: string, target?: any) => {

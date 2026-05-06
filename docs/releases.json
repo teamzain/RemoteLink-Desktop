@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-06T19:20:02.513Z",
+  "generatedAt": "2026-05-06T19:30:55.517Z",
   "releases": [
+    {
+      "version": "1.1.27",
+      "tag": "v1.1.27",
+      "publishedAt": "2026-05-06T19:30:55.400Z",
+      "notes": "Fix chat toast initialization crash",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.27.exe",
+          "size": 135255425,
+          "sha256": "1bfc2924b3d1ec0dfc6b853fdc76c60537ee7b169c50b9aa875aa6aa79729cfe",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.27/Connect-X.Setup.1.1.27.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.27.exe.blockmap",
+          "size": 120520,
+          "sha256": "05d398708b0cea5406352027f201ce02c8de9ae81d0993b8166d9a43e2013783",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.27/Connect-X.Setup.1.1.27.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "b83905e830df91ec6488b266c51fe68907164abbbb7d0c5ee5dad3f6bde63ce4",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.27/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.26",
       "tag": "v1.1.26",
