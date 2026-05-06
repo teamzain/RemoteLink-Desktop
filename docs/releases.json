@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-05T21:09:19.519Z",
+  "generatedAt": "2026-05-06T00:32:16.632Z",
   "releases": [
+    {
+      "version": "1.1.24",
+      "tag": "v1.1.24",
+      "publishedAt": "2026-05-06T00:32:16.480Z",
+      "notes": "Add chat action menu, meeting invites, remote access approvals, unread badges, and message toast",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.24.exe",
+          "size": 135253793,
+          "sha256": "03f112a8a6fea24c6d9ced7df2c713057ec9e00e8e374da3da776bfecbb33c61",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.24/Connect-X.Setup.1.1.24.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.24.exe.blockmap",
+          "size": 121073,
+          "sha256": "794b08d472630b6f58b7645bf7beb3507e453d0f1b8c93d2d0ece29996f5d090",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.24/Connect-X.Setup.1.1.24.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "fd0c467517dd3dc59afb1e1c04a624c1d300c6947e2f69ba3554bca59a442512",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.24/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.23",
       "tag": "v1.1.23",

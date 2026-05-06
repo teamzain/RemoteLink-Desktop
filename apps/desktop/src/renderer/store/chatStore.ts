@@ -32,12 +32,14 @@ export interface ChatConversation {
 interface ChatState {
   conversations: ChatConversation[];
   messages: Record<string, ChatMessage[]>;
+  unreadCounts: Record<string, number>;
   activeChatId: string | null;
   ws: WebSocket | null;
   isLoading: boolean;
   loadingMessages: Record<string, boolean>;
 
   setActiveChat: (id: string | null) => void;
+  markRead: (id: string) => void;
   onNewMessage?: (msg: any, convId: string) => void;
   onInvite?: (conv: any) => void;
   onSessionInvite?: (invite: any) => void;
@@ -86,6 +88,7 @@ const getWsUrl = (): string => {
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   messages: {},
+  unreadCounts: {},
   activeChatId: null,
   ws: null,
   isLoading: false,
@@ -93,11 +96,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setActiveChat: (id) => {
     console.log('[chatStore] setActiveChat called with:', id);
-    set({ activeChatId: id });
+    set((state) => ({
+      activeChatId: id,
+      unreadCounts: id ? { ...state.unreadCounts, [id]: 0 } : state.unreadCounts
+    }));
     if (id && !get().messages[id]) {
       console.log('[chatStore] Fetching messages for:', id);
       get().fetchMessages(id);
     }
+  },
+
+  markRead: (id) => {
+    set((state) => ({
+      unreadCounts: { ...state.unreadCounts, [id]: 0 }
+    }));
   },
 
   fetchConversations: async () => {
@@ -326,9 +338,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Trigger callback for notifications
             get().onNewMessage?.(message, conversationId);
 
+            const isUnread = state.activeChatId !== conversationId;
+
             return {
               messages: updatedMessages,
-              conversations: updatedConversations
+              conversations: updatedConversations,
+              unreadCounts: isUnread
+                ? { ...state.unreadCounts, [conversationId]: (state.unreadCounts[conversationId] || 0) + 1 }
+                : state.unreadCounts
             };
           });
         } else if (data.type === 'chat-invite') {

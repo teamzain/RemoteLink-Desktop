@@ -5,10 +5,8 @@ import {
   Video, 
   Phone, 
   MoreHorizontal, 
-  Paperclip, 
   Smile, 
   CornerDownLeft,
-  ChevronDown,
   FileText,
   Shield,
   X,
@@ -22,10 +20,12 @@ import {
   UserPlus,
   Hash,
   Copy,
-  ExternalLink,
   CheckCircle2,
+  CheckCheck,
   Monitor,
-  Loader2
+  Loader2,
+  Clock,
+  Bell
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -53,8 +53,10 @@ export const SnowChat: React.FC<{
   const { 
     conversations, 
     messages, 
+    unreadCounts,
     activeChatId, 
     setActiveChat, 
+    markRead,
     fetchConversations, 
     createConversation, 
     createGroup,
@@ -94,6 +96,11 @@ export const SnowChat: React.FC<{
   const [sessionName, setSessionName] = useState('Remote support session');
   const [sessionInviteStatus, setSessionInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [sessionInviteMessage, setSessionInviteMessage] = useState('');
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [actionStatus, setActionStatus] = useState('');
+  const [accessApprovalRequest, setAccessApprovalRequest] = useState<any | null>(null);
+  const [accessDurationMinutes, setAccessDurationMinutes] = useState(30);
+  const [chatToast, setChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
@@ -102,13 +109,38 @@ export const SnowChat: React.FC<{
   useEffect(() => {
     fetchConversations();
     connectWebSocket();
+    const previousOnNewMessage = useChatStore.getState().onNewMessage;
+    useChatStore.setState({
+      onNewMessage: (msg: any, convId: string) => {
+        previousOnNewMessage?.(msg, convId);
+        if (msg.senderId === user?.id) return;
+        const senderName = msg.sender?.name || msg.sender?.email || 'Someone';
+        const payload = parseSessionInviteContent(msg.content);
+        setChatToast({
+          title: payload?.kind === 'remote-access-request'
+            ? 'Remote access request'
+            : payload?.sessionType === 'VIDEO_MEETING'
+              ? 'Meeting invite'
+              : 'New message',
+          body: payload?.kind === 'remote-access-request'
+            ? `${senderName} wants to use your PC`
+            : payload
+              ? `${senderName} sent a session invite`
+              : `${senderName}: ${String(msg.content || '').slice(0, 80)}`,
+          chatId: convId
+        });
+      }
+    });
     
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
     
-    return () => disconnectWebSocket();
-  }, []);
+    return () => {
+      useChatStore.setState({ onNewMessage: previousOnNewMessage });
+      disconnectWebSocket();
+    };
+  }, [user?.id]);
 
   const activeMessages = activeChatId ? (messages[activeChatId] || []) : [];
   const isActiveChatLoading = Boolean(activeChatId && loadingMessages[activeChatId]);
@@ -117,6 +149,16 @@ export const SnowChat: React.FC<{
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages]);
+
+  useEffect(() => {
+    if (activeChatId) markRead(activeChatId);
+  }, [activeChatId, activeMessages.length]);
+
+  useEffect(() => {
+    if (!chatToast) return;
+    const timeout = setTimeout(() => setChatToast(null), 4500);
+    return () => clearTimeout(timeout);
+  }, [chatToast]);
 
   const groups = conversations.filter(c => c.isGroup);
   const directChats = conversations.filter(c => !c.isGroup);
@@ -239,6 +281,68 @@ export const SnowChat: React.FC<{
     setShowSessionModal(true);
   };
 
+  const sendStructuredChatMessage = (payload: any) => {
+    if (!activeChatId) return;
+    sendMessage(activeChatId, `${SESSION_INVITE_PREFIX}${JSON.stringify(payload)}`);
+  };
+
+  const handleQuickMeetingInvite = async () => {
+    if (!activeChatId) return;
+    setActionStatus('Creating meeting invite...');
+    const meetingCode = createMeetingCode();
+    const meetingLink = `remotelink://meeting?code=${encodeURIComponent(meetingCode)}`;
+    try {
+      await api.post('/api/chat/session-invites', {
+        conversationId: activeChatId,
+        email: activeConversation?.isGroup ? undefined : activeParticipant?.email,
+        sessionName: `${getChatName(activeConversation)} meeting`,
+        sessionCode: meetingCode,
+        sessionPassword: '',
+        sessionLink: meetingLink,
+        type: 'VIDEO_MEETING'
+      });
+      setShowActionSheet(false);
+      setActionStatus('');
+    } catch (err: any) {
+      setActionStatus(err.response?.data?.error || err.message || 'Could not create meeting.');
+    }
+  };
+
+  const handleRemoteAccessRequest = () => {
+    if (!activeChatId) return;
+    sendStructuredChatMessage({
+      kind: 'remote-access-request',
+      requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      requesterId: user?.id,
+      requesterName: user?.name || user?.email || 'Someone',
+      createdAt: new Date().toISOString()
+    });
+    setShowActionSheet(false);
+    setActionStatus('');
+  };
+
+  const respondToRemoteAccessRequest = (requestPayload: any, approved: boolean) => {
+    if (!activeChatId) return;
+    if (approved && !localAuthKey) {
+      setActionStatus('Your device ID is not ready yet.');
+      return;
+    }
+    sendStructuredChatMessage({
+      kind: 'remote-access-response',
+      requestId: requestPayload.requestId,
+      approverId: user?.id,
+      approverName: user?.name || user?.email || 'Someone',
+      approved,
+      durationMinutes: approved ? accessDurationMinutes : 0,
+      sessionCode: approved ? String(localAuthKey || '').replace(/\s/g, '') : '',
+      sessionPassword: approved ? (devicePassword || '') : '',
+      sessionLink: approved ? `remotelink://join?code=${encodeURIComponent(String(localAuthKey || '').replace(/\s/g, ''))}&password=${encodeURIComponent(devicePassword || '')}` : '',
+      createdAt: new Date().toISOString()
+    });
+    setAccessApprovalRequest(null);
+    setActionStatus(approved ? 'Remote access approved.' : 'Remote access denied.');
+  };
+
   const handleSendSessionInvite = async () => {
     if (!activeChatId || (sessionType === 'REMOTE_CONTROL' && !sessionCodeGenerated)) {
       setSessionInviteStatus('error');
@@ -326,7 +430,12 @@ export const SnowChat: React.FC<{
                 directChats.map((chat, idx) => {
                   const otherUser = getOtherParticipant(chat);
                   const lastInvite = parseSessionInviteContent(chat.messages?.[0]?.content || '');
-                  const lastMessage = lastInvite ? 'Remote session invite' : (chat.messages?.[0]?.content || 'Start a conversation');
+                  const lastMessage = lastInvite?.kind === 'remote-access-request'
+                    ? 'Remote access request'
+                    : lastInvite?.kind === 'remote-access-response'
+                      ? 'Remote access response'
+                      : lastInvite ? 'Remote session invite' : (chat.messages?.[0]?.content || 'Start a conversation');
+                  const unread = unreadCounts[chat.id] || 0;
                   return (
                     <button
                       key={chat.id || `direct-${idx}`}
@@ -353,8 +462,13 @@ export const SnowChat: React.FC<{
                       <div className="flex-1 min-w-0 text-left">
                         <div className="flex justify-between items-center mb-0.5">
                           <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{getChatName(chat)}</span>
+                          {unread > 0 && (
+                            <span className="ml-2 min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                              {unread > 9 ? '9+' : unread}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                        <p className={`text-[12px] truncate ${unread > 0 ? 'text-[#111111] dark:text-white font-bold' : 'text-gray-500'}`}>{lastMessage}</p>
                       </div>
                     </button>
                   );
@@ -374,7 +488,12 @@ export const SnowChat: React.FC<{
               ) : (
                 groups.map((chat, idx) => {
                   const lastInvite = parseSessionInviteContent(chat.messages?.[0]?.content || '');
-                  const lastMessage = lastInvite ? 'Remote session invite' : (chat.messages?.[0]?.content || 'Start a conversation');
+                  const lastMessage = lastInvite?.kind === 'remote-access-request'
+                    ? 'Remote access request'
+                    : lastInvite?.kind === 'remote-access-response'
+                      ? 'Remote access response'
+                      : lastInvite ? 'Remote session invite' : (chat.messages?.[0]?.content || 'Start a conversation');
+                  const unread = unreadCounts[chat.id] || 0;
                   return (
                     <button
                       key={chat.id || `group-${idx}`}
@@ -391,8 +510,13 @@ export const SnowChat: React.FC<{
                       <div className="flex-1 min-w-0 text-left">
                         <div className="flex justify-between items-center mb-0.5">
                           <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{chat.name || 'Group Chat'}</span>
+                          {unread > 0 && (
+                            <span className="ml-2 min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                              {unread > 9 ? '9+' : unread}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-[12px] text-gray-500 truncate">{lastMessage}</p>
+                        <p className={`text-[12px] truncate ${unread > 0 ? 'text-[#111111] dark:text-white font-bold' : 'text-gray-500'}`}>{lastMessage}</p>
                       </div>
                     </button>
                   );
@@ -638,52 +762,122 @@ export const SnowChat: React.FC<{
                           </div>
                           <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                             {sessionInvite ? (
-                              <div className="w-[320px] rounded-2xl border border-blue-100 dark:border-blue-500/20 bg-white dark:bg-[#111827] shadow-sm overflow-hidden">
-                                <div className="p-4 bg-blue-50 dark:bg-blue-500/10 flex items-center gap-3">
-                                  <div className={`w-10 h-10 rounded-xl ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'bg-emerald-600' : 'bg-blue-600'} text-white flex items-center justify-center`}>
-                                    <Video size={18} />
+                              sessionInvite.kind === 'remote-access-request' ? (
+                                <div className="w-[340px] rounded-2xl border border-amber-100 dark:border-amber-500/20 bg-white dark:bg-[#111827] shadow-sm overflow-hidden">
+                                  <div className="p-4 bg-amber-50 dark:bg-amber-500/10 flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center">
+                                      <Monitor size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-[13px] font-bold text-amber-700 dark:text-amber-300">Remote desktop request</p>
+                                      <p className="text-[12px] text-amber-600 dark:text-amber-400 truncate">{sessionInvite.requesterName || sender?.name || 'Someone'} wants to use your PC</p>
+                                    </div>
                                   </div>
-                                  <div className="min-w-0">
-                                    <p className={`text-[13px] font-bold ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'}`}>
-                                      {sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Video meeting invite' : 'Remote session invite'}
+                                  <div className="p-4 space-y-3">
+                                    <p className="text-[13px] text-gray-600 dark:text-gray-300">
+                                      {isMe ? 'Waiting for approval from the other person.' : 'Approve only if you trust this person.'}
                                     </p>
-                                    <p className={`text-[12px] ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'text-emerald-500' : 'text-blue-500'} truncate`}>{sessionInvite.senderName || sender?.name || 'Someone'} invited you</p>
+                                    {!isMe && (
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => {
+                                            setAccessApprovalRequest(sessionInvite);
+                                            setAccessDurationMinutes(30);
+                                          }}
+                                          className="flex-1 py-2.5 rounded-xl text-[13px] font-bold bg-[#1C202B] text-white hover:bg-[#2A2F3D] transition-all"
+                                        >
+                                          Approve
+                                        </button>
+                                        <button
+                                          onClick={() => respondToRemoteAccessRequest(sessionInvite, false)}
+                                          className="px-4 py-2.5 rounded-xl text-[13px] font-bold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-white/20 transition-all"
+                                        >
+                                          Deny
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                                <div className="p-4 space-y-3">
-                                  <div>
-                                    <p className="text-[12px] text-gray-500 dark:text-[#A0A0A0] mb-1">{sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Meeting' : 'Session'}</p>
-                                    <p className="text-[14px] font-bold text-gray-900 dark:text-white truncate">{sessionInvite.sessionName || 'Remote support session'}</p>
+                              ) : sessionInvite.kind === 'remote-access-response' ? (
+                                <div className={`w-[340px] rounded-2xl border ${sessionInvite.approved ? 'border-emerald-100 dark:border-emerald-500/20' : 'border-red-100 dark:border-red-500/20'} bg-white dark:bg-[#111827] shadow-sm overflow-hidden`}>
+                                  <div className={`p-4 ${sessionInvite.approved ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-red-50 dark:bg-red-500/10'} flex items-center gap-3`}>
+                                    <div className={`w-10 h-10 rounded-xl ${sessionInvite.approved ? 'bg-emerald-600' : 'bg-red-500'} text-white flex items-center justify-center`}>
+                                      {sessionInvite.approved ? <CheckCircle2 size={18} /> : <X size={18} />}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className={`text-[13px] font-bold ${sessionInvite.approved ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                                        {sessionInvite.approved ? 'Remote access approved' : 'Remote access denied'}
+                                      </p>
+                                      <p className={`text-[12px] ${sessionInvite.approved ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} truncate`}>
+                                        {sessionInvite.approverName || sender?.name || 'Someone'} responded to the request
+                                      </p>
+                                    </div>
                                   </div>
-                                  
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => {
-                                        if (sessionInvite.sessionType === 'VIDEO_MEETING') {
-                                          onJoinMeeting?.(sessionInvite.sessionCode);
-                                        } else {
-                                          onJoinSessionInvite?.(sessionInvite.sessionCode, sessionInvite.sessionPassword);
-                                        }
-                                      }}
-                                      className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
-                                        sessionInvite.sessionType === 'VIDEO_MEETING' 
-                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20' 
-                                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
-                                      }`}
-                                    >
-                                      <Video size={14} />
-                                      {sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Join' : 'Join'}
-                                    </button>
-                                    <button
-                                      onClick={() => navigator.clipboard?.writeText(sessionInvite.sessionLink || '')}
-                                      className="w-10 rounded-xl bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors flex items-center justify-center"
-                                      title="Copy join link"
-                                    >
-                                      <Copy size={14} />
-                                    </button>
+                                  <div className="p-4 space-y-3">
+                                    <p className="text-[13px] text-gray-600 dark:text-gray-300">
+                                      {sessionInvite.approved
+                                        ? `Access is approved for ${sessionInvite.durationMinutes || 30} minutes.`
+                                        : 'The person did not grant access.'}
+                                    </p>
+                                    {sessionInvite.approved && !isMe && (
+                                      <button
+                                        onClick={() => onJoinSessionInvite?.(sessionInvite.sessionCode, sessionInvite.sessionPassword)}
+                                        className="w-full py-2.5 rounded-xl text-[13px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                                      >
+                                        <Monitor size={14} />
+                                        Use PC
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div className="w-[320px] rounded-2xl border border-blue-100 dark:border-blue-500/20 bg-white dark:bg-[#111827] shadow-sm overflow-hidden">
+                                  <div className="p-4 bg-blue-50 dark:bg-blue-500/10 flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'bg-emerald-600' : 'bg-blue-600'} text-white flex items-center justify-center`}>
+                                      <Video size={18} />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className={`text-[13px] font-bold ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'text-emerald-700 dark:text-emerald-300' : 'text-blue-700 dark:text-blue-300'}`}>
+                                        {sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Video meeting invite' : 'Remote session invite'}
+                                      </p>
+                                      <p className={`text-[12px] ${sessionInvite.sessionType === 'VIDEO_MEETING' ? 'text-emerald-500' : 'text-blue-500'} truncate`}>{sessionInvite.senderName || sender?.name || 'Someone'} invited you</p>
+                                    </div>
+                                  </div>
+                                  <div className="p-4 space-y-3">
+                                    <div>
+                                      <p className="text-[12px] text-gray-500 dark:text-[#A0A0A0] mb-1">{sessionInvite.sessionType === 'VIDEO_MEETING' ? 'Meeting' : 'Session'}</p>
+                                      <p className="text-[14px] font-bold text-gray-900 dark:text-white truncate">{sessionInvite.sessionName || 'Remote support session'}</p>
+                                    </div>
+                                    
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          if (sessionInvite.sessionType === 'VIDEO_MEETING') {
+                                            onJoinMeeting?.(sessionInvite.sessionCode);
+                                          } else {
+                                            onJoinSessionInvite?.(sessionInvite.sessionCode, sessionInvite.sessionPassword);
+                                          }
+                                        }}
+                                        className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
+                                          sessionInvite.sessionType === 'VIDEO_MEETING' 
+                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20' 
+                                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20'
+                                        }`}
+                                      >
+                                        <Video size={14} />
+                                        Join
+                                      </button>
+                                      <button
+                                        onClick={() => navigator.clipboard?.writeText(sessionInvite.sessionLink || '')}
+                                        className="w-10 rounded-xl bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors flex items-center justify-center"
+                                        title="Copy join link"
+                                      >
+                                        <Copy size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
                             ) : (
                               <div className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed ${
                                 isMe 
@@ -693,8 +887,14 @@ export const SnowChat: React.FC<{
                                 {msg.content}
                               </div>
                             )}
-                            <span className="text-[11px] text-gray-400 mt-1">
+                            <span className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
                               {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {isMe && idx === activeMessages.length - 1 && (
+                                <span className="inline-flex items-center gap-1 text-blue-500">
+                                  <CheckCheck size={12} />
+                                  Seen
+                                </span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -711,8 +911,58 @@ export const SnowChat: React.FC<{
           {activeConversation?.status === 'ACCEPTED' && (
             <div className="p-6 bg-white dark:bg-[#080808] border-t border-gray-100 dark:border-white/5 shrink-0">
               <div className="relative flex items-center gap-3">
-                <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0] transition-colors">
-                  <Paperclip size={20} />
+                {showActionSheet && (
+                  <div className="absolute left-0 bottom-[64px] w-[360px] rounded-3xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-3 animate-in slide-in-from-bottom-3 fade-in duration-200 z-40">
+                    <div className="flex items-center justify-between px-2 py-2">
+                      <div>
+                        <p className="text-[13px] font-bold text-gray-900 dark:text-white">Start with {activeConversation?.isGroup ? 'this chat' : getChatName(activeConversation)}</p>
+                        <p className="text-[12px] text-gray-500 dark:text-gray-400">Create a meeting or request remote access.</p>
+                      </div>
+                      <button
+                        onClick={() => setShowActionSheet(false)}
+                        className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center text-gray-400"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleQuickMeetingInvite}
+                      className="w-full p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-3 text-left"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                        <Video size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-gray-900 dark:text-white">Meeting session</p>
+                        <p className="text-[12px] text-gray-500 dark:text-gray-400 truncate">Invite this chat to a live meeting.</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleRemoteAccessRequest}
+                      className="w-full p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-3 text-left"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                        <Monitor size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-gray-900 dark:text-white">Remote desktop session</p>
+                        <p className="text-[12px] text-gray-500 dark:text-gray-400 truncate">Ask for approval to use their PC.</p>
+                      </div>
+                    </button>
+                    {actionStatus && (
+                      <p className="px-3 pt-2 text-[12px] font-medium text-blue-600 dark:text-blue-300">{actionStatus}</p>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setActionStatus('');
+                    setShowActionSheet((value) => !value);
+                  }}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${showActionSheet ? 'bg-[#1C202B] text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-white dark:hover:bg-white/10'}`}
+                  title="More chat actions"
+                >
+                  <Plus size={22} />
                 </button>
                 <div className="flex-1 relative">
                   <input 
@@ -742,6 +992,82 @@ export const SnowChat: React.FC<{
           <Shield size={48} className="mb-4 text-gray-200 dark:text-white/10" />
           <h3 className="text-xl font-medium text-gray-600 dark:text-gray-300">Your messages are private</h3>
           <p className="mt-2 text-sm text-gray-500">Select a contact to start chatting</p>
+        </div>
+      )}
+
+      {chatToast && (
+        <button
+          onClick={() => {
+            setActiveChat(chatToast.chatId);
+            setChatToast(null);
+          }}
+          className="fixed top-5 right-5 z-[120] w-[320px] rounded-2xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-4 text-left animate-in slide-in-from-top-3 fade-in duration-200"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
+              <Bell size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{chatToast.title}</p>
+              <p className="text-[12px] text-gray-500 dark:text-gray-300 mt-0.5 line-clamp-2">{chatToast.body}</p>
+            </div>
+          </div>
+        </button>
+      )}
+
+      {accessApprovalRequest && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-[420px] rounded-[24px] bg-white dark:bg-[#151515] shadow-2xl p-6">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h3 className="text-[20px] font-bold text-gray-900 dark:text-white">Approve remote access?</h3>
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">
+                  Choose how long {accessApprovalRequest.requesterName || 'this person'} can use your PC.
+                </p>
+              </div>
+              <button
+                onClick={() => setAccessApprovalRequest(null)}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 flex items-center justify-center"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {[15, 30, 60].map((minutes) => (
+                <button
+                  key={minutes}
+                  onClick={() => setAccessDurationMinutes(minutes)}
+                  className={`py-3 rounded-2xl text-[13px] font-bold border transition-all ${
+                    accessDurationMinutes === minutes
+                      ? 'border-blue-600 bg-blue-50 dark:bg-blue-500/10 text-blue-600'
+                      : 'border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {minutes} min
+                </button>
+              ))}
+            </div>
+            <div className="rounded-2xl bg-gray-50 dark:bg-white/5 p-4 mb-5 flex gap-3">
+              <Clock size={18} className="text-gray-400 shrink-0 mt-0.5" />
+              <p className="text-[12px] leading-relaxed text-gray-500 dark:text-gray-400">
+                They will receive your device ID and current access password in chat. You can end hosting or change the password later.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => respondToRemoteAccessRequest(accessApprovalRequest, false)}
+                className="flex-1 py-3 rounded-2xl text-[13px] font-bold bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-white/20"
+              >
+                Deny
+              </button>
+              <button
+                onClick={() => respondToRemoteAccessRequest(accessApprovalRequest, true)}
+                className="flex-1 py-3 rounded-2xl text-[13px] font-bold bg-[#1C202B] text-white hover:bg-[#2A2F3D]"
+              >
+                Approve access
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -821,7 +1147,7 @@ export const SnowChat: React.FC<{
               </button>
               <button
                 onClick={handleSendSessionInvite}
-                disabled={sessionInviteStatus === 'sending' || !sessionCode}
+                disabled={sessionInviteStatus === 'sending'}
                 className="px-6 py-2.5 rounded-lg text-[14px] font-medium transition-colors flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 {sessionInviteStatus === 'sending' ? <RefreshCw size={16} className="animate-spin" /> : <Video size={16} />}
