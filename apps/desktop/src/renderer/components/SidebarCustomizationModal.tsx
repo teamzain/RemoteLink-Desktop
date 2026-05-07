@@ -48,6 +48,8 @@ export const SidebarCustomizationModal: React.FC<Props> = ({ open, onClose, item
     const missing = itemIds.filter((id) => !ordered.includes(id));
     return [...ordered, ...missing];
   });
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   // Re-sync state whenever the modal opens or items change
   useEffect(() => {
@@ -95,9 +97,6 @@ export const SidebarCustomizationModal: React.FC<Props> = ({ open, onClose, item
     setHidden([]);
     setOrder(items.map((i) => i.id));
   };
-
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const handleDragStart = (event: React.DragEvent<HTMLDivElement>, id: string) => {
     setDraggingId(id);
