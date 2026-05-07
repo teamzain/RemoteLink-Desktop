@@ -199,7 +199,11 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
         {showMorePopover && (
           <div
             ref={morePopoverRef}
-            className={`absolute z-50 ${isCollapsed ? 'left-[80px] bottom-2' : 'left-[calc(100%-12px)] bottom-2'} ml-2 w-[220px] rounded-2xl bg-[#0F1A2D] dark:bg-[#1A1A1A] border border-white/10 shadow-2xl p-1.5 animate-in slide-in-from-left-1 fade-in duration-150`}
+            className={`absolute z-50 ${
+              isCollapsed
+                ? 'left-full ml-2 bottom-3 w-[220px]'
+                : 'left-3 right-3 bottom-[calc(100%+8px)]'
+            } rounded-2xl bg-[#0F1A2D] dark:bg-[#1A1A1A] border border-white/15 shadow-2xl p-1.5 animate-in fade-in slide-in-from-bottom-1 duration-150`}
           >
             <button
               type="button"
