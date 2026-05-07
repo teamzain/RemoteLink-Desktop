@@ -1,24 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { 
-  Monitor, 
-  Copy, 
-  RefreshCw, 
-  Search, 
-  ChevronDown, 
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Monitor,
+  Copy,
+  RefreshCw,
+  ChevronDown,
   Info,
   Clock,
   History,
-  Shield,
   Zap,
-  MoreHorizontal,
   Mail,
   CheckCircle2,
   AlertCircle,
-  Users
+  Users,
+  X as CloseIcon,
+  Trash2,
+  ArrowRight
 } from 'lucide-react';
-import { t } from '../lib/translations';
 import { useAuthStore } from '../store/authStore';
 import api from '../lib/api';
+import {
+  RecentConnection,
+  formatAccessKey,
+  getRecentConnections,
+  removeRecentConnection,
+} from '../lib/recentConnections';
 
 interface SnowRemoteSupportProps {
   localAuthKey: string | null;
@@ -30,6 +35,8 @@ interface SnowRemoteSupportProps {
   onStopHosting: () => void;
   hostStatus: string;
   onJoinSessionInvite?: (code: string, password?: string) => void;
+  isAutoHostEnabled?: boolean;
+  onToggleAutoHost?: (next: boolean) => void;
 }
 
 export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
@@ -41,10 +48,11 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   onStartHosting,
   onStopHosting,
   hostStatus,
-  onJoinSessionInvite
+  onJoinSessionInvite,
+  isAutoHostEnabled,
+  onToggleAutoHost,
 }) => {
   const { user } = useAuthStore();
-  const lang = user?.language;
   const [partnerId, setPartnerId] = useState('');
   const [activeTab, setActiveTab] = useState<'id' | 'sessions'>('id');
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
@@ -59,11 +67,80 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const [showJoinSessionModal, setShowJoinSessionModal] = useState(false);
   const [joinSessionCode, setJoinSessionCode] = useState('');
   const [joinSessionPassword, setJoinSessionPassword] = useState('');
+  const [recentConnections, setRecentConnections] = useState<RecentConnection[]>(() => getRecentConnections());
+  const [showRecentDropdown, setShowRecentDropdown] = useState(false);
+  const [recentExpanded, setRecentExpanded] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [easyAccess, setEasyAccess] = useState<boolean>(() =>
+    typeof isAutoHostEnabled === 'boolean'
+      ? isAutoHostEnabled
+      : localStorage.getItem('is_auto_host_enabled') !== 'false'
+  );
+  const recentDropdownRef = useRef<HTMLDivElement>(null);
+  const inputWrapperRef = useRef<HTMLDivElement>(null);
 
-  const formatId = (id: string | null) => {
-    if (!id) return '--- --- ---';
-    const clean = id.replace(/\D/g, '');
-    return (clean.match(/.{1,3}/g) || [clean]).join(' ');
+  useEffect(() => {
+    if (typeof isAutoHostEnabled === 'boolean') setEasyAccess(isAutoHostEnabled);
+  }, [isAutoHostEnabled]);
+
+  const refreshRecentConnections = () => setRecentConnections(getRecentConnections());
+
+  // Re-read recent connections whenever this view re-mounts and when window regains focus
+  useEffect(() => {
+    refreshRecentConnections();
+    const handler = () => refreshRecentConnections();
+    window.addEventListener('focus', handler);
+    return () => window.removeEventListener('focus', handler);
+  }, []);
+
+  // Close the recent-IDs dropdown on outside click
+  useEffect(() => {
+    if (!showRecentDropdown) return;
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (recentDropdownRef.current?.contains(target)) return;
+      if (inputWrapperRef.current?.contains(target)) return;
+      setShowRecentDropdown(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showRecentDropdown]);
+
+  const formatId = (id: string | null) => formatAccessKey(id);
+  const cleanPartnerId = partnerId.replace(/\D/g, '');
+  const canConnect = cleanPartnerId.length >= 6;
+
+  const handlePartnerIdChange = (value: string) => {
+    const formatted = formatAccessKey(value.replace(/\D/g, '').slice(0, 9));
+    setPartnerId(formatted);
+  };
+
+  const handleConnect = () => {
+    if (!canConnect) return;
+    onConnect(cleanPartnerId);
+  };
+
+  const handleEasyAccessToggle = (checked: boolean) => {
+    setEasyAccess(checked);
+    localStorage.setItem('is_auto_host_enabled', String(checked));
+    if (onToggleAutoHost) {
+      onToggleAutoHost(checked);
+    } else if (checked) {
+      onStartHosting();
+    } else {
+      onStopHosting();
+    }
+  };
+
+  const handlePickRecent = (entry: RecentConnection) => {
+    setPartnerId(formatAccessKey(entry.accessKey));
+    setShowRecentDropdown(false);
+    onConnect(entry.accessKey);
+  };
+
+  const handleRemoveRecent = (event: React.MouseEvent, entry: RecentConnection) => {
+    event.stopPropagation();
+    setRecentConnections(removeRecentConnection(entry.accessKey));
   };
 
   const handleCopyId = () => {
@@ -232,72 +309,238 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 px-1">
-                    <div className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" />
-                      <div className="w-4 h-4 border-2 border-gray-300 dark:border-white/20 rounded peer-checked:bg-[#1D6DF5] peer-checked:border-[#1D6DF5] transition-all"></div>
-                    </div>
-                    <span className="text-[13px] text-gray-500 dark:text-[#A0A0A0]">Grant Easy Access to this device</span>
-                    <Info size={14} className="text-gray-300 dark:text-[#555555]" />
-                  </div>
+                  <label className="flex items-center gap-3 px-1 cursor-pointer select-none group">
+                    <span className="relative inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={easyAccess}
+                        onChange={(event) => handleEasyAccessToggle(event.target.checked)}
+                      />
+                      <span className="w-4 h-4 border-2 border-gray-300 dark:border-white/20 rounded peer-checked:bg-[#1D6DF5] peer-checked:border-[#1D6DF5] transition-all flex items-center justify-center">
+                        {easyAccess && <CheckCircle2 size={12} className="text-white" strokeWidth={3} />}
+                      </span>
+                    </span>
+                    <span className="text-[13px] text-gray-500 dark:text-[#A0A0A0] group-hover:text-gray-700 dark:group-hover:text-white transition-colors">
+                      Grant Easy Access to this device
+                    </span>
+                    <span title="When enabled, this device starts hosting automatically so you can connect without manual confirmation.">
+                      <Info size={14} className="text-gray-300 dark:text-[#555555]" />
+                    </span>
+                  </label>
                 </div>
               </div>
 
               {/* Right Column: Control remote device */}
               <div className="p-10 flex flex-col">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-[#F5F5F5] mb-8">Control remote device</h3>
-                
+
                 <div className="space-y-6 flex-1 flex flex-col">
                   <div className="relative">
-                    <button className="flex items-center gap-2 text-[14px] font-semibold text-blue-600 mb-4 hover:opacity-80 transition-opacity">
-                      Remote control <ChevronDown size={14} />
-                    </button>
-                    
+                    <div className="flex items-center gap-2 text-[14px] font-semibold text-blue-600 mb-4">
+                      Remote control
+                    </div>
+
                     <div className="relative">
                       <div className="absolute -top-2 left-3 px-1 bg-white dark:bg-[#0F0F0F] text-[10px] font-bold text-gray-400 dark:text-[#A0A0A0] uppercase tracking-wider z-10">
                         ID, IP address, or hostname
                       </div>
                       <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input 
-                            type="text" 
-                            placeholder="Enter end user's ID, IP, or hostname"
+                        <div className="relative flex-1" ref={inputWrapperRef}>
+                          <input
+                            type="text"
+                            placeholder="Enter end user's ID"
                             value={partnerId}
-                            onChange={(e) => setPartnerId(e.target.value)}
-                            className="w-full h-12 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 text-[14px] text-gray-800 dark:text-white outline-none focus:border-[#1D6DF5] transition-all"
+                            onChange={(e) => handlePartnerIdChange(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleConnect(); }}
+                            onFocus={() => { if (recentConnections.length > 0) setShowRecentDropdown(true); }}
+                            className="w-full h-12 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 pr-10 text-[14px] font-mono tracking-wider text-gray-800 dark:text-white outline-none focus:border-[#1D6DF5] transition-all"
                           />
-                          <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-600 transition-colors">
-                            <ChevronDown size={18} />
-                          </button>
+                          {recentConnections.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowRecentDropdown((value) => !value)}
+                              className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${showRecentDropdown ? 'text-[#1D6DF5]' : 'text-gray-300 hover:text-gray-600 dark:hover:text-gray-200'}`}
+                              title="Pick a recent connection"
+                            >
+                              <ChevronDown size={18} className={showRecentDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                            </button>
+                          )}
+                          {showRecentDropdown && recentConnections.length > 0 && (
+                            <div
+                              ref={recentDropdownRef}
+                              className="absolute left-0 right-0 top-full mt-2 z-20 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#151515] shadow-2xl overflow-hidden"
+                            >
+                              <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-[#A0A0A0] border-b border-gray-50 dark:border-white/5">
+                                Recent IDs
+                              </div>
+                              <div className="max-h-[220px] overflow-y-auto">
+                                {recentConnections.map((entry) => (
+                                  <button
+                                    key={entry.accessKey}
+                                    type="button"
+                                    onClick={() => handlePickRecent(entry)}
+                                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-white/5 text-left transition-colors"
+                                  >
+                                    <Clock size={14} className="text-gray-400 shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-[13px] font-mono tracking-wider text-gray-800 dark:text-[#F5F5F5]">{formatAccessKey(entry.accessKey)}</div>
+                                      {entry.name && (
+                                        <div className="text-[11px] text-gray-400 dark:text-[#A0A0A0] truncate">{entry.name}</div>
+                                      )}
+                                    </div>
+                                    <span
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={(e) => handleRemoveRecent(e, entry)}
+                                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-300 hover:text-red-500 transition-colors"
+                                      title="Remove from recent"
+                                    >
+                                      <CloseIcon size={12} />
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="pt-2">
-                    <button 
-                      onClick={() => onConnect(partnerId)}
-                      disabled={!partnerId}
-                      className="px-10 py-3 bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-[#555555] font-bold text-[13px] rounded-lg border border-transparent disabled:opacity-50 transition-all hover:bg-gray-200 dark:hover:bg-white/10"
+                    <button
+                      onClick={handleConnect}
+                      disabled={!canConnect}
+                      className={`px-10 py-3 font-bold text-[13px] rounded-lg transition-all flex items-center gap-2 ${
+                        canConnect
+                          ? 'bg-[#1D6DF5] text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+                          : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-[#555555] cursor-not-allowed'
+                      }`}
                     >
                       Connect
+                      {canConnect && <ArrowRight size={14} />}
                     </button>
                   </div>
 
-                  <div className="mt-auto space-y-4 pt-12">
-                    <div className="flex items-center justify-between group cursor-pointer py-2 border-b border-gray-50 dark:border-white/5">
-                      <div className="flex items-center gap-3">
-                        <Clock size={16} className="text-gray-400" />
-                        <span className="text-[13px] text-gray-700 dark:text-[#D1D1D1]">Recent connections</span>
-                      </div>
-                      <ChevronDown size={14} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-all" />
+                  <div className="mt-auto space-y-3 pt-12">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setRecentExpanded((value) => !value)}
+                        className="w-full flex items-center justify-between py-2 border-b border-gray-50 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Clock size={16} className="text-gray-400 group-hover:text-[#1D6DF5] transition-colors" />
+                          <span className="text-[13px] text-gray-700 dark:text-[#D1D1D1]">Recent connections</span>
+                          {recentConnections.length > 0 && (
+                            <span className="text-[11px] font-medium text-gray-400">{recentConnections.length}</span>
+                          )}
+                        </div>
+                        <ChevronDown size={14} className={`text-gray-400 transition-transform ${recentExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+                      {recentExpanded && (
+                        <div className="mt-3 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                          {recentConnections.length === 0 ? (
+                            <p className="px-3 py-3 text-[12px] text-gray-400 dark:text-[#A0A0A0]">
+                              No recent connections yet. Once you connect to a device, it will appear here.
+                            </p>
+                          ) : (
+                            recentConnections.map((entry) => (
+                              <button
+                                key={entry.accessKey}
+                                type="button"
+                                onClick={() => handlePickRecent(entry)}
+                                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 text-left transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[13px] font-mono tracking-wider text-gray-800 dark:text-[#F5F5F5]">
+                                    {formatAccessKey(entry.accessKey)}
+                                  </div>
+                                  {entry.name && (
+                                    <div className="text-[11px] text-gray-400 dark:text-[#A0A0A0] truncate">{entry.name}</div>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-gray-400">
+                                  {new Date(entry.lastConnectedAt).toLocaleDateString()}
+                                </span>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => handleRemoveRecent(e, entry)}
+                                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-300 hover:text-red-500 transition-colors"
+                                  title="Remove"
+                                >
+                                  <Trash2 size={12} />
+                                </span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between group cursor-pointer py-2 border-b border-gray-50 dark:border-white/5">
-                      <div className="flex items-center gap-3">
-                        <History size={16} className="text-gray-400" />
-                        <span className="text-[13px] text-gray-700 dark:text-[#D1D1D1]">Session history</span>
-                      </div>
-                      <ChevronDown size={14} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-all" />
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !historyExpanded;
+                          setHistoryExpanded(next);
+                          if (next && remoteSessions.length === 0) fetchRemoteSessions();
+                        }}
+                        className="w-full flex items-center justify-between py-2 border-b border-gray-50 dark:border-white/5 hover:border-gray-200 dark:hover:border-white/10 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <History size={16} className="text-gray-400 group-hover:text-[#1D6DF5] transition-colors" />
+                          <span className="text-[13px] text-gray-700 dark:text-[#D1D1D1]">Session history</span>
+                          {remoteSessions.length > 0 && (
+                            <span className="text-[11px] font-medium text-gray-400">{remoteSessions.length}</span>
+                          )}
+                        </div>
+                        <ChevronDown size={14} className={`text-gray-400 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} />
+                      </button>
+                      {historyExpanded && (
+                        <div className="mt-3 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                          {loadingSessions ? (
+                            <div className="flex items-center gap-2 px-3 py-3 text-[12px] text-gray-400">
+                              <RefreshCw size={12} className="animate-spin" />
+                              Loading sessions...
+                            </div>
+                          ) : remoteSessions.length === 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('sessions')}
+                              className="w-full text-left px-3 py-3 text-[12px] text-gray-400 dark:text-[#A0A0A0] hover:text-blue-600 transition-colors"
+                            >
+                              No sessions yet. Click to open the Sessions tab.
+                            </button>
+                          ) : (
+                            <>
+                              {remoteSessions.slice(0, 4).map((session) => (
+                                <div
+                                  key={session.id}
+                                  className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-[13px] font-medium text-gray-800 dark:text-[#F5F5F5] truncate">{session.name}</div>
+                                    <div className="text-[11px] font-mono tracking-wider text-gray-400">{formatAccessKey(session.sessionCode)}</div>
+                                  </div>
+                                  <span className="text-[11px] text-gray-400">
+                                    {new Date(session.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab('sessions')}
+                                className="w-full text-left px-3 py-2 text-[12px] font-medium text-blue-600 hover:underline"
+                              >
+                                View all sessions →
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
