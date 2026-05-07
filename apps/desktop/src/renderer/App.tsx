@@ -1193,6 +1193,8 @@ export default function App() {
         const stored = localStorage.getItem('last_view') as ViewType;
         return stored || 'dashboard';
     });
+    const currentViewRef = useRef<ViewType>(currentView);
+    useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
     const [history, setHistory] = useState<ViewType[]>(['dashboard']);
     const [historyIndex, setHistoryIndex] = useState(0);
 
@@ -1281,22 +1283,28 @@ export default function App() {
                 const sessionInvite = parseSessionInviteContent(msg.content);
                 const preview = sessionInvite
                     ? `${senderName} invited you to join ${sessionInvite.sessionName || 'a remote session'}`
-                    : msg.content.substring(0, 80);
-                setGlobalChatToast({
-                    title: sessionInvite ? 'Remote 365 invite' : `Message from ${senderName}`,
-                    body: preview,
-                    chatId: convId
-                });
+                    : (msg.content || '').substring(0, 100);
+
+                // WhatsApp-style: only show floating toast if user isn't already reading this chat
+                const isViewingThisChat = (currentViewRef.current as string) === 'chat' &&
+                    useChatStore.getState().activeChatId === convId;
+                if (!isViewingThisChat) {
+                    setGlobalChatToast({
+                        title: sessionInvite ? 'Remote 365 invite' : `New message from ${senderName}`,
+                        body: preview,
+                        chatId: convId
+                    });
+                }
                 addNotification(preview, sessionInvite ? 'session' : 'message', sessionInvite ? 'Remote session invite' : `${senderName} sent you a message`, {
                     view: 'chat',
                     chatId: convId
                 });
-                
-                // Fire native system notification
-                if (useChatStore.getState().activeChatId !== convId) {
+
+                // Fire native system notification only when not actively viewing the chat
+                if (!isViewingThisChat) {
                     fireNotification(sessionInvite ? 'Remote session invite' : `New message from ${senderName}`, preview);
                 }
-                
+
                 // Play sound
                 playUISound('connect');
             },

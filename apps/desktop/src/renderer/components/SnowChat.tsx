@@ -108,7 +108,10 @@ export const SnowChat: React.FC<{
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
+  const [usePcLoadingId, setUsePcLoadingId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     fetchConversations();
@@ -118,6 +121,8 @@ export const SnowChat: React.FC<{
       onToastMessage: (msg: any, convId: string) => {
         previousOnToastMessage?.(msg, convId);
         if (msg.senderId === user?.id) return;
+        // WhatsApp-style: don't show in-chat toast if user is already viewing this conversation
+        if (useChatStore.getState().activeChatId === convId) return;
         const senderName = msg.sender?.name || msg.sender?.email || 'Someone';
         const payload = parseSessionInviteContent(msg.content);
         setChatToast({
@@ -125,12 +130,12 @@ export const SnowChat: React.FC<{
             ? 'Remote access request'
             : payload?.sessionType === 'VIDEO_MEETING'
               ? 'Meeting invite'
-              : 'New message',
+              : `New message from ${senderName}`,
           body: payload?.kind === 'remote-access-request'
             ? `${senderName} wants to use your PC`
             : payload
               ? `${senderName} sent a session invite`
-              : `${senderName}: ${String(msg.content || '').slice(0, 80)}`,
+              : `${String(msg.content || '').slice(0, 100)}`,
           chatId: convId
         });
       }
@@ -163,6 +168,29 @@ export const SnowChat: React.FC<{
     const timeout = setTimeout(() => setChatToast(null), 4500);
     return () => clearTimeout(timeout);
   }, [chatToast]);
+
+  // Auto-clear actionStatus after a few seconds so stale messages don't linger
+  useEffect(() => {
+    if (!actionStatus) return;
+    const timeout = setTimeout(() => setActionStatus(''), 5000);
+    return () => clearTimeout(timeout);
+  }, [actionStatus]);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        emojiPickerRef.current && !emojiPickerRef.current.contains(target) &&
+        emojiButtonRef.current && !emojiButtonRef.current.contains(target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleDocumentClick);
+    return () => document.removeEventListener('mousedown', handleDocumentClick);
+  }, [showEmojiPicker]);
 
   const groups = conversations.filter(c => c.isGroup);
   const directChats = conversations.filter(c => !c.isGroup);
@@ -377,13 +405,21 @@ export const SnowChat: React.FC<{
 
   const handleUseApprovedPc = async (sessionInvite: any) => {
     const accessKey = String(sessionInvite.sessionCode || '').replace(/\D/g, '');
+    const inviteId = sessionInvite.requestId || sessionInvite.sessionCode || accessKey;
     if (!accessKey) {
       setActionStatus('The approved device ID is missing.');
+      setChatToast({
+        title: 'Could not open PC',
+        body: 'The approved device ID is missing from this invite.',
+        chatId: activeChatId || ''
+      });
       return;
     }
 
+    setUsePcLoadingId(inviteId);
+    setActionStatus('Connecting to the approved PC...');
+
     try {
-      setActionStatus('Opening remote viewer...');
       const { data } = await api.post('/api/devices/verify-access', {
         accessKey,
         password: sessionInvite.sessionPassword || ''
@@ -397,15 +433,16 @@ export const SnowChat: React.FC<{
           'desktop'
         );
         if (opened === false) throw new Error('Viewer window did not open.');
+        setChatToast({
+          title: 'Opening remote PC',
+          body: `Remote viewer is opening in a new window for ${sessionInvite.approverName || 'the approved PC'}.`,
+          chatId: activeChatId || ''
+        });
+        setActionStatus('Remote viewer opened.');
       } else {
         onJoinSessionInvite?.(accessKey, sessionInvite.sessionPassword);
+        setActionStatus('Switched to the connect view. Press Connect to join.');
       }
-      setChatToast({
-        title: 'Opening remote PC',
-        body: 'Remote viewer is opening in a new window.',
-        chatId: activeChatId || ''
-      });
-      setActionStatus('');
     } catch (err: any) {
       const message = err.response?.data?.error || err.message || 'Could not open the approved PC.';
       setActionStatus(message);
@@ -414,7 +451,10 @@ export const SnowChat: React.FC<{
         body: message,
         chatId: activeChatId || ''
       });
+      // Fall back to the manual connect view so the user has a way forward
       onJoinSessionInvite?.(accessKey, sessionInvite.sessionPassword);
+    } finally {
+      setUsePcLoadingId(null);
     }
   };
 
@@ -906,15 +946,29 @@ export const SnowChat: React.FC<{
                                         ? `Access is approved for ${sessionInvite.durationMinutes || 30} minutes.`
                                         : 'The person did not grant access.'}
                                     </p>
-                                    {sessionInvite.approved && !isMe && (
-                                      <button
-                                        onClick={() => handleUseApprovedPc(sessionInvite)}
-                                        className="w-full py-2.5 rounded-xl text-[13px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
-                                      >
-                                        <Monitor size={14} />
-                                        Use PC
-                                      </button>
-                                    )}
+                                    {sessionInvite.approved && !isMe && (() => {
+                                      const inviteId = sessionInvite.requestId || sessionInvite.sessionCode || '';
+                                      const isOpening = usePcLoadingId === inviteId;
+                                      return (
+                                        <button
+                                          onClick={() => handleUseApprovedPc(sessionInvite)}
+                                          disabled={isOpening}
+                                          className="w-full py-2.5 rounded-xl text-[13px] font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/60 disabled:cursor-not-allowed text-white shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                                        >
+                                          {isOpening ? (
+                                            <>
+                                              <Loader2 size={14} className="animate-spin" />
+                                              Opening...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Monitor size={14} />
+                                              Use PC
+                                            </>
+                                          )}
+                                        </button>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               ) : (
@@ -976,10 +1030,12 @@ export const SnowChat: React.FC<{
                             )}
                             <span className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
                               {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              {isMe && idx === activeMessages.length - 1 && (
-                                <span className={`inline-flex items-center gap-1 ${seenByAll ? 'text-blue-500' : 'text-gray-400'}`}>
-                                  <CheckCheck size={12} />
-                                  {seenByAll ? 'Seen' : 'Delivered'}
+                              {isMe && (
+                                <span
+                                  className={`inline-flex items-center ${seenByAll ? 'text-blue-500' : 'text-gray-400'}`}
+                                  title={seenByAll ? 'Read' : 'Delivered'}
+                                >
+                                  <CheckCheck size={14} strokeWidth={2.5} />
                                 </span>
                               )}
                             </span>
@@ -997,6 +1053,20 @@ export const SnowChat: React.FC<{
           {/* Input Area */}
           {activeConversation?.status === 'ACCEPTED' && (
             <div className="p-6 bg-white dark:bg-[#080808] border-t border-gray-100 dark:border-white/5 shrink-0">
+              {actionStatus && !showActionSheet && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[12px] font-medium">
+                  {usePcLoadingId && <Loader2 size={12} className="animate-spin" />}
+                  <span className="flex-1">{actionStatus}</span>
+                  <button
+                    type="button"
+                    onClick={() => setActionStatus('')}
+                    className="text-blue-500/70 hover:text-blue-700 dark:hover:text-blue-200"
+                    title="Dismiss"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               <div className="relative flex items-center gap-3">
                 {showActionSheet && (
                   <div className="absolute left-0 bottom-[64px] w-[360px] rounded-3xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-3 animate-in slide-in-from-bottom-3 fade-in duration-200 z-40">
@@ -1088,13 +1158,30 @@ export const SnowChat: React.FC<{
                     className="w-full bg-[#F0F2F5] dark:bg-white/5 text-[#111111] dark:text-[#F5F5F5] placeholder:text-gray-400 rounded-2xl py-3.5 pl-4 pr-12 text-[14px] outline-none focus:bg-white dark:focus:bg-[#1A1A1A] border border-transparent focus:border-gray-200 dark:focus:border-white/10 transition-all"
                   />
                   {showEmojiPicker && (
-                    <div className="absolute right-0 bottom-[56px] w-[260px] rounded-3xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-3 z-40 animate-in slide-in-from-bottom-2 fade-in duration-200">
-                      <div className="grid grid-cols-8 gap-1">
-                        {['😀','😁','😂','😊','😍','😎','😢','😡','👍','👏','🙏','🔥','❤️','✅','👀','🎉','💻','📞','🎥','🛠️','🚀','⭐','☕','💬'].map((emoji) => (
+                    <div
+                      ref={emojiPickerRef}
+                      className="absolute right-0 bottom-[56px] w-[320px] rounded-3xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-4 z-40 animate-in slide-in-from-bottom-2 fade-in duration-200"
+                    >
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2 px-1">Emoji</p>
+                      <div className="grid grid-cols-8 gap-1 max-h-[240px] overflow-y-auto">
+                        {[
+                          '😀','😁','😂','🤣','😊','😇','🙂','😉',
+                          '😍','🥰','😘','😎','🤩','🥳','😏','🤔',
+                          '😴','😢','😭','😡','🤬','😱','🥺','😬',
+                          '🙄','😜','🤗','🤝','👍','👎','👏','🙏',
+                          '💪','✊','👋','🤞','✌️','🤟','🤘','🫶',
+                          '❤️','🧡','💛','💚','💙','💜','🤍','🖤',
+                          '🔥','✨','⭐','🎉','🎊','🎁','🎂','🥂',
+                          '✅','❌','⚠️','💡','📌','📎','💬','📝',
+                          '💻','🖥️','📱','⌨️','🖱️','🛠️','⚙️','🔒',
+                          '📞','🎥','🎤','📷','🎮','🚀','☕','🍕'
+                        ].map((emoji, idx) => (
                           <button
-                            key={emoji}
+                            key={`${emoji}-${idx}`}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => addEmoji(emoji)}
-                            className="w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center text-[17px]"
+                            className="w-9 h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center text-[20px] transition-colors"
                           >
                             {emoji}
                           </button>
@@ -1103,8 +1190,11 @@ export const SnowChat: React.FC<{
                     </div>
                   )}
                   <button
+                    ref={emojiButtonRef}
+                    type="button"
                     onClick={() => setShowEmojiPicker((value) => !value)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0] transition-colors"
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 transition-colors ${showEmojiPicker ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600 dark:hover:text-[#A0A0A0]'}`}
+                    title="Insert emoji"
                   >
                     <Smile size={20} />
                   </button>

@@ -35,7 +35,17 @@
       "Bash(git commit -m ' *)",
       "Bash(git commit *)",
       "PowerShell(Get-Process | Where-Object { $_.Name -match 'electron|Connect' } | Stop-Process -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Remove-Item -Recurse -Force \"d:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release2\\\\win-unpacked\" -ErrorAction SilentlyContinue; Write-Host \"done\")",
-      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('main:', d.get\\('main'\\)\\); print\\('module:', d.get\\('module'\\)\\)\")"
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('main:', d.get\\('main'\\)\\); print\\('module:', d.get\\('module'\\)\\)\")",
+      "Bash(ls \"C:\\\\Users\\\\Zain Ul Abidden\\\\.claude\\\\projects\\\\D--Work-RemoteLink-Desktop\\\\memory\" 2>&1 | head -30)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Zain Ul Abidden\\\\.claude\\\\projects\\\\D--Work-RemoteLink-Desktop\\\\memory\")",
+      "Bash(git -C \"D:\\\\Work\\\\RemoteLink-Desktop\\\\.claude\\\\worktrees\\\\trusting-albattani-923854\" log --oneline -20)",
+      "Bash(grep -E \"= [A-Za-z_].*\\\\\\(|=\\\\s*\\\\\\(\\\\\\)\\\\s*=>|^.*\\\\.tsx:\\\\d+:.*=\\\\s*[A-Za-z_]+\\\\\\([^\\)]*\\\\\\);?\\\\s*$\")",
+      "Bash(ls \"D:\\\\Work\\\\RemoteLink-Desktop\\\\node_modules\" 2>&1 | head -3)",
+      "Bash(ls \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\node_modules\" 2>&1 | head -3)",
+      "Bash(ls \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\dist\" 2>&1)",
+      "Bash(ls \"D:\\\\Work\\\\RemoteLink-Desktop\\\\apps\\\\desktop\\\\release25\\\\win-unpacked\" 2>&1 | head -5)",
+      "Read(//d/Work/RemoteLink-Desktop/**)",
+      "Bash(npx asar *)"
     ],
     "additionalDirectories": [
       "d:\\Work\\RemoteLink-Desktop\\downloads"
