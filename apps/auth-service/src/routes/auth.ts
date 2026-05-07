@@ -626,6 +626,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
             await tx.supportTicket.deleteMany({ where: { userId: { in: subordinateIds } } });
             await tx.guideRequest.deleteMany({ where: { userId: { in: subordinateIds } } });
 
+            // Chat + remote-session relations don't cascade from User; clean them up
+            await tx.message.deleteMany({ where: { senderId: { in: subordinateIds } } });
+            await tx.conversationParticipant.deleteMany({ where: { userId: { in: subordinateIds } } });
+            await tx.remoteSessionCollaborator.deleteMany({ where: { userId: { in: subordinateIds } } });
+
             // Delete the subordinate users themselves
             await tx.user.deleteMany({ where: { id: { in: subordinateIds } } });
             console.log(`[Auth-Service] Cascading Delete: ${subordinateIds.length} subordinate users removed.`);
@@ -664,6 +669,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
         await tx.subscription.deleteMany({ where: { userId } });
         await tx.supportTicket.deleteMany({ where: { userId } });
         await tx.guideRequest.deleteMany({ where: { userId } });
+
+        // Chat + remote-session collaborator relations don't cascade from User; clean them up
+        await tx.message.deleteMany({ where: { senderId: userId } });
+        await tx.conversationParticipant.deleteMany({ where: { userId } });
+        await tx.remoteSessionCollaborator.deleteMany({ where: { userId } });
 
         // 3. Delete the User
         await tx.user.delete({ where: { id: userId } });
