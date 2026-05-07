@@ -42,6 +42,7 @@ import UpdateBanner from './components/UpdateBanner';
 import { playUISound, fireNotification } from './components/SnowUserSettings';
 import { useChatStore } from './store/chatStore';
 import { t } from './lib/translations';
+import { recordRecentConnection } from './lib/recentConnections';
 
 const mockPerformanceData = [
     { time: '10:00', latency: 45, network: 120 },
@@ -2788,8 +2789,9 @@ export default function App() {
         }
     };
 
-    const handleFindDevice = async () => {
-        if (!sessionCode) return;
+    const handleFindDevice = async (overrideKey?: string) => {
+        const sourceKey = overrideKey ?? sessionCode;
+        if (!sourceKey) return;
         setViewerStatus('connecting');
         setViewerError('');
         setAccessPassword('');
@@ -2797,7 +2799,7 @@ export default function App() {
         setTargetDeviceName(null);
         setTargetPasswordRequired(true);
         try {
-            const cleanKey = sessionCode.replace(/\s/g, '');
+            const cleanKey = sourceKey.replace(/\s/g, '');
             let lookupData: any = null;
             const attempts = [
                 { method: 'post', url: '/api/devices/connect/lookup', body: { accessKey: cleanKey } },
@@ -2870,6 +2872,7 @@ export default function App() {
                     targetDeviceName || sessionCode,
                     'desktop'
                 );
+                recordRecentConnection(sessionCode.replace(/\s/g, ''), targetDeviceName || undefined);
                 // Reset state — the session lives in the viewer window now.
                 setViewerStatus('idle');
                 setViewerStep(1);
@@ -3100,7 +3103,7 @@ export default function App() {
                                     {viewerError && <p className="text-[11px] text-red-500 font-medium">{viewerError}</p>}
                                     <button
                                         type="button"
-                                        onClick={handleFindDevice}
+                                        onClick={() => handleFindDevice()}
                                         disabled={viewerStatus === 'connecting' || !sessionCode}
                                         className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-amber-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
@@ -3700,16 +3703,40 @@ export default function App() {
                                 </div>
                             </div>
                         ) : currentView === 'connect' ? (
-                            <SnowRemoteSupport 
+                            <SnowRemoteSupport
                                 localAuthKey={localAuthKey}
                                 devicePassword={devicePassword}
                                 onCopyAccessKey={copyAccessKey}
                                 onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
-                                onConnect={handleFindDevice}
+                                onConnect={(partnerId: string) => {
+                                    const cleaned = String(partnerId || '').replace(/\D/g, '');
+                                    if (!cleaned) return;
+                                    setSessionCode(formatCode(cleaned));
+                                    setAccessPassword('');
+                                    setViewerError('');
+                                    setViewerStep(1);
+                                    setTargetDeviceName(null);
+                                    setTargetPasswordRequired(true);
+                                    handleFindDevice(cleaned);
+                                }}
                                 onStartHosting={handleStartHosting}
                                 onStopHosting={handleStopHosting}
                                 hostStatus={hostStatus}
                                 onJoinSessionInvite={handleJoinSessionInvite}
+                                isAutoHostEnabled={isAutoHostEnabled}
+                                onToggleAutoHost={(next: boolean) => {
+                                    setIsAutoHostEnabled(next);
+                                    localStorage.setItem('is_auto_host_enabled', String(next));
+                                    if (next) {
+                                        manuallyStoppedHost.current = false;
+                                        if (hostAccessKey && (devicePassword || !isRemotePasswordRequired())) {
+                                            handleStartHosting();
+                                        }
+                                    } else {
+                                        manuallyStoppedHost.current = true;
+                                        handleStopHosting();
+                                    }
+                                }}
                             />
                         ) : (currentView as any) === 'sessions' ? (
                             /* --- ACTIVE SESSIONS VIEW --- */
