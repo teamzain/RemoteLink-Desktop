@@ -96,19 +96,78 @@ export const SidebarCustomizationModal: React.FC<Props> = ({ open, onClose, item
     setOrder(items.map((i) => i.id));
   };
 
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = (event: React.DragEvent<HTMLDivElement>, id: string) => {
+    setDraggingId(id);
+    try {
+      event.dataTransfer.setData('text/plain', id);
+      event.dataTransfer.effectAllowed = 'move';
+    } catch {}
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>, id: string) => {
+    if (!draggingId || draggingId === id) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (dragOverId !== id) setDragOverId(id);
+  };
+
+  const handleDragLeave = (id: string) => {
+    if (dragOverId === id) setDragOverId(null);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>, targetId: string) => {
+    event.preventDefault();
+    if (!draggingId || draggingId === targetId) {
+      setDraggingId(null);
+      setDragOverId(null);
+      return;
+    }
+    setOrder((current) => {
+      const fromIdx = current.indexOf(draggingId);
+      const toIdx = current.indexOf(targetId);
+      if (fromIdx === -1 || toIdx === -1) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
   const renderRow = (item: CustomizableItem, index: number, total: number) => {
     const isHidden = hidden.includes(item.id);
     const isProtected = !!item.protected;
+    const isDragging = draggingId === item.id;
+    const isDragTarget = dragOverId === item.id && draggingId !== item.id;
     return (
       <div
         key={item.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, item.id)}
+        onDragOver={(e) => handleDragOver(e, item.id)}
+        onDragLeave={() => handleDragLeave(item.id)}
+        onDrop={(e) => handleDrop(e, item.id)}
+        onDragEnd={handleDragEnd}
         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
-          isHidden
-            ? 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/0 opacity-60'
-            : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5'
+          isDragging
+            ? 'opacity-40 border-dashed border-blue-300 dark:border-blue-500/40'
+            : isDragTarget
+              ? 'border-blue-400 dark:border-blue-500 bg-blue-50/40 dark:bg-blue-500/10 ring-2 ring-blue-200 dark:ring-blue-500/20'
+              : isHidden
+                ? 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/0 opacity-60'
+                : 'border-gray-100 dark:border-white/10 bg-white dark:bg-white/5'
         }`}
       >
-        <GripVertical size={14} className="text-gray-300 dark:text-white/20 shrink-0" />
+        <GripVertical size={14} className="text-gray-400 dark:text-white/40 shrink-0 cursor-grab active:cursor-grabbing" />
         <span className="flex-1 text-[13px] font-medium text-gray-800 dark:text-[#F5F5F5] truncate">
           {item.label}
         </span>
@@ -164,7 +223,7 @@ export const SidebarCustomizationModal: React.FC<Props> = ({ open, onClose, item
           <div>
             <h2 className="text-[18px] font-bold text-gray-900 dark:text-white">Customize sidebar</h2>
             <p className="text-[12px] text-gray-500 dark:text-[#A0A0A0] mt-1">
-              Hide items you don't need or reorder them.
+              Drag the grip handle to reorder, or click the eye to hide an item.
             </p>
           </div>
           <button
