@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Shield, Wifi, Monitor, Video, Bell, Package, CheckCircle2, ChevronRight, Settings as SettingsIcon, LogOut, Edit3, Loader2, Moon, Search, Layout, Mail, Type, Smartphone, Rocket, Key, ShieldCheck, Usb, Mic, Volume2, ExternalLink } from 'lucide-react';
+import { User, Shield, Wifi, Monitor, Video, Bell, Package, CheckCircle2, ChevronRight, Settings as SettingsIcon, LogOut, Edit3, Loader2, Moon, Search, Layout, Mail, Type, Smartphone, Rocket, Key, ShieldCheck, Usb, Mic, Volume2, ExternalLink, AlertTriangle, X as CloseIcon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { t } from '../lib/translations';
+import api from '../lib/api';
 
 interface SnowPremiumSettingsProps {
   user: any;
@@ -31,6 +32,26 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
   const [useDeviceDock, setUseDeviceDock] = useState(false);
   const [windowsNotification, setWindowsNotification] = useState(true);
   const [incomingSessionNotification, setIncomingSessionNotification] = useState(true);
+
+  // Delete account flow
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteStatus, setDeleteStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toLowerCase() !== 'delete') return;
+    setDeleteStatus('loading');
+    setDeleteError('');
+    try {
+      await api.delete('/api/auth/me');
+      setShowDeleteModal(false);
+      logout?.();
+    } catch (err: any) {
+      setDeleteStatus('error');
+      setDeleteError(err?.response?.data?.error || err?.message || 'Failed to delete account. Please contact support.');
+    }
+  };
 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -346,7 +367,16 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
                       <p className="text-sm text-[#757575] dark:text-[#A0A0A0]">{t('delete_account_desc', lang)}</p>
                     </div>
                   </div>
-                  <button className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteConfirmText('');
+                      setDeleteStatus('idle');
+                      setDeleteError('');
+                      setShowDeleteModal(true);
+                    }}
+                    className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+                  >
                     {t('delete_btn', lang)}
                   </button>
                 </div>
@@ -739,6 +769,78 @@ export const SnowPremiumSettings: React.FC<SnowPremiumSettingsProps> = ({ user: 
           )}
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md mx-4 bg-white dark:bg-[#151515] rounded-3xl shadow-2xl border border-gray-100 dark:border-white/10 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between p-6 border-b border-gray-100 dark:border-white/5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={18} />
+                </div>
+                <div>
+                  <h2 className="text-[18px] font-bold text-gray-900 dark:text-white">{t('delete_account', lang)}</h2>
+                  <p className="text-[12px] text-gray-500 dark:text-[#A0A0A0] mt-1">
+                    This action is permanent and cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteStatus === 'loading'}
+                className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 flex items-center justify-center disabled:opacity-50"
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-[13px] text-gray-700 dark:text-[#D1D1D1] leading-relaxed">
+                {t('delete_account_desc', lang)}
+              </p>
+              <p className="text-[13px] text-gray-600 dark:text-[#A0A0A0]">
+                Type <span className="font-mono font-bold text-red-600">delete</span> below to confirm.
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Type 'delete' to confirm"
+                disabled={deleteStatus === 'loading'}
+                className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0A0A0A] text-[14px] text-gray-900 dark:text-white outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 disabled:opacity-60"
+                autoFocus
+              />
+              {deleteError && (
+                <div className="flex items-center gap-2 text-[12px] text-red-600 dark:text-red-400">
+                  <AlertTriangle size={12} />
+                  {deleteError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 p-6 border-t border-gray-100 dark:border-white/5">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteStatus === 'loading'}
+                className="px-4 py-2 rounded-xl text-[13px] font-medium text-gray-600 dark:text-[#A0A0A0] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText.trim().toLowerCase() !== 'delete' || deleteStatus === 'loading'}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-red-600/40 disabled:cursor-not-allowed text-white text-[13px] font-bold transition-colors flex items-center gap-2"
+              >
+                {deleteStatus === 'loading' && <Loader2 size={14} className="animate-spin" />}
+                {deleteStatus === 'loading' ? 'Deleting...' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
