@@ -2,24 +2,29 @@ import React from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
-// ── Logo icon (ConnectX grid mark) ────────────────────────────────────────────
+// ── Logo mark ─────────────────────────────────────────────────────────────────
 const LogoMark: React.FC = () => (
-  <svg width="121" height="22" viewBox="0 0 121 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-    {/* Three-column dot grid on the left */}
-    <rect x="0.7"  y="0.55"  width="3.5" height="5.5" rx="1" fill="#242424" opacity="0.2" />
-    <rect x="0.7"  y="8.6"   width="3.5" height="5.5" rx="1" fill="#242424" />
-    <rect x="0.7"  y="16.8"  width="3.5" height="5.5" rx="1" fill="#242424" opacity="0.2" />
-    <rect x="8.8"  y="0.55"  width="3.5" height="5.5" rx="1" fill="#242424" opacity="0.2" />
-    <rect x="8.8"  y="8.6"   width="3.5" height="5.5" rx="1" fill="#242424" />
-    <rect x="8.8"  y="16.8"  width="3.5" height="5.5" rx="1" fill="#242424" opacity="0.2" />
-    <rect x="16.8" y="0.55"  width="3.5" height="5.5" rx="1" fill="#242424" opacity="0.2" />
-    <rect x="16.8" y="8.6"   width="3.5" height="5.5" rx="1" fill="#242424" />
-    <rect x="16.8" y="16.8"  width="3.5" height="5.5" rx="1" fill="#242424" opacity="0.2" />
-    {/* ConnectX wordmark letters (simplified as paths) */}
-    <text x="28" y="17"
-      fontFamily="Inter, sans-serif" fontWeight="700" fontSize="15"
-      letterSpacing="-0.4" fill="#242424">ConnectX</text>
-  </svg>
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M8.5 13.5L7 15C5.6 16.4 3.4 16.4 2 15C0.6 13.6 0.6 11.4 2 10L5.5 6.5C6.9 5.1 9.1 5.1 10.5 6.5C10.8 6.8 11 7.2 11.2 7.6"
+        stroke="#242424" strokeWidth="2" strokeLinecap="round" fill="none"
+      />
+      <path
+        d="M13.5 8.5L15 7C16.4 5.6 18.6 5.6 20 7C21.4 8.4 21.4 10.6 20 12L16.5 15.5C15.1 16.9 12.9 16.9 11.5 15.5C11.2 15.2 11 14.8 10.8 14.4"
+        stroke="#242424" strokeWidth="2" strokeLinecap="round" fill="none"
+      />
+    </svg>
+    <span style={{
+      fontFamily: 'Inter, sans-serif',
+      fontWeight: 700,
+      fontSize: '15px',
+      letterSpacing: '-0.3px',
+      color: '#242424',
+    }}>
+      Remote 365
+    </span>
+  </div>
 )
 
 // ── Provider icon: Google ──────────────────────────────────────────────────────
@@ -262,7 +267,7 @@ const Login: React.FC = () => {
             Need another provider?
           </p>
           <a
-            href="mailto:support@connectx.com"
+            href="mailto:support@remote365.com"
             style={{
               fontFamily: 'Inter, sans-serif',
               fontWeight: 400,
@@ -299,7 +304,7 @@ const Login: React.FC = () => {
           textAlign: 'center',
         }}>
           By clicking the buttons above, you acknowledge that you have read,{' '}
-          understood, and agree to ConnectX's{' '}
+          understood, and agree to Remote 365's{' '}
           <RouterLink to="/terms" style={{ color: '#666666' }}>
             Terms of Service
           </RouterLink>

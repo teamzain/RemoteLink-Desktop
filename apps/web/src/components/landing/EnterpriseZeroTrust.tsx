@@ -194,7 +194,7 @@ const EnterpriseZeroTrust: React.FC = () => (
             }}
           >
             Enforce identity-based controls across your organization to authenticate, authorize, and
-            verify every connection throughout your private network. ConnectX integrates with leading
+            verify every connection throughout your private network. Remote 365 integrates with leading
             identity providers to automate the provisioning of users, roles, and groups to allow
             seamless enforcement of core principles like continuous verification and least-privilege
             access.

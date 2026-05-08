@@ -70,7 +70,7 @@ const SecuritySection: React.FC = () => (
           color: 'rgba(48, 44, 44, 0.65)',
           margin: '0 0 40px 0',
         }}>
-          ConnectX is built on zero-trust architecture with end-to-end encryption and rigorous compliance standards to protect your network at every layer.
+          Remote 365 is built on zero-trust architecture with end-to-end encryption and rigorous compliance standards to protect your network at every layer.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>

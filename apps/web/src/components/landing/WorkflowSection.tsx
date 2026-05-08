@@ -16,18 +16,19 @@ const TerminalMockup: React.FC = () => (
           <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />
         ))}
       </div>
-      <div style={{ display: 'flex', gap: '6px' }}>
-        <span style={{ color: '#B2D862', fontSize: '12px', fontFamily: 'monospace' }}>$</span>
-        <span style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace' }}>connectx up --exit-node=100.78.14.63</span>
+      <div style={{ color: '#787676', fontSize: '11px', fontFamily: 'monospace' }}>Remote 365 — Session Log</div>
+      <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+        <span style={{ color: '#B2D862', fontSize: '12px', fontFamily: 'monospace' }}>→</span>
+        <span style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace' }}>Connecting to  482-761-903</span>
       </div>
-      <div style={{ color: '#C0AAFF', fontSize: '12px', fontFamily: 'monospace' }}>Warning: UDP port 41641 may be blocked</div>
-      <div style={{ color: '#C0AAFF', fontSize: '12px', fontFamily: 'monospace' }}>Success.</div>
+      <div style={{ color: '#C0AAFF', fontSize: '12px', fontFamily: 'monospace' }}>Authenticating device...</div>
+      <div style={{ color: '#28C840', fontSize: '12px', fontFamily: 'monospace' }}>Session established. E2E encrypted.</div>
       <div style={{ display: 'flex', gap: '6px' }}>
-        <span style={{ color: '#B2D862', fontSize: '12px', fontFamily: 'monospace' }}>$</span>
-        <span style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace' }}>connectx status</span>
+        <span style={{ color: '#B2D862', fontSize: '12px', fontFamily: 'monospace' }}>→</span>
+        <span style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace' }}>Devices online</span>
       </div>
-      <div style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace', opacity: 0.7 }}>100.78.14.63  connected</div>
-      <div style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace', opacity: 0.7 }}>100.108.47.7  connected</div>
+      <div style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace', opacity: 0.7 }}>482-761-903  John's MacBook Pro   ● online</div>
+      <div style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace', opacity: 0.7 }}>219-045-887  Office Desktop Win   ● online</div>
     </div>
     <div style={{ flex: 1, opacity: 0.08, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', padding: '16px' }}>
       {Array.from({ length: 12 }).map((_, i) => (
@@ -58,7 +59,7 @@ const DeviceMockup: React.FC = () => (
         {['#FF5F57', '#FEBC2E', '#28C840'].map(c => (
           <div key={c} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c }} />
         ))}
-        <span style={{ marginLeft: '8px', fontSize: '11px', color: '#787676', fontFamily: 'Inter, sans-serif' }}>ConnectX</span>
+        <span style={{ marginLeft: '8px', fontSize: '11px', color: '#787676', fontFamily: 'Inter, sans-serif' }}>Remote 365</span>
       </div>
       <div style={{ display: 'flex', height: '240px' }}>
         <div style={{ width: '60px', background: '#F0EDEA', borderRight: '1px solid #E0DDD9', display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px 0', alignItems: 'center' }}>
@@ -113,7 +114,7 @@ const WorkflowSection: React.FC = () => (
             color: 'rgba(255, 255, 255, 0.7)',
             margin: '0 0 32px 0',
           }}>
-            With 100+ integrations, ConnectX works with all your favorite tools. Provision resources that automatically join the network using Terraform or Pulumi. Integrate ACL management into your existing GitOps workflow.
+            Remote 365 integrates with your helpdesk, ticketing, and monitoring tools. Deploy to devices silently via MDM, manage access by team or role, and get full session audit logs for compliance.
           </p>
 
           <a href="#" style={{ textDecoration: 'none' }}>
@@ -187,7 +188,7 @@ const WorkflowSection: React.FC = () => (
             color: '#000000',
             margin: '0 0 20px 0',
           }}>
-            ConnectX quickstart guide
+            Remote 365 quickstart guide
           </h3>
 
           <a href="#" style={{

@@ -12,25 +12,15 @@ const NAV_LINKS = [
 ]
 
 const LogoIcon: React.FC<{ color?: string }> = ({ color = '#242424' }) => (
-  <svg width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="0"   y="8.2"  width="1" height="4.6" fill={color} />
-    <rect x="1.3" y="8.2"  width="1" height="4.6" fill={color} />
-    <rect x="0"   y="15.5" width="1" height="4.6" fill={color} opacity="0.2" />
-    <rect x="2.7" y="15.5" width="1" height="4.6" fill={color} opacity="0.2" />
-    <rect x="1.3" y="15.5" width="1" height="4.6" fill={color} />
-    <rect x="2.7" y="8.2"  width="1" height="4.6" fill={color} />
-    <rect x="0"   y="0.9"  width="1" height="4.6" fill={color} opacity="0.2" />
-    <rect x="1.3" y="0.9"  width="1" height="4.6" fill={color} opacity="0.2" />
-    <rect x="2.7" y="0.9"  width="1" height="4.6" fill={color} opacity="0.2" />
-    <rect x="5.2"  y="3.6"  width="5.4" height="2"   fill={color} />
-    <rect x="6.8"  y="7.1"  width="3.3" height="2"   fill={color} />
-    <rect x="8.9"  y="3.1"  width="1"   height="2.2" fill={color} />
-    <rect x="9.9"  y="3.4"  width="1"   height="2.2" fill={color} />
-    <rect x="10.7" y="7.1"  width="2.1" height="2"   fill={color} />
-    <rect x="12.7" y="7.1"  width="2"   height="2"   fill={color} />
-    <rect x="14.8" y="7.1"  width="2"   height="2"   fill={color} />
-    <rect x="17.0" y="3.4"  width="1.5" height="2.2" fill={color} />
-    <rect x="17.8" y="7.1"  width="2.1" height="2"   fill={color} />
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M8.5 13.5L7 15C5.6 16.4 3.4 16.4 2 15C0.6 13.6 0.6 11.4 2 10L5.5 6.5C6.9 5.1 9.1 5.1 10.5 6.5C10.8 6.8 11 7.2 11.2 7.6"
+      stroke={color} strokeWidth="2" strokeLinecap="round" fill="none"
+    />
+    <path
+      d="M13.5 8.5L15 7C16.4 5.6 18.6 5.6 20 7C21.4 8.4 21.4 10.6 20 12L16.5 15.5C15.1 16.9 12.9 16.9 11.5 15.5C11.2 15.2 11 14.8 10.8 14.4"
+      stroke={color} strokeWidth="2" strokeLinecap="round" fill="none"
+    />
   </svg>
 )
 
@@ -45,14 +35,19 @@ const Navbar: React.FC<NavbarProps> = ({ heroBg = '#F6F4F2', heroDark = false })
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => { setScrolled(window.scrollY > 10); setMenuOpen(false) }
+    const onScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const isLight = scrolled || !heroDark || menuOpen
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [menuOpen])
+
+  const isLight = !menuOpen && (scrolled || !heroDark)
   const fg = isLight ? 'rgba(48, 44, 44, 0.8)' : 'rgba(255, 255, 255, 0.85)'
-  const logoColor = isLight ? '#242424' : '#FFFFFF'
+  const logoColor = menuOpen ? '#FFFFFF' : (isLight ? '#242424' : '#FFFFFF')
 
   const linkStyle: React.CSSProperties = {
     fontFamily: 'Inter, sans-serif',
@@ -72,9 +67,9 @@ const Navbar: React.FC<NavbarProps> = ({ heroBg = '#F6F4F2', heroDark = false })
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        background: scrolled ? '#FFFFFF' : (menuOpen ? '#FFFFFF' : heroBg),
-        borderBottom: (scrolled || menuOpen) ? '1px solid rgba(0,0,0,0.08)' : 'none',
-        boxShadow: scrolled ? '0 1px 12px rgba(0,0,0,0.06)' : 'none',
+        background: menuOpen ? 'transparent' : (scrolled ? '#FFFFFF' : heroBg),
+        borderBottom: (!menuOpen && scrolled) ? '1px solid rgba(0,0,0,0.08)' : 'none',
+        boxShadow: (!menuOpen && scrolled) ? '0 1px 12px rgba(0,0,0,0.06)' : 'none',
         transition: 'background 0.25s ease, border-bottom 0.25s ease, box-shadow 0.25s ease',
       }}>
         <div className="navbar-inner">
@@ -90,7 +85,7 @@ const Navbar: React.FC<NavbarProps> = ({ heroBg = '#F6F4F2', heroDark = false })
               color: logoColor,
               transition: 'color 0.25s ease',
             }}>
-              ConnectX
+              Remote 365
             </span>
           </RouterLink>
 
@@ -150,85 +145,61 @@ const Navbar: React.FC<NavbarProps> = ({ heroBg = '#F6F4F2', heroDark = false })
             </RouterLink>
           </div>
 
-          {/* Hamburger button (mobile) */}
+          {/* Hamburger / close button (mobile) */}
           <button
-            className="navbar-hamburger"
+            className={`navbar-hamburger${menuOpen ? ' is-open' : ''}`}
             onClick={() => setMenuOpen(o => !o)}
-            aria-label="Toggle menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           >
-            <span style={{ background: logoColor }} />
-            <span style={{ background: logoColor }} />
-            <span style={{ background: logoColor }} />
+            <span style={{ background: menuOpen ? '#FFFFFF' : logoColor }} />
+            <span style={{ background: menuOpen ? '#FFFFFF' : logoColor }} />
+            <span style={{ background: menuOpen ? '#FFFFFF' : logoColor }} />
           </button>
         </div>
+      </header>
 
-        {/* Mobile drawer */}
-        {menuOpen && (
-          <div style={{
-            background: '#FFFFFF',
-            borderTop: '1px solid rgba(0,0,0,0.06)',
-            padding: '8px 20px 24px',
-          }}>
+      {/* Triangle mobile overlay */}
+      {menuOpen && (
+        <div className="tri-overlay">
+          {/* Top-right dark triangle (visual only) */}
+          <div className="tri-top-right" />
+
+          {/* Bottom-left green triangle (visual only) */}
+          <div className="tri-bottom-left" />
+
+          {/* CTA buttons — in the top-right dark zone */}
+          <div className="tri-top-right-content">
+            <RouterLink
+              to="/login"
+              onClick={() => setMenuOpen(false)}
+              className="tri-link-btn tri-link-outline"
+            >
+              Log in
+            </RouterLink>
+            <RouterLink
+              to="/register"
+              onClick={() => setMenuOpen(false)}
+              className="tri-link-btn tri-link-filled"
+            >
+              Get started
+            </RouterLink>
+          </div>
+
+          {/* Nav links — in the bottom-left green zone */}
+          <div className="tri-bottom-left-content">
             {[...NAV_LINKS, { label: 'Download', path: '/downloads' }].map(item => (
               <RouterLink
                 key={item.label}
                 to={item.path}
                 onClick={() => setMenuOpen(false)}
-                style={{
-                  display: 'block',
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 500,
-                  fontSize: '15px',
-                  color: 'rgba(48, 44, 44, 0.85)',
-                  textDecoration: 'none',
-                  padding: '13px 0',
-                  borderBottom: '1px solid rgba(0,0,0,0.06)',
-                }}
+                className="tri-nav-link"
               >
                 {item.label}
               </RouterLink>
             ))}
-            <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-              <RouterLink
-                to="/login"
-                onClick={() => setMenuOpen(false)}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px',
-                  border: '1px solid rgba(48,44,44,0.2)',
-                  borderRadius: '8px',
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 500,
-                  fontSize: '14px',
-                  color: '#302C2C',
-                  textDecoration: 'none',
-                }}
-              >
-                Log in
-              </RouterLink>
-              <RouterLink
-                to="/register"
-                onClick={() => setMenuOpen(false)}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '10px',
-                  background: '#302C2C',
-                  borderRadius: '8px',
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 500,
-                  fontSize: '14px',
-                  color: '#FFFFFF',
-                  textDecoration: 'none',
-                }}
-              >
-                Get started
-              </RouterLink>
-            </div>
           </div>
-        )}
-      </header>
+        </div>
+      )}
 
       <style>{`
         .navbar-inner {
@@ -268,8 +239,111 @@ const Navbar: React.FC<NavbarProps> = ({ heroBg = '#F6F4F2', heroDark = false })
           width: 22px;
           height: 2px;
           border-radius: 2px;
-          transition: background 0.25s;
+          transition: background 0.25s, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s;
         }
+        .navbar-hamburger.is-open span:nth-child(1) {
+          transform: translateY(7px) rotate(45deg);
+        }
+        .navbar-hamburger.is-open span:nth-child(2) {
+          opacity: 0;
+          transform: scaleX(0);
+        }
+        .navbar-hamburger.is-open span:nth-child(3) {
+          transform: translateY(-7px) rotate(-45deg);
+        }
+
+        /* ── Triangle overlay ── */
+        .tri-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 98;
+          overflow: hidden;
+        }
+        .tri-top-right {
+          position: absolute;
+          inset: 0;
+          background: #302C2C;
+          clip-path: polygon(0% 0%, 100% 0%, 100% 100%);
+          animation: slideInTopRight 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .tri-bottom-left {
+          position: absolute;
+          inset: 0;
+          background: #175134;
+          clip-path: polygon(0% 0%, 100% 100%, 0% 100%);
+          animation: slideInBottomLeft 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* CTA buttons — top-right safe zone */
+        .tri-top-right-content {
+          position: absolute;
+          top: 90px;
+          right: 36px;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 12px;
+          z-index: 10;
+          animation: fadeUpIn 0.35s 0.18s ease-out both;
+        }
+        .tri-link-btn {
+          font-family: Inter, sans-serif;
+          font-weight: 600;
+          font-size: 15px;
+          text-decoration: none;
+          padding: 11px 28px;
+          border-radius: 8px;
+          min-width: 140px;
+          text-align: center;
+          display: block;
+        }
+        .tri-link-outline {
+          color: rgba(255, 255, 255, 0.82);
+          border: 1px solid rgba(255, 255, 255, 0.22);
+        }
+        .tri-link-filled {
+          background: #FFFFFF;
+          color: #302C2C;
+        }
+
+        /* Nav links — bottom-left safe zone */
+        .tri-bottom-left-content {
+          position: absolute;
+          bottom: 56px;
+          left: 36px;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0;
+          z-index: 10;
+          animation: fadeUpIn 0.35s 0.18s ease-out both;
+        }
+        .tri-nav-link {
+          font-family: Inter, sans-serif;
+          font-weight: 600;
+          font-size: 21px;
+          letter-spacing: -0.5px;
+          color: rgba(255, 255, 255, 0.8);
+          text-decoration: none;
+          padding: 9px 0;
+          display: block;
+          transition: color 0.15s;
+        }
+        .tri-nav-link:hover { color: #FFFFFF; }
+
+        @keyframes slideInTopRight {
+          from { transform: translate(65%, -65%); }
+          to   { transform: translate(0, 0); }
+        }
+        @keyframes slideInBottomLeft {
+          from { transform: translate(-65%, 65%); }
+          to   { transform: translate(0, 0); }
+        }
+        @keyframes fadeUpIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
         @media (max-width: 1024px) {
           .navbar-links { display: none; }
         }

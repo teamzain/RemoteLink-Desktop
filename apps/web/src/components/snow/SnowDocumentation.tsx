@@ -17,7 +17,7 @@ export const SnowDocumentation: React.FC = () => {
     {
       title: 'Getting Started',
       icon: Zap,
-      desc: 'Learn the fundamentals of SyncLink node architecture and initial setup.',
+      desc: 'Learn the fundamentals of Remote 365 node architecture and initial setup.',
       items: ['System Requirements', 'Initial Node Setup', 'Authentication Flows'],
       color: 'text-blue-500',
       bg: 'bg-blue-50/50'
@@ -54,7 +54,7 @@ export const SnowDocumentation: React.FC = () => {
                  <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Knowledge Base</span>
               </div>
             </div>
-            <h1 className="text-4xl font-extrabold tracking-tight mb-4">SyncLink Technical Docs</h1>
+            <h1 className="text-4xl font-extrabold tracking-tight mb-4">Remote 365 Technical Docs</h1>
             <p className="text-white/40 text-lg font-medium mb-8 leading-relaxed">
                Comprehensive guides and API references to help you build high-performance, secure P2P node networks.
             </p>

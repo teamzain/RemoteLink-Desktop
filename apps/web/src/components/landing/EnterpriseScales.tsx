@@ -188,7 +188,7 @@ const EnterpriseScales: React.FC = () => {
               margin: 0,
             }}
           >
-            ConnectX scales with you
+            Remote 365 scales with you
           </h2>
           <p
             style={{
@@ -201,7 +201,7 @@ const EnterpriseScales: React.FC = () => {
               margin: 0,
             }}
           >
-            ConnectX is designed with connectivity, control, and security in mind so
+            Remote 365 is designed with connectivity, control, and security in mind so
             you’ll always be one step ahead.
           </p>
         </div>
@@ -224,7 +224,7 @@ const EnterpriseScales: React.FC = () => {
           <FeatureRow
             imagePath="/2.png"
             title="Identity-based"
-            description="ConnectX integrates with your existing identity provider to enable single sign on, provide a seamless onboarding experience, and enforce multi-factor authentication."
+            description="Remote 365 integrates with your existing identity provider to enable single sign on, provide a seamless onboarding experience, and enforce multi-factor authentication."
             Icon={RowIcon2}
           />
           <FeatureRow

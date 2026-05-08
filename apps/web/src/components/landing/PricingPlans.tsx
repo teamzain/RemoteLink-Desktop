@@ -325,9 +325,9 @@ const PricingPlans: React.FC = () => {
     <section style={{ background: '#FAF9F8', padding: '0 clamp(16px, 4vw, 40px) 100px' }}>
       <div className="pricing-plans-outer">
 
-        {/* ── Left: ConnectX at home ─────────────────────────────────────────── */}
+        {/* ── Left: Remote 365 at home ───────────────────────────────────────── */}
         <div className="pricing-home-col">
-          <SectionLabel>ConnectX at home</SectionLabel>
+          <SectionLabel>Remote 365 at home</SectionLabel>
           <PlanCard
             Icon={PersonalIcon}
             name="Personal"
@@ -342,9 +342,9 @@ const PricingPlans: React.FC = () => {
           />
         </div>
 
-        {/* ── Right: ConnectX at work ────────────────────────────────────────── */}
+        {/* ── Right: Remote 365 at work ──────────────────────────────────────── */}
         <div className="pricing-work-col">
-          <SectionLabel>ConnectX at work</SectionLabel>
+          <SectionLabel>Remote 365 at work</SectionLabel>
           <div className="pricing-work-cards">
             <PlanCard
               Icon={StarterIcon}
@@ -379,7 +379,7 @@ const PricingPlans: React.FC = () => {
               description="Custom plans, dedicated support, and SLA guarantees."
               price="Custom"
               ctaText="Contact sales"
-              onCta={() => { window.location.href = 'mailto:sales@connectx.com' }}
+              onCta={() => { window.location.href = 'mailto:sales@remote365.com' }}
               features={enterpriseFeatures}
               checkColor="#4A3F6B"
               accentColor="#4A3F6B"

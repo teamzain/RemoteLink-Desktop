@@ -202,7 +202,7 @@ const CustomerStoriesHero: React.FC = () => {
                 margin: 0
               }}
             >
-              See how ConnectX simplifies networking, and brings peace-of-mind for teams of every
+              See how Remote 365 simplifies networking, and brings peace-of-mind for teams of every
               size.
             </p>
             <button

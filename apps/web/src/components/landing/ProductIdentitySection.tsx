@@ -139,7 +139,7 @@ const ProductIdentitySection: React.FC = () => {
                     display: activeTab === 'auth' ? 'flex' : 'none'
                   }}
                 >
-                  ConnectX integrates with various identity providers (IdP) to authenticate user
+                  Remote 365 integrates with various identity providers (IdP) to authenticate user
                   access to the network with SSO and MFA.
                 </p>
               </div>

@@ -129,26 +129,26 @@ const SimplePowerfulSection: React.FC = () => (
       <div className="sps-cards">
         <FeatureCard
           icon={<IconDeploy />}
-          title="Quick deployment"
-          description="Establish private networks in minutes and push out ConnectX to users without having to configure every device."
+          title="Up in minutes"
+          description="Install Remote 365, register your device, and start accepting remote connections — no IT department needed."
         />
         <FeatureCard
           icon={<IconInfra />}
-          title="Infrastructure agnostic"
-          description="ConnectX works wherever you do, on any platform, service, or runtime, anywhere."
+          title="Any device, any OS"
+          description="Remote 365 runs on Windows, macOS, Linux, iOS, and Android. Support and access devices across every platform."
         />
         <FeatureCard
           icon={<IconSecure />}
-          title="Secure by default"
-          description="Authorize which resources are accessible to users, roles, or groups with Access Control Lists (ACLs)."
+          title="Encrypted end-to-end"
+          description="Every remote session is protected with end-to-end encryption. Role-based access control keeps your devices safe."
         />
       </div>
 
       {/* Stats row */}
       <div className="sps-stats">
-        <Stat value="3 mins"  label="to set up your network" />
-        <Stat value="2.5m"    label="devices connected" />
-        <Stat value="4k+"     label="companies running ConnectX" />
+        <Stat value="3 mins"  label="to set up remote access" />
+        <Stat value="2.5m"    label="remote sessions monthly" />
+        <Stat value="4k+"     label="teams using Remote 365" />
       </div>
 
     </div>

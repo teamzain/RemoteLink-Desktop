@@ -108,7 +108,7 @@ const GlobalVPNSection: React.FC = () => (
           color: '#000000',
           margin: '0 0 20px 0',
         }}>
-          Deploy a zero-config, no-fuss VPN
+          Access your devices from anywhere in the world
         </h2>
 
         <p style={{
@@ -120,10 +120,10 @@ const GlobalVPNSection: React.FC = () => (
           color: 'rgba(48, 44, 44, 0.65)',
           margin: '0 0 32px 0',
         }}>
-          Deploy a WireGuard®-based VPN that eliminates single points of failure.
+          Connect to any registered device using a unique 9-digit ID — from your browser, desktop app, or mobile. No VPN, no port forwarding, no firewall rules.
         </p>
 
-        <RouterLink to="/business-vpn" style={{
+        <RouterLink to="/remote-access" style={{
           display: 'inline-flex',
           alignItems: 'center',
           gap: '6px',
@@ -137,7 +137,7 @@ const GlobalVPNSection: React.FC = () => (
             letterSpacing: '-0.17px',
             color: '#000000',
           }}>
-            Business VPN
+            Learn more
           </span>
           <ExternalLink size={17} color="#000000" />
         </RouterLink>

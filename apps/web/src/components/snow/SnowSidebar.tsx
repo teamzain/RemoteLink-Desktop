@@ -57,7 +57,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
         </div>
         {!isCollapsed && (
           <div className="flex flex-col animate-in fade-in duration-500">
-            <span className="text-lg font-black text-[#1C1C1C] leading-none tracking-tighter">SyncLink</span>
+            <span className="text-lg font-black text-[#1C1C1C] leading-none tracking-tighter">Remote 365</span>
           </div>
         )}
       </NavLink>

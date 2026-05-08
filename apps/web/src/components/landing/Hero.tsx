@@ -27,7 +27,7 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
               color: '#302C2C',
               margin: 0,
             }}>
-              Secure, remote<br />access to{' '}
+              Remote access<br />to{' '}
               <span style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -40,7 +40,7 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
                 letterSpacing: '-1.56px',
                 verticalAlign: 'middle',
               }}>
-                databases
+                any device
               </span>
             </h1>
           </div>
@@ -56,7 +56,7 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
               color: 'rgba(48, 44, 44, 0.65)',
               margin: '0 0 36px 0',
             }}>
-              ConnectX makes creating software-defined networks easy: securely connecting users, services, and devices.
+              Remote 365 makes remote access effortless — connect to any device, support anyone, from anywhere, in seconds.
             </p>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
@@ -126,7 +126,7 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
           }}>
             <img
               src={heroImage}
-              alt="ConnectX Dashboard"
+              alt="Remote 365 Dashboard"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           </div>

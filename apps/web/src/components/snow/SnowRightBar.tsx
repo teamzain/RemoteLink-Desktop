@@ -96,7 +96,7 @@ export const SnowRightBar: React.FC<SnowRightBarProps> = ({ devices, notificatio
          <div className="p-4 bg-[rgba(28,28,28,0.04)] rounded-[20px] border border-[rgba(28,28,28,0.04)] relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 blur-2xl rounded-full translate-x-12 -translate-y-12" />
             <p className="text-[10px] font-bold text-[rgba(28,28,28,0.4)] leading-relaxed relative z-10 uppercase tracking-tight">
-              SyncLink utilizes E2E encryption for all remote sessions. Your session is currently protected.
+              Remote 365 utilizes E2E encryption for all remote sessions. Your session is currently protected.
             </p>
          </div>
       </div>

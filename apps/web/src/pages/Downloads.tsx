@@ -49,11 +49,11 @@ interface Platform {
 }
 
 const PLATFORMS: Platform[] = [
-  { id: 'macos',   label: 'macOS',   Icon: AppleIcon,    href: '#', buttonLabel: 'Download ConnectX for macOS',   requirement: 'Requires macOS 12 or later.' },
-  { id: 'ios',     label: 'iOS',     Icon: AppleIosIcon, href: '#', buttonLabel: 'Download ConnectX for iOS',     requirement: 'Requires iOS 15 or later.' },
-  { id: 'windows', label: 'Windows', Icon: WindowsIcon,  href: 'http://159.65.84.190/downloads/desktop/Connect-X-Setup.exe', buttonLabel: 'Download ConnectX for Windows', requirement: 'Requires Windows 10 or later.' },
-  { id: 'linux',   label: 'Linux',   Icon: LinuxIcon,    href: '#', buttonLabel: 'Download ConnectX for Linux',   requirement: 'Various distributions supported.' },
-  { id: 'android', label: 'Android', Icon: AndroidIcon,  href: '#', buttonLabel: 'Download ConnectX for Android', requirement: 'Requires Android 8.0 or later.' },
+  { id: 'macos',   label: 'macOS',   Icon: AppleIcon,    href: '#', buttonLabel: 'Download Remote 365 for macOS',   requirement: 'Requires macOS 12 or later.' },
+  { id: 'ios',     label: 'iOS',     Icon: AppleIosIcon, href: '#', buttonLabel: 'Download Remote 365 for iOS',     requirement: 'Requires iOS 15 or later.' },
+  { id: 'windows', label: 'Windows', Icon: WindowsIcon,  href: 'http://159.65.84.190/downloads/desktop/Connect-X-Setup.exe', buttonLabel: 'Download Remote 365 for Windows', requirement: 'Requires Windows 10 or later.' },
+  { id: 'linux',   label: 'Linux',   Icon: LinuxIcon,    href: '#', buttonLabel: 'Download Remote 365 for Linux',   requirement: 'Various distributions supported.' },
+  { id: 'android', label: 'Android', Icon: AndroidIcon,  href: '#', buttonLabel: 'Download Remote 365 for Android', requirement: 'Requires Android 8.0 or later.' },
 ]
 
 // ── Hero ──────────────────────────────────────────────────────────────────────

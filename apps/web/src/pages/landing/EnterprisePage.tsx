@@ -229,7 +229,7 @@ const EnterpriseHero: React.FC = () => {
               color: '#AAC6F1',
             }}
           >
-            ConnectX for Enterprise
+            Remote 365 for Enterprise
           </span>
 
           {/* Heading */}
@@ -273,13 +273,13 @@ const EnterpriseHero: React.FC = () => {
               maxWidth: '444px',
             }}
           >
-            Organizations of all sizes choose ConnectX to connect their employees, devices, and
+            Organizations of all sizes choose Remote 365 to connect their employees, devices, and
             workloads securely across infrastructure spanning the globe.
           </p>
 
           {/* Contact sales button */}
           <button
-            onClick={() => { window.location.href = 'mailto:sales@connectx.com' }}
+            onClick={() => { window.location.href = 'mailto:sales@remote365.com' }}
             style={{
               display: 'inline-flex',
               flexDirection: 'row',

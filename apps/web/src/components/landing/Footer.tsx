@@ -9,17 +9,17 @@ const COL: { heading: string; links: { label: string; to: string }[] }[] = [
       { label: 'Pricing',           to: '/pricing' },
       { label: 'Integrations',      to: '/integrations' },
       { label: 'Features',          to: '/features' },
-      { label: 'Compare ConnectX',  to: '/compare' },
+      { label: 'Compare Remote 365', to: '/compare' },
     ],
   },
   {
     heading: 'Use Cases',
     links: [
-      { label: 'Business VPN',          to: '/business-vpn' },
-      { label: 'Remote Access',         to: '/remote-access' },
-      { label: 'Site-to-Site Networking', to: '/site-to-site' },
-      { label: 'Homelab',               to: '/homelab' },
-      { label: 'Enterprise',            to: '/enterprise' },
+      { label: 'Remote Support',     to: '/remote-support' },
+      { label: 'Remote Access',      to: '/remote-access' },
+      { label: 'Device Management',  to: '/device-management' },
+      { label: 'Home & Personal',    to: '/homelab' },
+      { label: 'Enterprise',         to: '/enterprise' },
     ],
   },
   {
@@ -142,7 +142,7 @@ const Footer: React.FC = () => (
             color: '#302C2C',
             letterSpacing: '-0.3px',
           }}>
-            connectx
+            Remote 365
           </span>
         </div>
 
@@ -176,7 +176,7 @@ const Footer: React.FC = () => (
             color: 'rgba(48, 44, 44, 0.5)',
             maxWidth: '220px',
           }}>
-            WireGuard® is a registered trademark of Jason A. Donenfeld.
+            Remote 365 — Secure remote access for everyone.
           </span>
           <div style={{ display: 'flex', gap: '12px', color: 'rgba(48,44,44,0.55)' }}>
             {[IconX, IconFacebook, IconLinkedIn, IconYouTube].map((Icon, i) => (
@@ -199,7 +199,7 @@ const Footer: React.FC = () => (
           fontSize: '12px',
           color: 'rgba(48, 44, 44, 0.45)',
         }}>
-          © {new Date().getFullYear()} ConnectX Inc. All rights reserved. ConnectX is a registered trademark of ConnectX Inc.
+          © {new Date().getFullYear()} Remote 365 Inc. All rights reserved. Remote 365 is a registered trademark of Remote 365 Inc.
         </span>
       </div>
 

@@ -6,10 +6,10 @@ const SIZE   = 500
 const RADIUS = 210
 
 const BADGES = [
-  { ip: '100.78.14.63',   angle: -90  },
-  { ip: '100.108.47.7',   angle: 180  },
-  { ip: '100.81.144.123', angle: 0    },
-  { ip: '100.101.33.15',  angle: 90   },
+  { ip: '482-761-903',  angle: -90  },
+  { ip: '219-045-887',  angle: 180  },
+  { ip: '573-302-614',  angle: 0    },
+  { ip: '810-556-247',  angle: 90   },
 ]
 
 interface BadgeProps { ip: string; angle: number }
@@ -116,7 +116,7 @@ const NetworkSection: React.FC = () => {
             margin: '0 auto 20px',
             maxWidth: '603px',
           }}>
-            ConnectX makes secure networking easy
+            Remote 365 makes remote access easy
           </h2>
 
           <p style={{
@@ -129,7 +129,7 @@ const NetworkSection: React.FC = () => {
             margin: '0 auto 40px',
             maxWidth: '451px',
           }}>
-            Achieve point-to-point network connectivity that enforces least privilege.
+            Every device gets a unique ID. Share it with anyone and they can connect — no VPN, no port forwarding, no setup.
           </p>
 
           <RouterLink to="/how-it-works" style={{

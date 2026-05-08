@@ -95,7 +95,7 @@ export const SnowBilling: React.FC<SnowBillingProps> = ({ billingInfo, handleUpg
           <div className="mt-6 p-4 bg-orange-50/50 border border-orange-100/50 rounded-[18px] flex gap-3">
             <AlertTriangle size={16} className="text-orange-400 shrink-0 mt-0.5" />
             <p className="text-[11px] text-orange-600/80 font-medium leading-relaxed">
-              SyncLink uses Stripe for secure terminal billing. You are currently in a test environment.
+              Remote 365 uses Stripe for secure terminal billing. You are currently in a test environment.
             </p>
           </div>
         </div>
