@@ -64,7 +64,6 @@ const COL: { heading: string; links: { label: string; to: string }[] }[] = [
   },
 ]
 
-// Social icons as inline SVGs
 const IconX = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.836L2.25 2.25h6.986l4.265 5.64L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
@@ -98,16 +97,10 @@ const LINK_STYLE: React.CSSProperties = {
 
 const Footer: React.FC = () => (
   <footer style={{ background: '#FFFFFF', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-    <div style={{ maxWidth: '1360px', margin: '0 auto', padding: '64px 67px 0' }}>
+    <div className="footer-container">
 
       {/* Link columns grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(6, 1fr)',
-        gap: '24px',
-        paddingBottom: '56px',
-        borderBottom: '1px solid rgba(0,0,0,0.08)',
-      }}>
+      <div className="footer-grid">
         {COL.map(col => (
           <div key={col.heading}>
             <p style={{
@@ -135,13 +128,7 @@ const Footer: React.FC = () => (
       </div>
 
       {/* Bottom bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '24px 0',
-        borderBottom: '1px solid rgba(0,0,0,0.08)',
-      }}>
+      <div className="footer-bottom">
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
@@ -160,7 +147,7 @@ const Footer: React.FC = () => (
         </div>
 
         {/* Legal links */}
-        <div style={{ display: 'flex', gap: '24px' }}>
+        <div className="footer-legal">
           {[
             { label: 'Terms of Service', to: '/terms' },
             { label: 'Privacy Policy',   to: '/privacy' },
@@ -181,7 +168,7 @@ const Footer: React.FC = () => (
         </div>
 
         {/* WireGuard note + social icons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="footer-social">
           <span style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 400,
@@ -217,6 +204,61 @@ const Footer: React.FC = () => (
       </div>
 
     </div>
+
+    <style>{`
+      .footer-container {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: 64px 40px 0;
+      }
+      .footer-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 24px;
+        padding-bottom: 56px;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+      }
+      .footer-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+        padding: 24px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+      }
+      .footer-legal {
+        display: flex;
+        gap: 24px;
+      }
+      .footer-social {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      @media (max-width: 1024px) {
+        .footer-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        .footer-container {
+          padding: 48px 20px 0;
+        }
+        .footer-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 32px 16px;
+        }
+        .footer-bottom {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 20px;
+        }
+        .footer-social {
+          flex-wrap: wrap;
+        }
+      }
+    `}</style>
   </footer>
 )
 

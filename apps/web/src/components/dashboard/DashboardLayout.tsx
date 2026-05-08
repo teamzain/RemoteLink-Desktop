@@ -8,8 +8,7 @@ import {
   User, 
   Activity,
   X,
-  ChevronLeft,
-  ChevronRight
+  ChevronLeft
 } from 'lucide-react';
 import { SnowSidebar } from '../snow/SnowSidebar';
 import { SnowRightBar } from '../snow/SnowRightBar';
@@ -116,7 +115,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
     }
   };
 
-  const sidebarWidth = isSidebarCollapsed ? '72px' : '212px';
 
   return (
     <div className="flex h-screen w-full bg-[#F8F9FA] overflow-hidden font-inter text-[#1C1C1C]">

@@ -2,31 +2,26 @@ import React from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { ExternalLink } from 'lucide-react'
 
-const SIZE   = 500   // container px (square for clean orbit)
-const RADIUS = 210   // badge orbit radius from center
+const SIZE   = 500
+const RADIUS = 210
 
 const BADGES = [
-  { ip: '100.78.14.63',   angle: -90  }, // top
-  { ip: '100.108.47.7',   angle: 180  }, // left
-  { ip: '100.81.144.123', angle: 0    }, // right
-  { ip: '100.101.33.15',  angle: 90   }, // bottom
+  { ip: '100.78.14.63',   angle: -90  },
+  { ip: '100.108.47.7',   angle: 180  },
+  { ip: '100.81.144.123', angle: 0    },
+  { ip: '100.101.33.15',  angle: 90   },
 ]
 
-interface BadgeProps {
-  ip: string
-  angle: number  // degrees: 0=right, 90=bottom, 180=left, -90=top
-}
+interface BadgeProps { ip: string; angle: number }
 
 const Badge: React.FC<BadgeProps> = ({ ip, angle }) => (
   <div style={{
     position: 'absolute',
     left: '50%',
     top: '50%',
-    // Place on orbit ring then centre the badge on that point
     transform: `rotate(${angle}deg) translateX(${RADIUS}px) rotate(${-angle}deg) translate(-50%, -50%)`,
     zIndex: 2,
   }}>
-    {/* Counter-rotate so text stays upright as parent spins */}
     <div style={{ animation: 'counter-spin 18s linear infinite' }}>
       <div style={{
         background: '#FFFFFF',
@@ -41,12 +36,12 @@ const Badge: React.FC<BadgeProps> = ({ ip, angle }) => (
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0 18px',
+          padding: '0 14px',
         }}>
           <span style={{
             fontFamily: '"SF Mono", "Fira Mono", "Consolas", monospace',
             fontWeight: 400,
-            fontSize: '16px',
+            fontSize: '14px',
             lineHeight: '24px',
             letterSpacing: '-0.18px',
             color: '#302C2C',
@@ -65,58 +60,47 @@ const NetworkSection: React.FC = () => {
 
   return (
     <section style={{ background: '#FFFFFF', position: 'relative' }}>
-      <div style={{ maxWidth: '1360px', margin: '0 auto', padding: '112px 40px' }}>
+      <div style={{ maxWidth: '1360px', margin: '0 auto', padding: 'clamp(60px, 8vw, 112px) 40px' }}>
 
         {/* Circle orbit diagram */}
-        <div style={{
-          position: 'relative',
-          width: `${SIZE}px`,
-          height: `${SIZE}px`,
-          margin: '0 auto',
-        }}>
-          {/* Spinning orbit wrapper */}
+        <div className="network-orbit-wrapper">
           <div style={{
-            position: 'absolute',
-            inset: 0,
-            animation: 'spin 18s linear infinite',
+            position: 'relative',
+            width: `${SIZE}px`,
+            height: `${SIZE}px`,
           }}>
-            {/* Outer faint ring */}
-            <div style={{
-              position: 'absolute',
-              width: `${RADIUS * 2 + 5}px`,
-              height: `${RADIUS * 2 + 5}px`,
-              left: `${half - RADIUS - 2}px`,
-              top: `${half - RADIUS - 2}px`,
-              border: '1px solid #E0DDD9',
-              borderRadius: '9999px',
-            }} />
-
-            {/* Middle ring */}
-            <div style={{
-              position: 'absolute',
-              width: `${RADIUS * 2 - 30}px`,
-              height: `${RADIUS * 2 - 30}px`,
-              left: `${half - RADIUS + 15}px`,
-              top: `${half - RADIUS + 15}px`,
-              border: '1px solid #C8C4BE',
-              borderRadius: '9999px',
-            }} />
-
-            {/* Inner filled circle */}
-            <div style={{
-              position: 'absolute',
-              width: '225px',
-              height: '225px',
-              left: `${half - 112}px`,
-              top: `${half - 112}px`,
-              background: '#F6F4F2',
-              borderRadius: '9999px',
-            }} />
-
-            {/* Orbiting badges */}
-            {BADGES.map((b) => (
-              <Badge key={b.ip} ip={b.ip} angle={b.angle} />
-            ))}
+            <div style={{ position: 'absolute', inset: 0, animation: 'spin 18s linear infinite' }}>
+              <div style={{
+                position: 'absolute',
+                width: `${RADIUS * 2 + 5}px`,
+                height: `${RADIUS * 2 + 5}px`,
+                left: `${half - RADIUS - 2}px`,
+                top: `${half - RADIUS - 2}px`,
+                border: '1px solid #E0DDD9',
+                borderRadius: '9999px',
+              }} />
+              <div style={{
+                position: 'absolute',
+                width: `${RADIUS * 2 - 30}px`,
+                height: `${RADIUS * 2 - 30}px`,
+                left: `${half - RADIUS + 15}px`,
+                top: `${half - RADIUS + 15}px`,
+                border: '1px solid #C8C4BE',
+                borderRadius: '9999px',
+              }} />
+              <div style={{
+                position: 'absolute',
+                width: '225px',
+                height: '225px',
+                left: `${half - 112}px`,
+                top: `${half - 112}px`,
+                background: '#F6F4F2',
+                borderRadius: '9999px',
+              }} />
+              {BADGES.map((b) => (
+                <Badge key={b.ip} ip={b.ip} angle={b.angle} />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -125,8 +109,8 @@ const NetworkSection: React.FC = () => {
           <h2 style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 500,
-            fontSize: 'clamp(2rem, 4vw, 58px)',
-            lineHeight: '68px',
+            fontSize: 'clamp(1.8rem, 4vw, 58px)',
+            lineHeight: '1.18',
             letterSpacing: '-1.74px',
             color: '#000000',
             margin: '0 auto 20px',
@@ -138,8 +122,8 @@ const NetworkSection: React.FC = () => {
           <p style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 400,
-            fontSize: '20px',
-            lineHeight: '30px',
+            fontSize: 'clamp(16px, 2vw, 20px)',
+            lineHeight: '1.5',
             letterSpacing: '-0.2px',
             color: 'rgba(48, 44, 44, 0.65)',
             margin: '0 auto 40px',
@@ -185,6 +169,29 @@ const NetworkSection: React.FC = () => {
         @keyframes counter-spin {
           from { transform: rotate(0deg); }
           to   { transform: rotate(-360deg); }
+        }
+        .network-orbit-wrapper {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          overflow: hidden;
+        }
+        .network-orbit-wrapper > div {
+          flex-shrink: 0;
+        }
+        @media (max-width: 640px) {
+          .network-orbit-wrapper > div {
+            transform: scale(0.6);
+            transform-origin: center center;
+            margin: -100px 0;
+          }
+        }
+        @media (min-width: 641px) and (max-width: 900px) {
+          .network-orbit-wrapper > div {
+            transform: scale(0.8);
+            transform-origin: center center;
+            margin: -50px 0;
+          }
         }
       `}</style>
     </section>

@@ -88,7 +88,8 @@ const OAuthButton: React.FC<OAuthButtonProps> = ({ icon, label, onClick }) => {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: '320px',
+        width: '100%',
+        maxWidth: '320px',
         height: '42px',
         display: 'flex',
         flexDirection: 'row',
@@ -102,7 +103,6 @@ const OAuthButton: React.FC<OAuthButtonProps> = ({ icon, label, onClick }) => {
         borderRadius: '4px',
         cursor: 'pointer',
         transition: 'background 0.15s',
-        flexShrink: 0,
       }}
     >
       {/* Icon container */}
@@ -136,7 +136,6 @@ const OAuthButton: React.FC<OAuthButtonProps> = ({ icon, label, onClick }) => {
 // ── Main Login component ───────────────────────────────────────────────────────
 const Login: React.FC = () => {
   const navigate = useNavigate()
-  const { login } = useAuthStore()
 
   // Redirect if already logged in
   React.useEffect(() => {
@@ -167,7 +166,7 @@ const Login: React.FC = () => {
       flexDirection: 'column',
       alignItems: 'center',
       minHeight: '100vh',
-      padding: '32px 0 105px',
+      padding: '32px 20px 120px',
       background: '#FFFFFF',
       position: 'relative',
     }}>
@@ -185,7 +184,7 @@ const Login: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         gap: '11px',
-        width: '560px',
+        width: '100%',
         maxWidth: '560px',
         paddingBottom: '48px',
       }}>
@@ -224,6 +223,8 @@ const Login: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         gap: '10px',
+        width: '100%',
+        maxWidth: '320px',
       }}>
         <OAuthButton icon={<GoogleIcon />}    label="Sign in with Google"    onClick={handleGoogle}    />
         <OAuthButton icon={<MicrosoftIcon />} label="Sign in with Microsoft" onClick={handleMicrosoft} />
@@ -238,7 +239,8 @@ const Login: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         paddingTop: '64px',
-        width: '238px',
+        width: '100%',
+        maxWidth: '320px',
       }}>
         <div style={{
           display: 'flex',
@@ -279,13 +281,12 @@ const Login: React.FC = () => {
 
       {/* ── Legal footer ──────────────────────────────────────────────────── */}
       <div style={{
-        position: 'absolute',
-        bottom: '32px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        width: '448px',
-        maxWidth: '448px',
+        width: '100%',
+        maxWidth: '440px',
+        marginTop: '40px',
       }}>
         <p style={{
           fontFamily: 'Inter, sans-serif',

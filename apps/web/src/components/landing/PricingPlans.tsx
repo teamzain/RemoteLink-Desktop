@@ -322,20 +322,11 @@ const PricingPlans: React.FC = () => {
   const navigate = useNavigate()
 
   return (
-    <section style={{
-      background: '#FAF9F8',
-      padding: '0 40px 120px',
-    }}>
-      <div style={{
-        maxWidth: '1280px',
-        margin: '0 auto',
-        display: 'flex',
-        gap: '16px',
-        alignItems: 'flex-start',
-      }}>
+    <section style={{ background: '#FAF9F8', padding: '0 clamp(16px, 4vw, 40px) 100px' }}>
+      <div className="pricing-plans-outer">
 
         {/* ── Left: ConnectX at home ─────────────────────────────────────────── */}
-        <div style={{ width: '314px', flexShrink: 0 }}>
+        <div className="pricing-home-col">
           <SectionLabel>ConnectX at home</SectionLabel>
           <PlanCard
             Icon={PersonalIcon}
@@ -352,9 +343,9 @@ const PricingPlans: React.FC = () => {
         </div>
 
         {/* ── Right: ConnectX at work ────────────────────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="pricing-work-col">
           <SectionLabel>ConnectX at work</SectionLabel>
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'stretch' }}>
+          <div className="pricing-work-cards">
             <PlanCard
               Icon={StarterIcon}
               name="Starter"
@@ -398,6 +389,49 @@ const PricingPlans: React.FC = () => {
         </div>
 
       </div>
+
+      <style>{`
+        .pricing-plans-outer {
+          max-width: 1280px;
+          margin: 0 auto;
+          display: flex;
+          gap: 16px;
+          align-items: flex-start;
+        }
+        .pricing-home-col {
+          width: 314px;
+          flex-shrink: 0;
+        }
+        .pricing-work-col {
+          flex: 1;
+          min-width: 0;
+        }
+        .pricing-work-cards {
+          display: flex;
+          gap: 4px;
+          align-items: stretch;
+        }
+        @media (max-width: 1100px) {
+          .pricing-plans-outer {
+            flex-direction: column;
+          }
+          .pricing-home-col {
+            width: 100%;
+          }
+          .pricing-work-cards {
+            gap: 12px;
+          }
+        }
+        @media (max-width: 768px) {
+          .pricing-work-cards {
+            flex-direction: column;
+            gap: 16px;
+          }
+          .pricing-work-cards > div {
+            border-radius: 16px !important;
+          }
+        }
+      `}</style>
     </section>
   )
 }

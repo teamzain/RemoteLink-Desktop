@@ -49,46 +49,11 @@ interface Platform {
 }
 
 const PLATFORMS: Platform[] = [
-  {
-    id: 'macos',
-    label: 'macOS',
-    Icon: AppleIcon,
-    href: '#',
-    buttonLabel: 'Download ConnectX for macOS',
-    requirement: 'Requires macOS 12 or later.',
-  },
-  {
-    id: 'ios',
-    label: 'iOS',
-    Icon: AppleIosIcon,
-    href: '#',
-    buttonLabel: 'Download ConnectX for iOS',
-    requirement: 'Requires iOS 15 or later.',
-  },
-  {
-    id: 'windows',
-    label: 'Windows',
-    Icon: WindowsIcon,
-    href: 'http://159.65.84.190/downloads/desktop/Connect-X-Setup.exe',
-    buttonLabel: 'Download ConnectX for Windows',
-    requirement: 'Requires Windows 10 or later.',
-  },
-  {
-    id: 'linux',
-    label: 'Linux',
-    Icon: LinuxIcon,
-    href: '#',
-    buttonLabel: 'Download ConnectX for Linux',
-    requirement: 'Various distributions supported.',
-  },
-  {
-    id: 'android',
-    label: 'Android',
-    Icon: AndroidIcon,
-    href: '#',
-    buttonLabel: 'Download ConnectX for Android',
-    requirement: 'Requires Android 8.0 or later.',
-  },
+  { id: 'macos',   label: 'macOS',   Icon: AppleIcon,    href: '#', buttonLabel: 'Download ConnectX for macOS',   requirement: 'Requires macOS 12 or later.' },
+  { id: 'ios',     label: 'iOS',     Icon: AppleIosIcon, href: '#', buttonLabel: 'Download ConnectX for iOS',     requirement: 'Requires iOS 15 or later.' },
+  { id: 'windows', label: 'Windows', Icon: WindowsIcon,  href: 'http://159.65.84.190/downloads/desktop/Connect-X-Setup.exe', buttonLabel: 'Download ConnectX for Windows', requirement: 'Requires Windows 10 or later.' },
+  { id: 'linux',   label: 'Linux',   Icon: LinuxIcon,    href: '#', buttonLabel: 'Download ConnectX for Linux',   requirement: 'Various distributions supported.' },
+  { id: 'android', label: 'Android', Icon: AndroidIcon,  href: '#', buttonLabel: 'Download ConnectX for Android', requirement: 'Requires Android 8.0 or later.' },
 ]
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
@@ -103,7 +68,7 @@ const DownloadHero: React.FC = () => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '127px 40px 120px',
+      padding: 'clamp(60px, 10vw, 127px) clamp(20px, 4vw, 40px) clamp(60px, 8vw, 120px)',
     }}>
       <div style={{
         maxWidth: '1280px',
@@ -111,7 +76,7 @@ const DownloadHero: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '64px',
+        gap: 'clamp(40px, 5vw, 64px)',
       }}>
 
         {/* Heading */}
@@ -119,8 +84,8 @@ const DownloadHero: React.FC = () => {
           <h1 style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 500,
-            fontSize: '48px',
-            lineHeight: '57px',
+            fontSize: 'clamp(32px, 6vw, 48px)',
+            lineHeight: '1.2',
             letterSpacing: '-0.96px',
             color: '#FFFFFF',
             textAlign: 'center',
@@ -131,9 +96,8 @@ const DownloadHero: React.FC = () => {
           <p style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 400,
-            fontSize: '20px',
-            lineHeight: '30px',
-            letterSpacing: '-0.2px',
+            fontSize: 'clamp(15px, 2vw, 20px)',
+            lineHeight: '1.5',
             color: '#FFFFFF',
             opacity: 0.7,
             textAlign: 'center',
@@ -143,62 +107,62 @@ const DownloadHero: React.FC = () => {
           </p>
         </div>
 
-        {/* Platform cards */}
-        <div style={{ display: 'flex', gap: '30px', justifyContent: 'center', width: '100%' }}>
-          {PLATFORMS.map(p => {
-            const active = selected === p.id
-            return (
-              <button
-                key={p.id}
-                onClick={() => setSelected(p.id)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: '18px',
-                  width: '232px',
-                  height: '155px',
-                  background: active ? '#FFFFFF' : '#487961',
-                  border: '1px solid #426F59',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease',
-                  flexShrink: 0,
-                }}
-              >
-                <p.Icon color={active ? '#302C2C' : '#FFFFFF'} />
-                <span style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 400,
-                  fontSize: '18px',
-                  lineHeight: '27px',
-                  letterSpacing: '-0.18px',
-                  color: active ? '#302C2C' : '#FFFFFF',
-                  transition: 'color 0.2s ease',
-                }}>
-                  {p.label}
-                </span>
-              </button>
-            )
-          })}
+        {/* Platform cards — scrollable on narrow viewports */}
+        <div className="dl-scroll">
+          <div className="dl-cards">
+            {PLATFORMS.map(p => {
+              const active = selected === p.id
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setSelected(p.id)}
+                  className="dl-card"
+                  style={{
+                    background: active ? '#FFFFFF' : '#487961',
+                    border: '1px solid #426F59',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '14px',
+                    padding: 0,
+                  }}
+                >
+                  <p.Icon color={active ? '#302C2C' : '#FFFFFF'} />
+                  <span style={{
+                    fontFamily: 'Inter, sans-serif',
+                    fontWeight: 400,
+                    fontSize: '16px',
+                    color: active ? '#302C2C' : '#FFFFFF',
+                    transition: 'color 0.2s ease',
+                  }}>
+                    {p.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Download button */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-          <a href={current.href} style={{ textDecoration: 'none' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%', maxWidth: '480px' }}>
+          <a href={current.href} style={{ textDecoration: 'none', width: '100%' }}>
             <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 background: '#FFFFFF',
                 borderRadius: '14px',
-                padding: '16px 40px',
+                padding: '16px 24px',
                 height: '59px',
                 cursor: 'pointer',
                 transition: 'opacity 0.15s',
-                whiteSpace: 'nowrap',
+                width: '100%',
+                boxSizing: 'border-box',
               }}
               onMouseEnter={e => (e.currentTarget.style.opacity = '0.9')}
               onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
@@ -206,10 +170,10 @@ const DownloadHero: React.FC = () => {
               <span style={{
                 fontFamily: 'Inter, sans-serif',
                 fontWeight: 500,
-                fontSize: '18px',
-                lineHeight: '27px',
+                fontSize: 'clamp(14px, 2vw, 18px)',
                 letterSpacing: '-0.18px',
                 color: '#302C2C',
+                textAlign: 'center',
               }}>
                 {current.buttonLabel}
               </span>
@@ -220,8 +184,6 @@ const DownloadHero: React.FC = () => {
             fontFamily: 'Inter, sans-serif',
             fontWeight: 400,
             fontSize: '14px',
-            lineHeight: '19px',
-            letterSpacing: '-0.16px',
             color: '#FFFFFF',
             opacity: 0.7,
             textAlign: 'center',
@@ -232,6 +194,34 @@ const DownloadHero: React.FC = () => {
         </div>
 
       </div>
+
+      <style>{`
+        .dl-scroll {
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .dl-scroll::-webkit-scrollbar { display: none; }
+        .dl-cards {
+          display: flex;
+          gap: 16px;
+          justify-content: center;
+          min-width: max-content;
+          padding: 0 4px;
+        }
+        .dl-card {
+          width: 180px;
+          height: 130px;
+          flex-shrink: 0;
+        }
+        @media (max-width: 900px) {
+          .dl-cards { justify-content: flex-start; }
+        }
+        @media (max-width: 480px) {
+          .dl-card { width: 140px; height: 110px; }
+        }
+      `}</style>
     </section>
   )
 }

@@ -30,7 +30,7 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
     ${isCollapsed ? 'justify-center w-8 mx-auto px-0' : 'w-full'}
   `;
 
-  const textClass = (active: boolean) => `
+  const textClass = (_active: boolean) => `
     text-sm font-semibold leading-5 transition-all duration-300 whitespace-nowrap overflow-hidden
     ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-2.5'}
   `;

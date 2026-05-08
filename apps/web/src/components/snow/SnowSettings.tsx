@@ -1,13 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  Settings, 
-  User, 
-  Lock, 
-  Bell, 
-  Shield, 
-  Globe, 
-  Cpu, 
-  CheckCircle2,
+import {
+  User,
+  Shield,
+  Globe,
+  Cpu,
   ChevronRight,
   Server,
   Zap

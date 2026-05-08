@@ -11,18 +11,18 @@ const LOGOS = ['Shopify', 'Duolingo', 'MongoDB', 'GitHub', 'Notion', 'Linear', '
 const Hero: React.FC<HeroProps> = ({ heroImage }) => {
   return (
     <section style={{ background: '#F6F4F2', overflow: 'hidden' }}>
-      <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '60px 80px 80px' }}>
+      <div className="hero-container">
 
         {/* Heading + Description row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '40px' }}>
+        <div className="hero-row">
 
           {/* Left: Big heading */}
-          <div style={{ maxWidth: '613px', flexShrink: 0 }}>
+          <div className="hero-left">
             <h1 style={{
               fontFamily: 'Inter, sans-serif',
               fontWeight: 500,
-              fontSize: 'clamp(2.5rem, 5vw, 72px)',
-              lineHeight: '85px',
+              fontSize: 'clamp(2rem, 5vw, 72px)',
+              lineHeight: '1.18',
               letterSpacing: '-2.16px',
               color: '#302C2C',
               margin: 0,
@@ -33,10 +33,10 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
                 alignItems: 'center',
                 background: '#175134',
                 borderRadius: '10px',
-                padding: '10px 20px',
+                padding: '8px 16px',
                 color: '#FFFFFF',
-                fontSize: 'clamp(1.8rem, 3.6vw, 52px)',
-                lineHeight: '61px',
+                fontSize: 'clamp(1.4rem, 3.6vw, 52px)',
+                lineHeight: '1.18',
                 letterSpacing: '-1.56px',
                 verticalAlign: 'middle',
               }}>
@@ -46,22 +46,20 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
           </div>
 
           {/* Right: Description + CTA */}
-          <div style={{ width: '441px', flexShrink: 0, paddingTop: '8px' }}>
+          <div className="hero-right">
             <p style={{
               fontFamily: 'Inter, sans-serif',
               fontWeight: 400,
-              fontSize: '20px',
-              lineHeight: '30px',
+              fontSize: 'clamp(16px, 2vw, 20px)',
+              lineHeight: '1.5',
               letterSpacing: '-0.2px',
               color: 'rgba(48, 44, 44, 0.65)',
               margin: '0 0 36px 0',
-              maxWidth: '394px',
             }}>
               ConnectX makes creating software-defined networks easy: securely connecting users, services, and devices.
             </p>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '30px', flexWrap: 'wrap' }}>
-              {/* Get Started button */}
               <RouterLink to="/register" style={{ textDecoration: 'none' }}>
                 <div style={{
                   display: 'inline-flex',
@@ -94,7 +92,6 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
                 </div>
               </RouterLink>
 
-              {/* Contact Sales link */}
               <RouterLink to="/contact" style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -118,7 +115,7 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
         </div>
 
         {/* Dashboard preview */}
-        <div style={{ marginTop: '80px' }}>
+        <div style={{ marginTop: '60px' }}>
           <div style={{
             background: '#242424',
             borderRadius: '16px',
@@ -130,34 +127,28 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
             <img
               src={heroImage}
               alt="ConnectX Dashboard"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           </div>
         </div>
 
         {/* Trusted by */}
-        <div style={{ marginTop: '80px' }}>
+        <div style={{ marginTop: '60px' }}>
           <p style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 500,
-            fontSize: '24px',
-            lineHeight: '34px',
+            fontSize: 'clamp(16px, 2vw, 24px)',
+            lineHeight: '1.4',
             letterSpacing: '-0.48px',
             color: '#787676',
             textAlign: 'center',
-            margin: '0 0 40px 0',
+            margin: '0 0 32px 0',
           }}>
             Trusted by 4,000+ companies
           </p>
 
           {/* Marquee */}
-          <div style={{ position: 'relative', overflow: 'hidden', height: '82px', margin: '0 -80px' }}>
-            {/* Fade edges */}
+          <div className="hero-marquee-track">
             <div style={{
               position: 'absolute',
               inset: 0,
@@ -165,19 +156,17 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
               zIndex: 10,
               pointerEvents: 'none',
             }} />
-
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '0',
               animation: 'marquee 30s linear infinite',
               width: 'max-content',
               height: '100%',
             }}>
               {[...LOGOS, ...LOGOS].map((logo, i) => (
                 <div key={i} style={{
-                  width: '234px',
-                  height: '82px',
+                  width: '180px',
+                  height: '64px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -186,7 +175,7 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
                   <span style={{
                     fontFamily: 'Inter, sans-serif',
                     fontWeight: 700,
-                    fontSize: '18px',
+                    fontSize: '16px',
                     color: '#302C2C',
                     opacity: 0.35,
                     letterSpacing: '-0.4px',
@@ -206,8 +195,70 @@ const Hero: React.FC<HeroProps> = ({ heroImage }) => {
           0%   { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
+
+        .hero-container {
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: 60px 80px 80px;
+        }
+
+        .hero-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 40px;
+        }
+
+        .hero-left {
+          max-width: 613px;
+          flex-shrink: 0;
+        }
+
+        .hero-right {
+          width: 441px;
+          flex-shrink: 0;
+          padding-top: 8px;
+        }
+
+        .hero-marquee-track {
+          position: relative;
+          overflow: hidden;
+          height: 64px;
+          margin: 0 -80px;
+        }
+
         @media (max-width: 1100px) {
-          .hero-row { flex-direction: column !important; }
+          .hero-row {
+            flex-direction: column;
+            gap: 32px;
+          }
+          .hero-left {
+            max-width: 100%;
+            flex-shrink: 1;
+          }
+          .hero-right {
+            width: 100%;
+            flex-shrink: 1;
+            padding-top: 0;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .hero-container {
+            padding: 40px 24px 60px;
+          }
+          .hero-marquee-track {
+            margin: 0 -24px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .hero-container {
+            padding: 32px 16px 48px;
+          }
+          .hero-marquee-track {
+            margin: 0 -16px;
+          }
         }
       `}</style>
     </section>

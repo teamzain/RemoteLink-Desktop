@@ -1,7 +1,5 @@
 import React, { useState } from 'react'
 
-// ── FAQ data ───────────────────────────────────────────────────────────────────
-
 const FAQ_ITEMS = [
   'Does RemoteLink have a free trial?',
   'How does monthly active user billing work?',
@@ -15,28 +13,15 @@ const FAQ_ITEMS = [
   'Do you offer discounts for non-profits or educational institutions?',
 ]
 
-// ── Plus / Minus toggle icon ───────────────────────────────────────────────────
-
 const ToggleIcon: React.FC<{ open: boolean }> = ({ open }) => (
-  <svg
-    width="28"
-    height="28"
-    viewBox="0 0 28 28"
-    fill="none"
-    style={{ flexShrink: 0, transition: 'transform 0.2s ease' }}
-  >
-    {/* Background circle */}
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
     <circle cx="14" cy="14" r="13.55" fill="#E6E4E2" stroke="#E6E4E2" strokeWidth="0.9" />
-    {/* Horizontal bar */}
     <line x1="9" y1="14" x2="19" y2="14" stroke="#242424" strokeWidth="1.08" strokeLinecap="round" />
-    {/* Vertical bar (hidden when open) */}
     {!open && (
       <line x1="14" y1="9" x2="14" y2="19" stroke="#242424" strokeWidth="1.08" strokeLinecap="round" />
     )}
   </svg>
 )
-
-// ── Single FAQ row ─────────────────────────────────────────────────────────────
 
 const FAQRow: React.FC<{ question: string }> = ({ question }) => {
   const [open, setOpen] = useState(false)
@@ -50,51 +35,34 @@ const FAQRow: React.FC<{ question: string }> = ({ question }) => {
       }}
       onClick={() => setOpen(o => !o)}
     >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          gap: '28px',
-          width: '100%',
-        }}
-      >
-        {/* Icon */}
+      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '20px', width: '100%' }}>
         <span style={{ marginTop: '2px', flexShrink: 0 }}>
           <ToggleIcon open={open} />
         </span>
-
-        {/* Question */}
-        <span
-          style={{
-            fontFamily: 'Inter, sans-serif',
-            fontStyle: 'normal',
-            fontWeight: 400,
-            fontSize: '24px',
-            lineHeight: '32px',
-            letterSpacing: '-0.16px',
-            color: '#000000',
-            flex: 1,
-          }}
-        >
+        <span style={{
+          fontFamily: 'Inter, sans-serif',
+          fontWeight: 400,
+          fontSize: 'clamp(16px, 1.8vw, 24px)',
+          lineHeight: '1.35',
+          letterSpacing: '-0.16px',
+          color: '#000000',
+          flex: 1,
+        }}>
           {question}
         </span>
       </div>
 
-      {/* Placeholder answer — expand when open */}
       {open && (
-        <div
-          style={{
-            marginTop: '16px',
-            paddingLeft: '56px', // 28px icon + 28px gap
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: 400,
-            fontSize: '16px',
-            lineHeight: '26px',
-            letterSpacing: '-0.1px',
-            color: 'rgba(0,0,0,0.6)',
-          }}
-        >
+        <div style={{
+          marginTop: '16px',
+          paddingLeft: '48px',
+          fontFamily: 'Inter, sans-serif',
+          fontWeight: 400,
+          fontSize: '16px',
+          lineHeight: '26px',
+          letterSpacing: '-0.1px',
+          color: 'rgba(0,0,0,0.6)',
+        }}>
           Please reach out to our support team or visit our documentation for more details on this topic.
         </div>
       )}
@@ -102,77 +70,69 @@ const FAQRow: React.FC<{ question: string }> = ({ question }) => {
   )
 }
 
-// ── Main FAQ section ───────────────────────────────────────────────────────────
-
 const PricingFAQ: React.FC = () => (
-  <section
-    style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '0 40px 120px',
-      background: '#FAF9F8',
-    }}
-  >
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        gap: '283.94px',
-        width: '100%',
-        maxWidth: '1280px',
-      }}
-    >
-      {/* ── Left: heading ──────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          paddingTop: '10px',
-          flexShrink: 0,
-          width: '225px',
-        }}
-      >
-        <h2
-          style={{
-            fontFamily: 'Inter, sans-serif',
-            fontStyle: 'normal',
-            fontWeight: 500,
-            fontSize: 'clamp(2.5rem, 4vw, 72px)',
-            lineHeight: '85px',
-            letterSpacing: '-2.16px',
-            color: '#000000',
-            margin: 0,
-          }}
-        >
+  <section style={{
+    padding: '0 clamp(20px, 4vw, 40px) 100px',
+    background: '#FAF9F8',
+  }}>
+    <div className="faq-container">
+
+      {/* Left: heading */}
+      <div className="faq-heading">
+        <h2 style={{
+          fontFamily: 'Inter, sans-serif',
+          fontWeight: 500,
+          fontSize: 'clamp(2rem, 4vw, 72px)',
+          lineHeight: '1.18',
+          letterSpacing: '-2.16px',
+          color: '#000000',
+          margin: 0,
+        }}>
           Pricing FAQs
         </h2>
       </div>
 
-      {/* ── Right: accordion list ───────────────────────────────────────────── */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
-          width: '624px',
-          flexShrink: 0,
-        }}
-      >
-        {/* Top border */}
+      {/* Right: accordion list */}
+      <div className="faq-list">
         <div style={{ width: '100%', borderTop: '1px solid rgba(36, 36, 36, 0.12)' }} />
-
         {FAQ_ITEMS.map((q) => (
           <FAQRow key={q} question={q} />
         ))}
-
-        {/* Bottom border */}
         <div style={{ width: '100%', borderTop: '1px solid rgba(36, 36, 36, 0.12)' }} />
       </div>
     </div>
+
+    <style>{`
+      .faq-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: flex-start;
+        gap: clamp(32px, 8vw, 120px);
+        width: 100%;
+        max-width: 1280px;
+        margin: 0 auto;
+      }
+      .faq-heading {
+        flex-shrink: 0;
+        padding-top: 10px;
+        width: clamp(160px, 18vw, 225px);
+      }
+      .faq-list {
+        flex: 1;
+        min-width: 0;
+      }
+      @media (max-width: 768px) {
+        .faq-container {
+          flex-direction: column;
+          gap: 32px;
+        }
+        .faq-heading {
+          width: 100%;
+          padding-top: 0;
+        }
+      }
+    `}</style>
   </section>
 )
 

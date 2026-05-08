@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import {
    User,
-   Mail,
    Shield,
    Key,
    Camera,
    MapPin,
-   Calendar,
    ChevronRight,
    LogOut,
    Bell,
