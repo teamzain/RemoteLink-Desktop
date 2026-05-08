@@ -31,7 +31,7 @@ const Settings: React.FC = () => {
     try {
       if (enable) {
         // This would typically open a QR code modal
-        const { data } = await api.post('/api/auth/2fa/enable');
+        await api.post('/api/auth/2fa/enable');
         // For now just notifying, complex 2FA flow can be added if needed
         notify('2FA setup initiated', 'info');
       } else {

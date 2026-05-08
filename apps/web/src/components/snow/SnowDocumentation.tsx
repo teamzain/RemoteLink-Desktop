@@ -1,11 +1,9 @@
 import React from 'react';
-import { 
-  BookOpen, 
-  Zap, 
-  Shield, 
-  Cpu, 
-  Globe, 
-  Terminal, 
+import {
+  Zap,
+  Shield,
+  Globe,
+  Terminal,
   ChevronRight,
   ExternalLink,
   LifeBuoy,

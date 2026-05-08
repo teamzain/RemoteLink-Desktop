@@ -1,13 +1,11 @@
 import React from 'react';
-import { 
-  LifeBuoy, 
-  Search, 
-  MessageCircle, 
-  Mail, 
-  ExternalLink, 
-  ShieldCheck, 
-  Globe, 
-  Zap, 
+import {
+  Search,
+  MessageCircle,
+  Mail,
+  ShieldCheck,
+  Globe,
+  Zap,
   History,
   ChevronRight,
   Plus

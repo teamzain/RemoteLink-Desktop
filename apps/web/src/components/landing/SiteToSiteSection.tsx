@@ -7,16 +7,16 @@ const SiteToSiteSection: React.FC = () => (
     <div style={{
       maxWidth: '1360px',
       margin: '0 auto',
-      padding: '112px 0 0',
+      padding: 'clamp(60px, 8vw, 112px) 0 0',
     }}>
 
       {/* Text block */}
-      <div style={{ padding: '0 67px', marginBottom: '56px' }}>
+      <div className="s2s-text">
         <h2 style={{
           fontFamily: 'Inter, sans-serif',
           fontWeight: 500,
           fontSize: 'clamp(1.8rem, 3.5vw, 48px)',
-          lineHeight: '57px',
+          lineHeight: '1.18',
           letterSpacing: '-0.96px',
           color: '#000000',
           margin: '0 0 28px 0',
@@ -28,8 +28,8 @@ const SiteToSiteSection: React.FC = () => (
         <p style={{
           fontFamily: 'Inter, sans-serif',
           fontWeight: 400,
-          fontSize: '18px',
-          lineHeight: '27px',
+          fontSize: 'clamp(16px, 1.5vw, 18px)',
+          lineHeight: '1.5',
           letterSpacing: '-0.18px',
           color: 'rgba(48, 44, 44, 0.65)',
           margin: '0 0 28px 0',
@@ -59,14 +59,7 @@ const SiteToSiteSection: React.FC = () => (
       </div>
 
       {/* Image card */}
-      <div style={{
-        margin: '0 40px',
-        background: '#E0BE43',
-        borderRadius: '12px',
-        overflow: 'hidden',
-        height: '640px',
-        position: 'relative',
-      }}>
+      <div className="s2s-image">
         <img
           src="/image.png"
           alt="Site-to-site networking diagram"
@@ -83,6 +76,21 @@ const SiteToSiteSection: React.FC = () => (
       </div>
 
     </div>
+
+    <style>{`
+      .s2s-text {
+        padding: 0 clamp(20px, 5vw, 67px);
+        margin-bottom: 56px;
+      }
+      .s2s-image {
+        margin: 0 clamp(16px, 3vw, 40px);
+        background: #E0BE43;
+        border-radius: 12px;
+        overflow: hidden;
+        position: relative;
+        height: clamp(280px, 45vw, 640px);
+      }
+    `}</style>
   </section>
 )
 

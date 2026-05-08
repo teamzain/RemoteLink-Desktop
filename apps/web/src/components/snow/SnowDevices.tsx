@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Monitor, 
-  Smartphone, 
+  Monitor,
   MoreHorizontal, 
   Plus, 
   Filter, 
@@ -36,11 +35,10 @@ interface SnowDevicesProps {
   handleBulkDelete: (ids: string[]) => void;
 }
 
-export const SnowDevices: React.FC<SnowDevicesProps> = ({ 
-  devices, 
-  searchQuery, 
-  setSearchQuery, 
-  setSelectedDevice, 
+export const SnowDevices: React.FC<SnowDevicesProps> = ({
+  devices,
+  searchQuery,
+  setSearchQuery,
   handleDeviceClick,
   setActionModal,
   setShowAddModal,

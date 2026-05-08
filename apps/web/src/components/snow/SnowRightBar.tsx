@@ -1,10 +1,8 @@
 import React from 'react';
-import { 
-  User, 
-  Activity, 
-  Monitor, 
+import {
+  Activity,
+  Monitor,
   Smartphone,
-  ExternalLink,
   ChevronRight
 } from 'lucide-react';
 

@@ -1,7 +1,6 @@
 import React from 'react'
 import { ArrowRight, ExternalLink } from 'lucide-react'
 
-// Inline terminal mockup for the dark card bottom
 const TerminalMockup: React.FC = () => (
   <div style={{
     width: '100%',
@@ -11,15 +10,12 @@ const TerminalMockup: React.FC = () => (
     display: 'flex',
     gap: 0,
   }}>
-    {/* Left: terminal pane */}
     <div style={{ flex: '0 0 65%', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {/* Traffic-light dots */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
         {['#FF5F57', '#FEBC2E', '#28C840'].map(c => (
           <div key={c} style={{ width: '10px', height: '10px', borderRadius: '50%', background: c }} />
         ))}
       </div>
-      {/* Fake terminal lines */}
       <div style={{ display: 'flex', gap: '6px' }}>
         <span style={{ color: '#B2D862', fontSize: '12px', fontFamily: 'monospace' }}>$</span>
         <span style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace' }}>connectx up --exit-node=100.78.14.63</span>
@@ -33,7 +29,6 @@ const TerminalMockup: React.FC = () => (
       <div style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace', opacity: 0.7 }}>100.78.14.63  connected</div>
       <div style={{ color: '#E7E3E0', fontSize: '12px', fontFamily: 'monospace', opacity: 0.7 }}>100.108.47.7  connected</div>
     </div>
-    {/* Right: integration grid (faint) */}
     <div style={{ flex: 1, opacity: 0.08, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', padding: '16px' }}>
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} style={{ background: '#DEE8F6', borderRadius: '4px' }} />
@@ -42,7 +37,6 @@ const TerminalMockup: React.FC = () => (
   </div>
 )
 
-// ConnectX device mockup for the green card
 const DeviceMockup: React.FC = () => (
   <div style={{
     position: 'absolute',
@@ -60,22 +54,18 @@ const DeviceMockup: React.FC = () => (
       overflow: 'hidden',
       boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
     }}>
-      {/* Title bar */}
       <div style={{ background: '#E6E4E2', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
         {['#FF5F57', '#FEBC2E', '#28C840'].map(c => (
           <div key={c} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c }} />
         ))}
         <span style={{ marginLeft: '8px', fontSize: '11px', color: '#787676', fontFamily: 'Inter, sans-serif' }}>ConnectX</span>
       </div>
-      {/* Sidebar + content */}
-      <div style={{ display: 'flex', height: '280px' }}>
-        {/* Sidebar */}
+      <div style={{ display: 'flex', height: '240px' }}>
         <div style={{ width: '60px', background: '#F0EDEA', borderRight: '1px solid #E0DDD9', display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px 0', alignItems: 'center' }}>
           {[1, 2, 3, 4].map(i => (
             <div key={i} style={{ width: '28px', height: '28px', borderRadius: '6px', background: i === 1 ? '#487961' : '#D8D4CF' }} />
           ))}
         </div>
-        {/* Main content */}
         <div style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ height: '10px', background: '#302C2C', borderRadius: '3px', width: '60%' }} />
           {[0, 1, 2, 3].map(i => (
@@ -97,31 +87,16 @@ const DeviceMockup: React.FC = () => (
 
 const WorkflowSection: React.FC = () => (
   <section style={{ background: '#FFFFFF' }}>
-    <div style={{
-      maxWidth: '1360px',
-      margin: '0 auto',
-      padding: '112px 80px',
-      display: 'flex',
-      gap: '40px',
-      alignItems: 'stretch',
-    }}>
+    <div className="workflow-container">
 
       {/* Left: dark integration card */}
-      <div style={{
-        flex: 1,
-        background: '#242424',
-        borderRadius: '12px',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        minHeight: '554px',
-      }}>
-        <div style={{ padding: '50px 50px 40px' }}>
+      <div className="workflow-left">
+        <div style={{ padding: 'clamp(28px, 4vw, 50px)' }}>
           <h3 style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 500,
-            fontSize: '36px',
-            lineHeight: '42px',
+            fontSize: 'clamp(22px, 2.5vw, 36px)',
+            lineHeight: '1.17',
             letterSpacing: '-0.72px',
             color: '#FFFFFF',
             margin: '0 0 24px 0',
@@ -132,12 +107,11 @@ const WorkflowSection: React.FC = () => (
           <p style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 400,
-            fontSize: '20px',
-            lineHeight: '27px',
+            fontSize: 'clamp(15px, 1.5vw, 20px)',
+            lineHeight: '1.35',
             letterSpacing: '-0.4px',
             color: 'rgba(255, 255, 255, 0.7)',
             margin: '0 0 32px 0',
-            maxWidth: '540px',
           }}>
             With 100+ integrations, ConnectX works with all your favorite tools. Provision resources that automatically join the network using Terraform or Pulumi. Integrate ACL management into your existing GitOps workflow.
           </p>
@@ -178,18 +152,11 @@ const WorkflowSection: React.FC = () => (
       </div>
 
       {/* Right: green device card + guides */}
-      <div style={{
-        width: '400px',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '40px',
-      }}>
-        {/* Green card */}
+      <div className="workflow-right">
         <div style={{
           background: '#175134',
           borderRadius: '12px',
-          height: '429px',
+          height: '380px',
           position: 'relative',
           overflow: 'hidden',
           flexShrink: 0,
@@ -197,7 +164,6 @@ const WorkflowSection: React.FC = () => (
           <DeviceMockup />
         </div>
 
-        {/* Guides section */}
         <div>
           <p style={{
             fontFamily: 'Inter, sans-serif',
@@ -246,6 +212,41 @@ const WorkflowSection: React.FC = () => (
       </div>
 
     </div>
+
+    <style>{`
+      .workflow-container {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: clamp(60px, 8vw, 112px) clamp(20px, 6vw, 80px);
+        display: flex;
+        gap: 32px;
+        align-items: stretch;
+      }
+      .workflow-left {
+        flex: 1;
+        background: #242424;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 480px;
+      }
+      .workflow-right {
+        width: 360px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+      @media (max-width: 900px) {
+        .workflow-container {
+          flex-direction: column;
+        }
+        .workflow-right {
+          width: 100%;
+        }
+      }
+    `}</style>
   </section>
 )
 

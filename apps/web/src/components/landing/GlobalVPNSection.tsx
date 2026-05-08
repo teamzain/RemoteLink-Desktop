@@ -6,31 +6,31 @@ import createGlobe from 'cobe'
 type LatLon = [number, number]
 
 const MARKERS: { location: LatLon; size: number }[] = [
-  { location: [37.78,  -122.44], size: 0.04 },  // San Francisco
-  { location: [40.71,   -74.01], size: 0.04 },  // New York
-  { location: [51.51,    -0.13], size: 0.04 },  // London
-  { location: [48.86,    2.35 ], size: 0.03 },  // Paris
-  { location: [52.52,   13.41 ], size: 0.03 },  // Berlin
-  { location: [25.20,   55.27 ], size: 0.03 },  // Dubai
-  { location: [28.61,   77.21 ], size: 0.03 },  // Delhi
-  { location: [31.23,  121.47 ], size: 0.04 },  // Shanghai
-  { location: [35.68,  139.65 ], size: 0.04 },  // Tokyo
-  { location: [-33.87, 151.21 ], size: 0.04 },  // Sydney
-  { location: [-23.55,  -46.63], size: 0.03 },  // São Paulo
-  { location: [  1.35, 103.82 ], size: 0.03 },  // Singapore
+  { location: [37.78,  -122.44], size: 0.04 },
+  { location: [40.71,   -74.01], size: 0.04 },
+  { location: [51.51,    -0.13], size: 0.04 },
+  { location: [48.86,    2.35 ], size: 0.03 },
+  { location: [52.52,   13.41 ], size: 0.03 },
+  { location: [25.20,   55.27 ], size: 0.03 },
+  { location: [28.61,   77.21 ], size: 0.03 },
+  { location: [31.23,  121.47 ], size: 0.04 },
+  { location: [35.68,  139.65 ], size: 0.04 },
+  { location: [-33.87, 151.21 ], size: 0.04 },
+  { location: [-23.55,  -46.63], size: 0.03 },
+  { location: [  1.35, 103.82 ], size: 0.03 },
 ]
 
 const ARCS: { from: LatLon; to: LatLon }[] = [
-  { from: [37.78, -122.44], to: [51.51,  -0.13 ] },  // SF → London
-  { from: [40.71,  -74.01], to: [51.51,  -0.13 ] },  // NYC → London
-  { from: [51.51,   -0.13], to: [25.20,  55.27  ] },  // London → Dubai
-  { from: [25.20,   55.27], to: [28.61,  77.21  ] },  // Dubai → Delhi
-  { from: [28.61,   77.21], to: [31.23, 121.47  ] },  // Delhi → Shanghai
-  { from: [31.23,  121.47], to: [35.68, 139.65  ] },  // Shanghai → Tokyo
-  { from: [35.68,  139.65], to: [-33.87, 151.21 ] },  // Tokyo → Sydney
-  { from: [37.78, -122.44], to: [-23.55,  -46.63] },  // SF → São Paulo
-  { from: [40.71,  -74.01], to: [-23.55,  -46.63] },  // NYC → São Paulo
-  { from: [31.23,  121.47], to: [  1.35, 103.82  ] },  // Shanghai → Singapore
+  { from: [37.78, -122.44], to: [51.51,  -0.13 ] },
+  { from: [40.71,  -74.01], to: [51.51,  -0.13 ] },
+  { from: [51.51,   -0.13], to: [25.20,  55.27  ] },
+  { from: [25.20,   55.27], to: [28.61,  77.21  ] },
+  { from: [28.61,   77.21], to: [31.23, 121.47  ] },
+  { from: [31.23,  121.47], to: [35.68, 139.65  ] },
+  { from: [35.68,  139.65], to: [-33.87, 151.21 ] },
+  { from: [37.78, -122.44], to: [-23.55,  -46.63] },
+  { from: [40.71,  -74.01], to: [-23.55,  -46.63] },
+  { from: [31.23,  121.47], to: [  1.35, 103.82  ] },
 ]
 
 const GlobeCanvas: React.FC = () => {
@@ -40,8 +40,6 @@ const GlobeCanvas: React.FC = () => {
     const container = containerRef.current
     if (!container) return
 
-    // Create canvas imperatively — cobe moves the canvas into a new wrapper div,
-    // which breaks React's removeChild if the canvas was JSX-managed.
     const canvas = document.createElement('canvas')
     canvas.width = 600 * 2
     canvas.height = 600 * 2
@@ -83,7 +81,6 @@ const GlobeCanvas: React.FC = () => {
       rafId = requestAnimationFrame(animate)
     }
     rafId = requestAnimationFrame(animate)
-
     setTimeout(() => { canvas.style.opacity = '1' }, 200)
 
     return () => {
@@ -93,32 +90,20 @@ const GlobeCanvas: React.FC = () => {
     }
   }, [])
 
-  return (
-    <div
-      ref={containerRef}
-      style={{ width: 600, height: 600, maxWidth: '100%' }}
-    />
-  )
+  return <div ref={containerRef} style={{ width: 600, height: 600, maxWidth: '100%' }} />
 }
 
 const GlobalVPNSection: React.FC = () => (
   <section style={{ background: '#FFFFFF', overflow: 'hidden' }}>
-    <div style={{
-      maxWidth: '1360px',
-      margin: '0 auto',
-      padding: '112px 67px 0',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '80px',
-    }}>
+    <div className="globalvpn-container">
 
       {/* Left: text */}
-      <div style={{ flex: '0 0 420px', maxWidth: '420px' }}>
+      <div className="globalvpn-text">
         <h2 style={{
           fontFamily: 'Inter, sans-serif',
           fontWeight: 500,
           fontSize: 'clamp(1.8rem, 3vw, 48px)',
-          lineHeight: '57px',
+          lineHeight: '1.18',
           letterSpacing: '-0.96px',
           color: '#000000',
           margin: '0 0 20px 0',
@@ -129,8 +114,8 @@ const GlobalVPNSection: React.FC = () => (
         <p style={{
           fontFamily: 'Inter, sans-serif',
           fontWeight: 400,
-          fontSize: '18px',
-          lineHeight: '27px',
+          fontSize: 'clamp(16px, 1.5vw, 18px)',
+          lineHeight: '1.5',
           letterSpacing: '-0.18px',
           color: 'rgba(48, 44, 44, 0.65)',
           margin: '0 0 32px 0',
@@ -159,18 +144,59 @@ const GlobalVPNSection: React.FC = () => (
       </div>
 
       {/* Right: animated globe */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: '-60px',
-        marginBottom: '-120px',
-      }}>
+      <div className="globalvpn-globe">
         <GlobeCanvas />
       </div>
 
     </div>
+
+    <style>{`
+      .globalvpn-container {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: clamp(60px, 8vw, 112px) clamp(20px, 5vw, 67px) 0;
+        display: flex;
+        align-items: center;
+        gap: clamp(32px, 5vw, 80px);
+      }
+      .globalvpn-text {
+        flex: 0 0 420px;
+        max-width: 420px;
+      }
+      .globalvpn-globe {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: -60px;
+        margin-bottom: -120px;
+      }
+      @media (max-width: 900px) {
+        .globalvpn-container {
+          flex-direction: column;
+          padding-bottom: 60px;
+        }
+        .globalvpn-text {
+          flex: none;
+          max-width: 100%;
+          width: 100%;
+        }
+        .globalvpn-globe {
+          margin-top: 0;
+          margin-bottom: -60px;
+          width: 100%;
+        }
+        .globalvpn-globe > div {
+          width: 100% !important;
+          max-width: 400px;
+        }
+      }
+      @media (max-width: 480px) {
+        .globalvpn-globe {
+          margin-bottom: -30px;
+        }
+      }
+    `}</style>
   </section>
 )
 
