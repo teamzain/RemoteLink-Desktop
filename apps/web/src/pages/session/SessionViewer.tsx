@@ -19,15 +19,64 @@ import { useSessionStore } from '../../store/sessionStore';
 // Generate a stable client ID for this session to handle React StrictMode double-mounts
 const viewerClientId = Math.random().toString(36).substring(7);
 
+const VIEWER_HANDOFF_KEY = 'remotelink_viewer_handoff';
+const HANDOFF_MAX_AGE_MS = 5 * 60 * 1000;
+
+function readViewerHandoff(deviceId: string | undefined) {
+  if (!deviceId) return null;
+  try {
+    const raw = sessionStorage.getItem(VIEWER_HANDOFF_KEY);
+    if (!raw) return null;
+    const h = JSON.parse(raw);
+    if (h.deviceId !== deviceId || !h.accessToken) return null;
+    if (Date.now() - (h.ts || 0) > HANDOFF_MAX_AGE_MS) return null;
+    return h as { accessToken: string; accessKey?: string; deviceName?: string; deviceType?: string };
+  } catch {
+    return null;
+  }
+}
+
+function resolveViewerRouteState(deviceId: string | undefined, loc: ReturnType<typeof useLocation>) {
+  const s = (loc.state as any) || {};
+  if (s?.accessToken && deviceId) {
+    return {
+      accessToken: s.accessToken as string,
+      accessKey: s.accessKey as string | undefined,
+      deviceName: s.deviceName as string | undefined,
+      deviceType: s.deviceType as string | undefined,
+    };
+  }
+  const h = readViewerHandoff(deviceId);
+  if (h) {
+    return {
+      accessToken: h.accessToken,
+      accessKey: h.accessKey,
+      deviceName: h.deviceName,
+      deviceType: h.deviceType,
+    };
+  }
+  return {
+    accessToken: undefined as string | undefined,
+    accessKey: undefined as string | undefined,
+    deviceName: undefined as string | undefined,
+    deviceType: undefined as string | undefined,
+  };
+}
+
 const SessionViewer: React.FC = () => {
   const { deviceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { initSocket, closeSocket, sendMessage, onMessage, activeSession, updateLatency, updateSessionStatus } = useSessionStore();
-  
-  const accessToken: string | undefined = (location.state as any)?.accessToken;
-  const passedDeviceName: string | undefined = (location.state as any)?.deviceName;
-  const accessKey: string | undefined = (location.state as any)?.accessKey;
+
+  const viewerRoute = React.useMemo(
+    () => resolveViewerRouteState(deviceId, location),
+    [deviceId, location.state, location.key, location.pathname]
+  );
+
+  const accessToken: string | undefined = viewerRoute.accessToken;
+  const passedDeviceName: string | undefined = viewerRoute.deviceName;
+  const accessKey: string | undefined = viewerRoute.accessKey;
 
   const [viewerStatus, setViewerStatus] = useState<'idle' | 'connecting' | 'connected' | 'streaming' | 'connection_lost' | 'error'>('connecting');
   const [zoomMode, setZoomMode] = useState<'fit' | 'original'>('fit');
@@ -42,7 +91,7 @@ const SessionViewer: React.FC = () => {
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
 
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [deviceType, setDeviceType] = useState<string | null>((location.state as any)?.deviceType || null);
+  const [deviceType, setDeviceType] = useState<string | null>(viewerRoute.deviceType || null);
   const deviceName = passedDeviceName || deviceId || 'Remote Node';
 
   const decoderRef = useRef<any>(null);

@@ -131,10 +131,22 @@ const Footer: React.FC = () => (
       <div className="footer-bottom">
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="16" fill="#302C2C" />
-            <circle cx="16" cy="16" r="6" fill="white" />
-          </svg>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            background: '#302C2C',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <svg width="18" height="11" viewBox="0 0 24 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="1" width="9" height="12" rx="6" stroke="#FFFFFF" strokeWidth="2"/>
+              <rect x="14" y="1" width="9" height="12" rx="6" stroke="#FFFFFF" strokeWidth="2"/>
+              <line x1="10" y1="7" x2="14" y2="7" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </div>
           <span style={{
             fontFamily: 'Inter, sans-serif',
             fontWeight: 600,

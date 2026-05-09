@@ -49,7 +49,11 @@ api.interceptors.response.use(
     const { status, data } = error.response;
 
     // 401: Token Refresh Flow (Exclude verify-access password challenge)
-    if (status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/devices/verify-access')) {
+    // Note: axios may use baseURL + '/devices/verify-access' so the path might not contain '/api/devices/...'.
+    const reqPath = `${originalRequest.baseURL || ''}${originalRequest.url || ''}`;
+    const isVerifyAccessChallenge =
+      reqPath.includes('verify-access') || originalRequest.url?.includes('verify-access');
+    if (status === 401 && !originalRequest._retry && !isVerifyAccessChallenge) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

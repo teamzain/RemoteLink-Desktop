@@ -2,7 +2,9 @@ import React from 'react'
 import { Typography, Container, Grid, Button, Box } from '@mui/material'
 import Navbar from '../../components/landing/Navbar'
 import Footer from '../../components/landing/Footer'
-import SubPageHero from '../../components/landing/SubPageHero'
+import ProductHero from '../../components/landing/ProductHero'
+import TrustMarquee from '../../components/landing/TrustMarquee'
+import ProductExplainer from '../../components/landing/ProductExplainer'
 import { ScrollReveal } from '../../components/landing/ScrollReveal'
 
 // Bypass structural type mismatches
@@ -45,13 +47,17 @@ const FeaturesPage: React.FC = () => {
     <Box sx={{ bgcolor: 'background.default' }}>
       <Navbar />
       <Box component="main">
-        <ScrollReveal delay={0.1}>
-          <SubPageHero 
-            title="Powerful Features for Ultimate Control"
-            subtitle="Explore the tools that make RemoteLink the industry standard for secure, high-performance remote connectivity."
-            image="/features_hero.png"
-          />
-        </ScrollReveal>
+        <ProductHero
+          label="Product"
+          heading="Remote access for everyone, everywhere"
+          description="Connect to any device, from anywhere. Unique 9-digit device IDs, end-to-end encrypted sessions, and one-click remote support — no VPN, no port forwarding, no setup."
+          ctaText="Get started free"
+          image="/product.png"
+          imageAlt="Remote 365 Dashboard"
+        />
+
+        <TrustMarquee />
+        <ProductExplainer />
 
         <FeatureDetail 
           title="Remote Administration"

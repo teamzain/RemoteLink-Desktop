@@ -9,7 +9,6 @@ import HomelabSection from '../components/landing/HomelabSection'
 import SimplePowerfulSection from '../components/landing/SimplePowerfulSection'
 import SecuritySection from '../components/landing/SecuritySection'
 import WorkflowSection from '../components/landing/WorkflowSection'
-import FinalCTA from '../components/landing/FinalCTA'
 import Footer from '../components/landing/Footer'
 import { ScrollReveal } from '../components/landing/ScrollReveal'
 
@@ -50,9 +49,6 @@ const Landing: React.FC = () => {
           <WorkflowSection />
         </ScrollReveal>
 
-        <ScrollReveal delay={0.2}>
-          <FinalCTA />
-        </ScrollReveal>
       </Box>
       <Footer />
     </Box>

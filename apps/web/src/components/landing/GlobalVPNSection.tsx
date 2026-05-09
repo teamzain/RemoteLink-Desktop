@@ -94,7 +94,7 @@ const GlobeCanvas: React.FC = () => {
 }
 
 const GlobalVPNSection: React.FC = () => (
-  <section style={{ background: '#FFFFFF', overflow: 'hidden' }}>
+  <section style={{ background: '#FFFFFF' }}>
     <div className="globalvpn-container">
 
       {/* Left: text */}
@@ -154,7 +154,7 @@ const GlobalVPNSection: React.FC = () => (
       .globalvpn-container {
         max-width: 1360px;
         margin: 0 auto;
-        padding: clamp(60px, 8vw, 112px) clamp(20px, 5vw, 67px) 0;
+        padding: clamp(60px, 8vw, 112px) clamp(20px, 5vw, 67px) clamp(40px, 6vw, 80px);
         display: flex;
         align-items: center;
         gap: clamp(32px, 5vw, 80px);
@@ -168,8 +168,8 @@ const GlobalVPNSection: React.FC = () => (
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-top: -60px;
-        margin-bottom: -120px;
+        overflow: hidden;
+        margin-top: -40px;
       }
       @media (max-width: 900px) {
         .globalvpn-container {
@@ -183,17 +183,11 @@ const GlobalVPNSection: React.FC = () => (
         }
         .globalvpn-globe {
           margin-top: 0;
-          margin-bottom: -60px;
           width: 100%;
         }
         .globalvpn-globe > div {
           width: 100% !important;
           max-width: 400px;
-        }
-      }
-      @media (max-width: 480px) {
-        .globalvpn-globe {
-          margin-bottom: -30px;
         }
       }
     `}</style>

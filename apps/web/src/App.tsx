@@ -8,7 +8,9 @@ import PricingPage from './pages/landing/PricingPage'
 import ResourcesPage from './pages/landing/ResourcesPage'
 import EnterprisePage from './pages/landing/EnterprisePage'
 import ProductPage from './pages/landing/ProductPage'
+import CustomersPage from './pages/landing/CustomersPage'
 import DashboardHome from './pages/dashboard/DashboardHome'
+import RemoteSupport from './pages/dashboard/RemoteSupport'
 import Devices from './pages/dashboard/Devices'
 import Billing from './pages/dashboard/Billing'
 import Settings from './pages/dashboard/Settings'
@@ -52,12 +54,13 @@ function App() {
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/resources" element={<ResourcesPage />} />
       <Route path="/enterprise" element={<EnterprisePage />} />
+      <Route path="/customers" element={<CustomersPage />} />
       <Route path="/product" element={<ProductPage />} />
 
       {/* Dashboard Routes (Protected) */}
       <Route path="/dashboard" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
       <Route path="/dashboard/devices" element={<ProtectedRoute><Devices /></ProtectedRoute>} />
-      <Route path="/dashboard/sessions" element={<ProtectedRoute><DashboardHome /></ProtectedRoute>} />
+      <Route path="/dashboard/sessions" element={<ProtectedRoute><RemoteSupport /></ProtectedRoute>} />
       <Route path="/dashboard/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
       <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/dashboard/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

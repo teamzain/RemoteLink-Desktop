@@ -3,7 +3,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 
 const NAV_LINKS = [
-  { label: 'Product',    path: '/features'   },
+  { label: 'Product',    path: '/product'   },
   { label: 'Docs',       path: '/docs'        },
   { label: 'Enterprise', path: '/enterprise'  },
   { label: 'Customers',  path: '/customers'   },
@@ -12,15 +12,10 @@ const NAV_LINKS = [
 ]
 
 const LogoIcon: React.FC<{ color?: string }> = ({ color = '#242424' }) => (
-  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M8.5 13.5L7 15C5.6 16.4 3.4 16.4 2 15C0.6 13.6 0.6 11.4 2 10L5.5 6.5C6.9 5.1 9.1 5.1 10.5 6.5C10.8 6.8 11 7.2 11.2 7.6"
-      stroke={color} strokeWidth="2" strokeLinecap="round" fill="none"
-    />
-    <path
-      d="M13.5 8.5L15 7C16.4 5.6 18.6 5.6 20 7C21.4 8.4 21.4 10.6 20 12L16.5 15.5C15.1 16.9 12.9 16.9 11.5 15.5C11.2 15.2 11 14.8 10.8 14.4"
-      stroke={color} strokeWidth="2" strokeLinecap="round" fill="none"
-    />
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9.5 14.5L14.5 9.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M16.5 12.5L18.5 10.5C20.5 8.5 20.5 5.5 18.5 3.5C16.5 1.5 13.5 1.5 11.5 3.5L9.5 5.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M7.5 11.5L5.5 13.5C3.5 15.5 3.5 18.5 5.5 20.5C7.5 22.5 10.5 22.5 12.5 20.5L14.5 18.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 )
 

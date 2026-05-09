@@ -8,7 +8,8 @@ import {
   PieChart,
   LogOut,
   LifeBuoy,
-  Users
+  Users,
+  ScreenShare
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -75,6 +76,12 @@ export const SnowSidebar: React.FC<SnowSidebarProps> = ({ isCollapsed = false })
               <div className={indicatorClass(isActive('/dashboard'))} />
               <PieChart size={18} className="shrink-0" />
               <span className={textClass(isActive('/dashboard'))}>Overview</span>
+            </NavLink>
+
+            <NavLink to="/dashboard/sessions" className={({ isActive: active }) => navItemClass(active)}>
+              <div className={indicatorClass(isActive('/dashboard/sessions'))} />
+              <ScreenShare size={18} className="shrink-0" />
+              <span className={textClass(isActive('/dashboard/sessions'))}>Remote Support</span>
             </NavLink>
 
             <NavLink to="/dashboard/devices" className={({ isActive: active }) => navItemClass(active)}>

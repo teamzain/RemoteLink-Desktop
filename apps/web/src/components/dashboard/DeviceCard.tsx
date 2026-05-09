@@ -115,6 +115,20 @@ const DeviceCard: React.FC<DeviceCardProps> = ({ id, name, status, lastSeen, acc
       });
 
       if (data.token) {
+        try {
+          sessionStorage.setItem(
+            'remotelink_viewer_handoff',
+            JSON.stringify({
+              deviceId: id,
+              accessToken: data.token,
+              deviceName: data.device?.name,
+              accessKey: cleanKey,
+              ts: Date.now(),
+            })
+          );
+        } catch {
+          /* ignore */
+        }
         navigate(`/session/${id}`, { state: { accessToken: data.token, deviceName: data.device?.name, accessKey: cleanKey } });
       }
     } catch (error: any) {

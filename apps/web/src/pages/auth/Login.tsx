@@ -5,15 +5,10 @@ import { useAuthStore } from '../../store/authStore'
 // ── Logo mark ─────────────────────────────────────────────────────────────────
 const LogoMark: React.FC = () => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M8.5 13.5L7 15C5.6 16.4 3.4 16.4 2 15C0.6 13.6 0.6 11.4 2 10L5.5 6.5C6.9 5.1 9.1 5.1 10.5 6.5C10.8 6.8 11 7.2 11.2 7.6"
-        stroke="#242424" strokeWidth="2" strokeLinecap="round" fill="none"
-      />
-      <path
-        d="M13.5 8.5L15 7C16.4 5.6 18.6 5.6 20 7C21.4 8.4 21.4 10.6 20 12L16.5 15.5C15.1 16.9 12.9 16.9 11.5 15.5C11.2 15.2 11 14.8 10.8 14.4"
-        stroke="#242424" strokeWidth="2" strokeLinecap="round" fill="none"
-      />
+    <svg width="24" height="14" viewBox="0 0 24 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="9" height="12" rx="6" stroke="#242424" strokeWidth="2"/>
+      <rect x="14" y="1" width="9" height="12" rx="6" stroke="#242424" strokeWidth="2"/>
+      <line x1="10" y1="7" x2="14" y2="7" stroke="#242424" strokeWidth="2" strokeLinecap="round"/>
     </svg>
     <span style={{
       fontFamily: 'Inter, sans-serif',

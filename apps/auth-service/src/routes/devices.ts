@@ -155,11 +155,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         if (decodedUser.role === 'VIEWER') {
           return reply.code(403).send({ error: 'Viewer accounts are not allowed to connect to devices' });
         }
-        // Scoping check for Operators
-        const fullUser = await prisma.user.findUnique({ where: { id: decodedUser.userId } });
-        if (fullUser && !hasDevicePermission(fullUser, device)) {
-          return reply.code(403).send({ error: 'You do not have permission to connect to this device' });
-        }
+        // Remote support: do not gate on org/device ACL here — password + trust + rate limits apply below.
       }
     }
 
