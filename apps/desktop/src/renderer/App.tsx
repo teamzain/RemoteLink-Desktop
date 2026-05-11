@@ -3703,14 +3703,29 @@ export default function App() {
                                 </div>
                             </div>
                         ) : currentView === 'connect' ? (
+                            <>
                             <SnowRemoteSupport
                                 localAuthKey={localAuthKey}
                                 devicePassword={devicePassword}
                                 onCopyAccessKey={copyAccessKey}
                                 onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
+                                remoteLookupError={viewerStep === 1 ? viewerError : null}
+                                isRemoteLookupConnecting={viewerStatus === 'connecting' && viewerStep === 1}
                                 onConnect={(partnerId: string) => {
                                     const cleaned = String(partnerId || '').replace(/\D/g, '');
                                     if (!cleaned) return;
+                                    if (user?.role === 'VIEWER') {
+                                        showError('Access Denied', 'Your role is View-Only. You do not have permission to connect to devices.');
+                                        return;
+                                    }
+                                    const mine = String(localAuthKey || '').replace(/\D/g, '');
+                                    if (mine && cleaned === mine) {
+                                        showError(
+                                            'Cannot use this ID here',
+                                            'That is this computer\'s RemoteLink ID. Enter the other device\'s ID to start a remote session.'
+                                        );
+                                        return;
+                                    }
                                     setSessionCode(formatCode(cleaned));
                                     setAccessPassword('');
                                     setViewerError('');
@@ -3723,6 +3738,7 @@ export default function App() {
                                 onStopHosting={handleStopHosting}
                                 hostStatus={hostStatus}
                                 onJoinSessionInvite={handleJoinSessionInvite}
+                                onJoinMeeting={openMeeting}
                                 isAutoHostEnabled={isAutoHostEnabled}
                                 onToggleAutoHost={(next: boolean) => {
                                     setIsAutoHostEnabled(next);
@@ -3738,6 +3754,60 @@ export default function App() {
                                     }
                                 }}
                             />
+                            {viewerStep === 2 && (
+                                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 font-sans">
+                                    <div className="bg-white dark:bg-[#1C1C1C] rounded-[24px] w-full max-w-md shadow-2xl p-6 border border-gray-100 dark:border-white/10">
+                                        <h3 className="text-[20px] font-bold text-gray-900 dark:text-[#F5F5F5]">Enter access password</h3>
+                                        <p className="text-[13px] text-gray-500 dark:text-[#A0A0A0] mt-1">
+                                            {targetDeviceName
+                                                ? <>Connecting to <span className="font-semibold text-gray-800 dark:text-white">{targetDeviceName}</span></>
+                                                : <>Device ID <span className="font-mono font-semibold">{formatCode(sessionCode)}</span></>}
+                                        </p>
+                                        {lockoutSeconds > 0 && (
+                                            <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-3">
+                                                Too many attempts. Try again in {lockoutSeconds}s.
+                                            </p>
+                                        )}
+                                        <input
+                                            type="password"
+                                            autoFocus
+                                            value={accessPassword}
+                                            onChange={(e) => setAccessPassword(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' && accessPassword && viewerStatus !== 'connecting' && lockoutSeconds <= 0) handleConnectToHost(); }}
+                                            disabled={lockoutSeconds > 0}
+                                            placeholder="Remote access password"
+                                            className="mt-4 w-full h-12 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#0A0A0A] text-[14px] text-gray-900 dark:text-white outline-none focus:border-[#1D6DF5]"
+                                        />
+                                        {viewerError ? (
+                                            <p className="text-[12px] font-medium text-red-500 mt-2">{viewerError}</p>
+                                        ) : null}
+                                        <div className="mt-6 flex justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setViewerStep(1);
+                                                    setViewerError('');
+                                                    setAccessPassword('');
+                                                    setViewerStatus('idle');
+                                                }}
+                                                className="px-4 py-2.5 text-[13px] font-bold text-gray-500 hover:text-gray-800 dark:hover:text-white"
+                                            >
+                                                Back
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConnectToHost()}
+                                                disabled={viewerStatus === 'connecting' || !accessPassword || lockoutSeconds > 0}
+                                                className="px-6 py-2.5 rounded-xl bg-[#1D6DF5] text-white text-[13px] font-bold disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {viewerStatus === 'connecting' ? <RefreshCw size={14} className="animate-spin" /> : <Zap size={14} />}
+                                                Connect
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            </>
                         ) : (currentView as any) === 'sessions' ? (
                             /* --- ACTIVE SESSIONS VIEW --- */
                             <div className="w-full pt-8 animate-in fade-in duration-700">

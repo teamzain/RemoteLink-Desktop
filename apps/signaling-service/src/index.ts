@@ -10,6 +10,7 @@ import { createHmac } from 'crypto';
 import { redisPublisher, redisSubscriber, verifyToken, EventChannel, prisma } from '@remotelink/shared';
 
 const PORT = parseInt(process.env.PORT || '3002', 10);
+const MEETING_LINK_TTL_MS = Number(process.env.MEETING_LINK_TTL_MINUTES || 30) * 60 * 1000;
 
 // In-memory map of active connections on this specific instance
 const localClients = new Map<string, WebSocket>();
@@ -565,18 +566,27 @@ async function startServer() {
             const participantUserId = decoded?.userId || user?.id || `guest-${connectionId}`;
             const participantName = String(user?.name || '').trim() || (decoded?.userId ? 'Participant' : 'Guest');
 
-            let meeting: { id: string; name: string; sessionCode: string } | null = null;
+            let meeting: { id: string; name: string; sessionCode: string; createdAt: Date } | null = null;
             try {
               meeting = await (prisma as any).remoteSession.findFirst({
                 where: {
                   sessionCode: meetingId,
                   type: 'VIDEO_MEETING',
-                  status: 'ACTIVE'
+                  status: 'ACTIVE',
+                  createdAt: { gte: new Date(Date.now() - MEETING_LINK_TTL_MS) }
                 },
-                select: { id: true, name: true, sessionCode: true }
+                select: { id: true, name: true, sessionCode: true, createdAt: true }
               });
             } catch (err) {
-              console.warn('[Signaling] Meeting lookup failed, continuing with an ad-hoc room:', err);
+              console.warn('[Signaling] Meeting lookup failed:', err);
+            }
+
+            if (!meeting) {
+              ws.send(JSON.stringify({
+                type: 'meeting-error',
+                error: 'This meeting link is expired or no longer active.'
+              }));
+              break;
             }
 
             console.log(`[Signaling] User ${participantName || connectionId} joining meeting: ${meetingId}`);

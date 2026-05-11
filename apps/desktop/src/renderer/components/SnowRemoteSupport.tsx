@@ -35,8 +35,13 @@ interface SnowRemoteSupportProps {
   onStopHosting: () => void;
   hostStatus: string;
   onJoinSessionInvite?: (code: string, password?: string) => void;
+  onJoinMeeting?: (meetingId: string) => void;
   isAutoHostEnabled?: boolean;
   onToggleAutoHost?: (next: boolean) => void;
+  /** Shown under Connect when device lookup fails (signed-in Remote Support). */
+  remoteLookupError?: string | null;
+  /** True while /lookup or /status is in progress. */
+  isRemoteLookupConnecting?: boolean;
 }
 
 export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
@@ -49,8 +54,11 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   onStopHosting,
   hostStatus,
   onJoinSessionInvite,
+  onJoinMeeting,
   isAutoHostEnabled,
   onToggleAutoHost,
+  remoteLookupError,
+  isRemoteLookupConnecting,
 }) => {
   const { user } = useAuthStore();
   const [partnerId, setPartnerId] = useState('');
@@ -168,6 +176,25 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const isOnline = hostStatus.includes('Online') || hostStatus.includes('WebRTC') || hostStatus.includes('Registered');
   const sessionCode = (localAuthKey || '').replace(/\s/g, '');
   const sessionLink = `remotelink://join?code=${encodeURIComponent(sessionCode)}&password=${encodeURIComponent(devicePassword || '')}`;
+  const getSessionExpiresAt = (session: any) => {
+    if (session?.expiresAt) return new Date(session.expiresAt);
+    const ttlMs = session?.type === 'VIDEO_MEETING' ? 30 * 60 * 1000 : 60 * 60 * 1000;
+    return new Date(new Date(session?.createdAt || Date.now()).getTime() + ttlMs);
+  };
+  const isSessionJoinable = (session: any) =>
+    String(session?.status || 'ACTIVE').toUpperCase() === 'ACTIVE' &&
+    !session?.isExpired &&
+    getSessionExpiresAt(session).getTime() > Date.now();
+  const handleOpenSessionRow = (session: any) => {
+    if (!isSessionJoinable(session)) return;
+    const code = String(session.sessionCode || '').replace(/[^a-zA-Z0-9]/g, '');
+    if (!code) return;
+    if (session.type === 'VIDEO_MEETING') {
+      onJoinMeeting?.(formatId(code));
+      return;
+    }
+    onJoinSessionInvite?.(code);
+  };
 
   const fetchRemoteSessions = async () => {
     setLoadingSessions(true);
@@ -408,19 +435,24 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <button
+                      type="button"
                       onClick={handleConnect}
-                      disabled={!canConnect}
+                      disabled={!canConnect || isRemoteLookupConnecting}
                       className={`px-10 py-3 font-bold text-[13px] rounded-lg transition-all flex items-center gap-2 ${
-                        canConnect
+                        canConnect && !isRemoteLookupConnecting
                           ? 'bg-[#1D6DF5] text-white hover:bg-blue-700 shadow-lg shadow-blue-500/20'
                           : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-[#555555] cursor-not-allowed'
                       }`}
                     >
+                      {isRemoteLookupConnecting ? <RefreshCw size={14} className="animate-spin" /> : null}
                       Connect
-                      {canConnect && <ArrowRight size={14} />}
+                      {canConnect && !isRemoteLookupConnecting && <ArrowRight size={14} />}
                     </button>
+                    {remoteLookupError ? (
+                      <p className="text-[12px] font-medium text-red-500 dark:text-red-400 max-w-md">{remoteLookupError}</p>
+                    ) : null}
                   </div>
 
                   <div className="mt-auto space-y-3 pt-12">
@@ -589,11 +621,24 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                   <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                     {remoteSessions.map((session) => {
                       const collaborators = session.collaborators || [];
+                      const joinable = isSessionJoinable(session);
+                      const expiresAt = getSessionExpiresAt(session);
                       return (
-                        <tr key={session.id} className="text-[13px] text-gray-700 dark:text-[#D1D1D1]">
+                        <tr
+                          key={session.id}
+                          onClick={() => handleOpenSessionRow(session)}
+                          className={`text-[13px] text-gray-700 dark:text-[#D1D1D1] transition-colors ${
+                            joinable
+                              ? 'cursor-pointer hover:bg-blue-50/60 dark:hover:bg-blue-500/10'
+                              : 'cursor-not-allowed opacity-60'
+                          }`}
+                          title={joinable ? 'Open this session' : 'This session link has expired'}
+                        >
                           <td className="px-6 py-4">
                             <div className="font-bold text-gray-900 dark:text-[#F5F5F5]">{session.name}</div>
-                            <div className="text-[11px] text-gray-400">By {session.createdBy?.name || session.createdBy?.email || 'You'}</div>
+                            <div className="text-[11px] text-gray-400">
+                              By {session.createdBy?.name || session.createdBy?.email || 'You'} • Expires {expiresAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                            </div>
                           </td>
                           <td className="px-6 py-4 font-mono">{formatId(session.sessionCode)}</td>
                           <td className="px-6 py-4">
@@ -611,8 +656,12 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                             )}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-600">
-                              {session.status || 'ACTIVE'}
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                              joinable
+                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600'
+                                : 'bg-gray-100 dark:bg-white/5 text-gray-500'
+                            }`}>
+                              {joinable ? 'ACTIVE' : 'EXPIRED'}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-gray-500">{new Date(session.createdAt).toLocaleString()}</td>

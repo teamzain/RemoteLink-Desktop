@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-06T19:30:55.517Z",
+  "generatedAt": "2026-05-11T13:33:30.152Z",
   "releases": [
+    {
+      "version": "1.1.29",
+      "tag": "v1.1.29",
+      "publishedAt": "2026-05-11T13:33:29.932Z",
+      "notes": "Make session rows clickable and expire meeting links",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.29.exe",
+          "size": 135264248,
+          "sha256": "a36b8379312cf293c7f0271eacffa67d040735b336e98486b09006e7b79b94ec",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.29/Connect-X.Setup.1.1.29.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.29.exe.blockmap",
+          "size": 120674,
+          "sha256": "3a83221c58318a931b9d5baf507264807acbb0489f6b41308a7d27d9f2810012",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.29/Connect-X.Setup.1.1.29.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "e1a4174e63eb1955b7a3d3a658c4e815f4513c0a2692072818d26c2a480bd27f",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.29/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.27",
       "tag": "v1.1.27",

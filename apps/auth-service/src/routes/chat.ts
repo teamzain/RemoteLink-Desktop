@@ -3,6 +3,8 @@ import { prisma, verifyToken, redisPublisher } from '@remotelink/shared';
 import nodemailer from 'nodemailer';
 
 const SESSION_INVITE_PREFIX = '[[REMOTE365_SESSION_INVITE]]';
+const REMOTE_SESSION_LINK_TTL_MS = Number(process.env.REMOTE_SESSION_LINK_TTL_MINUTES || 60) * 60 * 1000;
+const MEETING_LINK_TTL_MS = Number(process.env.MEETING_LINK_TTL_MINUTES || 30) * 60 * 1000;
 
 const getInviteInstallUrl = () => {
   return process.env.DESKTOP_DOWNLOAD_URL || 'http://159.65.84.190/downloads/desktop/';
@@ -24,6 +26,22 @@ const generateMeetingCode = () => {
 };
 
 const normalizeMeetingCode = (code: string) => String(code || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+const getRemoteSessionTtl = (type?: string) => type === 'VIDEO_MEETING' ? MEETING_LINK_TTL_MS : REMOTE_SESSION_LINK_TTL_MS;
+
+const getRemoteSessionExpiresAt = (session: any) =>
+  new Date(new Date(session.createdAt).getTime() + getRemoteSessionTtl(session.type));
+
+const decorateRemoteSession = (session: any) => {
+  const expiresAt = getRemoteSessionExpiresAt(session);
+  const isExpired = expiresAt.getTime() <= Date.now();
+  return {
+    ...session,
+    expiresAt,
+    isExpired,
+    status: isExpired && session.status === 'ACTIVE' ? 'EXPIRED' : session.status
+  };
+};
 
 const sendSessionInviteEmail = async ({
   to,
@@ -365,7 +383,8 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         sessionLink,
         sessionType,
         senderName,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        expiresAt: getRemoteSessionExpiresAt(remoteSession).toISOString()
       };
 
       let message = null;
@@ -421,7 +440,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         success: true,
         existingUser: Boolean(targetUser || targetUserIds.length > 0),
         message,
-        remoteSession
+        remoteSession: decorateRemoteSession(remoteSession)
       });
     } catch (err) {
       console.error('[Chat API] Failed to create session invite', err);
@@ -433,6 +452,18 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const userId = (request as any).userId;
 
     try {
+      const now = new Date();
+      await (prisma as any).remoteSession.updateMany({
+        where: {
+          status: 'ACTIVE',
+          OR: [
+            { type: 'REMOTE_CONTROL', createdAt: { lt: new Date(now.getTime() - REMOTE_SESSION_LINK_TTL_MS) } },
+            { type: 'VIDEO_MEETING', createdAt: { lt: new Date(now.getTime() - MEETING_LINK_TTL_MS) } }
+          ]
+        },
+        data: { status: 'ENDED', endedAt: now }
+      });
+
       const currentUser = await (prisma as any).user.findUnique({
         where: { id: userId },
         select: { email: true }
@@ -460,7 +491,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         orderBy: { createdAt: 'desc' }
       });
 
-      return reply.send(sessions);
+      return reply.send(sessions.map(decorateRemoteSession));
     } catch (err) {
       console.error('[Chat API] Failed to fetch remote sessions', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
@@ -520,7 +551,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
         }
       });
 
-      return reply.send({ ...meeting, displayCode: meetingCode });
+      return reply.send({ ...decorateRemoteSession(meeting), displayCode: meetingCode });
     } catch (err) {
       console.error('[Meetings API] Failed to create meeting', err);
       return reply.code(500).send({ error: 'Internal Server Error' });
@@ -531,6 +562,16 @@ export default async function chatRoutes(fastify: FastifyInstance) {
     const userId = (request as any).userId;
 
     try {
+      const now = new Date();
+      await (prisma as any).remoteSession.updateMany({
+        where: {
+          type: 'VIDEO_MEETING',
+          status: 'ACTIVE',
+          createdAt: { lt: new Date(now.getTime() - MEETING_LINK_TTL_MS) }
+        },
+        data: { status: 'ENDED', endedAt: now }
+      });
+
       const currentUser = await (prisma as any).user.findUnique({
         where: { id: userId },
         select: { email: true }
@@ -561,7 +602,7 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       });
 
       return reply.send(meetings.map((meeting: any) => ({
-        ...meeting,
+        ...decorateRemoteSession(meeting),
         displayCode: `${meeting.sessionCode.slice(0, 3)}-${meeting.sessionCode.slice(3, 6)}-${meeting.sessionCode.slice(6, 9)}`
       })));
     } catch (err) {

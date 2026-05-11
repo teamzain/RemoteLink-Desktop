@@ -75,6 +75,16 @@ export const SnowMeetingsHome: React.FC<SnowMeetingsHomeProps> = ({ onJoinMeetin
     }
   };
 
+  const getMeetingExpiresAt = (meeting: any) => {
+    if (meeting?.expiresAt) return new Date(meeting.expiresAt);
+    return new Date(new Date(meeting?.createdAt || Date.now()).getTime() + 30 * 60 * 1000);
+  };
+
+  const isMeetingJoinable = (meeting: any) =>
+    String(meeting?.status || 'ACTIVE').toUpperCase() === 'ACTIVE' &&
+    !meeting?.isExpired &&
+    getMeetingExpiresAt(meeting).getTime() > Date.now();
+
   const formattedTime = currentTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const formattedDate = currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 
@@ -171,26 +181,42 @@ export const SnowMeetingsHome: React.FC<SnowMeetingsHomeProps> = ({ onJoinMeetin
                 </div>
               ) : meetings.slice(0, 4).map((meeting) => {
                 const code = meeting.displayCode || formatCode(meeting.sessionCode);
+                const joinable = isMeetingJoinable(meeting);
+                const expiresAt = getMeetingExpiresAt(meeting);
                 return (
-                  <div key={meeting.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50/70 dark:bg-white/[0.03]">
+                  <div
+                    key={meeting.id}
+                    onClick={() => joinable && onJoinMeeting(code)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50/70 dark:bg-white/[0.03] transition-colors ${
+                      joinable ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-500/10' : 'cursor-not-allowed opacity-60'
+                    }`}
+                    title={joinable ? 'Join meeting' : 'This meeting link has expired'}
+                  >
                     <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
                       <Calendar size={16} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{meeting.name}</p>
-                      <p className="text-xs text-gray-500 font-mono">{code}</p>
+                      <p className="text-xs text-gray-500 font-mono">{code} • {joinable ? `Expires ${expiresAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Expired'}</p>
                     </div>
                     <button
-                      onClick={() => navigator.clipboard?.writeText(code)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigator.clipboard?.writeText(code);
+                      }}
                       className="w-8 h-8 rounded-lg text-gray-500 hover:bg-white dark:hover:bg-white/10 flex items-center justify-center"
                       title="Copy meeting code"
                     >
                       <Copy size={15} />
                     </button>
                     <button
-                      onClick={() => onJoinMeeting(code)}
-                      className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center"
-                      title="Join meeting"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (joinable) onJoinMeeting(code);
+                      }}
+                      disabled={!joinable}
+                      className="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={joinable ? 'Join meeting' : 'Expired'}
                     >
                       <Play size={15} />
                     </button>
