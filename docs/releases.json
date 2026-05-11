@@ -1,6 +1,32 @@
 {
-  "generatedAt": "2026-05-11T13:33:30.152Z",
+  "generatedAt": "2026-05-11T14:00:24.796Z",
   "releases": [
+    {
+      "version": "1.1.30",
+      "tag": "v1.1.30",
+      "publishedAt": "2026-05-11T14:00:24.683Z",
+      "notes": "Fix remote approval trust and no-response viewer handling",
+      "assets": [
+        {
+          "name": "Connect-X Setup 1.1.30.exe",
+          "size": 135265600,
+          "sha256": "f960f79f61991e18fb62af03b61922254a711fc4d1c6552eb74a1e9fbb00259a",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.30/Connect-X.Setup.1.1.30.exe"
+        },
+        {
+          "name": "Connect-X Setup 1.1.30.exe.blockmap",
+          "size": 120612,
+          "sha256": "950069fabe9014190bc4b63cd11aadabf5d144ff28f442f11c28fec2ec6d3d82",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.30/Connect-X.Setup.1.1.30.exe.blockmap"
+        },
+        {
+          "name": "latest.yml",
+          "size": 350,
+          "sha256": "d7ede59a73f7a69ab721ffe9042e032aaec44813117b04d7d02360965caeaaca",
+          "url": "https://github.com/teamzain/RemoteLink-Desktop/releases/download/v1.1.30/latest.yml"
+        }
+      ]
+    },
     {
       "version": "1.1.29",
       "tag": "v1.1.29",

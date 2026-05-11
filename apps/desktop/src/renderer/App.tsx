@@ -2026,7 +2026,7 @@ export default function App() {
 
 
     const [deviceId, setDeviceId] = useState('');
-    const [pendingViewerRequest, setPendingViewerRequest] = useState<{ viewerId: string; countdown: number } | null>(null);
+    const [pendingViewerRequest, setPendingViewerRequest] = useState<{ viewerId: string; countdown: number; trustDevice?: boolean } | null>(null);
     const [pendingControlRequest, setPendingControlRequest] = useState<{ viewerId: string; countdown: number } | null>(null);
 
 
@@ -2349,7 +2349,12 @@ export default function App() {
                 } else {
                     // Host denied the connection or timed out
                     setViewerStatus('error');
-                    setViewerError(data.error || 'Connection was denied by the host.');
+                    const message = data.error || 'No response from the other machine.';
+                    setViewerError(message);
+                    if (isViewerWindow) {
+                        showError('Connection not approved', message);
+                        setTimeout(() => window.close(), 4500);
+                    }
                 }
                 return;
             }
@@ -2798,8 +2803,10 @@ export default function App() {
         setLockoutSeconds(0);
         setTargetDeviceName(null);
         setTargetPasswordRequired(true);
+        setCurrentView('connect');
         try {
             const cleanKey = sourceKey.replace(/\s/g, '');
+            setSessionCode(formatCode(cleanKey));
             let lookupData: any = null;
             const attempts = [
                 { method: 'post', url: '/api/devices/connect/lookup', body: { accessKey: cleanKey } },
@@ -2841,7 +2848,7 @@ export default function App() {
                 setViewerStep(2);
                 setViewerStatus('idle');
             } else {
-                await handleConnectToHost('');
+                await handleConnectToHost('', cleanKey);
             }
         } catch (e: any) {
             setViewerStatus('error');
@@ -2849,16 +2856,17 @@ export default function App() {
         }
     };
 
-    const handleConnectToHost = async (passwordOverride?: string) => {
+    const handleConnectToHost = async (passwordOverride?: string, accessKeyOverride?: string) => {
+        const cleanAccessKey = (accessKeyOverride || sessionCode).replace(/\s/g, '');
         const passwordForRequest = passwordOverride ?? accessPassword;
         const requiresPasswordForRequest = passwordOverride === undefined ? targetPasswordRequired : false;
-        if (!sessionCode || (requiresPasswordForRequest && !passwordForRequest)) return;
+        if (!cleanAccessKey || (requiresPasswordForRequest && !passwordForRequest)) return;
         setViewerStatus('connecting');
         setViewerError('');
         try {
             // 1. Verify Access and Get Token
             const { data: authData } = await api.post('/api/devices/verify-access', {
-                accessKey: sessionCode.replace(/\s/g, ''),
+                accessKey: cleanAccessKey,
                 password: passwordForRequest
             });
 
@@ -2866,13 +2874,13 @@ export default function App() {
             //    viewerWindows so the main process can forward WebRTC signaling.
             if (isElectron) {
                 await (window as any).electronAPI.openViewerWindow(
-                    sessionCode.replace(/\s/g, ''),
+                    cleanAccessKey,
                     serverIP,
                     authData.token,
-                    targetDeviceName || sessionCode,
+                    targetDeviceName || formatCode(cleanAccessKey),
                     'desktop'
                 );
-                recordRecentConnection(sessionCode.replace(/\s/g, ''), targetDeviceName || undefined);
+                recordRecentConnection(cleanAccessKey, targetDeviceName || undefined);
                 // Reset state — the session lives in the viewer window now.
                 setViewerStatus('idle');
                 setViewerStep(1);
@@ -3290,6 +3298,17 @@ export default function App() {
                                 {t('auto_denying', user?.language).replace('{seconds}', String(pendingViewerRequest.countdown))}
                             </p>
                         </div>
+                        <label className="w-full flex items-center gap-3 rounded-2xl border border-[rgba(28,28,28,0.08)] bg-[#F8F9FA] px-4 py-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={Boolean(pendingViewerRequest.trustDevice)}
+                                onChange={(e) => setPendingViewerRequest(prev => prev ? { ...prev, trustDevice: e.target.checked } : prev)}
+                                className="w-4 h-4 accent-[#1C1C1C]"
+                            />
+                            <span className="text-[12px] font-bold text-[#1C1C1C] leading-snug">
+                                Don't ask again for this device
+                            </span>
+                        </label>
                         <div className="flex gap-3 w-full">
                             <button
                                 onClick={() => {
@@ -3302,7 +3321,7 @@ export default function App() {
                             </button>
                             <button
                                 onClick={() => {
-                                    (window as any).electronAPI?.approveViewer(pendingViewerRequest.viewerId);
+                                    (window as any).electronAPI?.approveViewer(pendingViewerRequest.viewerId, Boolean(pendingViewerRequest.trustDevice));
                                     setPendingViewerRequest(null);
                                 }}
                                 className="flex-1 py-3.5 bg-[#1C1C1C] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all"

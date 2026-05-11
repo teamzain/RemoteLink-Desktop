@@ -60,7 +60,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('host:stats', listener);
   },
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
-  approveViewer: (viewerId: string) => ipcRenderer.send('host:approve-viewer', viewerId),
+  approveViewer: (viewerId: string, trustDevice?: boolean) => ipcRenderer.send('host:approve-viewer', viewerId, trustDevice),
   denyViewer: (viewerId: string) => ipcRenderer.send('host:deny-viewer', viewerId),
   approveControl: (viewerId: string) => ipcRenderer.send('host:approve-control', viewerId),
   denyControl: (viewerId: string) => ipcRenderer.send('host:deny-control', viewerId),

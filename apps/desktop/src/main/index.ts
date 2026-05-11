@@ -254,9 +254,9 @@ ipcMain.handle('host:stop', () => {
   return true;
 });
 
-ipcMain.on('host:approve-viewer', (_event: any, viewerId: string) => {
+ipcMain.on('host:approve-viewer', (_event: any, viewerId: string, trustDevice?: boolean) => {
   if (hostSignalingWs?.readyState === WebSocket.OPEN) {
-    hostSignalingWs.send(JSON.stringify({ type: 'join-approve', viewerId }));
+    hostSignalingWs.send(JSON.stringify({ type: 'join-approve', viewerId, trustDevice: Boolean(trustDevice) }));
     minimizeHostWindowForRemoteSession('viewer-approved');
   }
 });
@@ -1183,6 +1183,11 @@ function setupSignalingHandlers(ws: WebSocket) {
       log.error(`[Host] Registration denied: ${data.error}`);
       mainWindow?.webContents.send('host:status', 'error');
     } else if (data.type === 'viewer-request') {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+      }
       // Forward the approval dialog request to the renderer
       mainWindow?.webContents.send('host:viewer-request', {
         viewerId: data.viewerId,
@@ -1750,6 +1755,17 @@ function connectViewerSignaling(sessionId: string, serverIP: string, token: stri
       const win = viewerWindows.get(sessionId);
       if (win) {
         win.webContents.send('viewer:signaling-message', msg);
+        if (msg.type === 'joined' && msg.success === false) {
+          setTimeout(() => {
+            if (!win.isDestroyed()) win.close();
+            dialog.showMessageBox({
+              type: 'info',
+              title: 'Connection not approved',
+              message: msg.error || 'No response from the other machine.',
+              detail: 'The remote viewer window was closed because the host did not approve the request.'
+            }).catch(() => {});
+          }, 4500);
+        }
       }
     } catch (e) {
       log.error('[Viewer] Failed to process signaling message:', e);

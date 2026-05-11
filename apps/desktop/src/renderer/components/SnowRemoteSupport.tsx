@@ -379,7 +379,12 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                             placeholder="Enter end user's ID"
                             value={partnerId}
                             onChange={(e) => handlePartnerIdChange(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleConnect(); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleConnect();
+                              }
+                            }}
                             onFocus={() => { if (recentConnections.length > 0) setShowRecentDropdown(true); }}
                             className="w-full h-12 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 pr-10 text-[14px] font-mono tracking-wider text-gray-800 dark:text-white outline-none focus:border-[#1D6DF5] transition-all"
                           />

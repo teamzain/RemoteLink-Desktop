@@ -166,10 +166,12 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
     // Check if user is trusted (Passwordless bypass)
     let isTrusted = false;
+    let viewerUserId: string | null = null;
     if (authHeader) {
       const token = authHeader.split(' ')[1];
       const decodedUser = verifyToken(token);
       if (decodedUser && decodedUser.userId) {
+        viewerUserId = decodedUser.userId;
         if (device.ownerId === decodedUser.userId) {
           isTrusted = true; // Auto-trust owned devices
         } else {
@@ -203,29 +205,14 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
 
       await redisPublisher.del(lockoutKey);
 
-      // Persist trust for future passwordless connections
-      if (authHeader) {
-        const token = authHeader.split(' ')[1];
-        const decodedUser = verifyToken(token);
-        if (decodedUser && decodedUser.userId) {
-          try {
-            await prisma.trustedDevice.upsert({
-              where: { viewerUserId_hostDeviceId: { viewerUserId: decodedUser.userId, hostDeviceId: device.id } },
-              update: {},
-              create: { viewerUserId: decodedUser.userId, hostDeviceId: device.id }
-            });
-            isTrusted = true;
-          } catch (e) {
-            console.warn('[Device-Debug] Failed to persist trust relationship', e);
-          }
-        }
-      }
     }
 
     const accessJWT = generateToken({
       type: 'remote-access',
       deviceId: device.id,
-      accessKey: device.accessKey
+      accessKey: device.accessKey,
+      viewerUserId,
+      isTrusted
     }, '5m');
 
     return reply.send({ token: accessJWT, device: { id: device.id, name: device.name, isTrusted, passwordRequired } });
@@ -696,14 +683,30 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (!accessKey) return reply.code(400).send({ error: 'Access Key required' });
     const key = String(accessKey).replace(/\s/g, '');
 
-    const device = await prisma.device.findUnique({ where: { accessKey: key }, select: { id: true, name: true, accessKey: true, passwordRequired: true } });
+    const device = await prisma.device.findUnique({ where: { accessKey: key }, select: { id: true, name: true, accessKey: true, passwordRequired: true, ownerId: true } });
     if (!device) return reply.code(404).send({ exists: false, error: 'No machine found with that access key' });
 
     const presence = await redisPublisher.get(`presence:${key}`);
     const online = presence === 'online';
     if (!online) return reply.code(409).send({ exists: true, online: false, error: 'That machine is offline. Ask the owner to open RemoteLink and check their connection.' });
 
-    return reply.send({ exists: true, online: true, name: device.name, password_required: device.passwordRequired !== false });
+    let isTrusted = false;
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.replace('Bearer ', ''));
+      if (decoded?.userId) {
+        if (device.ownerId === decoded.userId) {
+          isTrusted = true;
+        } else {
+          const trustCheck = await prisma.trustedDevice.findUnique({
+            where: { viewerUserId_hostDeviceId: { viewerUserId: decoded.userId, hostDeviceId: device.id } }
+          });
+          isTrusted = Boolean(trustCheck);
+        }
+      }
+    }
+
+    return reply.send({ exists: true, online: true, name: device.name, password_required: !isTrusted && device.passwordRequired !== false, trusted: isTrusted });
   });
 
   // POST /self-register — unauthenticated host bootstrap

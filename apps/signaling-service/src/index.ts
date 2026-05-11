@@ -27,7 +27,7 @@ const meetingParticipants = new Map<string, { id?: string; name?: string; avatar
 const meetingMediaStates = new Map<string, { isMuted: boolean; isCameraOff: boolean }>();
 const meetingEmptyTimers = new Map<string, NodeJS.Timeout>();
 // Pending connections waiting for host approval
-const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; timeout: NodeJS.Timeout }>();
+const pendingJoins = new Map<string, { sessionId: string; viewerClientId?: string; viewerUserId?: string | null; timeout: NodeJS.Timeout }>();
 
 // Chat connections: userId -> Set of connectionIds
 const userConnections = new Map<string, Set<string>>();
@@ -453,6 +453,25 @@ async function startServer() {
               break;
             }
 
+            const approveJoin = (viewerId: string, viewerClientId?: string) => {
+              viewerRegistry.set(viewerId, targetSessionId);
+              ws.send(JSON.stringify({ type: 'joined', success: true }));
+              const hostWs = localClients.get(hostId);
+              if (hostWs && hostWs.readyState === WebSocket.OPEN) {
+                hostWs.send(JSON.stringify({
+                  type: 'viewer-joined',
+                  viewerId,
+                  viewerClientId: viewerClientId || viewerId,
+                }));
+              }
+              broadcastGlobalStats();
+            };
+
+            if (decoded.isTrusted) {
+              approveJoin(connectionId, data.viewerClientId);
+              break;
+            }
+
             // Hold the join — ask the host to approve first.
             // Auto-deny after 30 s if the host doesn't respond.
             const requestTimeout = setTimeout(() => {
@@ -466,6 +485,7 @@ async function startServer() {
             pendingJoins.set(connectionId, {
               sessionId: targetSessionId,
               viewerClientId: data.viewerClientId,
+              viewerUserId: decoded.viewerUserId || null,
               timeout: requestTimeout,
             });
 
@@ -487,6 +507,24 @@ async function startServer() {
 
             clearTimeout(pending.timeout);
             pendingJoins.delete(pendingViewerId);
+
+            if (data.trustDevice && pending.viewerUserId) {
+              try {
+                const device = await (prisma as any).device.findUnique({
+                  where: { accessKey: pending.sessionId },
+                  select: { id: true }
+                });
+                if (device?.id) {
+                  await (prisma as any).trustedDevice.upsert({
+                    where: { viewerUserId_hostDeviceId: { viewerUserId: pending.viewerUserId, hostDeviceId: device.id } },
+                    update: {},
+                    create: { viewerUserId: pending.viewerUserId, hostDeviceId: device.id }
+                  });
+                }
+              } catch (err) {
+                console.warn('[Signaling] Failed to persist trusted viewer approval:', err);
+              }
+            }
 
             const viewerWs = localClients.get(pendingViewerId);
             if (viewerWs && viewerWs.readyState === WebSocket.OPEN) {
