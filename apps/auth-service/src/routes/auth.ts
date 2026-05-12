@@ -14,6 +14,35 @@ const totp = new TOTP({
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const verificationCodes = new Map<string, { code: string; expiresAt: number }>();
 
+const renderVerificationEmail = (code: string) => `
+  <div style="margin:0;padding:0;background:#f4f7fb;font-family:Inter,Segoe UI,Arial,sans-serif;color:#101828">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border:1px solid #e6ebf2;border-radius:20px;overflow:hidden;box-shadow:0 18px 45px rgba(16,24,40,.08)">
+            <tr>
+              <td style="background:#00193f;padding:28px 32px">
+                <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;color:#ffffff">Remote 365</div>
+                <div style="font-size:13px;font-weight:600;color:#b8c7df;margin-top:6px">Secure account verification</div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px">
+                <h1 style="margin:0 0 10px;font-size:24px;line-height:1.25;color:#101828">Verify your email</h1>
+                <p style="margin:0 0 24px;font-size:14px;line-height:1.7;color:#667085">Enter this code in Remote 365 to finish creating your account. The code expires in 10 minutes.</p>
+                <div style="background:#f8fafc;border:1px solid #e4eaf2;border-radius:16px;padding:22px;text-align:center">
+                  <div style="font-size:36px;line-height:1;font-weight:800;letter-spacing:.18em;color:#00193f;font-family:Consolas,Menlo,monospace">${code}</div>
+                </div>
+                <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#98a2b3">If you did not request this code, you can safely ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+`;
+
 export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/health', async () => {
     return { status: 'ok', service: 'auth-service' };
@@ -63,11 +92,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         try {
           await transporter.sendMail({
-            from: `"Connect-X Auth" <${process.env.SMTP_USER}>`,
+            from: `"Remote 365" <${process.env.SMTP_USER}>`,
             to: email,
-            subject: 'Your Connect-X Verification Code',
-            text: `Your verification code is ${code}. It expires in 10 minutes.`,
-            html: `<p>Your verification code is <strong>${code}</strong>. It expires in 10 minutes.</p>`,
+            subject: 'Your Remote 365 verification code',
+            text: `Your Remote 365 verification code is ${code}. It expires in 10 minutes.`,
+            html: renderVerificationEmail(code),
           });
           console.log(`[Auth] Sent verification email successfully to ${email}`);
         } catch (mailErr: any) {

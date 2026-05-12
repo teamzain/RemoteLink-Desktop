@@ -122,13 +122,13 @@ export default async function memberRoutes(fastify: FastifyInstance) {
         const inviteLink = `${serverHost}/onboard?token=${token}`;
 
         await transporter.sendMail({
-          from: `"Connect-X Team" <${process.env.SMTP_USER}>`,
+          from: `"Remote 365 Team" <${process.env.SMTP_USER}>`,
           to: email,
-          subject: 'You have been invited to join an organization on Connect-X',
+          subject: 'You have been invited to join an organization on Remote 365',
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
               <h1 style="font-size:22px;color:#1C1C1C">Hello!</h1>
-              <p style="color:#555;line-height:1.6">You have been invited to join your team on Connect-X as a <strong>${role}</strong>.</p>
+              <p style="color:#555;line-height:1.6">You have been invited to join your team on Remote 365 as a <strong>${role}</strong>.</p>
               <p style="color:#555;line-height:1.6">Click the button below to set your password and get started:</p>
               <p style="margin:28px 0">
                 <a href="${inviteLink}" style="display:inline-block;padding:12px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px">Join Organization</a>

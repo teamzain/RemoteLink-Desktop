@@ -6,11 +6,28 @@ import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs/promises';
 import { WebSocket } from 'ws';
 import * as os from 'os';
-import * as datachannel from 'node-datachannel';
 import * as input from '@remotelink/native-input';
 import * as crypto from 'crypto';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
+
+let datachannel: any = null;
+
+function ensureDatachannel() {
+  if (datachannel) return datachannel;
+  try {
+    datachannel = require('node-datachannel');
+    return datachannel;
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    log.error('[Host] Failed to load node-datachannel:', message);
+    dialog.showErrorBox(
+      'Remote engine unavailable',
+      `Remote desktop streaming could not start because the native WebRTC module was not found.\n\n${message}`
+    );
+    throw error;
+  }
+}
 
 // Disable Hardware Acceleration for desktop host window to ensure
 // it remains visible and controllable via DXGI capture.
@@ -220,6 +237,16 @@ function minimizeHostWindowForRemoteSession(reason: string) {
   if (mainWindow.isMinimized()) return;
   log.info(`[Host] Minimizing host window for remote session: ${reason}`);
   mainWindow.minimize();
+}
+
+function isRemoteSessionActive() {
+  const state = typeof peerConnection?.state === 'function' ? peerConnection.state() : '';
+  return Boolean(currentViewerId && ['connecting', 'connected'].includes(String(state)));
+}
+
+function keepHostWindowOutOfRemoteView(reason: string) {
+  if (!isRemoteSessionActive()) return;
+  setTimeout(() => minimizeHostWindowForRemoteSession(reason), 120);
 }
 
 ipcMain.handle('auth:getToken', () => getAuthTokens());
@@ -885,6 +912,7 @@ function flushPreBuffer() {
 function initiateHostWebRTC(viewerId: string) {
   log.info(`[Host] Initializing session for: ${viewerId}`);
   cleanUpWebRTC();
+  ensureDatachannel();
   currentViewerId = viewerId;
 
   // â”€â”€ Pre-start FFmpeg BEFORE WebRTC is ready â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -903,7 +931,7 @@ function initiateHostWebRTC(viewerId: string) {
 
   // Simplified ICE Servers for stability. 
   // Custom RelayType objects in libdatachannel can cause 0xC0000005 if types mismatch.
-  const iceServers: datachannel.IceServer[] = [
+  const iceServers: any[] = [
     { hostname: "stun.l.google.com", port: 19302 },
     { hostname: "stun1.l.google.com", port: 19302 },
     { hostname: "159.65.84.190", port: 3478, username: "admin", password: "B07qfTNwSC2yZvcs", relayType: "TurnUdp" },
@@ -1149,6 +1177,23 @@ function handleControlMessage(msg: any) {
           input.injectKeyAction(0x41, 'down'); // 'A'
           input.injectKeyAction(0x41, 'up');
           input.injectKeyAction(0x5B, 'up');
+        }
+        break;
+      case 'action':
+        if (event.action === 'task_manager') {
+          spawn('taskmgr.exe', [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+        } else if (event.action === 'explorer') {
+          spawn('explorer.exe', [], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+        } else if (event.action === 'browser') {
+          shell.openExternal('https://www.google.com').catch((err: any) => log.warn(`[Host] Failed to open browser: ${err.message}`));
+        } else if (event.action === 'lock') {
+          input.injectKeyAction(0x5B, 'down');
+          input.injectKeyAction(0x4C, 'down');
+          input.injectKeyAction(0x4C, 'up');
+          input.injectKeyAction(0x5B, 'up');
+        } else if (event.action === 'wake') {
+          const point = mapRemotePointToVirtualDesktop(0.5, 0.5);
+          input.injectMouseMove(point.x, point.y);
         }
         break;
       case 'request-keyframe':
@@ -1449,13 +1494,16 @@ function createWindow() {
           shownTrayHint = true;
           tray.displayBalloon({
             title: 'Still running in background',
-            content: 'Connect-X is in the system tray. Click the icon to reopen it.',
+            content: 'Remote 365 is in the system tray. Click the icon to reopen it.',
             iconType: 'info'
           });
         }
       }
       return false;
     });
+    mainWindow.on('show', () => keepHostWindowOutOfRemoteView('host-window-shown-during-session'));
+    mainWindow.on('focus', () => keepHostWindowOutOfRemoteView('host-window-focused-during-session'));
+    mainWindow.on('restore', () => keepHostWindowOutOfRemoteView('host-window-restored-during-session'));
     log.info('[Host] BrowserWindow object created.');
 
     mainWindow.webContents.on('did-finish-load', () => log.info('[Host] Renderer: did-finish-load'));

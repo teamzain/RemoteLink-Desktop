@@ -302,10 +302,10 @@ export const translations = {
         "es": "No se han encontrado nodos activos"
     },
     "encryption_notice": {
-        "en": "Connect-X utilizes E2E encryption for all remote streams. Your machine is currently secure.",
-        "de": "Connect-X verwendet E2E-Verschlüsselung für alle Remote-Streams. Ihr Computer ist derzeit sicher.",
-        "fr": "Connect-X utilise le cryptage E2E pour tous les flux distants. Votre machine est actuellement sécurisée.",
-        "es": "Connect-X utiliza cifrado E2E para todas las transmisiones remotas. Tu máquina está segura actualmente."
+        "en": "Remote 365 uses E2E encryption for all remote streams. Your machine is currently secure.",
+        "de": "Remote 365 verwendet E2E-Verschlüsselung für alle Remote-Streams. Ihr Computer ist derzeit sicher.",
+        "fr": "Remote 365 utilise le cryptage E2E pour tous les flux distants. Votre machine est actuellement sécurisée.",
+        "es": "Remote 365 utiliza cifrado E2E para todas las transmisiones remotas. Tu máquina está segura actualmente."
     },
     "identity_not_initialized": {
         "en": "Identity Not Initialized",

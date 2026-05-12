@@ -57,7 +57,7 @@ h2{color:#e53e3e;margin-bottom:12px}p{color:#666}</style></head>
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Join Organization – Connect-X</title>
+  <title>Join Organization - Remote 365</title>
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F2F5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
@@ -87,7 +87,7 @@ h2{color:#e53e3e;margin-bottom:12px}p{color:#666}</style></head>
   <div id="formView">
     <div class="logo">⚡</div>
     <h1>Finalize Your Access</h1>
-    <p class="sub">Set your name and password to join your organization on Connect-X.</p>
+    <p class="sub">Set your name and password to join your organization on Remote 365.</p>
     <div class="error" id="errBox"></div>
     <form id="onboardForm">
       <div class="field">
@@ -111,7 +111,7 @@ h2{color:#e53e3e;margin-bottom:12px}p{color:#666}</style></head>
     <h2>Welcome to the Team!</h2>
     <p>Your account has been created successfully.</p>
     <div class="steps">
-      <p>👉 <strong>Step 1:</strong> Open the Connect-X Desktop app</p>
+      <p><strong>Step 1:</strong> Open the Remote 365 desktop app</p>
       <p>👉 <strong>Step 2:</strong> Log in with your email and the password you just set</p>
       <p>👉 <strong>Step 3:</strong> You're in!</p>
     </div>

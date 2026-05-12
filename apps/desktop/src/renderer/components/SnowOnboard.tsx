@@ -88,10 +88,10 @@ export const SnowOnboard: React.FC<SnowOnboardProps> = ({ token, onComplete }) =
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-[#1C1C1C] flex items-center justify-center mb-6 shadow-xl shadow-black/10 overflow-hidden">
-             <img src={logo} alt="Connect-X" className="w-12 h-12 object-contain" />
+             <img src={logo} alt="Remote 365" className="w-12 h-12 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-[#1C1C1C] tracking-tight">Finalize Your Access</h1>
-          <p className="text-sm text-[rgba(28,28,28,0.4)] mt-2">Set a password to join your organization on Connect-X.</p>
+          <p className="text-sm text-[rgba(28,28,28,0.4)] mt-2">Set a password to join your organization on Remote 365.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

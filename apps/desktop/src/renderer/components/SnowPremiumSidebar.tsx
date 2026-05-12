@@ -153,6 +153,10 @@ export const SnowPremiumSidebar: React.FC<SidebarProps> = ({
             onClick={() => {
               if (item.id === 'notifications') {
                 setShowNotifications?.(true);
+              } else if (item.id === 'feedback') {
+                setCurrentView('support');
+              } else if (item.id === 'help') {
+                setCurrentView('documentation');
               } else {
                 setCurrentView(item.id);
               }

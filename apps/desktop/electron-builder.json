@@ -1,9 +1,9 @@
 {
     "appId":  "com.connectx.desktop",
-    "productName":  "Connect-X",
+    "productName":  "Remote 365",
     "electronVersion":  "28.3.3",
     "directories":  {
-                        "output":  "release26"
+                        "output":  "release33"
                     },
     "files":  [
                   "dist/**/*",

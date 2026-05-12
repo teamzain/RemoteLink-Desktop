@@ -42,6 +42,9 @@ interface SnowRemoteSupportProps {
   remoteLookupError?: string | null;
   /** True while /lookup or /status is in progress. */
   isRemoteLookupConnecting?: boolean;
+  initialTab?: 'id' | 'sessions';
+  openCreateSessionSignal?: number;
+  openJoinSessionSignal?: number;
 }
 
 export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
@@ -59,6 +62,9 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   onToggleAutoHost,
   remoteLookupError,
   isRemoteLookupConnecting,
+  initialTab,
+  openCreateSessionSignal,
+  openJoinSessionSignal,
 }) => {
   const { user } = useAuthStore();
   const [partnerId, setPartnerId] = useState('');
@@ -66,7 +72,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const [showAddSessionModal, setShowAddSessionModal] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedPwd, setCopiedPwd] = useState(false);
-  const [sessionName, setSessionName] = useState('Remote support session');
+  const [sessionName, setSessionName] = useState('Remote support invite');
   const [sessionEmail, setSessionEmail] = useState('');
   const [sessionInviteStatus, setSessionInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [sessionInviteMessage, setSessionInviteMessage] = useState('');
@@ -90,6 +96,24 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   useEffect(() => {
     if (typeof isAutoHostEnabled === 'boolean') setEasyAccess(isAutoHostEnabled);
   }, [isAutoHostEnabled]);
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (!openCreateSessionSignal) return;
+    setActiveTab('sessions');
+    setShowJoinSessionModal(false);
+    setShowAddSessionModal(true);
+  }, [openCreateSessionSignal]);
+
+  useEffect(() => {
+    if (!openJoinSessionSignal) return;
+    setActiveTab('sessions');
+    setShowAddSessionModal(false);
+    setShowJoinSessionModal(true);
+  }, [openJoinSessionSignal]);
 
   const refreshRecentConnections = () => setRecentConnections(getRecentConnections());
 
@@ -131,6 +155,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
   const handleEasyAccessToggle = (checked: boolean) => {
     setEasyAccess(checked);
     localStorage.setItem('is_auto_host_enabled', String(checked));
+    localStorage.setItem('remote365_require_password', checked ? 'false' : 'true');
     if (onToggleAutoHost) {
       onToggleAutoHost(checked);
     } else if (checked) {
@@ -167,10 +192,33 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
     }
   };
 
-  const copyText = (text: string) => {
+  const copyText = async (text: string) => {
+    const value = String(text || '');
+    if (!value) return false;
     const electronApi = (window as any).electronAPI;
-    if (electronApi?.clipboard?.writeText) return electronApi.clipboard.writeText(text);
-    return navigator.clipboard?.writeText(text);
+    try {
+      if (electronApi?.clipboard?.writeText) {
+        await electronApi.clipboard.writeText(value);
+        return true;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+      const input = document.createElement('textarea');
+      input.value = value;
+      input.setAttribute('readonly', 'true');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(input);
+      return ok;
+    } catch (error) {
+      console.error('[RemoteSupport] Clipboard copy failed', error);
+      return false;
+    }
   };
 
   const isOnline = hostStatus.includes('Online') || hostStatus.includes('WebRTC') || hostStatus.includes('Registered');
@@ -233,11 +281,11 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
       if (data?.remoteSession) {
         setRemoteSessions((prev) => [data.remoteSession, ...prev.filter((session) => session.id !== data.remoteSession.id)]);
       }
-      await copyText(sessionLink);
+      const copied = await copyText(sessionLink);
       setSessionInviteStatus('sent');
       setSessionInviteMessage(sessionEmail.trim()
-        ? 'Invite sent by email. The join link was copied too.'
-        : 'Session link copied. Share it anywhere.');
+        ? `Invite sent by email.${copied ? ' The invite link was copied too.' : ''}`
+        : copied ? 'Support invite link copied. Share it anywhere.' : 'Support invite created, but clipboard copy was blocked.');
     } catch (err: any) {
       setSessionInviteStatus('error');
       setSessionInviteMessage(err.response?.data?.error || err.message || 'Could not create session invite.');
@@ -277,7 +325,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 : 'text-gray-500 dark:text-[#A0A0A0] hover:text-gray-700 dark:hover:text-white'
             }`}
           >
-            Sessions
+            Support sessions
           </button>
         </div>
       </div>
@@ -349,9 +397,9 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                       </span>
                     </span>
                     <span className="text-[13px] text-gray-500 dark:text-[#A0A0A0] group-hover:text-gray-700 dark:group-hover:text-white transition-colors">
-                      Grant Easy Access to this device
+                      Grant Easy Access without password
                     </span>
-                    <span title="When enabled, this device starts hosting automatically so you can connect without manual confirmation.">
+                    <span title="When enabled, this device starts hosting automatically and trusted users can connect without entering a device password.">
                       <Info size={14} className="text-gray-300 dark:text-[#555555]" />
                     </span>
                   </label>
@@ -549,7 +597,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                               onClick={() => setActiveTab('sessions')}
                               className="w-full text-left px-3 py-3 text-[12px] text-gray-400 dark:text-[#A0A0A0] hover:text-blue-600 transition-colors"
                             >
-                              No sessions yet. Click to open the Sessions tab.
+                              No support invites yet. Click to open the Support invites tab.
                             </button>
                           ) : (
                             <>
@@ -572,7 +620,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                                 onClick={() => setActiveTab('sessions')}
                                 className="w-full text-left px-3 py-2 text-[12px] font-medium text-blue-600 hover:underline"
                               >
-                                View all sessions →
+                                View all support invites
                               </button>
                             </>
                           )}
@@ -583,18 +631,31 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 </div>
               </div>
             </div>
-          ) : remoteSessions.length > 0 ? (
+          ) : (
+            <div className="bg-white dark:bg-[#0F0F0F] rounded-2xl border border-gray-100 dark:border-white/5 p-12 text-center animate-in slide-in-from-bottom-4 duration-500">
+               <div className="w-20 h-20 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                 <Clock size={40} className="text-[#1D6DF5]" />
+               </div>
+               <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#1D6DF5] mb-4">
+                 Coming soon
+               </div>
+               <h3 className="text-xl font-bold text-gray-800 dark:text-[#F5F5F5] mb-2">Support sessions</h3>
+               <p className="text-gray-400 dark:text-[#A0A0A0] max-w-md mx-auto">
+                 Managed support sessions are being prepared. RemoteLink ID access is available now from the main tab.
+               </p>
+            </div>
+          ) && false ? (
             <div className="bg-white dark:bg-[#0F0F0F] rounded-2xl border border-gray-100 dark:border-white/5 overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
               <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-800 dark:text-[#F5F5F5]">Sessions</h3>
-                  <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0]">Created sessions and invited collaborators.</p>
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-[#F5F5F5]">Support invites</h3>
+                  <p className="text-[12px] text-gray-400 dark:text-[#A0A0A0]">Remote desktop invite links and collaborators.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={fetchRemoteSessions}
                     className="w-9 h-9 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 flex items-center justify-center"
-                    title="Refresh sessions"
+                    title="Refresh support invites"
                   >
                     <RefreshCw size={15} className={loadingSessions ? 'animate-spin' : ''} />
                   </button>
@@ -602,13 +663,13 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                     onClick={() => setShowAddSessionModal(true)}
                     className="px-4 py-2 bg-[#1D6DF5] text-white rounded-lg text-[12px] font-bold hover:bg-blue-700 transition-colors"
                   >
-                    New session
+                    New invite
                   </button>
                   <button
                     onClick={() => setShowJoinSessionModal(true)}
                     className="px-4 py-2 bg-[#00193F] text-white rounded-lg text-[12px] font-bold hover:bg-[#002255] transition-colors"
                   >
-                    Join a session
+                    Join invite
                   </button>
                 </div>
               </div>
@@ -679,27 +740,16 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
             </div>
           ) : (
             <div className="bg-white dark:bg-[#0F0F0F] rounded-2xl border border-gray-100 dark:border-white/5 p-12 text-center animate-in slide-in-from-bottom-4 duration-500">
-               <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-                 {loadingSessions ? <RefreshCw size={40} className="text-gray-300 animate-spin" /> : <Clock size={40} className="text-gray-300" />}
+               <div className="w-20 h-20 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                 <Clock size={40} className="text-[#1D6DF5]" />
                </div>
-               <h3 className="text-xl font-bold text-gray-800 dark:text-[#F5F5F5] mb-2">No active sessions</h3>
+               <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#1D6DF5] mb-4">
+                 Coming soon
+               </div>
+               <h3 className="text-xl font-bold text-gray-800 dark:text-[#F5F5F5] mb-2">Support sessions</h3>
                <p className="text-gray-400 dark:text-[#A0A0A0] max-w-sm mx-auto">
-                 Once you start a remote control session, it will appear here for easy management.
+                 Managed support sessions are being prepared. RemoteLink ID access is available now from the main tab.
                </p>
-               <div className="mt-8 flex items-center justify-center gap-3">
-                 <button 
-                   onClick={() => setShowAddSessionModal(true)}
-                   className="px-8 py-3 bg-[#1D6DF5] text-white rounded-xl font-bold text-[14px] hover:opacity-90 transition-all shadow-lg shadow-blue-500/20"
-                 >
-                   Start a new session
-                 </button>
-                 <button 
-                   onClick={() => setShowJoinSessionModal(true)}
-                   className="px-8 py-3 bg-[#00193F] text-white rounded-xl font-bold text-[14px] hover:bg-[#002255] transition-all shadow-lg shadow-blue-950/10"
-                 >
-                   Join a session
-                 </button>
-               </div>
             </div>
           )}
 
@@ -729,7 +779,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-white/5">
                 <div className="flex items-center gap-1.5 text-[13px] text-gray-500 dark:text-[#A0A0A0]">
-                  Session link
+                  Invite link
                   <Info size={14} />
                 </div>
                 <div className="flex items-center gap-3">
@@ -742,7 +792,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
 
               <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-white/5">
                 <div className="flex items-center gap-1.5 text-[13px] text-gray-500 dark:text-[#A0A0A0]">
-                  Session code
+                  Remote ID
                   <Info size={14} />
                 </div>
                 <div className="flex items-center gap-3">
@@ -793,7 +843,7 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
                 <div className="flex rounded-lg overflow-hidden shadow-sm">
                   <button onClick={handleStartSessionInvite} disabled={sessionInviteStatus === 'sending'} className="bg-[#2B52D0] hover:bg-[#2040A0] disabled:opacity-60 text-white px-5 py-2 text-[13px] font-medium transition-colors border-r border-blue-700/30 flex items-center gap-2">
                     {sessionInviteStatus === 'sending' ? <RefreshCw size={14} className="animate-spin" /> : sessionEmail ? <Mail size={14} /> : <Zap size={14} />}
-                    {sessionEmail ? 'Send invite' : 'Copy link'}
+                    {sessionEmail ? 'Send invite' : 'Copy invite link'}
                   </button>
                   <button className="bg-[#2B52D0] hover:bg-[#2040A0] text-white px-2 py-2 flex items-center justify-center transition-colors">
                     <ChevronDown size={16} />
@@ -809,13 +859,13 @@ export const SnowRemoteSupport: React.FC<SnowRemoteSupportProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white dark:bg-[#1C1C1C] rounded-[24px] w-full max-w-md shadow-2xl p-6 font-sans">
             <div className="mb-6">
-              <h3 className="text-[22px] font-bold text-[#1C1C1C] dark:text-[#F5F5F5]">Join a session</h3>
+              <h3 className="text-[22px] font-bold text-[#1C1C1C] dark:text-[#F5F5F5]">Join support invite</h3>
               <p className="text-[13px] text-gray-500 dark:text-[#A0A0A0] mt-1">Enter the Remote 365 session code shared by the host.</p>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Session code</label>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Remote ID or invite code</label>
                 <input
                   value={joinSessionCode}
                   onChange={(e) => setJoinSessionCode(formatId(e.target.value))}

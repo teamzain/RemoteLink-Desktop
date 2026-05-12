@@ -44,6 +44,11 @@ async function mapDevice(device: any, userId: string): Promise<any> {
   };
 }
 
+function isBootstrapOnlyDevice(device: any): boolean {
+  const name = String(device?.name || '').trim().toLowerCase();
+  return !device?.ownerId || name === 'unknown machine' || name === 'remote 365 device';
+}
+
 // Helper to check device access based on role/tags/deviceIds
 function hasDevicePermission(user: any, device: any): boolean {
   if (user.role === 'PLATFORM_OWNER') return true;
@@ -79,7 +84,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (!decoded || !decoded.userId) return reply.code(401).send({ error: 'Invalid token' });
 
     let { accessKey, password, name, tags } = request.body as any;
-    if (!accessKey || !password) return reply.code(400).send({ error: 'accessKey and password required' });
+    if (!accessKey) return reply.code(400).send({ error: 'accessKey required' });
     accessKey = String(accessKey).replace(/\s/g, '');
     console.log(`[Device-Debug] Attempting to add existing device: ${accessKey}`);
 
@@ -89,15 +94,18 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Device not found' });
     }
 
-    if (!device.accessPasswordHash) {
+    if (device.passwordRequired !== false && !device.accessPasswordHash) {
       console.log(`[Device-Debug] Device found but has no accessPasswordHash: ${accessKey}`);
       return reply.code(404).send({ error: 'Device has no access password set yet' });
     }
 
-    const isMatch = await bcrypt.compare(password, device.accessPasswordHash);
-    if (!isMatch) {
-      console.log(`[Device-Debug] Password mismatch for device: ${accessKey}`);
-      return reply.code(401).send({ error: 'Incorrect password' });
+    if (device.passwordRequired !== false) {
+      if (!password) return reply.code(400).send({ error: 'password required for this device' });
+      const isMatch = await bcrypt.compare(password, device.accessPasswordHash as string);
+      if (!isMatch) {
+        console.log(`[Device-Debug] Password mismatch for device: ${accessKey}`);
+        return reply.code(401).send({ error: 'Incorrect password' });
+      }
     }
 
     // Update device name/tags if provided
@@ -390,7 +398,8 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       if (!allDevicesMap.has(d.id)) allDevicesMap.set(d.id, { ...d, _isOwned: false });
     });
 
-    let allDevices = Array.from(allDevicesMap.values());
+    let allDevices = Array.from(allDevicesMap.values())
+      .filter((device: any) => !isBootstrapOnlyDevice(device) || savedRelations.some((s: any) => s.deviceId === device.id));
 
     // Look up redis presence
     const enrichedDevices = await Promise.all(allDevices.map(async (device) => {
@@ -430,7 +439,9 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
       orderBy: { lastSeenAt: 'desc' }
     });
 
-    const enrichedDevices = await Promise.all(devices.map(async (device: any) => {
+    const visibleDevices = devices.filter((device: any) => !isBootstrapOnlyDevice(device));
+
+    const enrichedDevices = await Promise.all(visibleDevices.map(async (device: any) => {
       return mapDevice(device, decoded.userId);
     }));
 
@@ -715,15 +726,11 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
   fastify.post('/self-register', async (request: FastifyRequest, reply: FastifyReply) => {
     let { accessKey, name, password, passwordRequired } = request.body as any;
     accessKey = accessKey ? String(accessKey).replace(/\s/g, '') : '';
-    const machineName = String(name || 'Unknown Machine').slice(0, 64);
-    let installerUser: any = null;
-    const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const decoded = verifyToken(authHeader.replace('Bearer ', ''));
-      if (decoded?.userId) {
-        installerUser = await prisma.user.findUnique({ where: { id: decoded.userId } });
-      }
-    }
+    const rawMachineName = String(name || '').trim();
+    const machineName = (rawMachineName && rawMachineName !== 'Unknown Machine' ? rawMachineName : 'Remote 365 Device').slice(0, 64);
+    // Self-register is a bootstrap path: it makes a device connectable by ID,
+    // but it does not add the device to any user's managed list. Users must
+    // explicitly add/claim it through /add-existing.
 
     const existing = accessKey
       ? await prisma.device.findUnique({ where: { accessKey } })
@@ -732,12 +739,7 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
     if (existing) {
       const updateData: any = {};
       let autoPassword: string | undefined;
-      if (!existing.ownerId && installerUser) {
-        updateData.ownerId = installerUser.id;
-        updateData.organizationId = installerUser.organizationId;
-        updateData.departmentId = installerUser.departmentId;
-      }
-      if (machineName && machineName !== existing.name) updateData.name = machineName;
+      if (machineName && machineName !== 'Remote 365 Device' && machineName !== existing.name) updateData.name = machineName;
       if (typeof passwordRequired === 'boolean') {
         updateData.passwordRequired = passwordRequired;
       }
@@ -777,9 +779,6 @@ export default async function deviceRoutes(fastify: FastifyInstance) {
         name: machineName,
         accessPasswordHash: passwordHash,
         passwordRequired: requiresPassword,
-        ownerId: installerUser?.id,
-        organizationId: installerUser?.organizationId,
-        departmentId: installerUser?.departmentId,
       },
     });
 

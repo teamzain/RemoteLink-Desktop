@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import logo from './assets/logo.png';
 // Force-syncing file state to resolve HMR/Vite discrepancies.
 import {
-    Activity, Monitor, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
+    Activity, Monitor, Network, Video, MessageSquare, ArrowLeft, ArrowRight, Zap, LogOut, Copy, Settings, MousePointer2, Loader2, Play, KeyRound, Shield, Smartphone, Plus, Search, MoreVertical, CheckCircle2, X,
     RefreshCw, Eye, EyeOff, CreditCard, Power, Lock, Mail, Link, Sun, Moon, Edit2, Trash2, ShieldOff, LayoutGrid, PlusCircle, Radio, ShieldCheck, ArrowRightCircle, Check, DownloadCloud, MonitorOff, User,
-    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink, HelpCircle,
+    Globe, Folder, Maximize, Info, Home, ChevronLeft, ChevronRight, ChevronDown, Layers, BellDot, Command, Book, Bell, ExternalLink, HelpCircle, Keyboard, Wifi, Clock3, MinusCircle,
     MessageCircle, UserCheck, UserX, Ban
 } from 'lucide-react';
 
@@ -51,6 +51,13 @@ const mockPerformanceData = [
     { time: '10:03', latency: 50, network: 110 },
     { time: '10:04', latency: 38, network: 160 },
     { time: '10:05', latency: 42, network: 155 },
+];
+
+const CONNECTING_MESSAGES = [
+    'Connecting to device',
+    'Checking secure route',
+    'Negotiating video stream',
+    'Preparing remote controls',
 ];
 // --- Premium Mobile Device Frame ---
 // Legacy frames removed for clean theater mode.
@@ -102,6 +109,26 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     const reassemblyMap = useRef(new Map<bigint, { fragments: (Uint8Array | null)[], count: number, total: number }>());
     const [isAutoPlayBlocked, setIsAutoPlayBlocked] = useState(false);
     const [showShortcutsHUD, setShowShortcutsHUD] = useState(false);
+    const [viewerCursor, setViewerCursor] = useState<{ x: number; y: number; visible: boolean }>({ x: 0.5, y: 0.5, visible: false });
+    const [connectingMessageIndex, setConnectingMessageIndex] = useState(0);
+
+    useEffect(() => {
+        if (hasReceivedKeyframe) return;
+        const timer = setInterval(() => {
+            setConnectingMessageIndex((index) => (index + 1) % CONNECTING_MESSAGES.length);
+        }, 1600);
+        return () => clearInterval(timer);
+    }, [hasReceivedKeyframe]);
+
+    const connectingText = CONNECTING_MESSAGES[connectingMessageIndex];
+
+    const renderConnectingLoader = () => (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#070707] animate-in fade-in duration-300">
+            <Loader2 size={34} className="text-blue-400 animate-spin mb-5" />
+            <div className="text-[13px] font-semibold text-white/90">{connectingText}</div>
+            <div className="text-[11px] text-white/45 mt-2">This usually takes a few seconds.</div>
+        </div>
+    );
 
     useEffect(() => {
         const updateFullscreenState = () => setIsFullScreen(Boolean(document.fullscreenElement));
@@ -353,27 +380,27 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         console.warn(`[DIAGNOSTIC] REMOTE CAPTURE ACTIVE. Monitoring all keystrokes in ${viewerStatus} mode.`);
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // -- Round 9: System Shortcuts (Android Global Actions) --
-            // Escape -> Back (1)
-            // Alt + H -> Home (2)
-            // Alt + R -> Recents (3)
-            // Alt + N -> Notifications (4)
+            if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setShowShortcutsHUD((show) => !show);
+                return;
+            }
             if (e.key === 'Escape') {
                 e.preventDefault();
                 onControlEvent({ type: 'globalAction', action: 1 });
                 return;
             }
-            if (e.altKey && e.key.toLowerCase() === 'h') {
+            if (e.altKey && e.key.toLowerCase() === 'home') {
                 e.preventDefault();
                 onControlEvent({ type: 'globalAction', action: 2 });
                 return;
             }
-            if (e.altKey && e.key.toLowerCase() === 'r') {
+            if (e.altKey && e.key.toLowerCase() === 'tab') {
                 e.preventDefault();
                 onControlEvent({ type: 'globalAction', action: 3 });
                 return;
             }
-            if (e.altKey && e.key.toLowerCase() === 'n') {
+            if (e.altKey && e.key.toLowerCase() === 'arrowdown') {
                 e.preventDefault();
                 onControlEvent({ type: 'globalAction', action: 4 });
                 return;
@@ -522,7 +549,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
     }, [remoteStream, onControlEvent, zoomMode]);
 
     const lastMouseMoveRef = useRef<number>(0);
-    const MOUSE_THROTTLE_MS = 16; // ~60fps
+    const MOUSE_THROTTLE_MS = 8; // up to 120fps on good links for smoother pointer tracking
     // Track the last normalized mouse position so wheel events can include it
     const normalizedMouseRef = useRef<{ x: number; y: number }>({ x: 0.5, y: 0.5 });
     const isDraggingRef = useRef<boolean>(false);
@@ -547,6 +574,11 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
         const target = remoteStream ? videoRef.current : canvasRef.current;
         const rect = target?.getBoundingClientRect();
         if (rect && target) {
+            setViewerCursor({
+                x: Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(rect.width, 1))),
+                y: Math.max(0, Math.min(1, (e.clientY - rect.top) / Math.max(rect.height, 1))),
+                visible: true,
+            });
             // Get intrinsic video/canvas dimensions for letterbox correction
             let videoWidth: number, videoHeight: number;
             if (remoteStream && videoRef.current) {
@@ -682,20 +714,14 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             onMouseMove: (e: React.MouseEvent) => handleMouseEvent(e, 'mousemove'),
             onMouseDown: (e: React.MouseEvent) => handleMouseEvent(e, 'mousedown'),
             onMouseUp: (e: React.MouseEvent) => handleMouseEvent(e, 'mouseup'),
+            onMouseLeave: () => setViewerCursor((cursor) => ({ ...cursor, visible: false })),
             onWheel: handleWheelEvent,
             onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
         };
 
         const contentNode = remoteStream ? (
             <div className="relative w-full h-full group flex items-center justify-center bg-[#0a0a0c] overflow-hidden cursor-none">
-                {!hasReceivedKeyframe && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 backdrop-blur-md animate-in fade-in duration-700">
-                        <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 animate-pulse">
-                            <img src="/logo.png" className="w-10 h-10 opacity-100 grayscale" alt="" />
-                        </div>
-                        <h2 className="text-sm font-bold tracking-[0.2em] text-white/80 uppercase">Establishing Link...</h2>
-                    </div>
-                )}
+                {!hasReceivedKeyframe && renderConnectingLoader()}
                 <div className={`relative transition-all duration-700 ease-out shadow-[0_40px_100px_rgba(0,0,0,0.8)] ${!isInMockup && isMobileDevice ? 'h-full aspect-[9/19.5] rounded-[3rem] border-[12px] border-[#1a1a1c] bg-black overflow-hidden' : 'w-full h-full'}`}>
                     <video
                         ref={videoRef}
@@ -742,28 +768,43 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                 {/* Shortcuts HUD */}
                 {showShortcutsHUD && (
                     <div className="absolute inset-0 z-[130] bg-black/60 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300">
-                        <div className="bg-[#1C1C1C] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl">
+                        <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
                             <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                                    <Command size={16} className="text-blue-400" /> System Shortcuts
+                                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                    <Keyboard size={16} className="text-blue-300" /> Remote shortcuts
                                 </h3>
                                 <button onClick={() => setShowShortcutsHUD(false)} className="text-white/80 hover:text-white"><X size={20} /></button>
                             </div>
-                            <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {[
                                     { k: 'Esc', v: 'Back' },
-                                    { k: 'Alt + H', v: 'Home' },
-                                    { k: 'Alt + R', v: 'Recents' },
-                                    { k: 'Alt + N', v: 'Notifications' },
-                                    { k: 'Mouse Top', v: 'Hold top for 1s to view Status' }
+                                    { k: 'Alt + Home', v: 'Home screen' },
+                                    { k: 'Alt + Tab', v: 'Recent apps' },
+                                    { k: 'Alt + ↓', v: 'Notifications' },
+                                    { k: 'Ctrl + Alt + K', v: 'Show or hide this panel' },
+                                    { k: 'Toolbar', v: 'File, paste, refresh, fullscreen' }
                                 ].map((s, i) => (
-                                    <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-                                        <span className="text-[10px] font-bold text-white/95 uppercase tracking-widest">{s.v}</span>
-                                        <span className="px-2 py-1 bg-white/10 rounded-md text-[10px] font-mono text-blue-400 font-bold">{s.k}</span>
+                                    <div key={i} className="flex justify-between items-center gap-4 bg-white/5 p-3 rounded-lg border border-white/5">
+                                        <span className="text-[12px] font-semibold text-white/90">{s.v}</span>
+                                        <span className="px-2 py-1 bg-white/10 rounded text-[10px] font-mono text-blue-200 font-bold whitespace-nowrap">{s.k}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {/* Viewer Cursor Overlay */}
+                {viewerCursor.visible && (
+                    <div
+                        className="absolute pointer-events-none z-[120] will-change-transform"
+                        style={{
+                            left: `${viewerCursor.x * 100}%`,
+                            top: `${viewerCursor.y * 100}%`,
+                            transform: 'translate3d(-2px, -2px, 0)'
+                        }}
+                    >
+                        <MousePointer2 size={22} className="text-white fill-[#111827] drop-shadow-[0_2px_4px_rgba(0,0,0,0.75)]" />
                     </div>
                 )}
 
@@ -821,72 +862,7 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
             </div>
         ) : (
             <div className="relative w-full h-full flex items-center justify-center bg-black">
-                {!hasReceivedKeyframe && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#060608] animate-in fade-in duration-500">
-                        {/* Ambient glow */}
-                        <div className="absolute inset-0 pointer-events-none">
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4A017]/5 blur-[160px] rounded-full" />
-                        </div>
-
-                        {/* Logo mark */}
-                        <div className="relative mb-8 z-10">
-                            <div className="w-20 h-20 rounded-[28px] bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-2xl overflow-hidden cursor-none">
-                                <img src={logo} alt="Connect-X" className="w-12 h-12 object-contain opacity-70" />
-                            </div>
-                            {/* Orbiting ring */}
-                            <div className="absolute inset-0 rounded-[28px] border border-blue-500/20 animate-ping" style={{ animationDuration: '2s' }} />
-                        </div>
-
-                        <span className="text-[13px] font-bold text-white/60 tracking-[0.35em] uppercase z-10 mb-2">Establishing Link</span>
-                        <span className="text-[10px] text-white/80 font-medium z-10 mb-8">Negotiating secure P2P channel...</span>
-
-                        {/* Step indicators */}
-                        <div className="flex items-center gap-3 z-10 mb-10">
-                            {['ICE', 'DTLS', 'STREAM'].map((step, i) => {
-                                const active = (hasReceivedKeyframe && i === 2) || (i < 2);
-                                return (
-                                    <React.Fragment key={step}>
-                                        <div className="flex flex-col items-center gap-1.5">
-                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center border transition-all ${active ? 'bg-amber-500/20 border-blue-500/40 text-blue-400' : 'bg-white/5 border-white/10 text-white/80'}`}>
-                                                {active ? <CheckCircle2 size={12} /> : <div className="w-1.5 h-1.5 rounded-full bg-white/20" />}
-                                            </div>
-                                            <span className={`text-[8px] font-bold uppercase tracking-widest ${active ? 'text-blue-400/60' : 'text-white/15'}`}>{step}</span>
-                                        </div>
-                                        {i < 2 && <div className={`w-8 h-px mb-4 ${active ? 'bg-amber-500/30' : 'bg-white/10'}`} />}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
-
-                        {/* Telemetry pill */}
-                        <div className="flex items-center gap-5 px-5 py-3 bg-white/[0.03] border border-white/[0.06] rounded-2xl z-10">
-                            <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Packets</span>
-                                <span className="text-sm font-mono text-blue-400/80 font-bold tabular-nums">
-                                    {packetsReceived}
-                                </span>
-                            </div>
-                            <div className="w-px h-8 bg-white/[0.06]" />
-                            <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Errors</span>
-                                <span className="text-sm font-mono text-red-400/80 font-bold tabular-nums">{decodeErrors}</span>
-                            </div>
-                            <div className="w-px h-8 bg-white/[0.06]" />
-                            <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">Signal</span>
-                                <span className={`text-sm font-bold uppercase ${lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'text-emerald-400/80' : 'text-white/80'}`}>
-                                    {lastPacketTime && (Date.now() - lastPacketTime < 2000) ? 'HOT' : '—'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {lastPacketTime && (
-                            <span className="text-[8px] text-white/15 font-bold uppercase tracking-[0.2em] mt-4 z-10">
-                                Last signal: {Math.round((Date.now() - lastPacketTime) / 1000)}s ago
-                            </span>
-                        )}
-                    </div>
-                )}
+                {!hasReceivedKeyframe && renderConnectingLoader()}
                 <canvas
                     ref={canvasRef}
                     width={1920}
@@ -961,12 +937,12 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
 
                 <div className="w-px h-5 bg-white/[0.06] mx-1" />
 
-                {/* Controls */}
-                <div className="flex items-center gap-0.5">
+                {/* Session controls */}
+                <div className="flex items-center gap-1">
                     <button
                         onClick={() => onControlEvent({ type: 'request-control' })}
                         title={controlStatus === 'granted' ? 'Control granted' : controlStatus === 'pending' ? 'Control pending' : 'Request control'}
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${
+                        className={`h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold transition-all border ${
                             controlStatus === 'granted'
                                 ? 'bg-emerald-500/15 border-emerald-400/25 text-emerald-300'
                                 : controlStatus === 'pending'
@@ -975,63 +951,39 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                         }`}
                     >
                         <MousePointer2 size={13} />
+                        Control
                     </button>
-                    <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all border ${zoomMode === 'original' ? 'bg-amber-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
+                    <button onClick={() => setZoomMode(zoomMode === 'fit' ? 'original' : 'fit')} title="Toggle Scale" className={`h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold transition-all border ${zoomMode === 'original' ? 'bg-amber-500/20 border-blue-500/30 text-blue-400' : 'bg-white/5 border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10'}`}>
                         <Search size={13} />
+                        {zoomMode === 'fit' ? 'Fit' : 'Actual'}
                     </button>
-                    <button onClick={toggleViewerFullscreen} title={isFullScreen ? 'Exit fullscreen' : 'Fullscreen'} className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
+                    <button onClick={toggleViewerFullscreen} title={isFullScreen ? 'Exit fullscreen' : 'Fullscreen'} className="h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
                         <Maximize size={13} />
+                        Fullscreen
+                    </button>
+                    <button onClick={() => setShowShortcutsHUD(true)} title="Remote shortcuts" className="h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all">
+                        <Keyboard size={13} />
+                        Shortcuts
                     </button>
                 </div>
 
                 <div className="w-px h-5 bg-white/[0.06] mx-1" />
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-0.5">
-                    {isMobileDevice ? (
-                        [
-                            { icon: ChevronLeft, action: 1, title: 'Back (Esc)', color: '' },
-                            { icon: Home, action: 2, title: 'Home (Alt+H)', color: 'hover:text-blue-400 hover:bg-amber-500/10' },
-                            { icon: Layers, action: 3, title: 'Recents (Alt+R)', color: '' },
-                            { icon: BellDot, action: 4, title: 'Notifications (Alt+N)', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
-                            { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
-                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-amber-500/10' }
-                        ].map(({ icon: Icon, action, title, color }) => (
-                            <button key={action} onClick={() => {
-                                if (typeof action === 'number') {
-                                    onControlEvent({ type: 'globalAction', action });
-                                } else {
-                                    onControlEvent({ type: 'action', action });
-                                }
-                            }} title={title}
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
-                                <Icon size={13} />
-                            </button>
-                        ))
-                    ) : (
-                        [
-                            { icon: Activity, action: 'task_manager', title: 'Task Manager', color: '' },
-                            { icon: Globe, action: 'browser', title: 'Browser', color: '' },
-                            { icon: Folder, action: 'explorer', title: 'Explorer', color: '' },
-                            { icon: Sun, action: 'wakeup', title: 'Wake Screen', color: 'hover:text-yellow-400 hover:bg-yellow-500/10' },
-                            { icon: Lock, action: 'lock', title: 'Lock Screen', color: 'hover:text-blue-400 hover:bg-amber-500/10' },
-                            { icon: Power, action: 'shutdown', title: 'Shutdown', color: 'hover:text-red-400 hover:bg-red-500/10' },
-                        ].map(({ icon: Icon, action, title, color }) => (
-                            <button key={action} onClick={() => onControlEvent({ type: 'action', action })} title={title}
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all ${color}`}>
-                                <Icon size={13} />
-                            </button>
-                        ))
-                    )}
-                    <button onClick={() => onControlEvent({ type: 'request-keyframe' })} title="Refresh Stream"
-                        className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/5 text-emerald-400/60 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all">
-                        <RefreshCw size={13} />
-                    </button>
-                </div>
-
-                <div className="w-px h-5 bg-white/[0.06] mx-1" />
-
-                {/* File transfer */}
+                {/* Sharing tools */}
+                <button
+                    onClick={async () => {
+                        const electronApi = (window as any).electronAPI;
+                        const text = electronApi?.clipboard?.readText
+                            ? await electronApi.clipboard.readText()
+                            : await navigator.clipboard?.readText?.();
+                        if (text) onControlEvent({ type: 'typeText', text });
+                    }}
+                    title="Paste clipboard text"
+                    className="h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold bg-white/5 border border-white/5 text-white/95 hover:text-white/80 hover:bg-white/10 transition-all"
+                >
+                    <Copy size={13} />
+                    Paste
+                </button>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
@@ -1093,8 +1045,14 @@ const VideoPlayer = forwardRef<any, VideoPlayerProps>(({
                     if (fileInputRef.current) fileInputRef.current.value = '';
                 }} />
                 <button onClick={() => fileInputRef.current?.click()} title="Transfer File"
-                    className="w-8 h-8 rounded-xl flex items-center justify-center bg-amber-500/10 border border-blue-500/20 text-blue-400 hover:bg-amber-500/20 transition-all">
-                    <Plus size={13} />
+                    className="h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold bg-blue-500/15 border border-blue-400/25 text-blue-300 hover:bg-blue-500/25 transition-all">
+                    <Folder size={13} />
+                    Send file
+                </button>
+                <button onClick={() => onControlEvent({ type: 'request-keyframe' })} title="Refresh Stream"
+                    className="h-8 px-3 rounded-xl flex items-center gap-1.5 justify-center text-[11px] font-bold bg-white/5 border border-white/5 text-emerald-300 hover:bg-emerald-500/10 transition-all">
+                    <RefreshCw size={13} />
+                    Refresh
                 </button>
 
                 {/* Transfer progress */}
@@ -1135,6 +1093,23 @@ const getStoredDevicePassword = () => {
 const isRemotePasswordRequired = () => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('remote365_require_password') !== 'false';
+};
+
+const getMachineDisplayName = async () => {
+    if (typeof window === 'undefined') return 'Remote 365 Device';
+    const saved = localStorage.getItem('remote365_device_name')?.trim();
+    if (saved && saved !== 'Unknown Machine') return saved;
+    try {
+        const apiName = (window as any).electronAPI?.getMachineName
+            ? await (window as any).electronAPI.getMachineName()
+            : '';
+        const clean = String(apiName || '').trim();
+        if (clean && clean !== 'Unknown Machine') {
+            localStorage.setItem('remote365_device_name', clean);
+            return clean;
+        }
+    } catch {}
+    return 'Remote 365 Device';
 };
 
 const formatCode = (val: string) => {
@@ -1186,6 +1161,7 @@ export default function App() {
     const [targetPasswordRequired, setTargetPasswordRequired] = useState(true);
     const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
     const [globalChatToast, setGlobalChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
+    const chatConversations = useChatStore((state) => state.conversations);
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
 
@@ -1480,7 +1456,7 @@ export default function App() {
     // Throttled mouse movement
     const lastMouseMoveRef = useRef<number>(0);
     const lastBufferWarningRef = useRef<number>(0);
-    const MOUSE_THROTTLE_MS = 16; // ~60fps for smoother desktop control without flooding the channel
+    const MOUSE_THROTTLE_MS = 8; // up to 120fps on good links for smoother pointer tracking
 
     const onControlEvent = (event: any) => {
         const channel = controlChannelRef.current;
@@ -1492,7 +1468,7 @@ export default function App() {
                     channel.send(event as any);
                 } else {
                     // Congestion Guard: Drop mousemove if buffer is saturating
-                    if (channel.bufferedAmount > 32768) { // Optimized: 32KB threshold (more sensitive)
+                    if (channel.bufferedAmount > 131072) {
                         if (event.type === 'mousemove') return; // Drop travel
 
                         // Extreme congestion: Drop almost everything except clicks/keys
@@ -1553,7 +1529,17 @@ export default function App() {
     const [devices, setDevices] = useState<any[]>([]);
     const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [topSearchQuery, setTopSearchQuery] = useState('');
+    const [connectInitialTab, setConnectInitialTab] = useState<'id' | 'sessions'>('id');
+    const [openCreateSessionSignal, setOpenCreateSessionSignal] = useState(0);
+    const [openJoinSessionSignal, setOpenJoinSessionSignal] = useState(0);
     const [showUserDropdown, setShowUserDropdown] = useState(false);
+    const [userPresence, setUserPresence] = useState<'online' | 'away' | 'busy' | 'invisible'>(() => {
+        const saved = localStorage.getItem('remote365_presence');
+        return ['online', 'away', 'busy', 'invisible'].includes(String(saved)) ? saved as any : 'online';
+    });
+    const [showOnboardingWizard, setShowOnboardingWizard] = useState(false);
+    const [onboardingStep, setOnboardingStep] = useState(0);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const userDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -1576,6 +1562,29 @@ export default function App() {
     const [actionModal, setActionModal] = useState<{ type: 'rename' | 'password' | 'remove' | 'regenerate' | 'assign-group', device: any } | null>(null);
     const [showActionPassword, setShowActionPassword] = useState(false);
     const [actionValue, setActionValue] = useState('');
+
+    useEffect(() => {
+        if (currentView !== 'connect') {
+            setConnectInitialTab('id');
+            setOpenCreateSessionSignal(0);
+            setOpenJoinSessionSignal(0);
+        }
+    }, [currentView]);
+
+    useEffect(() => {
+        if (!isAuthenticated || !user?.id) return;
+        const key = `remote365_onboarding_seen_${user.id}`;
+        if (!localStorage.getItem(key)) {
+            setOnboardingStep(0);
+            setShowOnboardingWizard(true);
+        }
+    }, [isAuthenticated, user?.id]);
+
+    const completeOnboardingWizard = () => {
+        if (user?.id) localStorage.setItem(`remote365_onboarding_seen_${user.id}`, 'true');
+        setShowOnboardingWizard(false);
+        setOnboardingStep(0);
+    };
 
     // --- Dynamic Notifications ---
     const [notifications, setNotifications] = useState<any[]>([
@@ -1955,7 +1964,7 @@ export default function App() {
         try {
             await api.post('/api/devices/add-existing', { 
                 accessKey: addKey.replace(/\s/g, ''), 
-                password: addPassword,
+                password: addPassword || undefined,
                 name: addName || undefined,
                 tags: addGroup !== 'My computers' ? [addGroup] : []
             });
@@ -2145,7 +2154,7 @@ export default function App() {
             let deviceUuid = '';
 
             // 1. Fetch what the server thinks are our devices
-            const devicesEndpoint = user?.role === 'SUPER_ADMIN' ? '/api/devices/all' : '/api/devices/mine';
+            const devicesEndpoint = '/api/devices/mine';
             const { data: fetchedDevices } = await api.get(devicesEndpoint);
             setDevices(fetchedDevices);
 
@@ -2192,9 +2201,7 @@ export default function App() {
     const handleRegisterLocalDevice = async () => {
         try {
             console.log(`[Identity] User-initiated registration started...`);
-            const machineName = (isElectron && (window as any).electronAPI.getMachineName)
-                ? await (window as any).electronAPI.getMachineName()
-                : 'Remote 365 Web User';
+            const machineName = isElectron ? await getMachineDisplayName() : 'Remote 365 Web User';
 
             let localKey = isElectron ? localStorage.getItem('remote365_device_access_key') : null;
 
@@ -2249,9 +2256,7 @@ export default function App() {
             // Register this machine in the DB without requiring a login so that
             // viewers can look it up via access key even before the host signs in.
             try {
-                const machineName = (window as any).electronAPI.getMachineName
-                    ? await (window as any).electronAPI.getMachineName()
-                    : 'Unknown Machine';
+                const machineName = await getMachineDisplayName();
 
                 const storedPwd = localStorage.getItem('device_password') || '';
                 const passwordRequired = isRemotePasswordRequired();
@@ -2633,6 +2638,60 @@ export default function App() {
         }
     };
 
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAuthError(null);
+        setResetMsg('');
+        const targetEmail = (resetEmail || email).trim().toLowerCase();
+        if (!targetEmail) {
+            setAuthError('Enter your account email first.');
+            return;
+        }
+        setLoading(true);
+        try {
+            await api.post('/api/auth/password/forgot', { email: targetEmail });
+            setResetEmail(targetEmail);
+            setResetMsg('A reset code has been sent to your email.');
+            setAuthMode('reset');
+        } catch (err: any) {
+            setAuthError(err.response?.data?.error || 'Could not send reset code.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAuthError(null);
+        setResetMsg('');
+        if (!resetEmail.trim() || !resetCode.trim() || !resetNewPassword) {
+            setAuthError('Email, reset code, and new password are required.');
+            return;
+        }
+        if (resetNewPassword.length < 8) {
+            setAuthError('Password must be at least 8 characters.');
+            return;
+        }
+        setLoading(true);
+        try {
+            await api.post('/api/auth/password/reset', {
+                email: resetEmail.trim().toLowerCase(),
+                code: resetCode.trim().toUpperCase(),
+                newPassword: resetNewPassword,
+            });
+            setEmail(resetEmail.trim().toLowerCase());
+            setPassword('');
+            setResetCode('');
+            setResetNewPassword('');
+            setResetMsg('Password updated. Sign in with your new password.');
+            setAuthMode('login');
+        } catch (err: any) {
+            setAuthError(err.response?.data?.error || 'Could not reset password.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleVerify2faLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (totpCode.length !== 6) return;
@@ -2653,10 +2712,19 @@ export default function App() {
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         setAuthError(null);
-        if (!signupName.trim()) { setAuthError('Display name is required.'); return; }
         setLoading(true);
 
         if (!isAwaitingVerification) {
+            if (!email.trim()) {
+                setAuthError('Email is required.');
+                setLoading(false);
+                return;
+            }
+            if (!password || password.length < 8) {
+                setAuthError('Password must be at least 8 characters.');
+                setLoading(false);
+                return;
+            }
             try {
                 await storeRequestVerification(email);
                 setIsAwaitingVerification(true);
@@ -2672,7 +2740,8 @@ export default function App() {
                 return;
             }
             try {
-                await storeRegister(signupName.trim(), email, password, verificationCode);
+                const fallbackName = signupName.trim() || email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'Remote 365 User';
+                await storeRegister(fallbackName, email, password, verificationCode);
                 setShowSplash(true);
                 setCurrentView('dashboard');
                 setTimeout(() => setShowSplash(false), 2000);
@@ -2731,7 +2800,7 @@ export default function App() {
             } else {
                 await api.post('/api/devices/self-register', {
                     accessKey: hostAccessKey,
-                    name: localStorage.getItem('remote365_device_name') || undefined,
+                    name: await getMachineDisplayName(),
                     password: devicePassword || undefined,
                     passwordRequired,
                 });
@@ -2743,7 +2812,7 @@ export default function App() {
                 return;
             }
             const sessionId = await (window as any).electronAPI.startHosting(hostAccessKey, {
-                deviceName: localStorage.getItem('remote365_device_name') || '',
+                deviceName: await getMachineDisplayName(),
                 quality: localStorage.getItem('remote365_video_quality') || 'balanced',
                 fps: localStorage.getItem('remote365_stream_fps') || '60',
             });
@@ -3017,10 +3086,10 @@ export default function App() {
                     <div className="w-full max-w-sm p-8 animate-in fade-in zoom-in-95 duration-500">
                         <div className="flex items-center gap-3 mb-10 group cursor-default">
                             <div className="w-14 h-14 rounded-2xl bg-[#1C1C1C] flex items-center justify-center shadow-xl shadow-black/10 transition-transform duration-300 overflow-hidden border border-white/5">
-                                <img src={logo} alt="Connect-X" className="w-10 h-10 object-contain" />
+                                <img src={logo} alt="Remote 365" className="w-10 h-10 object-contain" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Connect-X</span>
+                                <span className="text-xl font-bold text-[#1C1C1C] tracking-tighter leading-none">Remote 365</span>
                                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#1C1C1C] mt-1">Verification Required</span>
                             </div>
                         </div>
@@ -3148,37 +3217,142 @@ export default function App() {
                                 </div>
                             )}
                         </div>
+                    ) : authMode === 'forgot' ? (
+                        <div className="animate-in fade-in duration-300">
+                            <form onSubmit={handleForgotPassword} className="space-y-4">
+                                <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                                    <p className="text-[12px] font-semibold text-slate-800">Reset your password</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">Enter your account email and we will send a reset code.</p>
+                                </div>
+                                <input
+                                    autoFocus
+                                    type="email"
+                                    required
+                                    value={resetEmail || email}
+                                    onChange={e => {
+                                        setResetEmail(e.target.value);
+                                        setEmail(e.target.value);
+                                    }}
+                                    placeholder="Email"
+                                    className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                />
+                                {authError && <p className="text-[11px] text-red-500 font-medium">{authError}</p>}
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full py-3 bg-[#00193F] text-white rounded-lg font-bold text-sm hover:bg-[#002255] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading && <RefreshCw size={16} className="animate-spin" />}
+                                    Send reset code
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setAuthMode('login');
+                                        setAuthError(null);
+                                    }}
+                                    className="w-full text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    Back to sign in
+                                </button>
+                            </form>
+                        </div>
+                    ) : authMode === 'reset' ? (
+                        <div className="animate-in fade-in duration-300">
+                            <form onSubmit={handleResetPassword} className="space-y-4">
+                                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                                    <p className="text-[12px] font-semibold text-blue-800">Check your email</p>
+                                    <p className="text-[11px] text-blue-700 mt-0.5">{resetMsg || `Enter the reset code sent to ${resetEmail}.`}</p>
+                                </div>
+                                <input
+                                    type="email"
+                                    required
+                                    value={resetEmail}
+                                    onChange={e => setResetEmail(e.target.value)}
+                                    placeholder="Email"
+                                    className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                />
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    maxLength={6}
+                                    required
+                                    value={resetCode}
+                                    onChange={e => setResetCode(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase())}
+                                    placeholder="RESET CODE"
+                                    className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-4 text-center text-xl font-mono font-bold tracking-[0.18em] focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                />
+                                <input
+                                    type="password"
+                                    required
+                                    value={resetNewPassword}
+                                    onChange={e => setResetNewPassword(e.target.value)}
+                                    placeholder="New password"
+                                    className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                />
+                                {authError && <p className="text-[11px] text-red-500 font-medium">{authError}</p>}
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full py-3 bg-[#00193F] text-white rounded-lg font-bold text-sm hover:bg-[#002255] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {loading && <RefreshCw size={16} className="animate-spin" />}
+                                    Update password
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setAuthMode('forgot');
+                                        setAuthError(null);
+                                    }}
+                                    className="w-full text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    Send a new code
+                                </button>
+                            </form>
+                        </div>
                     ) : (
                         /* --- LOGIN / SIGNUP FLOW (Card Style) --- */
                         <div className="animate-in fade-in duration-300">
                             <form onSubmit={authMode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-                                {authMode === 'signup' && (
-                                    <input
-                                        type="text" required
-                                        value={signupName}
-                                        onChange={e => setSignupName(e.target.value)}
-                                        placeholder="Full Name"
-                                        className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                                    />
+                                {authMode === 'signup' && isAwaitingVerification ? (
+                                    <div className="space-y-3">
+                                        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                                            <p className="text-[12px] font-semibold text-blue-800">Verification code sent</p>
+                                            <p className="text-[11px] text-blue-700 mt-0.5">Enter the 6-digit code sent to {email}.</p>
+                                        </div>
+                                        <input
+                                            autoFocus
+                                            inputMode="numeric"
+                                            type="text"
+                                            maxLength={6}
+                                            required
+                                            value={verificationCode}
+                                            onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder="000000"
+                                            className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-4 text-center text-2xl font-mono font-bold tracking-[0.2em] focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                        />
+                                    </div>
+                                ) : (
+                                    <>
+                                        <input
+                                            type="email" required
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            placeholder="Email"
+                                            className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                        />
+                                        <input
+                                            type="password" required
+                                            value={password}
+                                            onChange={e => setPassword(e.target.value)}
+                                            placeholder="Password"
+                                            className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
+                                        />
+                                    </>
                                 )}
-                                <input
-                                    type="email" required
-                                    value={email}
-                                    onChange={e => setEmail(e.target.value)}
-                                    placeholder="Email"
-                                    className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                                />
-                                {(!isAwaitingVerification || authMode === 'login') && (
-                                    <input
-                                        type="password" required
-                                        value={password}
-                                        onChange={e => setPassword(e.target.value)}
-                                        placeholder="Password"
-                                        className="w-full bg-white border border-slate-200 text-slate-800 rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-all placeholder:text-slate-300"
-                                    />
-                                )}
-
                                 {authError && <p className="text-[11px] text-red-500 font-medium">{authError}</p>}
+                                {resetMsg && authMode === 'login' && <p className="text-[11px] text-emerald-600 font-medium">{resetMsg}</p>}
 
                                 <button
                                     type="submit"
@@ -3186,8 +3360,35 @@ export default function App() {
                                     className="w-full py-3 bg-[#EBF1FA] text-[#3B82F6] rounded-lg font-bold text-sm hover:bg-amber-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     {loading && <RefreshCw size={16} className="animate-spin" />}
-                                    Continue
+                                    {authMode === 'signup' && isAwaitingVerification ? 'Verify and sign in' : 'Continue'}
                                 </button>
+                                {authMode === 'signup' && isAwaitingVerification && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsAwaitingVerification(false);
+                                            setVerificationCode('');
+                                            setAuthError(null);
+                                        }}
+                                        className="w-full text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                                    >
+                                        Use a different email
+                                    </button>
+                                )}
+                                {authMode === 'login' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setResetEmail(email);
+                                            setResetMsg('');
+                                            setAuthError(null);
+                                            setAuthMode('forgot');
+                                        }}
+                                        className="w-full text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                                    >
+                                        Forgot password?
+                                    </button>
+                                )}
                             </form>
 
                             <div className="relative flex items-center justify-center my-8">
@@ -3213,7 +3414,12 @@ export default function App() {
                             <div className="text-center text-[13px]">
                                 <span className="text-slate-400">New to Remote 365? </span>
                                 <button 
-                                    onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                                    onClick={() => {
+                                        setAuthMode(authMode === 'login' ? 'signup' : 'login');
+                                        setIsAwaitingVerification(false);
+                                        setVerificationCode('');
+                                        setAuthError(null);
+                                    }}
                                     className="text-[#D4A017] font-semibold hover:underline"
                                 >
                                     {authMode === 'login' ? 'Create an account' : 'Sign in'}
@@ -3243,6 +3449,73 @@ export default function App() {
         hostStatus === 'connecting' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.35)] animate-pulse' :
         hostStatus === 'error' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.35)]' :
         'bg-gray-300';
+    const hasAcceptedContacts = chatConversations.some((conversation) => {
+        if (conversation.isGroup) return false;
+        if ((conversation.status || 'ACCEPTED') !== 'ACCEPTED') return false;
+        return conversation.participants?.some((participant) => participant.userId !== user?.id);
+    });
+    const hasRemoteAccessSetup = Boolean(localAuthKey || hostAccessKey || localStorage.getItem('remote365_device_access_key')) &&
+        (isAutoHostEnabled || isLocalHostRegistered || hostStatus === 'status');
+
+    const openCreateSessionFromDashboard = () => {
+        setCurrentView('meetings');
+    };
+
+    const openJoinSessionFromDashboard = () => {
+        setCurrentView('meetings');
+    };
+
+    const searchableActions = [
+        { id: 'dashboard', label: 'Home dashboard', detail: 'Open overview', icon: Home, run: () => setCurrentView('dashboard') },
+        { id: 'connect', label: 'Remote support', detail: 'Connect with RemoteLink ID', icon: Network, run: () => setCurrentView('connect') },
+        { id: 'devices', label: 'Devices', detail: 'View and manage devices', icon: Monitor, run: () => setCurrentView('devices') },
+        { id: 'chat', label: 'Chat', detail: 'Open direct messages and groups', icon: MessageSquare, run: () => setCurrentView('chat' as any) },
+        { id: 'meetings', label: 'Meetings', detail: 'Join or create meetings', icon: Video, run: () => setCurrentView('meetings') },
+        { id: 'create-session', label: 'Create a session', detail: 'Invite someone to remote support', icon: Plus, run: openCreateSessionFromDashboard },
+        { id: 'join-session', label: 'Join a session', detail: 'Enter a support session code', icon: Radio, run: openJoinSessionFromDashboard },
+        { id: 'settings', label: 'Settings', detail: 'Open app preferences', icon: Settings, run: () => setCurrentView('settings') },
+        { id: 'help', label: 'Help', detail: 'Open documentation', icon: HelpCircle, run: () => setCurrentView('documentation') },
+        { id: 'feedback', label: 'Feedback', detail: 'Open support and feedback', icon: MessageCircle, run: () => setCurrentView('support') },
+        ...devices.slice(0, 8).map((device) => ({
+            id: `device-${device.id || device.access_key}`,
+            label: device.device_name || device.name || formatCode(device.access_key || ''),
+            detail: `Device ${formatCode(device.access_key || '')}`,
+            icon: Monitor,
+            run: () => {
+                setSearchQuery(device.device_name || device.access_key || '');
+                setCurrentView('devices');
+            },
+        })),
+    ];
+    const normalizedTopSearch = topSearchQuery.trim().toLowerCase();
+    const topSearchResults = normalizedTopSearch
+        ? searchableActions
+            .filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(normalizedTopSearch))
+            .slice(0, 7)
+        : searchableActions.slice(0, 6);
+    const runTopSearchAction = (action?: typeof searchableActions[number]) => {
+        const clean = topSearchQuery.replace(/\D/g, '');
+        if (!action && clean.length >= 6) {
+            handleFindDevice(clean);
+            setTopSearchQuery('');
+            return;
+        }
+        if (!action) action = topSearchResults[0];
+        if (!action) return;
+        action.run();
+        setTopSearchQuery('');
+    };
+    const presenceOptions = [
+        { id: 'online', label: 'Online', icon: Wifi, dot: 'bg-[#71DD8C]' },
+        { id: 'away', label: 'Away', icon: Clock3, dot: 'bg-amber-400' },
+        { id: 'busy', label: 'Do not disturb', icon: MinusCircle, dot: 'bg-red-500' },
+        { id: 'invisible', label: 'Invisible', icon: MonitorOff, dot: 'bg-gray-400' },
+    ] as const;
+    const activePresence = presenceOptions.find((option) => option.id === userPresence) || presenceOptions[0];
+    const setPresence = (presence: typeof userPresence) => {
+        setUserPresence(presence);
+        localStorage.setItem('remote365_presence', presence);
+    };
 
     return (
         <div className="h-screen w-full bg-[#00193F] text-[#1C1C1C] flex flex-col overflow-hidden font-inter selection:bg-amber-500/20 select-none">
@@ -3278,14 +3551,17 @@ export default function App() {
             {/* ── Viewer Access Request Dialog ── */}
             {pendingViewerRequest && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="w-full max-w-sm bg-white rounded-[28px] border border-[rgba(28,28,28,0.08)] shadow-2xl p-8 flex flex-col items-center gap-6 animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center">
-                            <Monitor className="text-[#D4A017] w-8 h-8" />
-                                  <div className="text-center">
-                            <h2 className="text-xl font-black text-[#1C1C1C] tracking-tight mb-2">{t('new_connection_request', user?.language)}</h2>
-                            <p className="text-sm font-medium text-[#000000] leading-relaxed">
-                                {t('someone_wants_access', user?.language)}
-                            </p>
+                    <div className="w-full max-w-md bg-white rounded-2xl border border-[rgba(28,28,28,0.08)] shadow-2xl p-6 flex flex-col gap-5 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                                <Monitor className="text-[#1D6DF5] w-6 h-6" />
+                            </div>
+                            <div className="flex-1">
+                                <h2 className="text-lg font-bold text-[#1C1C1C] tracking-tight">{t('new_connection_request', user?.language)}</h2>
+                                <p className="text-sm font-medium text-[#4A4A4A] leading-relaxed mt-1">
+                                    {t('someone_wants_access', user?.language)}
+                                </p>
+                            </div>
                         </div>
                         <div className="w-full flex flex-col items-center gap-1">
                             <div className="w-full bg-[#F8F9FA] rounded-2xl h-2 overflow-hidden cursor-none">
@@ -3329,7 +3605,6 @@ export default function App() {
                                 {t('allow_btn', user?.language)}
                             </button>
                         </div>
-              </div>
                     </div>
                 </div>
             )}
@@ -3386,6 +3661,47 @@ export default function App() {
  py-3 text-xs font-bold z-[50] flex justify-between px-6 items-center shadow-lg">
                     <span>{globalError}</span>
                     <button onClick={() => setGlobalError('')} className="bg-white/20 p-1 rounded-md hover:bg-white/30 transition-colors"><X className="w-4 h-4" /></button>
+                </div>
+            )}
+
+            {showOnboardingWizard && (
+                <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/45 backdrop-blur-sm p-6">
+                    <div className="w-full max-w-lg bg-white dark:bg-[#111111] rounded-2xl border border-black/10 dark:border-white/10 shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200">
+                        {[
+                            { icon: ShieldCheck, title: 'Welcome to Remote 365', body: 'Your computer gets a secure RemoteLink ID so you can support or access devices without manual setup every time.' },
+                            { icon: Monitor, title: 'Enable Easy Access', body: 'Turn on Easy Access when you want this device available without a password prompt.' },
+                            { icon: MessageCircle, title: 'Connect and collaborate', body: 'Use Quick Connect for RemoteLink IDs, Chat for contacts, and Meetings for live collaboration.' },
+                        ].map((step, index) => (
+                            index === onboardingStep ? (
+                                <div key={step.title}>
+                                    <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mb-5">
+                                        <step.icon size={24} className="text-[#1D6DF5]" />
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-[#1C1C1C] dark:text-white tracking-tight">{step.title}</h2>
+                                    <p className="mt-3 text-sm leading-relaxed text-[#4A4A4A] dark:text-[#A0A0A0]">{step.body}</p>
+                                </div>
+                            ) : null
+                        ))}
+                        <div className="mt-8 flex items-center justify-between">
+                            <div className="flex gap-1.5">
+                                {[0, 1, 2].map((dot) => (
+                                    <span key={dot} className={`h-1.5 rounded-full transition-all ${dot === onboardingStep ? 'w-6 bg-[#1D6DF5]' : 'w-1.5 bg-gray-200 dark:bg-white/15'}`} />
+                                ))}
+                            </div>
+                            <div className="flex gap-2">
+                                <button type="button" onClick={completeOnboardingWizard} className="px-4 py-2.5 text-[13px] font-bold text-gray-500 hover:text-gray-800 dark:hover:text-white">
+                                    Skip
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onboardingStep >= 2 ? completeOnboardingWizard() : setOnboardingStep((step) => step + 1)}
+                                    className="px-5 py-2.5 rounded-xl bg-[#1D6DF5] text-white text-[13px] font-bold hover:bg-blue-700 transition-colors"
+                                >
+                                    {onboardingStep >= 2 ? 'Finish' : 'Next'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -3460,30 +3776,59 @@ export default function App() {
                                     <input
                                         type="text"
                                         placeholder="Search device, contact, group or feature. Type an ID to connect."
+                                        value={topSearchQuery}
+                                        onChange={(event) => setTopSearchQuery(event.target.value)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                event.preventDefault();
+                                                runTopSearchAction();
+                                            }
+                                            if (event.key === 'Escape') setTopSearchQuery('');
+                                        }}
                                         className="w-full h-10 pl-11 pr-20 bg-white dark:bg-white/5 border border-[#D4A017] dark:border-amber-500 rounded-xl text-sm outline-none shadow-[0_0_0_1px_rgba(212,160,23,0.1)] transition-all placeholder:text-[#757575] dark:text-[#F5F5F5]"
                                     />
                                     <div className="absolute inset-y-0 right-3 flex items-center">
                                         <span className="text-[10px] font-medium text-[#757575] dark:text-[#A0A0A0] bg-[#F4F7F9] dark:bg-white/5 px-1.5 py-0.5 rounded border border-[#D1D1D1] dark:border-white/10">Ctrl + K</span>
                                     </div>
 
-                                    {/* Search Dropdown Mockup */}
                                     <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1C1C1C] border border-gray-100 dark:border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden opacity-0 invisible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200">
                                         <div className="flex items-center gap-2 p-2 border-b border-gray-50 dark:border-white/5">
                                             <button className="px-3 py-1.5 bg-gray-100 dark:bg-white/5 rounded-lg text-[12px] font-medium text-gray-900 dark:text-white">All</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Monitor size={14} /> Devices</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Layers size={14} /> Groups</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><User size={14} /> Contacts</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Zap size={14} /> Features</button>
-                                            <button className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><HelpCircle size={14} /> Help</button>
+                                            <button type="button" onMouseDown={(event) => { event.preventDefault(); setCurrentView('devices'); }} className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Monitor size={14} /> Devices</button>
+                                            <button type="button" onMouseDown={(event) => { event.preventDefault(); setCurrentView('chat' as any); }} className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><User size={14} /> Contacts</button>
+                                            <button type="button" onMouseDown={(event) => { event.preventDefault(); setCurrentView('connect'); }} className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><Zap size={14} /> Features</button>
+                                            <button type="button" onMouseDown={(event) => { event.preventDefault(); setCurrentView('documentation'); }} className="px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-[12px] font-medium text-gray-500 flex items-center gap-2"><HelpCircle size={14} /> Help</button>
                                         </div>
-                                        <div className="p-6">
-                                            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2">Search and make your first connection</h3>
-                                            <p className="text-[13px] text-gray-500 leading-relaxed">
-                                                Your most recent connections will appear here once they are completed, making it easier for you to find and reuse them in the future.
-                                            </p>
+                                        <div className="p-2 max-h-[320px] overflow-y-auto">
+                                            {topSearchResults.length > 0 ? topSearchResults.map((result) => (
+                                                <button
+                                                    key={result.id}
+                                                    type="button"
+                                                    onMouseDown={(event) => {
+                                                        event.preventDefault();
+                                                        runTopSearchAction(result);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                                                >
+                                                    <span className="w-8 h-8 rounded-lg bg-[#F4F7F9] dark:bg-white/10 flex items-center justify-center text-[#0033CC] dark:text-blue-300">
+                                                        <result.icon size={15} />
+                                                    </span>
+                                                    <span className="min-w-0">
+                                                        <span className="block text-sm font-bold text-gray-900 dark:text-white truncate">{result.label}</span>
+                                                        <span className="block text-[12px] text-gray-500 dark:text-gray-400 truncate">{result.detail}</span>
+                                                    </span>
+                                                </button>
+                                            )) : (
+                                                <div className="p-5">
+                                                    <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2">No search results</h3>
+                                                    <p className="text-[13px] text-gray-500 leading-relaxed">
+                                                        Type a RemoteLink ID and press Enter to connect, or search for devices, chat, meetings, settings, help, and feedback.
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="p-3 bg-gray-50 dark:bg-white/5 flex justify-end">
-                                            <button className="text-gray-400 hover:text-gray-600 transition-colors"><Settings size={16} /></button>
+                                            <button type="button" onMouseDown={(event) => { event.preventDefault(); setCurrentView('settings'); }} className="text-gray-400 hover:text-gray-600 transition-colors"><Settings size={16} /></button>
                                         </div>
                                     </div>
                                 </div>
@@ -3520,7 +3865,7 @@ export default function App() {
                                                 return name.slice(0, 2).toUpperCase();
                                             })()}
                                         </div>
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#71DD8C] rounded-full border-2 border-white dark:border-[#0F0F0F]" />
+                                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${activePresence.dot} rounded-full border-2 border-white dark:border-[#0F0F0F]`} />
                                     </button>
 
                                     {showUserDropdown && (
@@ -3536,18 +3881,37 @@ export default function App() {
                                                             return name.slice(0, 2).toUpperCase();
                                                         })()}
                                                     </div>
-                                                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-[#71DD8C] rounded-full border-2 border-white dark:border-[#1A1A1A] flex items-center justify-center">
+                                                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 ${activePresence.dot} rounded-full border-2 border-white dark:border-[#1A1A1A] flex items-center justify-center`}>
                                                         <Check size={7} className="text-white" />
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-semibold text-[#1C1C1C] dark:text-[#F5F5F5] leading-tight">{user?.name || 'User'}</span>
                                                     <span className="text-[11px] font-bold text-[#D4A017] dark:text-blue-400 mt-0.5 uppercase tracking-wide">{user?.plan || 'TRIAL'}</span>
-                                                    <div className="flex items-center gap-1 mt-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 px-1.5 py-0.5 -ml-1.5 rounded transition-colors">
-                                                        <span className="text-xs text-[#757575] dark:text-[#A0A0A0]">{t('online_status', user?.language)}</span>
-                                                        <ChevronDown size={12} className="text-[#757575] dark:text-[#A0A0A0]" />
+                                                    <div className="flex items-center gap-1 mt-1 px-1.5 py-0.5 -ml-1.5 rounded">
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${activePresence.dot}`} />
+                                                        <span className="text-xs text-[#757575] dark:text-[#A0A0A0]">{activePresence.label}</span>
                                                     </div>
                                                 </div>
+                                            </div>
+
+                                            <div className="h-px bg-[rgba(0,0,0,0.06)] dark:bg-white/10" />
+
+                                            <div className="py-1">
+                                                {presenceOptions.map((option) => (
+                                                    <button
+                                                        key={option.id}
+                                                        type="button"
+                                                        onClick={() => setPresence(option.id)}
+                                                        className="w-full flex items-center justify-between px-4 py-2 text-[13px] text-[#1C1C1C] dark:text-[#F5F5F5] hover:bg-[rgba(28,28,28,0.04)] dark:hover:bg-white/5 transition-colors"
+                                                    >
+                                                        <span className="flex items-center gap-2">
+                                                            <span className={`w-2 h-2 rounded-full ${option.dot}`} />
+                                                            {option.label}
+                                                        </span>
+                                                        {userPresence === option.id && <Check size={12} className="text-[#1D6DF5]" />}
+                                                    </button>
+                                                ))}
                                             </div>
 
                                             <div className="h-px bg-[rgba(0,0,0,0.06)] dark:bg-white/10" />
@@ -3665,8 +4029,23 @@ export default function App() {
                                     localAuthKey={localAuthKey}
                                     devicePassword={devicePassword}
                                     onNavigate={setCurrentView}
-                                    onConnect={() => setCurrentView('connect')}
+                                    onConnect={(partnerId?: string) => {
+                                        if (partnerId) handleFindDevice(partnerId);
+                                        else setCurrentView('connect');
+                                    }}
                                     onOpenSetPassword={() => setActionModal({ type: 'password', device: null })}
+                                    onCopyAccessKey={copyAccessKey}
+                                    onCreateSession={openCreateSessionFromDashboard}
+                                    onJoinSession={openJoinSessionFromDashboard}
+                                    onEnableRemoteAccess={() => {
+                                        setIsAutoHostEnabled(true);
+                                        localStorage.setItem('is_auto_host_enabled', 'true');
+                                        localStorage.setItem('remote365_require_password', 'false');
+                                        handleStartHosting();
+                                        setCurrentView('connect');
+                                    }}
+                                    hasContacts={hasAcceptedContacts}
+                                    hasRemoteAccess={hasRemoteAccessSetup}
                                     formatCode={formatCode}
                                 />
                             </div>
@@ -3758,13 +4137,31 @@ export default function App() {
                                 hostStatus={hostStatus}
                                 onJoinSessionInvite={handleJoinSessionInvite}
                                 onJoinMeeting={openMeeting}
+                                initialTab={connectInitialTab}
+                                openCreateSessionSignal={openCreateSessionSignal}
+                                openJoinSessionSignal={openJoinSessionSignal}
                                 isAutoHostEnabled={isAutoHostEnabled}
                                 onToggleAutoHost={(next: boolean) => {
                                     setIsAutoHostEnabled(next);
                                     localStorage.setItem('is_auto_host_enabled', String(next));
+                                    localStorage.setItem('remote365_require_password', next ? 'false' : 'true');
+                                    if (deviceId && isAuthenticated) {
+                                        api.post('/api/devices/set-password', {
+                                            deviceId,
+                                            password: devicePassword || undefined,
+                                            passwordRequired: !next,
+                                        }).catch((err) => console.warn('[Easy Access] Failed to sync password setting:', err.message));
+                                    } else if (hostAccessKey) {
+                                        getMachineDisplayName().then((name) => api.post('/api/devices/self-register', {
+                                            accessKey: hostAccessKey,
+                                            name,
+                                            password: devicePassword || undefined,
+                                            passwordRequired: !next,
+                                        })).catch((err) => console.warn('[Easy Access] Failed to sync guest password setting:', err.message));
+                                    }
                                     if (next) {
                                         manuallyStoppedHost.current = false;
-                                        if (hostAccessKey && (devicePassword || !isRemotePasswordRequired())) {
+                                        if (hostAccessKey) {
                                             handleStartHosting();
                                         }
                                     } else {
@@ -4218,11 +4615,11 @@ export default function App() {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[12px] font-medium text-[#757575] ml-1">Password</label>
+                                    <label className="text-[12px] font-medium text-[#757575] ml-1">Password <span className="text-gray-400">(if required)</span></label>
                                     <div className="relative">
                                         <input 
                                             type={showAddPassword ? "text" : "password"} 
-                                            placeholder="••••••••" 
+                                            placeholder="Optional for Easy Access devices" 
                                             value={addPassword}
                                             onChange={e => setAddPassword(e.target.value)}
                                             className="w-full h-12 px-4 bg-[#F9FAFB] border border-gray-200 rounded-xl text-[14px] font-medium focus:border-blue-600 focus:bg-white outline-none transition-all placeholder:text-gray-400"
@@ -4249,8 +4646,8 @@ export default function App() {
                             <div className="flex justify-end">
                                 <button 
                                     onClick={handleAddDevice}
-                                    disabled={!addKey || !addPassword}
-                                    className={`px-10 py-2.5 rounded-xl text-[14px] font-semibold transition-all ${(!addKey || !addPassword) ? 'bg-[#F0F2F5] text-gray-400 cursor-not-allowed' : 'bg-[#F0F2F5] text-[#1C1C1C] hover:bg-[#E8EAED]'}`}
+                                    disabled={!addKey}
+                                    className={`px-10 py-2.5 rounded-xl text-[14px] font-semibold transition-all ${!addKey ? 'bg-[#F0F2F5] text-gray-400 cursor-not-allowed' : 'bg-[#F0F2F5] text-[#1C1C1C] hover:bg-[#E8EAED]'}`}
                                 >
                                     Add
                                 </button>
