@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import api from '../lib/api';
+import { useAuthStore } from './authStore';
 
 export interface ChatUser {
   id: string;
@@ -87,10 +88,37 @@ const getWsUrl = (): string => {
   return 'ws://159.65.84.190/api/signal';
 };
 
+const UNREAD_STORAGE_KEY = 'remote365_chat_unread_counts';
+const READ_AT_STORAGE_KEY = 'remote365_chat_read_at';
+
+const readJsonMap = (key: string): Record<string, any> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeJsonMap = (key: string, value: Record<string, any>) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(key, JSON.stringify(value));
+};
+
+const persistUnreadCounts = (counts: Record<string, number>) => {
+  writeJsonMap(UNREAD_STORAGE_KEY, counts);
+};
+
+const persistReadAt = (conversationId: string, readAt: string) => {
+  const current = readJsonMap(READ_AT_STORAGE_KEY);
+  writeJsonMap(READ_AT_STORAGE_KEY, { ...current, [conversationId]: readAt });
+};
+
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   messages: {},
-  unreadCounts: {},
+  unreadCounts: readJsonMap(UNREAD_STORAGE_KEY),
   readReceipts: {},
   activeChatId: null,
   ws: null,
@@ -99,6 +127,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setActiveChat: (id) => {
     console.log('[chatStore] setActiveChat called with:', id);
+    if (id) {
+      const nextUnreadCounts = { ...get().unreadCounts, [id]: 0 };
+      persistUnreadCounts(nextUnreadCounts);
+      persistReadAt(id, new Date().toISOString());
+    }
     set((state) => ({
       activeChatId: id,
       unreadCounts: id ? { ...state.unreadCounts, [id]: 0 } : state.unreadCounts
@@ -111,9 +144,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   markRead: (id) => {
     const ws = get().ws;
+    const readAt = new Date().toISOString();
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'chat-read', conversationId: id, readAt: new Date().toISOString() }));
+      ws.send(JSON.stringify({ type: 'chat-read', conversationId: id, readAt }));
     }
+    const nextUnreadCounts = { ...get().unreadCounts, [id]: 0 };
+    persistUnreadCounts(nextUnreadCounts);
+    persistReadAt(id, readAt);
     set((state) => ({
       unreadCounts: { ...state.unreadCounts, [id]: 0 }
     }));
@@ -124,7 +161,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ isLoading: true });
       const { data } = await api.get('/api/chat/conversations');
       console.log('[chatStore] fetchConversations raw data:', data);
-      set({ conversations: Array.isArray(data) ? data : [], isLoading: false });
+      const conversations = Array.isArray(data) ? data : [];
+      const storedUnread = readJsonMap(UNREAD_STORAGE_KEY);
+      const storedReadAt = readJsonMap(READ_AT_STORAGE_KEY);
+      const currentUserId = useAuthStore.getState().user?.id;
+      const nextUnreadCounts = conversations.reduce((acc: Record<string, number>, conversation: ChatConversation) => {
+        const lastMessage = conversation.messages?.[0];
+        const lastReadAt = storedReadAt[conversation.id];
+        const hasUnreadLatest =
+          lastMessage &&
+          lastMessage.senderId !== currentUserId &&
+          (!lastReadAt || new Date(lastMessage.createdAt).getTime() > new Date(lastReadAt).getTime());
+        const storedCount = Number(storedUnread[conversation.id] || 0);
+        acc[conversation.id] = hasUnreadLatest ? Math.max(storedCount, 1) : storedCount;
+        return acc;
+      }, {});
+      persistUnreadCounts(nextUnreadCounts);
+      set({ conversations, unreadCounts: nextUnreadCounts, isLoading: false });
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
       set({ isLoading: false });
@@ -347,13 +400,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
             get().onToastMessage?.(message, conversationId);
 
             const isUnread = state.activeChatId !== conversationId;
+            const unreadCounts = isUnread
+              ? { ...state.unreadCounts, [conversationId]: (state.unreadCounts[conversationId] || 0) + 1 }
+              : state.unreadCounts;
+            persistUnreadCounts(unreadCounts);
+            if (!isUnread) persistReadAt(conversationId, new Date().toISOString());
 
             return {
               messages: updatedMessages,
               conversations: updatedConversations,
-              unreadCounts: isUnread
-                ? { ...state.unreadCounts, [conversationId]: (state.unreadCounts[conversationId] || 0) + 1 }
-                : state.unreadCounts
+              unreadCounts
             };
           });
         } else if (data.type === 'chat-invite') {

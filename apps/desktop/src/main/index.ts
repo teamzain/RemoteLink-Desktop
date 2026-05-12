@@ -15,9 +15,37 @@ let datachannel: any = null;
 
 function ensureDatachannel() {
   if (datachannel) return datachannel;
+  const candidates = [
+    'node-datachannel',
+    ...(app.isPackaged
+      ? [
+          join(
+            process.resourcesPath,
+            'app.asar.unpacked',
+            'node_modules',
+            'node-datachannel',
+            'dist',
+            'cjs',
+            'lib',
+            'index.cjs'
+          )
+        ]
+      : [])
+  ];
+
+  let lastError: any = null;
+  for (const candidate of candidates) {
+    try {
+      datachannel = require(candidate);
+      return datachannel;
+    } catch (error: any) {
+      lastError = error;
+      log.warn('[Host] node-datachannel load candidate failed:', candidate, error?.message || error);
+    }
+  }
+
   try {
-    datachannel = require('node-datachannel');
-    return datachannel;
+    throw lastError;
   } catch (error: any) {
     const message = error?.message || String(error);
     log.error('[Host] Failed to load node-datachannel:', message);

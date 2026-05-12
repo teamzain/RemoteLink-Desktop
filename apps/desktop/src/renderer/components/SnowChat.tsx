@@ -42,6 +42,24 @@ const parseSessionInviteContent = (content: string) => {
   }
 };
 
+const formatChatListTime = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfMessageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.floor((startOfToday - startOfMessageDay) / 86400000);
+  if (diffDays === 0) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) {
+    return date.toLocaleDateString([], { weekday: 'short' });
+  }
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
 export const SnowChat: React.FC<{
   setCurrentView?: (view: any) => void;
   localAuthKey?: string | null;
@@ -551,6 +569,7 @@ export const SnowChat: React.FC<{
                       ? 'Remote access response'
                       : lastInvite ? 'Remote session invite' : (chat.messages?.[0]?.content || 'Start a conversation');
                   const unread = unreadCounts[chat.id] || 0;
+                  const lastAt = formatChatListTime(chat.messages?.[0]?.createdAt || chat.updatedAt);
                   return (
                     <button
                       key={chat.id || `direct-${idx}`}
@@ -575,15 +594,18 @@ export const SnowChat: React.FC<{
                         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#0A0A0A] rounded-full"></div>
                       </div>
                       <div className="flex-1 min-w-0 text-left">
-                        <div className="flex justify-between items-center mb-0.5">
-                          <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{getChatName(chat)}</span>
+                        <div className="flex justify-between items-center mb-0.5 gap-2">
+                          <span className={`text-[14px] truncate ${unread > 0 ? 'font-bold text-[#111111] dark:text-white' : 'font-medium text-[#111111] dark:text-[#F5F5F5]'}`}>{getChatName(chat)}</span>
+                          <span className={`shrink-0 text-[10px] font-bold ${unread > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{lastAt}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className={`flex-1 text-[12px] truncate ${unread > 0 ? 'text-[#111111] dark:text-white font-bold' : 'text-gray-500'}`}>{lastMessage}</p>
                           {unread > 0 && (
-                            <span className="ml-2 min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
-                              {unread > 9 ? '9+' : unread}
+                            <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">
+                              {unread > 99 ? '99+' : unread}
                             </span>
                           )}
                         </div>
-                        <p className={`text-[12px] truncate ${unread > 0 ? 'text-[#111111] dark:text-white font-bold' : 'text-gray-500'}`}>{lastMessage}</p>
                       </div>
                     </button>
                   );
@@ -609,6 +631,7 @@ export const SnowChat: React.FC<{
                       ? 'Remote access response'
                       : lastInvite ? 'Remote session invite' : (chat.messages?.[0]?.content || 'Start a conversation');
                   const unread = unreadCounts[chat.id] || 0;
+                  const lastAt = formatChatListTime(chat.messages?.[0]?.createdAt || chat.updatedAt);
                   return (
                     <button
                       key={chat.id || `group-${idx}`}
@@ -623,15 +646,18 @@ export const SnowChat: React.FC<{
                         <span className="font-medium text-[14px]">#</span>
                       </div>
                       <div className="flex-1 min-w-0 text-left">
-                        <div className="flex justify-between items-center mb-0.5">
-                          <span className="font-medium text-[#111111] dark:text-[#F5F5F5] text-[14px] truncate">{chat.name || 'Group Chat'}</span>
+                        <div className="flex justify-between items-center mb-0.5 gap-2">
+                          <span className={`text-[14px] truncate ${unread > 0 ? 'font-bold text-[#111111] dark:text-white' : 'font-medium text-[#111111] dark:text-[#F5F5F5]'}`}>{chat.name || 'Group Chat'}</span>
+                          <span className={`shrink-0 text-[10px] font-bold ${unread > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>{lastAt}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <p className={`flex-1 text-[12px] truncate ${unread > 0 ? 'text-[#111111] dark:text-white font-bold' : 'text-gray-500'}`}>{lastMessage}</p>
                           {unread > 0 && (
-                            <span className="ml-2 min-w-5 h-5 px-1.5 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
-                              {unread > 9 ? '9+' : unread}
+                            <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-emerald-500 text-white text-[11px] font-bold flex items-center justify-center">
+                              {unread > 99 ? '99+' : unread}
                             </span>
                           )}
                         </div>
-                        <p className={`text-[12px] truncate ${unread > 0 ? 'text-[#111111] dark:text-white font-bold' : 'text-gray-500'}`}>{lastMessage}</p>
                       </div>
                     </button>
                   );

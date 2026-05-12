@@ -1160,7 +1160,7 @@ export default function App() {
     const [targetDeviceName, setTargetDeviceName] = useState<string | null>(null);
     const [targetPasswordRequired, setTargetPasswordRequired] = useState(true);
     const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
-    const [globalChatToast, setGlobalChatToast] = useState<{ title: string; body: string; chatId: string } | null>(null);
+    const [globalAppToast, setGlobalAppToast] = useState<{ title: string; body: string; target?: any; iconType?: 'message' | 'session' | 'accepted' | 'system' } | null>(null);
     const chatConversations = useChatStore((state) => state.conversations);
     const [twoFaError, setTwoFaError] = useState<string | null>(null);
     const [isVerifying2fa, setIsVerifying2fa] = useState(false);
@@ -1249,6 +1249,10 @@ export default function App() {
         addNotification('Session details loaded. Press Connect when ready.', 'session');
     };
 
+    const pushSlidingToast = (title: string, body: string, target?: any, iconType: 'message' | 'session' | 'accepted' | 'system' = 'system') => {
+        setGlobalAppToast({ title, body, target, iconType });
+    };
+
     // --- Chat Notifications & Global Events ---
     useEffect(() => {
         // Set the callback for new messages to trigger notifications
@@ -1266,11 +1270,12 @@ export default function App() {
                 const isViewingThisChat = (currentViewRef.current as string) === 'chat' &&
                     useChatStore.getState().activeChatId === convId;
                 if (!isViewingThisChat) {
-                    setGlobalChatToast({
-                        title: sessionInvite ? 'Remote 365 invite' : `New message from ${senderName}`,
-                        body: preview,
-                        chatId: convId
-                    });
+                    pushSlidingToast(
+                        sessionInvite ? 'Remote 365 invite' : `New message from ${senderName}`,
+                        preview,
+                        { view: 'chat', chatId: convId },
+                        sessionInvite ? 'session' : 'message'
+                    );
                 }
                 addNotification(preview, sessionInvite ? 'session' : 'message', sessionInvite ? 'Remote session invite' : `${senderName} sent you a message`, {
                     view: 'chat',
@@ -1292,6 +1297,10 @@ export default function App() {
                     view: 'chat',
                     chatId: conv.id
                 });
+                pushSlidingToast('New contact request', `${requesterName} wants to connect with you.`, {
+                    view: 'chat',
+                    chatId: conv.id
+                }, 'session');
                 
                 // Fire native system notification
                 fireNotification(`New friend request`, `${requesterName} wants to connect with you.`);
@@ -1306,6 +1315,10 @@ export default function App() {
                         view: 'meeting',
                         meetingId: invite?.sessionCode
                     });
+                    pushSlidingToast('Video meeting invite', `${senderName} invited you to join a video meeting.`, {
+                        view: 'meeting',
+                        meetingId: invite?.sessionCode
+                    }, 'session');
                     fireNotification('Video meeting invite', `${senderName} invited you to join a video meeting.`);
                 } else {
                     addNotification(`${senderName} invited you to join ${invite?.sessionName || 'a remote session'}`, 'session', 'Remote session invite', {
@@ -1313,6 +1326,11 @@ export default function App() {
                         sessionCode: invite?.sessionCode,
                         sessionPassword: invite?.sessionPassword
                     });
+                    pushSlidingToast('Remote session invite', `${senderName} invited you to join ${invite?.sessionName || 'a remote session'}.`, {
+                        view: 'connect',
+                        sessionCode: invite?.sessionCode,
+                        sessionPassword: invite?.sessionPassword
+                    }, 'session');
                     fireNotification('Remote session invite', `${senderName} invited you to join ${invite?.sessionName || 'a remote session'}.`);
                 }
                 playUISound('connect');
@@ -1328,6 +1346,10 @@ export default function App() {
                         view: 'chat',
                         chatId: conversation?.id
                     });
+                    pushSlidingToast('Friend request accepted', `${actorName} accepted your request.`, {
+                        view: 'chat',
+                        chatId: conversation?.id
+                    }, 'accepted');
                     fireNotification('Friend request accepted', `${actorName} accepted your request.`);
                     playUISound('connect');
                 } else if (event.reason === 'group-created') {
@@ -1335,6 +1357,10 @@ export default function App() {
                         view: 'chat',
                         chatId: conversation?.id
                     });
+                    pushSlidingToast('Added to group', `${actorName} added you to ${conversation?.name || 'a group'}.`, {
+                        view: 'chat',
+                        chatId: conversation?.id
+                    }, 'session');
                     fireNotification('Added to group', `${actorName} added you to ${conversation?.name || 'a group'}.`);
                     playUISound('connect');
                 } else if (event.reason === 'members-added') {
@@ -1342,20 +1368,26 @@ export default function App() {
                         view: 'chat',
                         chatId: conversation?.id
                     });
+                    pushSlidingToast('Group updated', `${actorName} added new members to ${conversation?.name || 'a group'}.`, {
+                        view: 'chat',
+                        chatId: conversation?.id
+                    }, 'session');
                 } else if (event.reason === 'unfriended') {
                     addNotification(`${actorName} removed you from contacts`, 'removed');
+                    pushSlidingToast('Contact removed', `${actorName} removed you from contacts.`, undefined, 'system');
                 } else if (event.reason === 'blocked') {
                     addNotification(`A chat is no longer available`, 'blocked');
+                    pushSlidingToast('Chat unavailable', 'A chat is no longer available.', undefined, 'system');
                 }
             }
         });
     }, [user?.id]);
 
     useEffect(() => {
-        if (!globalChatToast) return;
-        const timeout = setTimeout(() => setGlobalChatToast(null), 4500);
+        if (!globalAppToast) return;
+        const timeout = setTimeout(() => setGlobalAppToast(null), 4500);
         return () => clearTimeout(timeout);
-    }, [globalChatToast]);
+    }, [globalAppToast]);
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -4443,22 +4475,38 @@ export default function App() {
                     onClearAll={() => setNotifications([])}
                     onNotificationClick={handleNotificationClick}
                 />
-                {globalChatToast && (
+                {globalAppToast && (
                     <button
                         onClick={() => {
-                            setCurrentView('chat' as any);
-                            useChatStore.getState().setActiveChat(globalChatToast.chatId);
-                            setGlobalChatToast(null);
+                            const target = globalAppToast.target;
+                            if (target?.view === 'chat') {
+                                setCurrentView('chat' as any);
+                                if (target.chatId) useChatStore.getState().setActiveChat(target.chatId);
+                            } else if (target?.view === 'connect') {
+                                if (target.sessionCode) handleJoinSessionInvite(target.sessionCode, target.sessionPassword);
+                                else setCurrentView('connect' as any);
+                            } else if (target?.view === 'meeting') {
+                                openMeeting(target.meetingId);
+                            }
+                            setGlobalAppToast(null);
                         }}
-                        className="fixed top-5 right-5 z-[250] w-[330px] rounded-2xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-4 text-left animate-in slide-in-from-top-3 fade-in duration-200"
+                        className="fixed top-5 right-5 z-[250] w-[350px] rounded-2xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-white/10 shadow-2xl p-4 text-left animate-in slide-in-from-right-8 fade-in duration-300"
                     >
                         <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center shrink-0">
-                                <MessageCircle size={18} />
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                globalAppToast.iconType === 'accepted'
+                                    ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600'
+                                    : globalAppToast.iconType === 'session'
+                                        ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600'
+                                        : globalAppToast.iconType === 'message'
+                                            ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600'
+                                            : 'bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200'
+                            }`}>
+                                {globalAppToast.iconType === 'accepted' ? <UserCheck size={18} /> : globalAppToast.iconType === 'session' ? <Monitor size={18} /> : <MessageCircle size={18} />}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{globalChatToast.title}</p>
-                                <p className="text-[12px] text-gray-500 dark:text-gray-300 mt-0.5 line-clamp-2">{globalChatToast.body}</p>
+                                <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{globalAppToast.title}</p>
+                                <p className="text-[12px] text-gray-500 dark:text-gray-300 mt-0.5 line-clamp-2">{globalAppToast.body}</p>
                             </div>
                         </div>
                     </button>

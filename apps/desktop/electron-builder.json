@@ -3,7 +3,7 @@
     "productName":  "Remote 365",
     "electronVersion":  "28.3.3",
     "directories":  {
-                        "output":  "release33"
+                        "output":  "release34"
                     },
     "files":  [
                   "dist/**/*",
@@ -21,8 +21,9 @@
                       "from":  "../../node_modules/node-datachannel",
                       "to":  "node_modules/node-datachannel",
                       "filter":  [
-                                     "**/*.node",
-                                     "**/*.dll"
+                                     "package.json",
+                                     "dist/**/*",
+                                     "build/Release/**/*"
                                  ]
                   },
                   {
@@ -51,7 +52,8 @@
     "asar":  true,
     "asarUnpack":  [
                        "**/*.node",
-                       "**/*.dll"
+                       "**/*.dll",
+                       "**/node_modules/node-datachannel/**/*"
                    ],
     "win":  {
                 "target":  [
